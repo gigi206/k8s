@@ -1,0 +1,31 @@
+# Cf https://longhorn.io/docs/1.2.2/deploy/install/#installation-requirements
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: longhorn-system
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    chart: longhorn
+    helm:
+      parameters:
+        - name: persistence.defaultClassReplicaCount
+          value: "1"
+        - name: ingress.enabled
+          value: "true"
+        - name: ingress.host
+          value: longhorn.gigix
+        # - name: defaultSettings.backupTarget
+        #   value: nfs://192.168.121.1:/home/kvm/vagrant/vagrantfiles/k8s/backup/longhorn
+        # - name: service.ui.type
+        #   value: LoadBalancer
+    repoURL: 'https://charts.longhorn.io'
+    targetRevision: 1.2.4
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

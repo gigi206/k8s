@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: powerdns
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: powerdns-system
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    chart: powerdns
+    repoURL: 'https://k8s-at-home.com/charts/'
+    targetRevision: 4.1.2
+    helm:
+      parameters:
+        - name: powerdns.domain
+          value: gigix
+        - name: powerdns.api_key
+          value: oZpVJqrGQUx3ao3m0e4ixTGa
+        - name: service.type
+          value: LoadBalancer
+        # - name: postgresql.persistence.enabled
+        #  value: "true"
+        # - name: replicaCount
+        #  value: "2"
+        # - name: resources.requests.cpu
+        #   value: 100m
+        # - name: resources.requests.memory
+        #   value: 64Mi
+        # - name: resources.limits.cpu
+        #   value: 100m
+        # - name: resources.limits.memory
+        #   value: 128Mi
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

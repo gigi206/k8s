@@ -1,0 +1,1 @@
+https://medium.com/tailwinds-navigator/kubernetes-tip-how-to-gracefully-handle-pod-deletion-b28d23644ccc

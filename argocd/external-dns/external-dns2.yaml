@@ -1,0 +1,61 @@
+#https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/pdns.md
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: external-dns-system
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    chart: external-dns
+    # repoURL: 'https://charts.bitnami.com/bitnami'
+    # targetRevision: 6.0.2
+    repoURL: 'https://kubernetes-sigs.github.io/external-dns'
+    targetRevision: 1.7.1
+    helm:
+      parameters:
+        - name: rbac.create
+          value: "true"
+        # - name: metrics.enabled
+        #   value: "true"
+        - name: sources[0]
+          value: service
+        - name: provider
+          value: pdns
+        - name: txtOwnerId
+          value: external-dns
+        - name: interval
+          value: 15s
+        - name: extraArgs[0]
+          value: --pdns-server=http://powerdns-webserver.powerdns-system.svc.cluster.local:8081
+        - name: extraArgs[1]
+          value: --pdns-api-key=oZpVJqrGQUx3ao3m0e4ixTGa
+        # - name: resources.requests.cpu
+        #   value: 5m
+        # - name: resources.requests.memory
+        #   value: 32Mi
+        # - name: resources.limits.cpu
+        #   value: 10m
+        # - name: resources.limits.memory
+        #   value: 64Mi
+        # Following arguments are for the chart https://charts.bitnami.com/bitnami
+        # - name: pdns.apiUrl
+        #   value: "http://powerdns-webserver.powerdns-system.svc.cluster.local"
+        # kubectl describe cm powerdns -n powerdns-system | egrep ^api-key= | awk -F'=' '{ print $NF }'
+        # - name: pdns.apiKey
+        #   value: oZpVJqrGQUx3ao3m0e4ixTGa
+        #- name: pdns.apiPort
+        #  value: "8081"
+        # - name: domainFilters[0]
+        #   value: "gigix"
+        # - name: pdns.secretName
+        #   value: ""
+        #- name: logLevel
+        #  value: debug
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

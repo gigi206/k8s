@@ -1,0 +1,161 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitlab
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: gitlab
+    server: 'https://kubernetes.default.svc'
+  source:
+    chart: gitlab
+    repoURL: 'https://charts.gitlab.io/'
+    targetRevision: '5.9.3'
+    helm:
+      parameters:
+        # Global => https://docs.gitlab.com/charts/charts/globals.html
+        - name: global.edition
+          value: ce
+        - name: global.hosts.domain
+          value: gitlab.gigix
+        # - name: global.hosts.externalIP
+        #   value: xxx.xxx.xxx.xxx
+        - name: upgradeCheck.enabled
+          value: "false"
+        # - name: global.hosts.hostSuffix
+        #   value: staging
+        # - name: global.hosts.gitlab.name
+        #   value: gitlab.gigix
+        # - name: global.hosts.gitlab.https
+        #   value: "true"
+        - name: gitlab.ingress.tls.secretName
+          value: gitlab-cert-tls
+        # - name: global.hosts.registry.name
+        #   value: registry.gitlab.gigix
+        # - name: global.hosts.registry.https
+        #   value: "true"
+        - name: registry.ingress.tls.secretName
+          value: registry-cert-tls
+        # - name: global.hosts.minio.name
+        #   value: minio.gitlab.gigix
+        # - name: global.hosts.minio.https
+        #   value: "true"
+        - name: minio.ingress.tls.secretName
+          value: minio-cert-tls
+        # - name: global.hosts.smartcard.name
+        #   value: smartcard.gitlab.gigix
+        # - name: global.hosts.smartcard.https
+        #   value: "true"
+        - name: smartcard.ingress.tls.secretName
+          value: smartcard-cert-tls
+        # - name: global.hosts.kas.name
+        #   value: kas.gitlab.gigix
+        # - name: global.hosts.kas.https
+        #   value: "true"
+        - name: kas.ingress.tls.secretName
+          value: kas-cert-tls
+        # - name: global.hosts.pages.name
+        #   value: pages.gitlab.gigix
+        # - name: global.hosts.pages.https
+        #   value: "true"
+        - name: pages.ingress.tls.secretName
+          value: pages-cert-tls
+        # - name: global.gitaly.tls.enabled
+        #   value: "true"
+        - name: global.gitaly.tls.secretName
+          value: gitaly-cert-tls
+        # - name: global.praefect.tls.enabled
+        #   value: "true"
+        - name: global.praefect.tls.secretName
+          value: praefect-cert-tls
+        - name: global.ingress.class
+          value: nginx
+        # Cf https://docs.gitlab.com/charts/installation/tls.html
+        - name: global.ingress.tls.enabled
+          value: "true"
+        # - name: global.ingress.annotations.cert-manager\.io/cluster-issuer
+        #   value: selfsigned-cluster-issuer
+        - name: global.ingress.annotations.cert-manager\.io/issuer
+          value: gitlab-issuer
+        - name: global.ingress.configureCertmanager
+          value: "false"
+        - name: certmanager.install
+          value: "false"
+        # - name: certmanager-issuer.email
+        #   value: email@example.com
+        - name: global.ingress.tls.secretName
+          value: gitlab-cert-tls
+        - name: gitlab.webservice.ingress.tls.secretName
+          value: gitlab-cert-tls
+        - name: minio.ingress.tls.secretName
+          value: minio-cert-tls
+        - name: global.initialRootPassword.secret
+          value: initial-root-password
+        - name: global.initialRootPassword.key
+          value: password
+        - name: nginx-ingress.enabled
+          value: "false"
+        - name: prometheus.install
+          value: "false"
+        - name: gitlab-runner.install
+          value : "true"
+        - name: gitlab-runner.certsSecretName
+          value: gitlab-cert-tls
+        # Gitlab does seems working with self-signed certificate
+        # Use kubectk get ing -n gitlab gitlab-webservice-default -o jsonpath="{.spec.rules[0].http.paths[0].backend.service}" | jq
+        # - name: gitlab-runner.gitlabUrl
+        #   value: 'http://gitlab-webservice-default:8181/'
+        - name: 'gitlab-runner.envVars[0].name'
+          value: CI_SERVER_TLS_CA_FILE
+        - name: 'gitlab-runner.envVars[0].value'
+          value: /home/gitlab-runner/.gitlab-runner/certs/ca.crt
+        # If CI_SERVER_TLS_CA_FILE is not working, you can try to edit the gitlab-gitlab-runner ConfigMap
+        # Inside the register-the-runner block add the option --tls-ca-file /home/gitlab-runner/.gitlab-runner/certs/ca.crt
+        # /entrypoint register --tls-ca-file /home/gitlab-runner/.gitlab-runner/certs/ca.crt --template-config /configmaps/config.template.toml
+        - name: redis.install
+          value: "true"
+        - name: postgresql.install
+          value: "true"
+        # - name: global.grafana.enabled
+        #   value: "true"
+        # https://docs.gitlab.com/runner/configuration/advanced-configuration.html
+        - name: gitlab-runner.runners.config
+          value: |
+            [[runners]]
+              [runners.kubernetes]
+                image = "ubuntu:20.04"
+                # privileged = true
+                # allow_privilege_escalation = true
+                # image_pull_secrets = ["docker-registry-credentials", "optional-additional-credentials"]
+                # allowed_images = ["ruby:*", "python:*", "php:*"]
+                # allowed_services = ["postgres:9.4", "postgres:latest"]
+                # pre_build_script = """
+                # apk update >/dev/null
+                # apk add ca-certificates >/dev/null
+                # rm -rf /var/cache/apk/*
+                # cp /etc/gitlab-runner/certs/ca.crt /usr/local/share/ca-certificates/ca.crt
+                # update-ca-certificates --fresh > /dev/null
+                # """
+                [runners.kubernetes.volumes]
+                  [[runners.kubernetes.volumes.secret]]
+                    name = "gitlab-tls-ca-key-pair"
+                    mount_path = "/etc/gitlab-runner/certs/"
+                    read_only = true
+                    [runners.kubernetes.volumes.secret.items]
+                      "tls.crt" = "ca.crt"
+              [runners.cache]
+                Type = "s3"
+                Path = "gitlab-runner"
+                Shared = true
+                [runners.cache.s3]
+                  # ServerAddress = "minio.gitlab.gigix"
+                  # Insecure = false
+                  ServerAddress = "gitlab-minio-svc:9000"
+                  Insecure = true
+                  BucketName = "runner-cache"
+                  BucketLocation = "us-east-1"
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

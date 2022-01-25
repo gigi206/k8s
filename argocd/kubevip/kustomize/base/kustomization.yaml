@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://kube-vip.io/manifests/rbac.yaml
+  # - kube-vip-rbac.yaml
+  - kube-vip.yaml
+  # - https://kube-vip.io/manifests/controller.yaml
+namespace: kubevip-system
+images:
+  - name: ghcr.io/kube-vip/kube-vip
+    newName: ghcr.io/kube-vip/kube-vip
+    newTag: v0.4.4

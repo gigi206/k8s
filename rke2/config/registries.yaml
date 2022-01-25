@@ -1,0 +1,15 @@
+# https://docs.rke2.io/install/containerd_registry_configuration/
+mirrors:
+  docker.io:
+    endpoint:
+      - "registry.gitlab.gigix"
+configs:
+  "registry.gitlab.gigix":
+    auth:
+      username: gigix # this is the registry username
+      password: xxx # this is the registry password
+    tls:
+      #ca_file:              # path to the ca file used to verify the registry's certificate
+      #cert_file:            # path to the cert file used to authenticate to the registry
+      #key_file:             # path to the key file for the certificate used to authenticate to the registry
+      insecure_skip_verify: true # may be set to true to skip verifying the registry's certificate

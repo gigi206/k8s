@@ -1,0 +1,54 @@
+# Cf https://metallb.universe.tf/configuration/
+# Generate the ConfigMap name metallb inside the metallb-system namespace
+# You can create multiple configuration with multiples names, just one here named default
+# And you can select witch one to select in the service annotation
+# Example below:
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   annotations:
+#     metallb.universe.tf/address-pool: default # <-- IMPORTANT: this is the named of your service set below
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metallb
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: metallb-system
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    chart: metallb
+    repoURL: 'https://metallb.github.io/metallb'
+    targetRevision: 0.12.1
+    helm:
+      parameters:
+        - name: configInline.address-pools[0].name
+          value: default
+        - name: configInline.address-pools[0].protocol
+          value: layer2
+        - name: configInline.address-pools[0].addresses[0]
+          value: 192.168.122.200-192.168.122.250
+        # # controller
+        # - name: controller.resources.requests.cpu
+        #   value: 10m
+        # - name: controller.resources.requests.memory
+        #   value: 32Mi
+        # - name: controller.resources.limits.cpu
+        #   value: 10m
+        # - name: controller.resources.limits.memory
+        #   value: 64Mi
+        # # speaker
+        # - name: speaker.resources.requests.cpu
+        #   value: 10m
+        # - name: speaker.resources.requests.memory
+        #   value: 32Mi
+        # - name: speaker.resources.limits.cpu
+        #   value: 10m
+        # - name: speaker.resources.limits.memory
+        #   value: 64Mi
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

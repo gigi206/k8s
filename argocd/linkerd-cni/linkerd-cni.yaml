@@ -1,0 +1,23 @@
+# Cf https://linkerd.io/2.11/features/cni/
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linkerd-cni
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: linkerd-cni
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    chart: linkerd2-cni
+    repoURL: 'https://helm.linkerd.io/stable'
+    targetRevision: 2.11.1
+    #helm:
+    #  parameters:
+    #    - name: dashboard.enforcedHostRegexp
+    #      value: ""
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

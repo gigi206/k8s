@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: harbor
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    chart: harbor
+    repoURL: 'https://helm.goharbor.io'
+    targetRevision: 1.8.1
+    helm:
+      parameters:
+        - name: metrics.enabled
+          value: 'true'
+        - name: expose.type
+          value: loadBalancer
+        - name: >-
+            expose.loadBalancer.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+          value: harbor.gigix
+        - name: expose.tls.auto.commonName
+          value: harbor.gigix
+        - name: externalURL
+          value: https://harbor.gigix
+        - name: harborAdminPassword
+          value: Harbor12345
+        # - name: expose.ingress.hosts.core
+        #   value: core.harbor.gigix
+        # - name: expose.ingress.hosts.notary
+        #   value: notary.harbor.gigix
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+

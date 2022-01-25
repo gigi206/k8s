@@ -1,0 +1,79 @@
+# Cf: https://github.com/neuvector/neuvector
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: neuvector
+  namespace: argo-cd
+spec:
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: neuvector
+  project: default
+  source:
+    chart: core
+    repoURL: 'https://neuvector.github.io/neuvector-helm/'
+    targetRevision: 2.2.0
+    helm:
+      parameters:
+        #- name: imagePullSecrets
+        #  value: regsecret
+        - name: registry
+          value: docker.io
+        - name: tag
+          value: 5.0.0
+        #- name: controller.ranchersso.enabled
+        #  value: 'true'
+        # controller
+        #- name: controller.image.repository
+        #  value: neuvector/controller
+        - name: controller.replicas
+          value: '1'
+        # enforcer
+        #- name: enforcer.image.repository
+        #  value: neuvector/enforcer
+        # manager
+        #- name: manager.image.repository
+        #  value: neuvector/manager
+        - name: manager.svc.type
+          value: ClusterIP
+        - name: manager.ingress.enabled
+          value: 'true'
+        - name: manager.ingress.host
+          value: neuvector.gigix
+        - name: manager.ingress.secretName
+          value: neuvector-manager-cert-tls
+        - name: manager.ingress.tls
+          value: 'true'
+        - name: manager.ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        - name: manager.ingress.annotations.nginx\.ingress\.kubernetes\.io/backend-protocol
+          value: https
+        # - name: manager.ingress.annotations.argocd\.argoproj\.io/sync-options
+        #   value: PrunePropagationPolicy=orphan
+        # updater
+        - name: cve.updater.image.repository
+          value: neuvector/updater
+        - name: cve.updater.image.tag
+          value: latest
+        # scanner
+        - name: cve.scanner.image.repository
+          value: neuvector/scanner
+        - name: cve.scanner.image.tag
+          value: latest
+        - name: cve.scanner.replicas
+          value: '1'
+        #
+        - name: docker.enabled
+          value: 'false'
+        - name: k3s.enabled
+          value: 'true'
+        - name: controller.pvc.enabled
+          value: 'true'
+        - name: controller.pvc.storageClass
+          value: longhorn
+        #- name: controller.pvc.capacity
+        #  value: 1Gi
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

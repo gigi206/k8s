@@ -1,0 +1,37 @@
+# Please read https://thenewstack.io/tutorial-installing-and-configuring-minio-as-a-model-registry-on-rke2/
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: argo-cd
+spec:
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: minio
+  source:
+    repoURL: 'https://charts.min.io'
+    targetRevision: 3.4.6
+    helm:
+      parameters:
+        - name: service.type
+          value: LoadBalancer
+        - name: consoleIngress.hosts[0]
+          value: minio-console.gigix
+        - name: consoleService.type
+          value: LoadBalancer
+        - name: persistence.size
+          value: 2Gi
+        - name: mode
+          value: standalone
+        - name: metrics.serviceMonitor.enabled
+          value: 'true'
+        - name: resources.requests.memory
+          value: 1Gi
+        - name: replicas
+          value: '1'
+    chart: minio
+  project: default
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - CreateNamespace=true

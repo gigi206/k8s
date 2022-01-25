@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rancher
+  namespace: argo-cd
+spec:
+  destination:
+    name: ''
+    namespace: cattle-system
+    server: 'https://kubernetes.default.svc'
+  source:
+    path: ''
+    repoURL: 'https://releases.rancher.com/server-charts/latest'
+    targetRevision: 2.6.4
+    chart: rancher
+    helm:
+      parameters:
+        - name: replicas
+          value: '1'
+        - name: hostname
+          value: rancher.gigix
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

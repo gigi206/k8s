@@ -1,0 +1,92 @@
+# Add inside spec.template.metadata.annotations
+# prometheus.io/scrape: "true"
+# prometheus.io/port: 8080
+# prometheus.io/path: /metrics
+# prometheus.io/scheme: http
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: prometheus
+    server: 'https://kubernetes.default.svc'
+  source:
+    chart: kube-prometheus-stack
+    repoURL: 'https://prometheus-community.github.io/helm-charts'
+    targetRevision: '30.1.0'
+    helm:
+      parameters:
+        ### grafana ###
+        # - name: grafana.ingress.enabled
+        #   value: "true"
+        # - name: grafana.ingress.hosts[0]
+        #   value: grafana.gigix
+        - name: >-
+            grafana.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+          value: grafana.gigix
+        - name: grafana.service.type
+          value: LoadBalancer
+        - name: grafana.adminPassword
+          value: prom-operator
+        ### prometheus ###
+        # - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName
+        #   value: longhorn
+        # - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]
+        #   value: ReadWriteOnce
+        # - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage
+        #   value: 5Gi
+        ### server ###
+        # - name: server.ingress.enabled
+        #   value: "true"
+        # - name: server.ingress.hosts[0]
+        #   value: prometheus.gigix
+        - name: >-
+            server.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+          value: prometheus.gigix
+        - name: server.service.type
+          value: LoadBalancer
+        ### alertmanager ###
+        # - name: alertmanager.ingress.enabled
+        #   value: "true"
+        # - name: alertmanager.ingress.hosts[0]
+        #   value: alertmanager.gigix
+        - name: >-
+            alertmanager.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+          value: alertmanager.gigix
+        - name: alertmanager.service.type
+          value: LoadBalancer
+        ### pushgateway ###
+        # - name: pushgateway.ingress.enabled
+        #   value: "true"
+        # - name: pushgateway.ingress.hosts[0]
+        #   value: pushgateway.gigix
+        - name: >-
+            pushgateway.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+          value: pushgateway.gigix
+        - name: pushgateway.service.type
+          value: LoadBalancer
+        ### kubeControllerManager ###
+        # - name: kubeControllerManager.service.port
+        #   value: 10257
+        # - name: kubeControllerManager.service.targetPort
+        #   value: 10257
+        # - name: kubeControllerManager.serviceMonitor.https
+        #   value: "true"
+        # - name: kubeControllerManager.serviceMonitor.insecureSkipVerify
+        #   value: "true"
+        ### kubeScheduler ###
+        # - name: kubeScheduler.service.port
+        #   value: 10259
+        # - name: kubeScheduler.service.targetPort
+        #   value: 10259
+        # - name: kubeScheduler.serviceMonitor.https
+        #   value: "true"
+        # - name: kubeScheduler.serviceMonitor.insecureSkipVerify
+        #   value: "true"
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

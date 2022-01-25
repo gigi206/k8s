@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubevip
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/gigi206/k8s'
+    path: argocd/kubevip/kustomize/base
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kubevip-system
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

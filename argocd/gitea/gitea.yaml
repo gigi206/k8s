@@ -1,0 +1,70 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitea
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: gitea
+    server: 'https://kubernetes.default.svc'
+  source:
+    chart: gitea
+    repoURL: 'https://dl.gitea.io/charts'
+    targetRevision: '5.0.1'
+    helm:
+      parameters:
+        # - name: service.http.type
+        #   value: LoadBalancer
+        # - name: service.http.port
+        #   value: '3000'
+        # - name: >-
+        #     service.http.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        #   value: gitea.gigix
+        - name: service.ssh.type
+          value: LoadBalancer
+        - name: service.ssh.port
+          value: '22'
+        - name: >-
+            service.ssh.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+          value: gitea-ssh.gigix
+        - name: persistence.enabled
+          value: "true"
+        - name: persistence.size
+          value: 2Gi
+        - name: persistence.storageClass
+          value: longhorn
+        - name: postgresql.persistence.size
+          value: 2Gi
+        - name: gitea.admin.username
+          value: gigix
+        - name: gitea.admin.password
+          value: gigix123
+        # - name: gitea.admin.email
+        #   value: gitea@xxx.com
+        # - name: gitea.metrics.enabled
+        #   value: "true"
+        - name: ingress.enabled
+          value: "true"
+        - name: ingress.className
+          value: nginx
+        - name: ingress.hosts[0].host
+          value: gitea.gigix
+        - name: ingress.hosts[0].paths[0].path
+          value: /
+        - name: ingress.hosts[0].paths[0].pathType
+          value: Prefix
+        - name: >-
+            ingress.annotations.nginx\.ingress\.kubernetes\.io/server-alias
+          value: gitea
+        - name: ingress.tls[0].secretName
+          value: gitea-cert-tls
+        - name: ingress.tls[0].hosts[0]
+          value: gitea.gigix
+        - name: >-
+            ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

@@ -1,0 +1,76 @@
+# Cf https://www.youtube.com/watch?v=iqVt5mbvlJ0
+# To specify only nodes where Daemonset must be set please read (nodeSelector):
+# - https://medium.com/@cagri.ersen/kubernetes-nginx-ingress-controller-for-on-premise-environments-e64ee3aa04e#ad04
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: ingress-nginx
+    server: 'https://kubernetes.default.svc'
+  source:
+    chart: ingress-nginx
+    repoURL: 'https://kubernetes.github.io/ingress-nginx'
+    targetRevision: '4.1.1'
+    helm:
+      parameters:
+        - name: controller.kind
+          value: DaemonSet
+        - name: controller.ingressClassResource.default
+          value: "true"
+        # https://docs.gitlab.com/charts/advanced/external-nginx/
+        - name: tcp.22
+          value: gitlab/gitlab-gitlab-shell:22
+        # - name: defaultBackend.replicaCount
+        #   value: "1"
+        # - name: controller.metrics.enabled # Cf https://artifacthub.io/packages/helm/ingress-nginx/ingress-nginx#prometheus-metrics
+        #   value: "true"
+        # - name: controller.autoscaling.enabled
+        #   value: 'true'
+        # - name: controller.autoscaling.minReplicas
+        #   value: '2'
+        # - name: controller.autoscaling.maxReplicas
+        #   value: '3'
+        # controller
+        # - name: controller.resources.requests.cpu
+        #   value: 100m
+        # - name: controller.resources.requests.memory
+        #   value: 512Mi
+        # - name: controller.resources.limits.cpu
+        #   value: 100m
+        # - name: controller.resources.limits.memory
+        #   value: 512Mi
+        # controller.admissionWebhooks.createSecretJob
+        # - name: controller.admissionWebhooks.createSecretJob.resources.requests.cpu
+        #   value: 10m
+        # - name: controller.admissionWebhooks.createSecretJob.resources.requests.memory
+        #   value: 64Mi
+        # - name: controller.admissionWebhooks.createSecretJob.resources.limits.cpu
+        #   value: 10m
+        # - name: controller.admissionWebhooks.createSecretJob.resources.limits.memory
+        #   value: 64Mi
+        # controller.admissionWebhooks.patchWebhookJob
+        # - name: controller.admissionWebhooks.patchWebhookJob.resources.requests.cpu
+        #   value: 10m
+        # - name: controller.admissionWebhooks.patchWebhookJob.resources.requests.memory
+        #   value: 64Mi
+        # - name: controller.admissionWebhooks.patchWebhookJob.resources.limits.cpu
+        #   value: 10m
+        # - name: controller.admissionWebhooks.patchWebhookJob.resources.limits.memory
+        #   value: 64Mi
+        # defaultBackend.resources
+        # - name: defaultBackend.resources.requests.cpu
+        #   value: 10m
+        # - name: defaultBackend.resources.requests.memory
+        #   value: 64Mi
+        # - name: defaultBackend.resources.limits.cpu
+        #   value: 10m
+        # - name: defaultBackend.resources.limits.memory
+        #   value: 64Mi
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
