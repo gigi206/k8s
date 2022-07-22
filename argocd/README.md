@@ -13,7 +13,6 @@
 
 ```bash
 mkdir -p /home/kvm/vagrant/vagrantfiles/k8s/git
-mkdir -p /home/kvm/vagrant/vagrantfiles/k8s/git
 cd /home/kvm/vagrant/vagrantfiles/k8s/git
 git clone https://github.com/gigi206/k8s .
 cd ..
