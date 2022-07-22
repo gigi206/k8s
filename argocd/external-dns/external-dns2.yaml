@@ -11,10 +11,8 @@ spec:
   project: default
   source:
     chart: external-dns
-    # repoURL: 'https://charts.bitnami.com/bitnami'
-    # targetRevision: 6.0.2
     repoURL: 'https://kubernetes-sigs.github.io/external-dns'
-    targetRevision: 1.7.1
+    targetRevision: 1.10.1
     helm:
       parameters:
         - name: rbac.create
@@ -41,20 +39,6 @@ spec:
         #   value: 10m
         # - name: resources.limits.memory
         #   value: 64Mi
-        # Following arguments are for the chart https://charts.bitnami.com/bitnami
-        # - name: pdns.apiUrl
-        #   value: "http://powerdns-webserver.powerdns-system.svc.cluster.local"
-        # kubectl describe cm powerdns -n powerdns-system | egrep ^api-key= | awk -F'=' '{ print $NF }'
-        # - name: pdns.apiKey
-        #   value: oZpVJqrGQUx3ao3m0e4ixTGa
-        #- name: pdns.apiPort
-        #  value: "8081"
-        # - name: domainFilters[0]
-        #   value: "gigix"
-        # - name: pdns.secretName
-        #   value: ""
-        #- name: logLevel
-        #  value: debug
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
