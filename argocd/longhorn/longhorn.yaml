@@ -11,6 +11,8 @@ spec:
   project: default
   source:
     chart: longhorn
+    repoURL: 'https://charts.longhorn.io'
+    targetRevision: 1.3.0
     helm:
       parameters:
         - name: persistence.defaultClassReplicaCount
@@ -23,8 +25,6 @@ spec:
         #   value: nfs://192.168.121.1:/home/kvm/vagrant/vagrantfiles/k8s/backup/longhorn
         # - name: service.ui.type
         #   value: LoadBalancer
-    repoURL: 'https://charts.longhorn.io'
-    targetRevision: 1.2.4
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
