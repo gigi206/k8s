@@ -12,9 +12,36 @@ mkdir -p /etc/rancher/rke2
 # echo "RKE2_CNI=calico" >> "${CONFIG_PATH}"
 # echo "cni: [calico]" > /etc/rancher/rke2/config.yaml
 # profile: cis-1.6
-echo "disable: [rke2-ingress-nginx]" >> /etc/rancher/rke2/config.yaml
+echo "disable:
+- rke2-ingress-nginx" \
+>> /etc/rancher/rke2/config.yaml
 # echo "disable: [rke2-ingress-nginx, rke2-coredns]" >> /etc/rancher/rke2/config.yaml
-echo "tls-san: [k8s-api.gigix]" >> /etc/rancher/rke2/config.yaml
+echo "tls-san:
+- k8s-api.gigix" \
+>> /etc/rancher/rke2/config.yaml
+echo "etcd-expose-metrics: true
+kube-controller-manager-arg:
+#- address=0.0.0.0
+- bind-address=0.0.0.0
+kube-proxy-arg:
+#- address=0.0.0.0
+- metrics-bind-address=0.0.0.0
+kube-scheduler-arg:
+- bind-address=0.0.0.0" \
+>> /etc/rancher/rke2/config.yaml
+
+
+# etcd-snapshot-name: "xxx"
+# etcd-snapshot-schedule-cron: "*/22****"
+# etcd-snapshot-retention: 7
+# etcd-s3: true
+# etcd-s3-bucket: "xxx-bucket"
+# etcd-s3-region: "us-north-9"
+# etcd-s3-endpoint: "s3.us-north-9.amazonaws.com"
+# etcd-s3-access-key: "**************************"
+# etcd-s3-secret-key: "**************************"
+
+
 # echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
 # echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
 systemctl enable --now rke2-server.service
