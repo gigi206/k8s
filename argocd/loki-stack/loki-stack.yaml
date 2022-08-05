@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki-stack
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: loki-stack
+    name: in-cluster
+    # server: 'https://kubernetes.default.svc'
+  source:
+    chart: loki-stack
+    repoURL: 'https://grafana.github.io/helm-charts'
+    targetRevision: '2.6.5'
+    helm:
+      parameters:
+        # The actual chart (2.6.5) does not allow fine
+        # configuration of the NetworkPolicy with
+        # namespaceSelector to select the loki-stack namespace.
+        # So install the file NetworkPolicy.yaml manually
+        # - name: loki.networkPolicy.enabled
+        #   value: 'true'
+        - name: loki.config.compactor.retention_enabled
+          value: 'true'
+        - name: loki.persistence.enabled
+          value: 'true'
+        - name: loki.persistence.storageClassName
+          value: longhorn
+        - name: loki.persistence.size
+          value: 5Gi
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
