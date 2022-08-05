@@ -1,0 +1,64 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: velero
+    name: in-cluster
+    # server: 'https://kubernetes.default.svc'
+  source:
+    chart: velero
+    repoURL: 'https://vmware-tanzu.github.io/helm-charts/'
+    targetRevision: '2.30.2'
+    helm:
+      values: |-
+        credentials:
+          useSecret: true
+          name: velero
+          secretContents:
+            cloud: |
+              # https://velero.io/docs/main/contributions/minio/
+              # [velero]
+              [default]
+              aws_access_key_id=FqiZUjMGZZsRsOsJwKs1
+              aws_secret_access_key=su4Ww2wUxbKI4OqBqHPxEaTyfRYeKg1BeMjJS6oc
+        initContainers:
+          - name: velero-plugin-for-aws
+            image: velero/velero-plugin-for-aws:v1.5.0
+            imagePullPolicy: IfNotPresent
+            volumeMounts:
+              - mountPath: /target
+                name: plugins
+          # - name: velero-plugin-for-csi
+          #   image: velero/velero-plugin-for-csi:v0.3.0
+          #   imagePullPolicy: IfNotPresent
+          #   volumeMounts:
+          #     - mountPath: /target
+          #       name: plugins
+        configuration:
+          backupStorageLocation:
+            name: minio
+            provider: aws
+            accessMode: ReadWrite
+            bucket: velero
+            config:
+              region: minio
+              s3ForcePathStyle: "true"
+              s3Url: http://minio.minio.svc.cluster.local:9000
+          volumeSnapshotLocation:
+            name: minio
+            provider: aws
+            profile: default
+            s3ForcePathStyle: "true"
+            s3Url: http://minio.minio.svc.cluster.local:9000
+            # multiPartChunkSize: 64Mi
+            # caCert: LS0tLS1CRU...tRU5EIENFUlRJRklDQVRFLS0tLS0K
+            # insecureSkipTLSVerify: "true"
+            restApiTimeout: 1m
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
