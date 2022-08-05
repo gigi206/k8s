@@ -1,4 +1,5 @@
 # Please read https://thenewstack.io/tutorial-installing-and-configuring-minio-as-a-model-registry-on-rke2/
+# https://github.com/minio/mc/blob/master/docs/minio-admin-complete-guide.md
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -10,26 +11,124 @@ spec:
     namespace: minio
   source:
     repoURL: 'https://charts.min.io'
-    targetRevision: 3.4.6
+    targetRevision: 4.0.10
+    chart: minio
     helm:
       parameters:
-        - name: service.type
-          value: LoadBalancer
-        - name: consoleIngress.hosts[0]
-          value: minio-console.gigix
-        - name: consoleService.type
-          value: LoadBalancer
+        # - name: service.type
+        #   value: LoadBalancer
+        # - name: consoleService.type
+        #   value: LoadBalancer
+        - name: rootUser
+          value: admin
+        # - name: rootPassword
+        #   value: mypassword
+        # - name: existingSecret
+        #   value: mysecret
+        - name: users[0].accessKey
+          value: console
+        - name: users[0].secretKey
+          value: CHANGEME
+        - name: users[0].policy
+          value: consoleAdmin
+        - name: persistence.enabled
+          value: 'true'
+        - name: persistence.storageClass
+          value: longhorn
         - name: persistence.size
-          value: 2Gi
+          value: 5Gi
         - name: mode
           value: standalone
         - name: metrics.serviceMonitor.enabled
           value: 'true'
-        - name: resources.requests.memory
-          value: 1Gi
+        # - name: resources.requests.memory
+        #   value: 1Gi
         - name: replicas
           value: '1'
-    chart: minio
+        # ingress
+        - name: ingress.enabled
+          value: 'true'
+        - name: ingress.hosts[0]
+          value: minio.gigix
+        - name: ingress.ingressClassName
+          value: nginx
+        - name: ingress.path
+          value: /
+        - name: >-
+            ingress.annotations.nginx\.ingress\.kubernetes\.io/server-alias
+          value: minio
+        - name: ingress.tls[0].secretName
+          value: minio-cert-tls
+        - name: ingress.tls[0].hosts[0]
+          value: minio.gigix
+        - name: >-
+            ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        # console ingress
+        - name: consoleIngress.enabled
+          value: 'true'
+        - name: consoleIngress.hosts[0]
+          value: minio-console.gigix
+        - name: consoleIngress.ingressClassName
+          value: nginx
+        - name: consoleIngress.path
+          value: /
+        - name: >-
+            consoleIngress.annotations.nginx\.ingress\.kubernetes\.io/server-alias
+          value: minio-console
+        - name: consoleIngress.tls[0].secretName
+          value: minio-console-cert-tls
+        - name: consoleIngress.tls[0].hosts[0]
+          value: minio-console.gigix
+        - name: >-
+            consoleIngress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        ###########
+        # TUNNING # Cf https://docs.min.io/docs/setup-nginx-proxy-with-minio.html
+        ###########
+
+        # Issue headers: https://github.com/minio/minio/discussions/15147
+
+        # - name: >-
+        #     ingress.annotations.nginx\.ingress\.kubernetes\.io/stream-snippet
+        #   value: |
+        #     server {
+        #     listen 80;
+        #     server_name example.com;
+
+        #     # To allow special characters in headers
+        #     ignore_invalid_headers off;
+        #     # Allow any size file to be uploaded.
+        #     # Set to a value such as 1000m; to restrict file size to a specific value
+        #     client_max_body_size 0;
+        #     # To disable buffering
+        #     proxy_buffering off;
+
+        #     location / {
+        #       proxy_set_header X-Real-IP $remote_addr;
+        #       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        #       proxy_set_header X-Forwarded-Proto $scheme;
+        #       proxy_set_header Host $http_host;
+
+        #       proxy_connect_timeout 300;
+        #       # Default is HTTP/1, keepalive is only enabled in HTTP/1.1
+        #       proxy_http_version 1.1;
+        #       proxy_set_header Connection "";
+        #       chunked_transfer_encoding off;
+
+        #       proxy_pass http://localhost:9000; # If you are using docker-compose this would be the hostname i.e. minio
+        #       # Health Check endpoint might go here. See https://www.nginx.com/resources/wiki/modules/healthcheck/
+        #       # /minio/health/live;
+        #     }
+        #     }
+
+        # Set to a value such as 1000m; to restrict file size to a specific value
+        - name: >-
+            ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-body-size
+          value: 0m
+        - name: >-
+            ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-buffering
+          value: "off"
   project: default
   syncPolicy:
     syncOptions:
