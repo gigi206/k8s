@@ -19,27 +19,28 @@ echo "disable:
 echo "tls-san:
 - k8s-api.gigix" \
 >> /etc/rancher/rke2/config.yaml
-echo "etcd-expose-metrics: true
+echo "# debug:true
+etcd-expose-metrics: true
 kube-controller-manager-arg:
-#- address=0.0.0.0
+# - address=0.0.0.0
 - bind-address=0.0.0.0
 kube-proxy-arg:
-#- address=0.0.0.0
+# - address=0.0.0.0
 - metrics-bind-address=0.0.0.0
 kube-scheduler-arg:
 - bind-address=0.0.0.0" \
 >> /etc/rancher/rke2/config.yaml
 
 
-# etcd-snapshot-name: "xxx"
-# etcd-snapshot-schedule-cron: "*/22****"
+# etcd-snapshot-name: xxx
+# etcd-snapshot-schedule-cron: */22****
 # etcd-snapshot-retention: 7
 # etcd-s3: true
-# etcd-s3-bucket: "xxx-bucket"
-# etcd-s3-region: "us-north-9"
-# etcd-s3-endpoint: "s3.us-north-9.amazonaws.com"
-# etcd-s3-access-key: "**************************"
-# etcd-s3-secret-key: "**************************"
+# etcd-s3-bucket: minio
+# etcd-s3-region: us-north-9
+# etcd-s3-endpoint: minio.gigix
+# etcd-s3-access-key: **************************
+# etcd-s3-secret-key: **************************
 
 
 # echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
@@ -61,10 +62,23 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 )
 
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
-kubectl krew install ctx
-kubectl krew install ns
+kubectl krew install ctx           # https://artifacthub.io/packages/krew/krew-index/ctx
+kubectl krew install ns            # https://artifacthub.io/packages/krew/krew-index/ns
+kubectl krew install access-matrix # https://artifacthub.io/packages/krew/krew-index/access-matrix
+kubectl krew install get-all       # https://artifacthub.io/packages/krew/krew-index/get-all
+kubectl krew install deprecations  # https://artifacthub.io/packages/krew/krew-index/deprecations
+kubectl krew install explore       # https://artifacthub.io/packages/krew/krew-index/explore
+kubectl krew install images        # https://artifacthub.io/packages/krew/krew-index/images
+kubectl krew install neat          # https://artifacthub.io/packages/krew/krew-index/neat
+kubectl krew install pod-inspect   # https://artifacthub.io/packages/krew/krew-index/pod-inspect
+kubectl krew install pexec         # https://artifacthub.io/packages/krew/krew-index/pexec
+echo 'source <(kpexec --completion bash)' >>~/.bashrc
 
+# kubectl krew install outdated      # https://artifacthub.io/packages/krew/krew-index/outdated
+# kubectl krew install sniff         # https://artifacthub.io/packages/krew/krew-index/sniff
+# kubectl krew install ingress-nginx # https://artifacthub.io/packages/krew/krew-index/ingress-nginx
 # Waiting for the kubernetes API before interacting with it
+
 while true
   do
   lsof -Pni:6443 &>/dev/null && break
