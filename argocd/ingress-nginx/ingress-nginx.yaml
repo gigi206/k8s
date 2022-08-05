@@ -23,6 +23,8 @@ spec:
         # https://docs.gitlab.com/charts/advanced/external-nginx/
         - name: tcp.22
           value: gitlab/gitlab-gitlab-shell:22
+        - name: controller.config.proxy-body-size
+          value: 100m
         # Fix CVE-2021-25742 => https://github.com/kubernetes/ingress-nginx/issues/7837
         - name: controller.allowSnippetAnnotations
           value: "false"
