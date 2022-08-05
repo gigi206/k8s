@@ -21,15 +21,9 @@ spec:
   source:
     chart: metallb
     repoURL: 'https://metallb.github.io/metallb'
-    targetRevision: 0.12.1
+    targetRevision: 0.13.4
     helm:
-      parameters:
-        - name: configInline.address-pools[0].name
-          value: default
-        - name: configInline.address-pools[0].protocol
-          value: layer2
-        - name: configInline.address-pools[0].addresses[0]
-          value: 192.168.122.200-192.168.122.250
+      parameters: []
         # # controller
         # - name: controller.resources.requests.cpu
         #   value: 10m
