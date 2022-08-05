@@ -58,11 +58,17 @@ To DO
 ### Secrets
 - [Kubeseal](https://github.com/bitnami-labs/sealed-secrets)
   - [Youtube](https://www.youtube.com/watch?v=xd2QoV6GJlc)
+- [Sops](https://github.com/mozilla/sops)
+  - [Tuto](https://itnext.io/goodbye-sealed-secrets-hello-sops-3ee6a92662bb#8f5b)
 - [external-secrets](https://external-secrets.io)
   - [Youtube](https://www.youtube.com/watch?v=PgiXKBTel1E)
   - [Artifacthub](https://artifacthub.io/packages/helm/external-secrets-operator/external-secrets)
   - [Github](https://github.com/external-secrets/external-secrets)
   - [Operator](https://operatorhub.io/operator/external-secrets-operator)
+- [Secrets Store CSI Driver](https://secrets-store-csi-driver.sigs.k8s.io) (SSCSID)
+  - [Artifacthub](https://artifacthub.io/packages/helm/secret-store-csi-driver/secrets-store-csi-driver)
+  - [Github](https://github.com/kubernetes-sigs/secrets-store-csi-driver)
+  - [Youtube](https://www.youtube.com/watch?v=DsQu66ZMG4M)
 
 ### Events
 - [Argo Events](https://argoproj.github.io/argo-events/)
