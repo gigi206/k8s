@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: local-path-provisioner
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: rancher-demo
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    repoURL: 'https://github.com/gigi206/k8s'
+    path: deploy/chart/local-path-provisioner
+    targetRevision: v0.0.22
+    helm:
+      parameters:
+        - name: nodePathMap[0].paths[0]
+          value: /opt/local-path-provisioner
+        # - name: storageClass.reclaimPolicy
+        #   value: Retain
+        # - name: storageClass.name
+        #   value: local-path
+        # - name: storageClass.provisionerName
+        #   value: rancher.io/local-path
+        # - name: storageClass.defaultClass
+        #   value: 'true'
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
