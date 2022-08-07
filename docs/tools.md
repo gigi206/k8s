@@ -98,13 +98,6 @@ To DO
   - [Github](https://github.com/rancher/fleet/)
   - [Youtube](https://www.youtube.com/watch?v=rIH_2CUXmwM)
 
-### Identity and Access Management (IAM)
-- [Keycloak](https://www.keycloak.org)
-  - [Github](https://github.com/keycloak/keycloak)
-  - [Artifacthub](https://artifacthub.io/packages/helm/bitnami/keycloak)
-  - [Operator](https://artifacthub.io/packages/olm/community-operators/keycloak-operator)
-  - [Operator](https://operatorhub.io/operator/keycloak-operator)
-
 ### CI/CD
 - [Tekton](https://tekton.dev/)
   - [Github](https://github.com/tektoncd/pipeline)
@@ -128,6 +121,13 @@ To DO
 - [Flagger](https://flagger.app)
   - [Github](https://github.com/fluxcd/flagger)
   - [Youtube](https://www.youtube.com/watch?v=NrytqS43dgw)
+
+### Identity and Access Management (IAM)
+- [Keycloak](https://www.keycloak.org)
+  - [Github](https://github.com/keycloak/keycloak)
+  - [Artifacthub](https://artifacthub.io/packages/helm/bitnami/keycloak)
+  - [Operator](https://artifacthub.io/packages/olm/community-operators/keycloak-operator)
+  - [Operator](https://operatorhub.io/operator/keycloak-operator)
 
 ### Certificates
 - [cert-manager](https://cert-manager.io/docs/installation/supported-releases/)
