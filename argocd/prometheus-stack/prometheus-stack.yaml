@@ -17,12 +17,12 @@ spec:
   source:
     chart: kube-prometheus-stack
     repoURL: 'https://prometheus-community.github.io/helm-charts'
-    targetRevision: '38.0.0'
+    targetRevision: '39.5.0'
     helm:
       parameters:
         ### grafana ###
         - name: grafana.ingress.enabled
-          value: "true"
+          value: 'true'
         - name: grafana.ingress.hosts[0]
           value: grafana.gigix
         - name: >-
@@ -30,6 +30,8 @@ spec:
           value: grafana.gigix
         - name: grafana.adminPassword
           value: prom-operator
+        - name: grafana.grafana.\ini.analytics.check_for_updates
+          value: 'false'
         # - name: grafana.service.type
         #   value: LoadBalancer
         ### prometheus ###
@@ -40,7 +42,7 @@ spec:
         - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage
           value: 5Gi
         - name: prometheus.ingress.enabled
-          value: "true"
+          value: 'true'
         - name: prometheus.ingress.hosts[0]
           value: prometheus.gigix
         - name: >-
@@ -50,7 +52,7 @@ spec:
         #   value: LoadBalancer
         ### alertmanager ###
         - name: alertmanager.ingress.enabled
-          value: "true"
+          value: 'true'
         - name: alertmanager.ingress.hosts[0]
           value: alertmanager.gigix
         - name: >-
@@ -60,7 +62,7 @@ spec:
         #   value: LoadBalancer
         ### pushgateway ###
         - name: pushgateway.ingress.enabled
-          value: "true"
+          value: 'true'
         - name: pushgateway.ingress.hosts[0]
           value: pushgateway.gigix
         - name: >-
@@ -97,6 +99,261 @@ spec:
         #   value: 10249
         # - name: kubeProxy.service.targetPort
         #   value: 10249
+
+        ########################
+        #                      #
+        # Linkerd integration  #
+        #                      #
+        ########################
+
+        # #### Linkerd Grafana ###
+        # # Cf https://linkerd.io/2.11/tasks/grafana/
+        # - name: grafana.grafana.\ini.server.root_url
+        #   value: '%(protocol)s://%(domain)s:/grafana/'
+        # - name: grafana.grafana.\ini.panels.disable_sanitize_html
+        #   value: 'true'
+        # # Dashboard
+        # # All these charts are hosted at https://grafana.com/grafana/dashboards/{id}
+        # # top-line
+        # - name: grafana.dashboards.default.top-line.gnetId
+        #   value: '15474'
+        # - name: grafana.dashboards.default.top-line.revision
+        #   value: '3'
+        # - name: grafana.dashboards.default.top-line.datasource
+        #   value: Prometheus
+        # # health
+        # - name: grafana.dashboards.default.health.gnetId
+        #   value: '15486'
+        # - name: grafana.dashboards.default.health.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.health.datasource
+        #   value: Prometheus
+        # # kubernetes
+        # - name: grafana.dashboards.default.kubernetes.gnetId
+        #   value: '15479'
+        # - name: grafana.dashboards.default.kubernetes.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.kubernetes.datasource
+        #   value: Prometheus
+        # # namespace
+        # - name: grafana.dashboards.default.namespace.gnetId
+        #   value: '15478'
+        # - name: grafana.dashboards.default.namespace.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.namespace.datasource
+        #   value: Prometheus
+        # # deployment
+        # - name: grafana.dashboards.default.deployment.gnetId
+        #   value: '15475'
+        # - name: grafana.dashboards.default.deployment.revision
+        #   value: '5'
+        # - name: grafana.dashboards.default.deployment.datasource
+        #   value: Prometheus
+        # # pod
+        # - name: grafana.dashboards.default.pod.gnetId
+        #   value: '15477'
+        # - name: grafana.dashboards.default.pod.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.pod.datasource
+        #   value: Prometheus
+        # # service
+        # - name: grafana.dashboards.default.service.gnetId
+        #   value: '15480'
+        # - name: grafana.dashboards.default.service.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.service.datasource
+        #   value: Prometheus
+        # # route
+        # - name: grafana.dashboards.default.route.gnetId
+        #   value: '15481'
+        # - name: grafana.dashboards.default.route.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.route.datasource
+        #   value: Prometheus
+        # # authority
+        # - name: grafana.dashboards.default.authority.gnetId
+        #   value: '15482'
+        # - name: grafana.dashboards.default.authority.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.authority.datasource
+        #   value: Prometheus
+        # # cronjob
+        # - name: grafana.dashboards.default.cronjob.gnetId
+        #   value: '15483'
+        # - name: grafana.dashboards.default.cronjob.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.cronjob.datasource
+        #   value: Prometheus
+        # # job
+        # - name: grafana.dashboards.default.job.gnetId
+        #   value: '15487'
+        # - name: grafana.dashboards.default.job.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.job.datasource
+        #   value: Prometheus
+        # # daemonset
+        # - name: grafana.dashboards.default.daemonset.gnetId
+        #   value: '15484'
+        # - name: grafana.dashboards.default.daemonset.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.daemonset.datasource
+        #   value: Prometheus
+        # # replicaset
+        # - name: grafana.dashboards.default.replicaset.gnetId
+        #   value: '15491'
+        # - name: grafana.dashboards.default.replicaset.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.replicaset.datasource
+        #   value: Prometheus
+        # # statefulset
+        # - name: grafana.dashboards.default.statefulset.gnetId
+        #   value: '15493'
+        # - name: grafana.dashboards.default.statefulset.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.statefulset.datasource
+        #   value: Prometheus
+        # # replicationcontroller
+        # - name: grafana.dashboards.default.replicationcontroller.gnetId
+        #   value: '15492'
+        # - name: grafana.dashboards.default.replicationcontroller.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.replicationcontroller.datasource
+        #   value: Prometheus
+        # # prometheus
+        # - name: grafana.dashboards.default.prometheus.gnetId
+        #   value: '15489'
+        # - name: grafana.dashboards.default.prometheus.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.prometheus.datasource
+        #   value: Prometheus
+        # # prometheus-benchmark
+        # - name: grafana.dashboards.default.prometheus-benchmark.gnetId
+        #   value: '15490'
+        # - name: grafana.dashboards.default.prometheus-benchmark.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.prometheus-benchmark.datasource
+        #   value: Prometheus
+        # # multicluster
+        # - name: grafana.dashboards.default.multicluster.gnetId
+        #   value: '15488'
+        # - name: grafana.dashboards.default.multicluster.revision
+        #   value: '2'
+        # - name: grafana.dashboards.default.multicluster.datasource
+        #   value: Prometheus
+
+        # #### Linkerd Prometheus ###
+        # # Cf https://linkerd.io/2.11/tasks/external-prometheus/
+        # # linkerd-controller
+        # - name: prometheus.prometheusSpec.additionalScrapeConfigs
+        #   value: |
+        #     - job_name: linkerd-controller
+        #       honor_timestamps: true
+        #       scrape_interval: 10s
+        #       scrape_timeout: 10s
+        #       metrics_path: /metrics
+        #       scheme: http
+        #       kubernetes_sd_configs:
+        #       - role: pod
+        #         namespaces:
+        #           names:
+        #           - linkerd
+        #           - linkerd-viz
+        #       relabel_configs:
+        #       - source_labels: [__meta_kubernetes_pod_container_port_name]
+        #         separator: ;
+        #         regex: admin-http
+        #         replacement: $1
+        #         action: keep
+        #       - source_labels: [__meta_kubernetes_pod_container_name]
+        #         separator: ;
+        #         regex: (.*)
+        #         target_label: component
+        #         replacement: $1
+        #         action: replace
+        #     - job_name: linkerd-service-mirror
+        #       honor_timestamps: true
+        #       scrape_interval: 10s
+        #       scrape_timeout: 10s
+        #       metrics_path: /metrics
+        #       scheme: http
+        #       kubernetes_sd_configs:
+        #       - role: pod
+        #       relabel_configs:
+        #       - source_labels: [__meta_kubernetes_pod_label_linkerd_io_control_plane_component, __meta_kubernetes_pod_container_port_name]
+        #         separator: ;
+        #         regex: linkerd-service-mirror;admin-http$
+        #         replacement: $1
+        #         action: keep
+        #       - source_labels: [__meta_kubernetes_pod_container_name]
+        #         separator: ;
+        #         regex: (.*)
+        #         target_label: component
+        #         replacement: $1
+        #         action: replace
+        #     - job_name: linkerd-proxy
+        #       honor_timestamps: true
+        #       scrape_interval: 10s
+        #       scrape_timeout: 10s
+        #       metrics_path: /metrics
+        #       scheme: http
+        #       kubernetes_sd_configs:
+        #       - role: pod
+        #       relabel_configs:
+        #       - source_labels: [__meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_label_linkerd_io_control_plane_ns]
+        #         separator: ;
+        #         regex: ^linkerd-proxy;linkerd-admin;linkerd$
+        #         replacement: $1
+        #         action: keep
+        #       - source_labels: [__meta_kubernetes_namespace]
+        #         separator: ;
+        #         regex: (.*)
+        #         target_label: namespace
+        #         replacement: $1
+        #         action: replace
+        #       - source_labels: [__meta_kubernetes_pod_name]
+        #         separator: ;
+        #         regex: (.*)
+        #         target_label: pod
+        #         replacement: $1
+        #         action: replace
+        #       - source_labels: [__meta_kubernetes_pod_label_linkerd_io_proxy_job]
+        #         separator: ;
+        #         regex: (.*)
+        #         target_label: k8s_job
+        #         replacement: $1
+        #         action: replace
+        #       - separator: ;
+        #         regex: __meta_kubernetes_pod_label_linkerd_io_proxy_job
+        #         # replacement: $1
+        #         action: labeldrop
+        #       - separator: ;
+        #         regex: __meta_kubernetes_pod_label_linkerd_io_proxy_(.+)
+        #         replacement: $1
+        #         action: labelmap
+        #       - separator: ;
+        #         regex: __meta_kubernetes_pod_label_linkerd_io_proxy_(.+)
+        #         # replacement: $1
+        #         action: labeldrop
+        #       - separator: ;
+        #         regex: __meta_kubernetes_pod_label_linkerd_io_(.+)
+        #         replacement: $1
+        #         action: labelmap
+        #       - separator: ;
+        #         regex: __meta_kubernetes_pod_label_(.+)
+        #         replacement: __tmp_pod_label_$1
+        #         action: labelmap
+        #       - separator: ;
+        #         regex: __tmp_pod_label_linkerd_io_(.+)
+        #         replacement: __tmp_pod_label_$1
+        #         action: labelmap
+        #       - separator: ;
+        #         regex: __tmp_pod_label_linkerd_io_(.+)
+        #         # replacement: $1
+        #         action: labeldrop
+        #       - separator: ;
+        #         regex: __tmp_pod_label_(.+)
+        #         replacement: $1
+        #         action: labelmap
   project: default
   syncPolicy:
     syncOptions:
