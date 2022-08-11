@@ -59,6 +59,14 @@ spec:
         #   value: 20m
         # - name: startupapicheck.resources.limits.memory
         #   value: 64Mi
+
+        # metrics
+        - name: prometheus.enabled
+          value: 'true'
+        - name: prometheus.servicemonitor.enabled
+          value: 'true'
+        - name: prometheus.servicemonitor.labels.release
+          value: prometheus-stack
   project: default
   syncPolicy:
     syncOptions:
