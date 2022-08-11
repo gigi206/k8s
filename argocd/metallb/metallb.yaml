@@ -14,6 +14,19 @@ metadata:
   name: metallb
   namespace: argo-cd
 spec:
+  ignoreDifferences:
+    - kind: CustomResourceDefinition
+      name: addresspools.metallb.io
+      # namespace: argo-cd
+      group: apiextensions.k8s.io # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
+      jsonPointers:
+        - /spec/conversion/webhook/clientConfig/caBundle
+    - kind: CustomResourceDefinition
+      name: bgppeers.metallb.io
+      # namespace: argo-cd
+      group: apiextensions.k8s.io # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
+      jsonPointers:
+        - /spec/conversion/webhook/clientConfig/caBundle
   destination:
     namespace: metallb-system
     server: 'https://kubernetes.default.svc'
