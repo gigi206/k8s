@@ -23,7 +23,7 @@ spec:
     repoURL: 'https://metallb.github.io/metallb'
     targetRevision: 0.13.4
     helm:
-      parameters: []
+      parameters:
         # # controller
         # - name: controller.resources.requests.cpu
         #   value: 10m
@@ -42,6 +42,20 @@ spec:
         #   value: 10m
         # - name: speaker.resources.limits.memory
         #   value: 64Mi
+
+        # metrics
+        - name: prometheus.serviceAccount
+          value: default
+        - name: prometheus.namespace
+          value: metallb
+        - name: prometheus.podMonitor.enabled
+          value: 'true'
+        - name: prometheus.podMonitor.additionalLabels.release
+          value: prometheus-stack
+        - name: prometheus.prometheusRule.enabled
+          value: 'true'
+        - name: prometheus.prometheusRule.additionalLabels.release
+          value: prometheus-stack
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
