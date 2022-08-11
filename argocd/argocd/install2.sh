@@ -20,10 +20,9 @@ done
 kubectl -n ${NAMESPACE_ARGOCD} delete secret argocd-initial-admin-secret
 
 # require_app metallb cert-manager
-require_app metallb cert-manager ingress-nginx
+require_app prometheus-stack metallb cert-manager ingress-nginx
 # install_app
 kubectl apply -f "$(dirname $0)/argocd.yaml"
 ${ARGOCD_CMD_INSTALL} app sync ${APPNAME}
 wait_app
 show_ressources
-
