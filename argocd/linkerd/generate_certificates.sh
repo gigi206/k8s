@@ -2,7 +2,6 @@
 
 # Cf https://linkerd.io/2.11/tasks/generate-certificates/
 
-# wget -O step-ca.tar.gz https://dl.step.sm/gh-release/certificates/docs-ca-install/v0.17.4/step-ca_linux_0.17.4_amd64.tar.gz
 wget -O step.tar.gz https://dl.step.sm/gh-release/cli/docs-ca-install/v0.17.5/step_linux_0.17.5_amd64.tar.gz
 
 tar xzf step_linux_0.17.5_amd64.tar.gz

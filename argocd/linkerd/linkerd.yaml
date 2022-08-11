@@ -5,6 +5,59 @@ metadata:
   name: linkerd
   namespace: argo-cd
 spec:
+  # Fix bug
+  ignoreDifferences:
+    - kind: Secret
+      name: linkerd-policy-validator-k8s-tls
+      # namespace: argo-cd
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
+      jqPathExpressions:
+        - .data.tls.key
+        - .data.tls.crt
+    - kind: Secret
+      name: linkerd-proxy-injector-k8s-tls
+      # namespace: argo-cd
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
+      jqPathExpressions:
+        - .data.tls.key
+        - .data.tls.crt
+    - kind: Secret
+      name: linkerd-sp-validator-k8s-tls
+      # namespace: argo-cd
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
+      jqPathExpressions:
+        - .data.tls.key
+        - .data.tls.crt
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      name: linkerd-proxy-injector-webhook-config
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: linkerd-proxy-injector-webhook-config
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: linkerd-policy-validator-webhook-config
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: linkerd-sp-validator-webhook-config
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: apps
+      kind: Deployment
+      name: linkerd-destination
+      jqPathExpressions:
+        - .spec.template.metadata.annotations."checksum/config"
+    - group: apps
+      kind: Deployment
+      name: linkerd-proxy-injector
+      jqPathExpressions:
+        - .spec.template.metadata.annotations."checksum/config"
   destination:
     namespace: linkerd
     server: 'https://kubernetes.default.svc'
@@ -12,7 +65,7 @@ spec:
   source:
     chart: linkerd2
     repoURL: 'https://helm.linkerd.io/stable'
-    targetRevision: 2.11.1
+    targetRevision: 2.11.4
     helm:
       parameters:
       #Cf https://linkerd.io/2.11/tasks/generate-certificates/
@@ -29,7 +82,7 @@ spec:
           VR0OBBYEFFigZk2/UcMuxv3GHiioxIHiB7O/MAoGCCqGSM49BAMCA0gAMEUCIQDC
           KyrCIkUxfd/qqoc5Nb2jTOeAmlUEbV2EL5GWe0hgcAIgfclTulpVBSK9raH0YB43
           QZ4Bkd4go8bP3kLUKI1ApPI=
-          -----END CERTIFICATE----- 
+          -----END CERTIFICATE-----
       # step certificate create identity.linkerd.cluster.local issuer.crt issuer.key --profile intermediate-ca --not-after 8760h --no-password --insecure --ca ca.crt --ca-key ca.key
       - name: identity.issuer.tls.crtPEM
         value: |
@@ -44,7 +97,7 @@ spec:
           v1HDLsb9xh4oqMSB4gezvzAKBggqhkjOPQQDAgNIADBFAiA0OGr98+8hFob97z7t
           yXjNUw9C4CMgEsUymOoWUk4lUQIhAKNjcTSYmDWJRtLg6X+/6tKPlC6BIMBeX+nx
           azYhHdYh
-          -----END CERTIFICATE----- 
+          -----END CERTIFICATE-----
       - name: identity.issuer.tls.keyPEM
         value: |
           -----BEGIN EC PRIVATE KEY-----
