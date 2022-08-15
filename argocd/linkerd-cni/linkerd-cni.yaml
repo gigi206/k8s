@@ -12,8 +12,8 @@ spec:
   source:
     chart: linkerd2-cni
     repoURL: 'https://helm.linkerd.io/stable'
-    targetRevision: 2.11.1
-    #helm:
+    targetRevision: 2.11.4
+    # helm:
     #  parameters:
     #    - name: dashboard.enforcedHostRegexp
     #      value: ""
