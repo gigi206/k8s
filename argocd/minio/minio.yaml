@@ -11,7 +11,7 @@ spec:
     namespace: minio
   source:
     repoURL: 'https://charts.min.io'
-    targetRevision: 4.0.10
+    targetRevision: 4.0.11
     chart: minio
     helm:
       parameters:
@@ -83,6 +83,7 @@ spec:
         - name: >-
             consoleIngress.annotations.cert-manager\.io/cluster-issuer
           value: selfsigned-cluster-issuer
+
         ###########
         # TUNNING # Cf https://docs.min.io/docs/setup-nginx-proxy-with-minio.html
         ###########
@@ -129,6 +130,19 @@ spec:
         - name: >-
             ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-buffering
           value: "off"
+
+        # metrics
+        - name: metrics.serviceMonitor.enabled
+          value: 'true'
+        - name: metrics.serviceMonitor.additionalLabels.release
+          value: prometheus-stack
+        # - name: environment.MINIO_PROMETHEUS_URL
+        #   value: 'http://prometheus-operated.prometheus-stack.svc.cluster.local:9090'
+
+        # ressources
+        # 16Gi of memory is requested by default if not overrided
+        - name: resources.requests.memory
+          value: 1Gi
   project: default
   syncPolicy:
     syncOptions:
