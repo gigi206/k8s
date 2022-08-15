@@ -4,6 +4,46 @@ metadata:
   name: linkerd-viz
   namespace: argo-cd
 spec:
+  # Fix bug
+  ignoreDifferences:
+    - kind: Secret
+      name: tap-injector-k8s-tls
+      # namespace: argo-cd
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
+      jqPathExpressions:
+        - .data.tls.key
+        - .data.tls.crt
+    - kind: Secret
+      name: tap-k8s-tls
+      # namespace: argo-cd
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
+      jqPathExpressions:
+        - .data.tls.key
+        - .data.tls.crt
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      name: linkerd-tap-injector-webhook-config
+      # namespace: argo-cd
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: apiregistration.k8s.io
+      kind: APIService
+      name: v1alpha1.tap.linkerd.io
+      # namespace: argo-cd
+      jqPathExpressions:
+        - '.spec.caBundle'
+    - group: apps
+      kind: Deployment
+      name: tap
+      # namespace: argo-cd
+      jqPathExpressions:
+        - .spec.template.metadata.annotations."checksum/config"
+    - group: apps
+      kind: Deployment
+      name: tap-injector
+      # namespace: argo-cd
+      jqPathExpressions:
+        - .spec.template.metadata.annotations."checksum/config"
   destination:
     namespace: linkerd-viz
     server: 'https://kubernetes.default.svc'
@@ -11,11 +51,21 @@ spec:
   source:
     chart: linkerd-viz
     repoURL: 'https://helm.linkerd.io/stable'
-    targetRevision: 2.11.1
-    #helm:
-    #  parameters:
-    #    - name: dashboard.enforcedHostRegexp
-    #      value: ""
+    targetRevision: 2.11.4
+    helm:
+      parameters: []
+        # # - name: dashboard.enforcedHostRegexp
+        # #   value: ""
+        # - name: prometheus.enabled
+        #   value: 'false'
+        # - name: prometheusUrl
+        #   value: http://prometheus-stack-kube-prom-prometheus.prometheus-stack.svc.cluster.local:9090/
+        # - name: grafana.enabled
+        #   value: 'false'
+        # - name: grafanaUrl
+        #   value: http://prometheus-stack-grafana.prometheus-stack.svc.cluster.local/
+        # # - name: jaegerUrl
+        # #   value: xxx
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
