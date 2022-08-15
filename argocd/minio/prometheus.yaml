@@ -1,0 +1,41 @@
+# Cf https://blog.min.io/monitor-minio-server-with-prometheus/
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: minio
+  namespace: minio
+  labels:
+    release: prometheus-stack
+spec:
+  groups:
+  - name: Minio
+    rules:
+    - alert: MinioDiskOffline
+      expr: minio_cluster_disk_offline_total != 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Disk offline
+        description: >-
+          All disks are offline since more than 5 minutes.
+    - alert: MinioClusterSpaceExhausted
+      expr: 100 - (100 * (minio_cluster_capacity_usable_free_bytes / minio_cluster_capacity_usable_total_bytes)) > 90
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Minio cluster capacity is over 90% used.
+        description: >-
+          Minio cluster capacity is at {{$value}}% used for
+          more than 5 minutes.
+    - alert: MinioDiskSpaceExhausted
+      expr: 100 - (100 * (minio_node_disk_free_bytes / minio_node_disk_total_bytes)) > 90
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Minio disk capacity is over 90% used.
+        description: >-
+          Minio disk capacity {{$labels.disk}} is at {{$value}}% used for
+          more than 5 minutes.
