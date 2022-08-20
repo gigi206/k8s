@@ -1,63 +1,13 @@
 # Cf https://linkerd.io/2.11/tasks/install-helm/
+#########################################################
+# This file is not used, please edit install.sh instead #
+#########################################################
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: linkerd
   namespace: argo-cd
 spec:
-  # Fix bug
-  ignoreDifferences:
-    - kind: Secret
-      name: linkerd-policy-validator-k8s-tls
-      # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
-      jqPathExpressions:
-        - .data.tls.key
-        - .data.tls.crt
-    - kind: Secret
-      name: linkerd-proxy-injector-k8s-tls
-      # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
-      jqPathExpressions:
-        - .data.tls.key
-        - .data.tls.crt
-    - kind: Secret
-      name: linkerd-sp-validator-k8s-tls
-      # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
-      jqPathExpressions:
-        - .data.tls.key
-        - .data.tls.crt
-    - group: admissionregistration.k8s.io
-      kind: MutatingWebhookConfiguration
-      name: linkerd-proxy-injector-webhook-config
-      jqPathExpressions:
-        - '.webhooks[0].clientConfig.caBundle'
-    - group: admissionregistration.k8s.io
-      kind: ValidatingWebhookConfiguration
-      name: linkerd-proxy-injector-webhook-config
-      jqPathExpressions:
-        - '.webhooks[0].clientConfig.caBundle'
-    - group: admissionregistration.k8s.io
-      kind: ValidatingWebhookConfiguration
-      name: linkerd-policy-validator-webhook-config
-      jqPathExpressions:
-        - '.webhooks[0].clientConfig.caBundle'
-    - group: admissionregistration.k8s.io
-      kind: ValidatingWebhookConfiguration
-      name: linkerd-sp-validator-webhook-config
-      jqPathExpressions:
-        - '.webhooks[0].clientConfig.caBundle'
-    - group: apps
-      kind: Deployment
-      name: linkerd-destination
-      jqPathExpressions:
-        - .spec.template.metadata.annotations."checksum/config"
-    - group: apps
-      kind: Deployment
-      name: linkerd-proxy-injector
-      jqPathExpressions:
-        - .spec.template.metadata.annotations."checksum/config"
   destination:
     namespace: linkerd
     server: 'https://kubernetes.default.svc'
@@ -66,49 +16,3 @@ spec:
     chart: linkerd2
     repoURL: 'https://helm.linkerd.io/stable'
     targetRevision: 2.11.4
-    helm:
-      parameters:
-      #Cf https://linkerd.io/2.11/tasks/generate-certificates/
-      # step certificate create root.linkerd.cluster.local ca.crt ca.key --profile root-ca --no-password --insecure
-      - name: identityTrustAnchorsPEM
-        value: |
-          -----BEGIN CERTIFICATE-----
-          MIIBjTCCATOgAwIBAgIQdwlzY5v4CF62am60j2RcuTAKBggqhkjOPQQDAjAlMSMw
-          IQYDVQQDExpyb290LmxpbmtlcmQuY2x1c3Rlci5sb2NhbDAeFw0yMTExMTAyMTEy
-          MTZaFw0zMTExMDgyMTEyMTZaMCUxIzAhBgNVBAMTGnJvb3QubGlua2VyZC5jbHVz
-          dGVyLmxvY2FsMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE279LzjXV2Q09T4Dw
-          0+HFkZHn3uZVxO1lw5YuAOmMJqWvDDn14yNHx19j1WEpziQ1g3mrJC3QCCWa3jyq
-          h0kt9qNFMEMwDgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQEwHQYD
-          VR0OBBYEFFigZk2/UcMuxv3GHiioxIHiB7O/MAoGCCqGSM49BAMCA0gAMEUCIQDC
-          KyrCIkUxfd/qqoc5Nb2jTOeAmlUEbV2EL5GWe0hgcAIgfclTulpVBSK9raH0YB43
-          QZ4Bkd4go8bP3kLUKI1ApPI=
-          -----END CERTIFICATE-----
-      # step certificate create identity.linkerd.cluster.local issuer.crt issuer.key --profile intermediate-ca --not-after 8760h --no-password --insecure --ca ca.crt --ca-key ca.key
-      - name: identity.issuer.tls.crtPEM
-        value: |
-          -----BEGIN CERTIFICATE-----
-          MIIBsjCCAVigAwIBAgIQOSLQo81EcOkymvdKh2QP3zAKBggqhkjOPQQDAjAlMSMw
-          IQYDVQQDExpyb290LmxpbmtlcmQuY2x1c3Rlci5sb2NhbDAeFw0yMTExMTAyMTE0
-          MjJaFw0yMjExMTAyMTE0MjJaMCkxJzAlBgNVBAMTHmlkZW50aXR5LmxpbmtlcmQu
-          Y2x1c3Rlci5sb2NhbDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJP5p51rr9ly
-          gvVVZaLHjkelvqr7W1XZiFPU5hxmnz/KkgPZJS9VKUYM7bYMR7K/HN1en9Rsu9Hm
-          psBBrJWSmwKjZjBkMA4GA1UdDwEB/wQEAwIBBjASBgNVHRMBAf8ECDAGAQH/AgEA
-          MB0GA1UdDgQWBBTKv/BF0xEQLqQ5691jSaR7gGlLYjAfBgNVHSMEGDAWgBRYoGZN
-          v1HDLsb9xh4oqMSB4gezvzAKBggqhkjOPQQDAgNIADBFAiA0OGr98+8hFob97z7t
-          yXjNUw9C4CMgEsUymOoWUk4lUQIhAKNjcTSYmDWJRtLg6X+/6tKPlC6BIMBeX+nx
-          azYhHdYh
-          -----END CERTIFICATE-----
-      - name: identity.issuer.tls.keyPEM
-        value: |
-          -----BEGIN EC PRIVATE KEY-----
-          MHcCAQEEIL87eFGoIMAbFQfPkT34tl40QDTmgDdz6dGre+pAPasSoAoGCCqGSM49
-          AwEHoUQDQgAEk/mnnWuv2XKC9VVloseOR6W+qvtbVdmIU9TmHGafP8qSA9klL1Up
-          RgzttgxHsr8c3V6f1Gy70eamwEGslZKbAg==
-          -----END EC PRIVATE KEY-----
-      # echo $(date -d '+8760 hour' +"%Y-%m-%dT%H:%M:%SZ")
-      - name: identity.issuer.crtExpiry
-        value: 2022-11-10T22:35:23Z
-  syncPolicy:
-    syncOptions:
-      - CreateNamespace=true
-      - PruneLast=true
