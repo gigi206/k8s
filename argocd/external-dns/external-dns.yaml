@@ -55,6 +55,14 @@ spec:
         #   value: ""
         #- name: logLevel
         #  value: debug
+
+        # metrics
+        # - name: metrics.enabled
+        #   value: 'true'
+        # - name: metrics.serviceMonitor.enabled
+        #   value: 'true'
+        # - name: metrics.serviceMonitor.labels.release
+        #   value: prometheus-stack
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
