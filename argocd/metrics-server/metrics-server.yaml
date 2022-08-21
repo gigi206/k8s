@@ -11,9 +11,12 @@ spec:
   source:
     chart: metrics-server
     repoURL: 'https://kubernetes-sigs.github.io/metrics-server'
-    targetRevision: 3.6.0
+    targetRevision: 3.8.2
     helm:
       parameters:
+        - name: replicas
+          value: '1'
+          # value: '3'
         - name: hostNetwork.enabled
           value: 'true'
   syncPolicy:
