@@ -11,15 +11,16 @@ mkdir -p /etc/rancher/rke2
 # echo "RKE2_CNI=calico" >> /usr/local/lib/systemd/system/rke2-server.env
 # echo "RKE2_CNI=calico" >> "${CONFIG_PATH}"
 # echo "cni: [calico]" > /etc/rancher/rke2/config.yaml
-# profile: cis-1.6
 echo "disable:
-- rke2-ingress-nginx" \
->> /etc/rancher/rke2/config.yaml
-# echo "disable: [rke2-ingress-nginx, rke2-coredns]" >> /etc/rancher/rke2/config.yaml
-echo "tls-san:
-- k8s-api.gigix" \
->> /etc/rancher/rke2/config.yaml
-echo "# debug:true
+- rke2-ingress-nginx
+#- rke2-metrics-server
+# - rke2-ingress-nginx
+# - rke2-coredns
+# disable: [rke2-ingress-nginx, rke2-coredns]
+# profile: cis-1.6
+tls-san:
+- k8s-api.gigix
+# debug:true
 etcd-expose-metrics: true
 kube-controller-manager-arg:
 # - address=0.0.0.0
