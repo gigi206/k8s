@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-adapter
+  namespace: argo-cd
+spec:
+  project: default
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: prometheus-stack
+  source:
+    chart: prometheus-adapter
+    repoURL: 'https://prometheus-community.github.io/helm-charts'
+    targetRevision: 3.4.0
+    helm:
+      parameters:
+        - name: certManager.enabled
+          value: 'true'
+        - name: prometheus.url
+          value: >-
+            http://prometheus-stack-kube-prom-prometheus.prometheus-stack.svc.cluster.local
+        - name: certManager.certDuration
+          value: 8760h0m0s
+        - name: certManager.caCertDuration
+          value: 43800h0m0s
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
