@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mailu
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: mailu
+    server: 'https://kubernetes.default.svc'
+  source:
+    repoURL: 'https://mailu.github.io/helm-charts/'
+    targetRevision: 0.3.3
+    chart: mailu
+    helm:
+      parameters:
+        - name: secretKey
+          value: changeme
+        - name: persistence.size
+          value: 1Gi
+        - name: subnet
+          value: 10.42.0.0/16
+        - name: timezone
+          value: Europe/Paris
+        - name: ingress.externalIngress
+          value: 'false'
+        # - name: mail.messageSizeLimitInMegabytes
+        #   value: '50'
+        - name: domain
+          value: mail.gigix
+        - name: hostnames[0]
+          value: mail.gigix
+        - name: certmanager.issuerName
+          value: selfsigned-cluster-issuer
+        - name: clamav.enabled
+          value: 'false'
+        - name: dovecot.enabled
+          value: 'false'
+        - name: externalService.enabled
+          value: 'false'
+        # - name: externalService.enabled
+        #   value: 'true'
+        # - name: externalService.type
+        #   value: LoadBalancer
+        # - name: externalService.externalTrafficPolicy
+        #   value: Local
+        # - name: external_relay
+        #   value: host
+        # - name: external_relay.host
+        #   value: external_relay.gigix
+        - name: fetchmail.enabled
+          value: 'false'
+        - name: front.hostPort.enabled
+          value: 'false'
+        - name: roundcube.enabled
+          value: 'false'
+        - name: webdav.enabled
+          value: 'false'
+  project: default
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - CreateNamespace=true
