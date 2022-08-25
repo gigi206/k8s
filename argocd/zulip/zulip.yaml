@@ -1,0 +1,73 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zulip
+  namespace: argo-cd
+spec:
+  project: default
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: zulip
+  source:
+    repoURL: 'https://github.com/zulip/docker-zulip/'
+    path: kubernetes/chart/zulip
+    targetRevision: 5.5-0
+    helm:
+      parameters:
+        - name: ingress.enabled
+          value: 'true'
+        - name: 'ingress.hosts[0].host'
+          value: zulip.gigix
+        - name: 'ingress.hosts[0].paths[0].path'
+          value: /
+        - name: 'ingress.hosts[0].paths[0].pathType'
+          value: Prefix
+        - name: 'ingress.tls[0].secretName'
+          value: zulip-tls
+        - name: 'ingress.tls[0].hosts[0]'
+          value: zulip.gigix
+        - name: ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        - name: ingress.className
+          value: nginx
+        - name: persistence.enabled
+          value: 'true'
+        - name: persistence.size
+          value: 2Gi
+        - name: zulip.environment.SECRETS_secret_key
+          value: 0cnelkc7zibuiéhd_éh!jx8
+        - name: zulip.environment.SETTING_EMAIL_HOST
+          value: mailhog.mailhog.svc.cluster.local
+        - name: zulip.environment.SETTING_EMAIL_PORT
+          value: '25'
+        - name: zulip.environment.SETTING_EXTERNAL_HOST
+          value: zulip.gigix
+        - name: zulip.password
+          value: set-secure-password
+        - name: memcached.memcachedPassword
+          value: set-secure-password
+        - name: rabbitmq.auth.password
+          value: set-secure-password
+        - name: rabbitmq.auth.erlangCookie
+          value: set-secure-password
+        - name: redis.auth.password
+          value: set-secure-password
+        - name: postgresql.auth.postgresqlPassword
+          value: set-secure-password
+        - name: postgresql.auth.password
+          value: set-secure-password
+        - name: zulip.persistence.enabled
+          value: 'true'
+        - name: zulip.persistence.size
+          value: 1Gi
+        - name: zulip.environment.SECRETS_email_password
+        - name: zulip.environment.SETTING_ZULIP_ADMINISTRATOR
+          value: admin@zulip.gigix
+        - name: zulip.environment.SETTING_EMAIL_HOST_USER
+          value: noreply@zulip.gigix
+        - name: zulip.environment.SETTING_EMAIL_USE_TLS
+          value: '"False"'
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
