@@ -23,7 +23,7 @@
 
 ### Installation
 - [Kubespray](https://github.com/kubernetes-sigs/kubespray)
-- [minikube](https://github.com/kubernetes/minikube)
+- [Minikube](https://github.com/kubernetes/minikube)
 - [K3d](https://k3d.io/)
   - [Github](https://github.com/rancher/k3d)
   - [Youtube](https://www.youtube.com/watch?v=mCesuGk-Fks)
@@ -142,12 +142,14 @@ To DO
 - [Ambassador](https://www.getambassador.io)
   - [Github](https://github.com/emissary-ingress/emissary)
 
-### Storage
+### S3
 - [MinIO](https://docs.min.io/)
   - [Github](https://github.com/minio/minio)
   - [Artifacthub](https://artifacthub.io/packages/helm/minio/minio)
   - [Operator](https://artifacthub.io/packages/olm/community-operators/minio-operator)
   - [Operator](https://operatorhub.io/operator/minio-operator)
+
+### Storage class
 - [Longhorn](https://longhorn.io/)
   - [Github](https://github.com/longhorn/longhorn)
   - [Artifacthub](https://artifacthub.io/packages/helm/longhorn/longhorn)
@@ -159,8 +161,8 @@ To DO
   - [Youtube](https://www.youtube.com/watch?v=C9hzrexaIDA&list=PL34sAs7_26wNBRWM6BDhnonoA5FMERax0&index=79)
   - [Artifacthub](https://artifacthub.io/packages/helm/vmware-tanzu/velero)
 
-### Open Policy Agent (OPA)
-- [Gatekeeper](https://open-policy-agent.github.io/gatekeeper/website/docs/howto/)
+### Policy engine (admission controller)
+- [Gatekeeper](https://open-policy-agent.github.io/gatekeeper/website/docs/howto/) (Open Policy Agent (OPA))
   - [Github](https://github.com/open-policy-agent/gatekeeper)
   - [Youtube](https://www.youtube.com/watch?v=14lGc7xMAe4)
   - [Artifacthub](https://artifacthub.io/packages/helm/gogatekeeper/gatekeeper)
@@ -197,6 +199,7 @@ To DO
   - [Youtube](https://www.youtube.com/playlist?list=PL34sAs7_26wPkw9g-5NQPP_rHVzApGpKP)
 - [Linkerd](https://linkerd.io/)
   - [Github](https://github.com/linkerd/linkerd2)
+  - [Youtube](https://www.youtube.com/watch?v=-7KjZGpqHOg) / [Github](https://github.com/isItObservable/Linkerd)
   - [Youtube](https://www.youtube.com/watch?v=Hc-XFPHDDk4)
   - [Artifacthub](https://artifacthub.io/packages/helm/linkerd2/linkerd2)
 
