@@ -89,3 +89,15 @@ done
 
 # Change ClusterIP to LoadBalancer
 kubectl patch svc kubernetes -n default -p '{"spec": {"type": "LoadBalancer"}, "metadata": {"annotations": {"external-dns.alpha.kubernetes.io/hostname": "k8s-api.gigix"}}}'
+
+# Configure default PriorityClass to avoid preemption 
+cat <<EOF | kubectl apply -f -
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: nonpreempting
+value: 0
+preemptionPolicy: Never
+globalDefault: true
+description: "This priority class will not cause other pods to be preempted."
+EOF
