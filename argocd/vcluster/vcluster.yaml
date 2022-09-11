@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcluster
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: 'https://charts.loft.sh'
+    targetRevision: 0.11.2
+  destination:
+    name: in-cluster
+    # server: 'https://kubernetes.default.svc'
+    namespace: vcluster
+    chart: vcluster
+    helm:
+      parameters:
+        - name: storage.size
+          value: 10Gi
+        # - name: sync.persistentvolumes.enabled
+        #   value: 'true'
+        # - name: sync.nodes.enabled
+        #   value: 'true'
+        # - name: sync.nodes.syncAllNodes
+        #   value: 'true'
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - CreateNamespace=true
