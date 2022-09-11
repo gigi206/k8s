@@ -10,14 +10,15 @@ test -d /etc/sysconfig && CONFIG_PATH="/etc/sysconfig/rke2-server" || CONFIG_PAT
 mkdir -p /etc/rancher/rke2
 # echo "RKE2_CNI=calico" >> /usr/local/lib/systemd/system/rke2-server.env
 # echo "RKE2_CNI=calico" >> "${CONFIG_PATH}"
-# echo "cni: [calico]" > /etc/rancher/rke2/config.yaml
+# echo "cni: [multus, calico]" > /etc/rancher/rke2/config.yaml
 echo "disable:
+# - cni: [multus, canal] # https://docs.rke2.io/install/network_options/#using-multus
 - rke2-ingress-nginx
 #- rke2-metrics-server
 # - rke2-ingress-nginx
 # - rke2-coredns
 # disable: [rke2-ingress-nginx, rke2-coredns]
-# profile: cis-1.6
+# profile: cis-1.23
 tls-san:
 - k8s-api.gigix
 # debug:true
