@@ -1,0 +1,99 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jspolicy
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: jspolicy
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    chart: jspolicy
+    helm:
+      values: |
+        replicaCount: 1
+        policyReports:
+          enabled: True
+          maxEvents: 1
+        serviceMonitor:
+          enabled: True
+          labels:
+            release: prometheus-stack
+        policies:
+          block-default-namespace.jspolicy.gigix:
+            operations: ["CREATE"]
+            resources: ["*"]
+            apiGroups: ["*"]
+            apiVersions: ["*"]
+            scope: Namespaced
+            javascript: |
+              if (request.namespace === "default") {
+                const k8s_api = request.kind.group ? `${request.name} (${request.kind.kind}.${request.kind.group}/${request.kind.version}` : `${request.kind.kind}/${request.kind.version}`;
+                deny(`${request.name} (${k8s_api}) => creation of resources within the ${request.namespace} namespace is not allowed!`);
+              }
+          block-nodeport-services.jspolicy.gigix:
+            operations: ["CREATE", "UPDATE"]
+            resources: ["services"]
+            apiGroups: [""]
+            apiVersions: ["*"]
+            scope: Namespaced
+            # This is by default enabled. You can also specify Skip here to not
+            # log such requests.
+            auditPolicy: Log
+            # Specify the max number of logged requests. Defaults to 20
+            auditLogSize: 30
+            javascript: |
+              if (request.object.spec.type === "NodePort") {
+                const k8s_api = request.kind.group ? `${request.name} (${request.kind.kind}.${request.kind.group}/${request.kind.version}` : `${request.kind.kind}/${request.kind.version}`;
+                deny(`${request.name} (${k8s_api}) => service type ${request.object.spec.type} is not allowed!`);
+              }
+          block-priorityclassname.jspolicy.gigix:
+            operations: ["CREATE", "UPDATE"]
+            resources: ["pods", "daemonsets", "deployments", "statefulsets", "jobs", "cronjobs"]
+            apiGroups: ["", "apps", "batch"]
+            apiVersions: ["*"]
+            scope: Namespaced
+            javascript: |
+              if (request.kind.kind === "Pod") {
+                var priorityClassName = request.object.spec.priorityClassName;
+              }
+              else if (["Deployment", "DaemonSet", "StatefulSet", "Job"].includes(request.kind.kind)) {
+                var priorityClassName = request.object.spec.template.spec.priorityClassName;
+              }
+              else if (request.kind.kind === "CronJob") {
+                var priorityClassName = request.object.spec.jobTemplate.spec.template.spec.priorityClassName;
+              }
+              else {
+                var priorityClassName = null;
+              }
+              if (priorityClassName) {
+                const PriorityClassNameObject = get("PriorityClass", "scheduling.k8s.io/v1", priorityClassName);
+                if (!PriorityClassNameObject?.globalDefault) {
+                  const k8s_api = request.kind.group ? `${request.name} (${request.kind.kind}.${request.kind.group}/${request.kind.version}` : `${request.kind.kind}/${request.kind.version}`;
+                  deny(`${request.name} (${k8s_api}) => set a priorityClassName (${priorityClassName}) within a ${request.kind.kind} is not allowed!`);
+                }
+              }
+          always-pull-images.jspolicy.gigix:
+            type: Mutating
+            operations: ["CREATE"]
+            resources: ["pods"]
+            apiGroups: [""]
+            apiVersions: ["*"]
+            scope: Namespaced
+            javascript: |
+              [...request.object.spec.containers || [], ...request.object.spec.initContainers || []]?.forEach(container => {
+                /*
+                if (container.image.match(/^[^:]+(:latest)?$/)) {
+                  container.imagePullPolicy = "Always";
+                }
+                */
+                container.imagePullPolicy = "Always";
+              });
+              mutate(request.object);
+    repoURL: https://charts.loft.sh
+    targetRevision: 0.2.1
+  syncPolicy:
+    syncOptions:
+    - PruneLast=true
+    - CreateNamespace=true
