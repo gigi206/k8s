@@ -1,0 +1,61 @@
+# 2 versions of haproxy exist
+### https://github.com/jcmoraisjr/haproxy-ingress ###
+# https://artifacthub.io/packages/helm/haproxy-ingress/haproxy-ingress
+# Example annotations: https://haproxy-ingress.github.io/docs/configuration/keys/
+# annotations:
+#   kubernetes.io/ingress.class: haproxy
+#   haproxy-ingress.github.io/secure-backends: "true"
+#   haproxy-ingress.github.io/ssl-redirect: "true"
+### https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/annotations.md ###
+# https://artifacthub.io/packages/helm/haproxytech/kubernetes-ingress
+# Example of annotations:
+# * https://www.haproxy.com/documentation/kubernetes/latest/
+# * https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/annotations.md
+# annotations:
+#   kubernetes.io/ingress.class: haproxy
+#   haproxy.org/ssl-redirect/ssl-redirect: "true"
+
+# Below is the haproxy from proxytech that is used and NOT the one from jcmoraisjr !
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-haproxy
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: ingress-haproxy
+    server: 'https://kubernetes.default.svc'
+  source:
+    chart: kubernetes-ingress
+    repoURL: 'https://haproxytech.github.io/helm-charts'
+    targetRevision: '1.24.0'
+    helm:
+      parameters:
+        - name: controller.kind
+          value: DaemonSet
+        - name: controller.ingressClass
+          value: haproxy
+        - name: controller.ingressClassResource.default
+          value: "true"
+        - name: controller.service.type
+          value: LoadBalancer
+        # - name: controller.enablePorts.stat
+        #   value: "false"
+        # - name: controller.config.timeout-connect
+        #   value: 250ms
+        # https://haproxy-ingress.github.io/docs/examples/metrics/
+        - name: controller.metrics.enabled
+          value: "true"
+        - name: controller.serviceMonitor.enabled
+          value: "true"
+        - name: controller.serviceMonitor.extraLabels.release
+          value: prometheus-stack
+        # https://www.haproxy.com/documentation/kubernetes/latest/configuration/controller/#--configmap-tcp-services
+        # default/haproxy-configmap by default
+        # - name: controller.extraArgs[0]
+        #   value: --configmap-tcp-services=default/tcp
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
