@@ -26,8 +26,8 @@ spec:
         - name: controller.config.proxy-body-size
           value: 100m
         # Fix CVE-2021-25742 => https://github.com/kubernetes/ingress-nginx/issues/7837
-        - name: controller.allowSnippetAnnotations
-          value: "false"
+        # - name: controller.allowSnippetAnnotations
+        #   value: "false"
         # - name: defaultBackend.replicaCount
         #   value: "1"
         # - name: controller.metrics.enabled # Cf https://artifacthub.io/packages/helm/ingress-nginx/ingress-nginx#prometheus-metrics
