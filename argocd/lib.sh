@@ -18,6 +18,10 @@ SKOPEO_IMAGE="quay.io/skopeo/stable:latest"
 SKOPEO_REPO_DST="docker://demo.goharbor.io/gigi206"
 REPO_DST_CREDS="${REPO_DST_CREDS}"
 
+sync_app() {
+    ${ARGOCD_CMD} app sync ${APPNAME} --async
+}
+
 install_app() {
     ${ARGOCD_CMD} app list &> /dev/null
     if [ $? -eq 20 ]
@@ -31,7 +35,7 @@ install_app() {
     else
         echo "Installing ${APPNAME} [${NAMESPACE}]"
         kubectl apply -f "${DIRNAME}/${BASENAME}.yaml"
-        ${ARGOCD_CMD} app sync ${APPNAME} --async
+        sync_app
     fi
 }
 
@@ -76,13 +80,14 @@ wait_app() {
 
 list_images() {
     REPO_URL="$(echo ${MANIFEST} | jq -r '.spec.source.repoURL')"
-    REPO_NAME=$(helm repo list -o json | jq -r ".[] | select(.url==\"${REPO_URL}\") | .name")
+    # REPO_NAME=$(helm repo list -o json | jq -r ".[] | select(.url==\"${REPO_URL}\") | .name")
     CHART_NAME="$echo ${MANIFEST} | jq -r '(.spec.source.chart)'"
-    [ -z "${REPO_NAME}" ] && helm repo add ${REPO_NAME:=$APPNAME} ${REPO_URL} > /dev/null
+    # [ -z "${REPO_NAME}" ] && helm repo add ${REPO_NAME:=$APPNAME} ${REPO_URL} > /dev/null
 
     # IMAGES=$(helm template ${APPNAME} ${REPO_NAME}/${APPNAME} | egrep -w image | awk -F':' '{ print $2":"$3 }' | xargs -I {} echo {} | sort -u)
     # IMAGES=$(kubectl get Application -n ${NAMESPACE_ARGOCD} ${APPNAME} -o json | jq -r '.status.summary.images[]')
-    IMAGES=$(helm install --dry-run ${APPNAME} ${REPO_NAME}/${APPNAME} -o json | jq -r '..|.image? | select(.repository?) | (.repository +":" + .tag)' | sort -u)
+    # IMAGES=$(helm install --dry-run ${APPNAME} ${REPO_NAME}/${APPNAME} -o json | jq -r '..|.image? | select(.repository?) | (.repository +":" + .tag)' | sort -u)
+    IMAGES=$(helm install --dry-run ${APPNAME} ${APPNAME} --repo ${REPO_URL} -o json | jq -r '..|.image? | select(.repository?) | (.repository +":" + .tag)' | sort -u)
     echo "${IMAGES}"
 }
 
