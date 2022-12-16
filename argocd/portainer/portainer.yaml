@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: portainer
+spec:
+  destination:
+    namespace: portainer
+    server: 'https://kubernetes.default.svc'
+  source:
+    repoURL: 'https://portainer.github.io/k8s/'
+    targetRevision: 1.0.38
+    chart: portainer
+    helm:
+      parameters:
+        - name: ingress.enabled
+          value: 'true'
+        - name: 'ingress.hosts[0].host'
+          value: portainer.gigix
+        - name: ingress.ingressClassName
+          value: nginx
+        - name: ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        - name: ingress.hosts[0].host
+          value: portainer.gigix
+        - name: ingress.hosts[0].paths[0].path
+          value: /
+        - name: ingress.hosts[0].paths[0].pathType
+          value: Prefix
+        - name: ingress.tls[0].secretName
+          value: portainer-cert-tls
+        - name: ingress.tls[0].hosts[0]
+          value: portainer.gigix
+        - name: persistence.size
+          value: 5Gi
+        - name: persistence.storageClass
+          value: longhorn
+  project: default
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - CreateNamespace=true
