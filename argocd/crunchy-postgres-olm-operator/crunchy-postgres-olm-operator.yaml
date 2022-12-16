@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crunchy-postgres-olm-operator
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/gigi206/k8s'
+    path: argocd/crunchy-postgres-olm-operator/kustomize/base
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: crunchy-postgres-olm-operator
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
