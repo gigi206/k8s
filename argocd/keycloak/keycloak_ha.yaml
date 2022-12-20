@@ -1,0 +1,246 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: keycloak
+  namespace: argo-cd
+spec:
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  description: https://www.keycloak.org
+  destinations:
+    - name: in-cluster
+      namespace: keycloak
+      server: https://kubernetes.default.svc
+  # orphanedResources:
+  #   warn: true
+  # roles:
+  #   - groups:
+  #       - ArgoCDDemo
+  #     name: demo
+  #     policies:
+  #       - p, proj:demo:demo, applications, *, demo/*, allow
+  sourceRepos:
+    - https://github.com/gigi206/k8s
+    - https://charts.bitnami.com/bitnami
+
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-database
+  namespace: argo-cd
+spec:
+  project: keycloak
+  source:
+    repoURL: 'https://github.com/gigi206/k8s'
+    path: argocd/keycloak/kustomize/ha
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: keycloak
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argo-cd
+spec:
+  project: keycloak
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: keycloak
+  source:
+    chart: keycloak
+    repoURL: 'https://charts.bitnami.com/bitnami'
+    targetRevision: '13.0.0'
+    helm:
+      # Workaround: issue when using parameters, "true" is
+      # interpreting as a bool instead of a string
+      values: |
+        ingress:
+          annotations:
+            # nginx.ingress.kubernetes.io/ssl-passthrough: 'true'
+            nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+            nginx.ingress.kubernetes.io/affinity: cookie
+            nginx.ingress.kubernetes.io/session-cookie-name: sticky-session
+            nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+            nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+            nginx.ingress.kubernetes.io/affinity-mode: balanced # persistent / balanced
+            # nginx.ingress.kubernetes.io/configuration-snippet: |
+            #   more_set_headers "X-Forwarded-For $http_x_forwarded_for";
+            # nginx.ingress.kubernetes.io/configuration-snippet: |
+            # location /auth {
+            #         proxy_set_header X-Forwarded-Host $host;
+            #         proxy_set_header X-Forwarded-Host HTTPS;
+            #         proxy_set_header X-Forwarded-Server $host;
+            #         proxy_set_header X-Real-IP $remote_addr;
+            #         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            #         proxy_set_header X-Forwarded-Proto $scheme;
+            #         proxy_set_header Host $http_host;
+            #         proxy_set_header Upgrade $http_upgrade;
+            #         proxy_set_header Connection "Upgrade";
+            #         proxy_pass_request_headers on;
+            # }
+            # nginx.org/proxy-connect-timeout: 3600s
+            # nginx.org/proxy-read-timeout: 3600s
+            # nginx.org/proxy-send-timeout: 3600s
+            # nginx.ingress.kubernetes.io/proxy-body-size: "8g"
+            nginx.ingress.kubernetes.io/configuration-snippet: |
+              more_set_headers "Host              $http_host";
+              more_set_headers "X-Real-IP         $remote_addr";
+              more_set_headers "X-Forwarded-Proto $scheme";
+              more_set_headers "X-Forwarded-For   $proxy_add_x_forwarded_for";
+      parameters:
+        - name: production
+          value: 'true'
+        # https://quay.io/repository/keycloak/keycloak?tab=tags&tag=latest (official containers)
+        # https://hub.docker.com/r/bitnami/keycloak/tags (containers used by Bitnami)
+        # - name: image.tag
+        #   value: '20.0.1'
+        # extraStartupArgs are required to upgradate the database schema
+        # else the application failed to start after the upgrade
+        # https://www.keycloak.org/docs/latest/upgrading/
+        - name: extraStartupArgs
+          value: >-
+            --spi-connections-jpa-legacy-migration-strategy=update
+            --spi-connections-liquibase-default-index-creation-threshold=300000
+        # - name: postgresql.architecture
+        #   value: replication
+        - name: postgresql.enabled
+          value: 'false'
+        - name: externalDatabase.host
+          value: postgres-ha.keycloak.svc.cluster.local
+        - name: externalDatabase.user
+          value: postgres
+        # - name: externalDatabase.password
+        #   value: 'CHANGEME'
+        - name: externalDatabase.existingSecret
+          value: postgres-pguser-postgres
+        - name: externalDatabase.existingSecretPasswordKey
+          value: password
+        - name: externalDatabase.database
+          value: postgres
+        - name: externalDatabase.port
+          value: '5432'
+        # - name: tls.enabled
+        #   value: 'true'
+        # - name: tls.autoGenerated
+        #   value: 'true'
+        # - name: tls.usePem
+        #   value: 'true'
+        # - name: tls.existingSecret
+        #   value: keycloak.gigix-tls
+        # Min 3 nodes as explained here https://www.keycloak.org/server/caching#_configuring_caches_for_availability
+        # The default number of owners is enough to survive 1 node (owner) failure in a cluster setup with at least three nodes
+        - name: replicaCount
+          value: '3'
+        # - name: resources.limits.cpu
+        #   value: 1000m
+        # - name: resources.limits.memory
+        #   value: 2000Mi
+        - name: resources.requests.cpu
+          value: 100m
+        - name: resources.requests.memory
+          value: 1000Mi
+        - name: priorityClassName
+          value: system-cluster-critical
+        - name: service.type
+          value: ClusterIP
+        - name: auth.adminUser
+          value: admin
+        - name: auth.adminPassword
+          value: admin
+        - name: proxy
+          value: edge
+          # value: passthrough
+        - name: ingress.enabled
+          value: 'true'
+        - name: ingress.ingressClassName
+          value: nginx
+        - name: ingress.hostname
+          value: keycloak.gigix
+        - name: ingress.tls
+          value: 'true'
+        # - name: >-
+        #     ingress.annotations.nginx\.ingress\.kubernetes\.io/ssl-passthrough
+        #   value: "true"
+        # - name: >-
+        #     ingress.annotations.nginx\.ingress\.kubernetes\.io/force-ssl-redirect
+        #   value: "true"
+        # - name: ingress.servicePort
+        #   value: https
+        # - name: >-
+        #     ingress.annotations.nginx\.ingress\.kubernetes\.io/backend-protocol
+        #   value: https
+        - name: >-
+            ingress.annotations.nginx\.ingress\.kubernetes\.io/server-alias
+          value: keycloak
+        # - name: >-
+        #     ingress.annotations.nginx\.ingress\.kubernetes\.io/configuration-snippet
+        #   value: |
+        #       more_set_headers "X-Forwarded-For \$http_x_forwarded_for";
+        # - name: >-
+        #     ingress.annotations.nginx\.ingress\.kubernetes\.io/force-ssl-redirect
+        #   value: 'true'
+        - name: >-
+            ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        # - name: rbac.create
+        #   value: 'true'
+        # - name: rbac.rules
+        #   value: []
+        # - name: pdb.create
+        #   value: 'true'
+        # - name: autoscaling.enabled
+        #   enabled: 'true'
+        # - name: autoscaling.minReplicas
+        #   value: '1'
+        # - name: autoscaling.maxReplicas
+        #   value: '4'
+        # - name: autoscaling.targetCPU
+        #   value: xxx
+        # - name: autoscaling.targetMemory
+        #   value: xxx
+        # - name: logging.output
+        #   value: json
+        # - name: keycloakConfigCli.enabled
+        #   value: 'true'
+        # networkPolicy must be disabled because with multiple instances
+        # the cache replication (with infinispan) is not open !!!
+        # Write a new one that allows TCP 7800 ?
+        # - name: networkPolicy.enabled
+        #   value: 'true'
+        - name: networkPolicy.allowExternal
+          value: 'true'
+        - name: metrics.enabled
+          value: 'true'
+        - name: metrics.serviceMonitor.enabled
+          value: 'true'
+        - name: metrics.serviceMonitor.labels.release
+          value: prometheus-stack
+        - name: metrics.prometheusRule.enabled
+          value: 'true'
+        - name: metrics.prometheusRule.groups[0].name
+          value: Keycloak
+        - name: metrics.prometheusRule.groups[0].rules[0].alert
+          value: KeycloakInstanceNotAvailable
+        - name: metrics.prometheusRule.groups[0].rules[0].annotations.message
+          value: "Keycloak instance in namespace {{ `{{` }} $labels.namespace {{ `}}` }} has not been available for the last 5 minutes."
+        - name: metrics.prometheusRule.groups[0].rules[0].expr
+          value: absent(kube_pod_status_ready{namespace="{{ include "common.names.namespace" . }}", condition="true"} * on (pod) kube_pod_labels{pod=~"{{ include "common.names.fullname" . }}-\\d+", namespace="{{ include "common.names.namespace" . }}"}) != 0
+        - name: metrics.prometheusRule.groups[0].rules[0].for
+          value: 5m
+        - name: metrics.prometheusRule.groups[0].rules[0].labels.severity
+          value: critical
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
