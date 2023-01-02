@@ -1,0 +1,100 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dokuwiki
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: dokuwiki
+    server: 'https://kubernetes.default.svc'
+  source:
+    repoURL: 'https://charts.bitnami.com/bitnami'
+    targetRevision: 13.1.9
+    chart: dokuwiki
+    helm:
+      values: |
+        extraDeploy:
+        - apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: dokuwiki
+          spec:
+            behavior:
+              scaleUp:
+                stabilizationWindowSeconds: 60
+                policies:
+                - type: Pods
+                  value: 1
+                  periodSeconds: 60
+              scaleDown:
+                stabilizationWindowSeconds: 60
+                policies:
+                - type: Pods
+                  value: 1
+                  periodSeconds: 60
+            scaleTargetRef:
+              kind: Deployment
+              name: dokuwiki
+              apiVersion: apps/v1
+            minReplicas: 1
+            maxReplicas: 3
+            metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 50
+      parameters:
+        - name: dokuwikiWikiName
+          value: GigiX Dokuwiki
+        - name: dokuwikiUsername
+          value: admin
+        - name: dokuwikiPassword
+          value: admin
+        # - name: dokuwikiEmail
+        #   value: xxx@email.com
+        - name: dokuwikiFullName
+          value: Administrator account
+        - name: service.type
+          value: ClusterIP
+        - name: persistence.enabled
+          value: 'true'
+        - name: persistence.storageClass
+          value: longhorn
+        - name: persistence.size
+          value: 2Gi
+        - name: ingress.enabled
+          value: 'true'
+        - name: ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        - name: ingress.hostname
+          value: dokuwiki.gigix
+        - name: ingress.ingressClassName
+          value: nginx
+        - name: ingress.tls
+          value: 'true'
+        - name: resources.requests.cpu
+          value: 300m
+        - name: resources.limits.cpu
+          value: 300m
+        - name: resources.requests.memory
+          value: 256Mi
+        - name: resources.limits.memory
+          value: 512Mi
+        # Metrics
+        - name: metrics.enabled
+          value: 'false'
+        - name: metrics.resources.requests.cpu
+          value: 100m
+        - name: metrics.resources.limits.cpu
+          value: 100m
+        - name: metrics.resources.requests.memory
+          value: 30Mi
+        - name: metrics.resources.limits.memory
+          value: 100Mi
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
