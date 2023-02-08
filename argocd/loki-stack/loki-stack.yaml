@@ -11,7 +11,7 @@ spec:
   source:
     chart: loki-stack
     repoURL: 'https://grafana.github.io/helm-charts'
-    targetRevision: '2.6.5'
+    targetRevision: '2.8.9'
     helm:
       parameters:
         # The actual chart (2.6.5) does not allow fine
@@ -22,12 +22,18 @@ spec:
         #   value: 'true'
         - name: loki.config.compactor.retention_enabled
           value: 'true'
+        # - name: loki.config.auth_enabled
+        #   value: 'true'
         - name: loki.persistence.enabled
           value: 'true'
         - name: loki.persistence.storageClassName
           value: longhorn
         - name: loki.persistence.size
           value: 5Gi
+        - name: promtail.readinessProbe.timeoutSeconds
+          value: '5'
+        - name: loki.readinessProbe.timeoutSeconds
+          value: '5'
   project: default
   syncPolicy:
     syncOptions:

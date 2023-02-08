@@ -1,5 +1,8 @@
 # loki-stack
 
+## Configuration
+Add a `Loki` datasource in **Grafana** with **URL**: **http://loki-stack.loki-stack:3100**
+
 ## Articles
 
 * https://blog.octo.com/the-long-way-to-loki/
