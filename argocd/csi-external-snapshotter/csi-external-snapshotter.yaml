@@ -1,3 +1,4 @@
+# Cf https://longhorn.io/docs/latest/snapshots-and-backups/csi-snapshot-support/enable-csi-snapshot-support/
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -8,7 +9,7 @@ spec:
   source:
     repoURL: 'https://github.com/kubernetes-csi/external-snapshotter/'
     path: client/config/crd
-    targetRevision: v4.2.1
+    targetRevision: v5.0.1
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: default
