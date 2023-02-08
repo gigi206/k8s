@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
-export INSTALL_RKE2_VERSION=v1.23.8+rke2r1
+. /vagrant/git/rke2/RKE2_ENV.sh
+# export INSTALL_RKE2_VERSION=v1.24.8+rke2r1
 # /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
 # ln -s /etc/rancher/rke2/rke2.yaml ~/.kube/config
 
@@ -74,7 +75,7 @@ kubectl krew install images        # https://artifacthub.io/packages/krew/krew-i
 kubectl krew install neat          # https://artifacthub.io/packages/krew/krew-index/neat
 kubectl krew install pod-inspect   # https://artifacthub.io/packages/krew/krew-index/pod-inspect
 kubectl krew install pexec         # https://artifacthub.io/packages/krew/krew-index/pexec
-echo 'source <(kpexec --completion bash)' >>~/.bashrc
+# echo 'source <(kpexec --completion bash)' >>~/.bashrc
 
 # kubectl krew install outdated      # https://artifacthub.io/packages/krew/krew-index/outdated
 # kubectl krew install sniff         # https://artifacthub.io/packages/krew/krew-index/sniff
@@ -91,7 +92,7 @@ done
 # Change ClusterIP to LoadBalancer
 kubectl patch svc kubernetes -n default -p '{"spec": {"type": "LoadBalancer"}, "metadata": {"annotations": {"external-dns.alpha.kubernetes.io/hostname": "k8s-api.gigix"}}}'
 
-# Configure default PriorityClass to avoid preemption 
+# Configure default PriorityClass to avoid preemption
 cat <<EOF | kubectl apply -f -
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass

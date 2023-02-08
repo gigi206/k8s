@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # https://docs.rke2.io/install/quickstart/#linux-agent-worker-node-installation
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
+. /vagrant/git/rke2/RKE2_ENV.sh
 curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
 mkdir -p /etc/rancher/rke2/
 echo "Waiting 1st master node to finish his installation"

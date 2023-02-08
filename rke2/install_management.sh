@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+. /vagrant/git/rke2/RKE2_ENV.sh
+
 # /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
 # ln -s /etc/rancher/rke2/rke2.yaml ~/.kube/config
 
@@ -30,7 +32,8 @@ kubectl krew install ns
 
 cp /etc/rancher/rke2/rke2.yaml /vagrant/kube-management.config
 sed -i "s@127.0.0.1@$(ip a show dev eth0 | egrep -w inet | awk '{ print $2 }' | awk -F'/' '{ print $1 }')@g" /vagrant/kube-management.config
+# sed -i "s@127.0.0.1@k8s-management.gigix@g" /vagrant/kube-management.config
 
 /vagrant/git/argocd/argocd/install-management.sh
-/vagrant/git/argocd/cert-manager/install.sh
-/vagrant/git/argocd/rancher/install.sh
+/vagrant/git/argocd/cert-manager/install-management.sh
+/vagrant/git/argocd/rancher/install-management.sh
