@@ -20,56 +20,64 @@ spec:
   source:
     chart: argo-cd
     repoURL: 'https://argoproj.github.io/argo-helm'
-    targetRevision: '4.10.4'
+    targetRevision: '5.20.1'
     helm:
       parameters:
-        #- name: dex.enabled
-        #  value: "false"
-        #- name: server.configEnabled
-        #  value: "true"
-        #- name: server.config.url
-        #  value: https://argocd.gigix
-        #- name: server.config.policy\.default
-        #  value: role:readonly
-        #- name: server.config.accounts\.gigix
-        #  value: apiKey, login
+        - name: dex.enabled
+          value: 'false'
+        # - name: server.configEnabled
+        #   value: "true"
+        # - name: server.config.url
+        #   value: https://argocd.gigix
+        # https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/keycloak/
+        # - name: oidc.config
+        #   value: |
+        #     name: Keycloak
+        #     issuer: https://keycloak.gigix/realms/<realm>
+        #     clientID: argocd
+        #     clientSecret: $oidc.keycloak.clientSecret
+        #     requestedScopes: ["openid", "profile", "email", "groups"]
+        # - name: server.config.policy\.default
+        #   value: role:readonly
+        # - name: server.config.accounts\.gigix
+        #   value: apiKey, login
         # - name: >-
         #     server.service.annotations."external-dns\.alpha\.kubernetes\.io/hostname"
         #   value: argocd.gigix
         # - name: server.service.type
         #   value: LoadBalancer
-        #- name: server.additionalApplications[0].name
-        #  value: myapp
-        #- name: server.additionalApplications[0].namespace
-        #  value: argo-cd
-        #- name: server.additionalApplications[0].projet
-        #  value: system
-        #- name: server.additionalApplications[0].source.repoURL
-        #  value: 'https://xxx'
-        #- name: server.additionalApplications[0].source.chart
-        #  value: 'xxx'
-        #- name: server.additionalApplications[0].source.targetRevision
-        #  value: '1.0.0'
-        #- name: server.additionalApplications[0].destination.namespace
-        #  value: myapp
-        #- name: server.additionalApplications[0].destination.server
-        #  value: 'https://kubernetes.default.svc'
-        #- name: server.additionalApplications[0].source.helm.parameters.xxx
-        #  value: ''
-        #- name: server.additionalApplications[0].syncPolicy.syncOptions[0]
-        #  value: CreateNamespace=true
-        #- name: server.additionalApplications[0].syncPolicy.syncOptions[1]
-        #  value: PruneLast=true
-        #- name: server.additionalProjects[0].name
-        #  value: system
-        #- name: server.additionalProjects[0].namespace
-        #  value: argo-cd
-        #- name: server.additionalProjects[0].sourceRepos[0]
-        #  value: git@github.com:gigi206/xxx.git
-        #- name: server.additionalProjects[0].destinations[0].namespace
-        #  value: argocd-system
-        #- name: server.additionalProjects[0].destinations[0].server
-        #  value: https://kubernetes.default.svc
+        # - name: server.additionalApplications[0].name
+        #   value: myapp
+        # - name: server.additionalApplications[0].namespace
+        #   value: argo-cd
+        # - name: server.additionalApplications[0].projet
+        #   value: system
+        # - name: server.additionalApplications[0].source.repoURL
+        #   value: 'https://xxx'
+        # - name: server.additionalApplications[0].source.chart
+        #   value: 'xxx'
+        # - name: server.additionalApplications[0].source.targetRevision
+        #   value: '1.0.0'
+        # - name: server.additionalApplications[0].destination.namespace
+        #   value: myapp
+        # - name: server.additionalApplications[0].destination.server
+        #   value: 'https://kubernetes.default.svc'
+        # - name: server.additionalApplications[0].source.helm.parameters.xxx
+        #   value: ''
+        # - name: server.additionalApplications[0].syncPolicy.syncOptions[0]
+        #   value: CreateNamespace=true
+        # - name: server.additionalApplications[0].syncPolicy.syncOptions[1]
+        #   value: PruneLast=true
+        # - name: server.additionalProjects[0].name
+        #   value: system
+        # - name: server.additionalProjects[0].namespace
+        #   value: argo-cd
+        # - name: server.additionalProjects[0].sourceRepos[0]
+        #   value: git@github.com:gigi206/xxx.git
+        # - name: server.additionalProjects[0].destinations[0].namespace
+        #   value: argocd-system
+        # - name: server.additionalProjects[0].destinations[0].server
+        #   value: https://kubernetes.default.svc
         - name: server.ingress.enabled
           value: 'true'
         - name: server.ingress.ingressClassName
@@ -111,10 +119,10 @@ spec:
           value: 'true'
         - name: controller.metrics.serviceMonitor.additionalLabels.release
           value: prometheus-stack
-        - name: dex.metrics.enabled
-          value: 'true'
-        - name: dex.metrics.serviceMonitor.additionalLabels.release
-          value: prometheus-stack
+        # - name: dex.metrics.enabled
+        #   value: 'true'
+        # - name: dex.metrics.serviceMonitor.additionalLabels.release
+        #   value: prometheus-stack
         - name: notifications.metrics.enabled
           value: 'true'
         - name: notifications.metrics.serviceMonitor.enabled
