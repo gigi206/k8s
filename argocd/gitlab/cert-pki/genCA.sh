@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 # https://gist.github.com/fntlnz/cf14feb5a46b2eda428e000157447309
 
-cd "$(dirname $0)"
+. "$(dirname $0)/../lib.sh"
 
-NAMESPACE=gitlab
+cd "$(dirname $0)"
 
 kubectl create ns ${NAMESPACE}
 

@@ -10,7 +10,7 @@ spec:
   source:
     chart: gitlab
     repoURL: 'https://charts.gitlab.io/'
-    targetRevision: '6.6.2'
+    targetRevision: '6.2.2'
     helm:
       parameters:
         # Global => https://docs.gitlab.com/charts/charts/globals.html
@@ -70,76 +70,12 @@ spec:
         #   value: 'true'
         - name: registry.ingress.tls.secretName
           value: registry-cert-tls
-        # https://docs.gitlab.com/charts/backup-restore/#backups-to-s3
-        # https://docs.gitlab.com/charts/advanced/external-object-storage/#backups-storage-example
-        # https://docs.gitlab.com/charts/advanced/external-object-storage/#backups
-        - name: gitlab.toolbox.backups.objectStorage.config.secret
-          value: storage-config
-        - name: gitlab.toolbox.backups.objectStorage.config.key
-          value: storage-config.ini
-        - name: global.appConfig.backups.bucket
-          value: gitlab-backup-storage
-        - name: global.appConfig.backups.tmpBucket
-          value: gitlab-tmp-storage
-        # git lfs
-        - name: global.appConfig.lfs.bucket
-          value: gitlab-lfs-storage
-        - name: global.appConfig.lfs.connection.secret
-          value: storage-config
-        - name: global.appConfig.lfs.connection.key
-          value: storage-config.ini
-        # artifiacts
-        - name: global.appConfig.artifacts.bucket
-          value: gitlab-artifacts-storage
-        - name: global.appConfig.artifacts.connection.secret
-          value: storage-config
-        - name: global.appConfig.artifacts.connection.key
-          value: storage-config.ini
-        # uploads
-        - name: global.appConfig.uploads.bucket
-          value: gitlab-uploads-storage
-        - name: global.appConfig.uploads.connection.secret
-          value: storage-config
-        - name: global.appConfig.uploads.connection.key
-          value: storage-config.ini
-        # packages
-        - name: global.appConfig.packages.bucket
-          value: gitlab-packages-storage
-        - name: global.appConfig.packages.connection.secret
-          value: storage-config
-        - name: global.appConfig.packages.connection.key
-          value: storage-config.ini
-        # externalDiffs
-        - name: global.appConfig.externalDiffs.bucket
-          value: gitlab-externalDiffs-storage
-        - name: global.appConfig.externalDiffs.connection.secret
-          value: storage-config
-        - name: global.appConfig.externalDiffs.connection.key
-          value: storage-config.ini
-        # terraformState
-        - name: global.appConfig.terraformState.bucket
-          value: gitlab-terraformState-storage
-        - name: global.appConfig.terraformState.connection.secret
-          value: storage-config
-        - name: global.appConfig.terraformState.connection.key
-          value: storage-config.ini
-        # dependencyProxy
-        - name: global.appConfig.dependencyProxy.bucket
-          value: gitlab-dependencyProxy-storage
-        - name: global.appConfig.dependencyProxy.connection.secret
-          value: storage-config
-        - name: global.appConfig.dependencyProxy.connection.key
-          value: storage-config.ini
-        - name: gitlab.toolbox.backups.objectStorage.config.key
-          value: config
-        - name: global.minio.enabled
-          value: 'false'
         # - name: global.hosts.minio.name
         #   value: minio.gitlab.gigix
         # - name: global.hosts.minio.https
         #   value: 'true'
-        # - name: minio.ingress.tls.secretName
-        #   value: minio-cert-tls
+        - name: minio.ingress.tls.secretName
+          value: minio-cert-tls
         # - name: global.hosts.smartcard.name
         #   value: smartcard.gitlab.gigix
         # - name: global.hosts.smartcard.https
@@ -266,15 +202,11 @@ spec:
                 Shared = true
                 [runners.cache.s3]
                   # ServerAddress = "minio.gitlab.gigix" # internal chart minio ingress
-                  # ServerAddress = "gitlab-minio-svc:9000" # internal minio chart direct link
-                  # ServerAddress = "minio.gigix" # external minio chart ingress
-                  ServerAddress = "minio.minio.svc.cluster.local:9000" # external minio chart direct link
+                  ServerAddress = "gitlab-minio-svc:9000" # internal minio chart direct link
                   Insecure = true
                   # BucketName = "gitlab-runner-cache"
                   BucketName = "runner-cache"
                   BucketLocation = "us-east-1"
-                  # AccessKey = "console" # must be changed and must be commented with internal minio
-                  # SecretKey = "CHANGEME" # must be changed and must be commented with internal minio
   project: default
   syncPolicy:
     syncOptions:
