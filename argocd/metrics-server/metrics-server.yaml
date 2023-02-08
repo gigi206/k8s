@@ -11,14 +11,26 @@ spec:
   source:
     chart: metrics-server
     repoURL: 'https://kubernetes-sigs.github.io/metrics-server'
-    targetRevision: 3.8.2
+    targetRevision: 3.8.3
     helm:
       parameters:
         - name: replicas
           value: '1'
           # value: '3'
-        - name: hostNetwork.enabled
+        - name: apiService.create
           value: 'true'
+        - name: hostNetwork.enabled
+          value: 'false'
+        # - name: 'defaultArgs[0]'
+        #   value: '--cert-dir=/tmp'
+        # - name: 'defaultArgs[1]'
+        #   value: '--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname'
+        # - name: 'defaultArgs[2]'
+        #   value: '--kubelet-use-node-status-port'
+        # - name: 'defaultArgs[3]'
+        #   value: '--metric-resolution=15s'
+        # - name: 'defaultArgs[4]'
+        #   value: '--kubelet-insecure-tls'
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
