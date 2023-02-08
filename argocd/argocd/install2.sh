@@ -10,19 +10,25 @@ echo "PASSWORD: ${PASSWORD}"
 
 ${ARGOCD_CMD_INSTALL} login --username admin --password "${PASSWORD}"
 
-while true
-do
-    echo -n "New password:"
-    read -s NEW_PASSWORD
-    ${ARGOCD_CMD_INSTALL} account update-password --current-password "${PASSWORD}" --new-password "${NEW_PASSWORD}" && break || echo "Failed to change the argocd password"
-done
-
-kubectl -n ${NAMESPACE_ARGOCD} delete secret argocd-initial-admin-secret
+tty -s && (
+    while true
+    do
+        echo -n "New password:"
+        read -s NEW_PASSWORD
+        ${ARGOCD_CMD_INSTALL} account update-password --current-password "${PASSWORD}" --new-password "${NEW_PASSWORD}" && break || echo "Failed to change the argocd password"
+    done
+    kubectl -n ${NAMESPACE_ARGOCD} delete secret argocd-initial-admin-secret
+)
 
 # require_app metallb cert-manager
 require_app prometheus-stack metallb cert-manager ingress-nginx
 # install_app
 kubectl apply -f "$(dirname $0)/argocd.yaml"
 ${ARGOCD_CMD_INSTALL} app sync ${APPNAME}
-wait_app
+# wait_app
+for RESSOURCE in $(kubectl get -n ${NAMESPACE_ARGOCD} deploy -o name) $(kubectl get -n ${NAMESPACE_ARGOCD} sts -o name) $(kubectl get -n ${NAMESPACE_ARGOCD} daemonset -o name)
+do
+    echo "Waiting ressource ${RESSOURCE}"
+    kubectl rollout -n ${NAMESPACE_ARGOCD} status ${RESSOURCE}
+done
 show_ressources
