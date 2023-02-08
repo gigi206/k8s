@@ -12,15 +12,15 @@ spec:
   source:
     chart: core
     repoURL: 'https://neuvector.github.io/neuvector-helm/'
-    targetRevision: 2.2.2
+    targetRevision: 2.4.1
     helm:
       parameters:
         #- name: imagePullSecrets
         #  value: regsecret
-        - name: registry
-          value: docker.io
-        - name: tag
-          value: 5.0.2
+        # - name: registry
+        #   value: docker.io
+        # - name: tag
+        #   value: 5.0.2
         #- name: controller.ranchersso.enabled
         #  value: 'true'
         # controller
