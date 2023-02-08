@@ -13,7 +13,7 @@ spec:
   source:
     chart: ingress-nginx
     repoURL: 'https://kubernetes.github.io/ingress-nginx'
-    targetRevision: '4.2.0'
+    targetRevision: '4.4.2'
     helm:
       parameters:
         - name: controller.kind
@@ -23,6 +23,14 @@ spec:
         # https://docs.gitlab.com/charts/advanced/external-nginx/
         - name: tcp.22
           value: gitlab/gitlab-gitlab-shell:22
+        # - name: controller.config.use-forwarded-headers
+        #   value: 'true'
+        # - name: controller.config.compute-full-forwarded-for
+        #   value: 'true'
+        # - name: controller.config.use-proxy-protocol
+        #   value: 'true'
+        # - name: service.externalTrafficPolicy
+        #   value: Local
         - name: controller.config.proxy-body-size
           value: 100m
         # Fix CVE-2021-25742 => https://github.com/kubernetes/ingress-nginx/issues/7837
