@@ -9,6 +9,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 metadata:
   name: longhorn
 driver: driver.longhorn.io
+# allowVolumeExpansion: true
 deletionPolicy: Delete
 EOF
 
