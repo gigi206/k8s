@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crunchy-postgres-operator
+  namespace: argo-cd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/CrunchyData/postgres-operator-examples'
+    # Cf https://access.crunchydata.com/documentation/postgres-operator/5.3.0/installation/kustomize/
+    path: kustomize/install/default
+    # path: kustomize/install/singlenamespace
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: postgres-operator
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
