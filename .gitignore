@@ -50,3 +50,5 @@ Thumbs.db
 
 # VSCode
 .vscode/vscode-kanban.json
+
+rke2/.vagrant/
