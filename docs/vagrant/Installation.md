@@ -2,6 +2,46 @@
 
 https://vagrant-libvirt.github.io/vagrant-libvirt/installation.html
 
+## Issues
+### Error while activating network: Call to virNetworkCreate failed: internal error Network is already in use by interface `interface`
+* List all networks to know if `vagrant-libvirt` exists:
+```bash
+sudo virsh net-list --all
+ Name              State    Autostart   Persistent
+----------------------------------------------------
+ k8s0              active   no          yes
+ vagrant-libvirt   active   yes         yes
+```
+
+* Remove previous network `vagrant-libvirt` if it already exists:
+```bash
+sudo virsh net-undefine vagrant-libvirt
+```
+
+* Create the file `vagrant-libvirt.xml`:
+```xml
+<network ipv6="yes">
+  <name>vagrant-libvirt</name>
+  <forward mode="nat"/>
+  <bridge name="virbr0" stp="on" delay="0"/>
+  <ip address="192.168.123.1" netmask="255.255.255.0">
+    <dhcp>
+      <range start="192.168.123.2" end="192.168.123.254"/>
+    </dhcp>
+  </ip>
+</network>
+```
+
+* Create the network `vagrant-libvirt`:
+```bash
+net-create --file vagrant-libvirt.xml
+```
+
+* Start vagrant:
+```bash
+vagrant up
+```
+
 ## Docker
 
 To get the image with the most recent release:
