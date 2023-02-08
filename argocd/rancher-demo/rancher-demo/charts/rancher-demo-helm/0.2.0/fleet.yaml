@@ -1,6 +1,6 @@
 helm:
-  chart: "" 
-  values: 
+  chart: ""
+  values:
     cow_color: yellow
 diff:
   comparePatches:
