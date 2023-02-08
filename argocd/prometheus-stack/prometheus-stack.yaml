@@ -17,7 +17,7 @@ spec:
   source:
     chart: kube-prometheus-stack
     repoURL: 'https://prometheus-community.github.io/helm-charts'
-    targetRevision: '39.5.0'
+    targetRevision: 43.2.1
     helm:
       parameters:
         ### grafana ###
@@ -25,13 +25,21 @@ spec:
           value: 'true'
         - name: grafana.ingress.hosts[0]
           value: grafana.gigix
-        - name: >-
-            grafana.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        - name: grafana.ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        - name: grafana.ingress.tls[0].secretName
+          value: grafana-cert-tls
+        - name: grafana.ingress.tls[0].hosts[0]
           value: grafana.gigix
+        # - name: >-
+        #     grafana.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        #   value: grafana.gigix
         - name: grafana.adminPassword
           value: prom-operator
         - name: grafana.grafana.\ini.analytics.check_for_updates
           value: 'false'
+        - name: grafana.readinessProbe.timeoutSeconds
+          value: '5'
         # - name: grafana.service.type
         #   value: LoadBalancer
         ### prometheus ###
@@ -45,9 +53,15 @@ spec:
           value: 'true'
         - name: prometheus.ingress.hosts[0]
           value: prometheus.gigix
-        - name: >-
-            prometheus.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        - name: prometheus.ingress.tls[0].secretName
+          value: prometheus-cert-tls
+        - name: prometheus.ingress.tls[0].hosts[0]
           value: prometheus.gigix
+        # - name: >-
+        #     prometheus.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        #   value: prometheus.gigix
+        - name: prometheus.ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
         # - name: server.service.type
         #   value: LoadBalancer
         ### alertmanager ###
@@ -55,19 +69,27 @@ spec:
           value: 'true'
         - name: alertmanager.ingress.hosts[0]
           value: alertmanager.gigix
-        - name: >-
-            alertmanager.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        - name: alertmanager.ingress.tls[0].secretName
+          value: alertmanager-cert-tls
+        - name: alertmanager.ingress.tls[0].hosts[0]
           value: alertmanager.gigix
+        - name: alertmanager.ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        # - name: >-
+        #     alertmanager.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        #   value: alertmanager.gigix
         # - name: alertmanager.service.type
         #   value: LoadBalancer
         ### pushgateway ###
-        - name: pushgateway.ingress.enabled
-          value: 'true'
-        - name: pushgateway.ingress.hosts[0]
-          value: pushgateway.gigix
-        - name: >-
-            pushgateway.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
-          value: pushgateway.gigix
+        # - name: pushgateway.ingress.enabled
+        #   value: 'true'
+        # - name: pushgateway.ingress.hosts[0]
+        #   value: pushgateway.gigix
+        # - name: pushgateway.ingress.annotations.cert-manager\.io/cluster-issuer
+        #   value: selfsigned-cluster-issuer
+        # - name: >-
+        #     pushgateway.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+        #   value: pushgateway.gigix
         # - name: pushgateway.service.type
         #   value: LoadBalancer
         ### kubeControllerManager ###
