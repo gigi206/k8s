@@ -5,13 +5,11 @@ metadata:
   namespace: argo-cd
 spec:
   destination:
-    name: ''
     namespace: cattle-system
     server: 'https://kubernetes.default.svc'
   source:
-    path: ''
     repoURL: 'https://releases.rancher.com/server-charts/latest'
-    targetRevision: 2.6.4
+    targetRevision: 2.7.0
     chart: rancher
     helm:
       parameters:
@@ -19,6 +17,11 @@ spec:
           value: '1'
         - name: hostname
           value: rancher.gigix
+        - name: ingress.tls.secretName
+          value: rancher-cert-tls
+        - name: >-
+            ingress.extraAnnotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
   project: default
   syncPolicy:
     syncOptions:
