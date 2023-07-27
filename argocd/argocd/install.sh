@@ -29,10 +29,12 @@ echo "Downloading argocd binary..."
 test -x /usr/local/bin/argocd || curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
 chmod +x /usr/local/bin/argocd
 
-helm repo add argo-cd https://argoproj.github.io/argo-helm
-helm repo update
-helm install argo-cd argo-cd/argo-cd -n ${NAMESPACE_ARGOCD} --create-namespace
-helm repo remove ${NAMESPACE_ARGOCD}
+# helm repo add argo-cd https://argoproj.github.io/argo-helm
+# helm repo update
+# helm install argo-cd argo-cd/argo-cd -n ${NAMESPACE_ARGOCD} --create-namespace
+# helm repo remove ${NAMESPACE_ARGOCD}
+kubectl create ns ${NAMESPACE_ARGOCD}
+helm template argo-cd argo-cd -n ${NAMESPACE_ARGOCD} --repo https://argoproj.github.io/argo-helm | kubectl apply -n ${NAMESPACE_ARGOCD} -f -
 
 . "$(dirname $0)/../lib.sh"
 wait_app
