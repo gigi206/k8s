@@ -39,6 +39,9 @@
 - [Crossplane](https://www.crossplane.io)
   - [Github](https://github.com/crossplane/crossplane)
   - [Youtube](https://www.youtube.com/watch?v=yrj4lmScKHQ)
+- [Cluster API](https://cluster-api.sigs.k8s.io) (CAPI)
+  - [Github](https://github.com/kubernetes-sigs/cluster-api)
+  - [Youtube](https://www.youtube.com/watch?v=8yUDUhZ6ako)
 
 ### Monitoring
 - [Prometheus](https://prometheus.io)
