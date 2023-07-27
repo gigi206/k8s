@@ -36,7 +36,7 @@
 - [Kind](https://kind.sigs.k8s.io/)
   - [Github](https://github.com/kubernetes-sigs/kind)
   - [Youtube](https://www.youtube.com/watch?v=C0v5gJSWuSo)
-- [Crossplane](https://github.com/crossplane/crossplane)
+- [Crossplane](https://www.crossplane.io)
   - [Github](https://github.com/crossplane/crossplane)
   - [Youtube](https://www.youtube.com/watch?v=yrj4lmScKHQ)
 
