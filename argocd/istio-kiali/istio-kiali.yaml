@@ -1,0 +1,99 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-kiali
+  namespace: argo-cd
+spec:
+  destination:
+    # namespace: istio-system
+    namespace: istio-kiali
+    server: 'https://kubernetes.default.svc'
+  source:
+    repoURL: 'https://kiali.org/helm-charts'
+    targetRevision: 1.72.0
+    chart: kiali-server
+    helm:
+      parameters:
+        # Cf https://kiali.io/docs/configuration/kialis.kiali.io/
+        - name: istio_namespace
+          value: istio-system
+        - name: auth.strategy
+          value:  anonymous
+        # - name: deployment.namespace
+        #   value: istio-kiali
+        - name: deployment.ingress.enabled
+          value: 'true'
+        - name: deployment.ingress.class_name
+          value: 'nginx'
+        - name: external_services.istio.root_namespace
+          value: istio-system
+        - name: server.web_fqdn
+          value: kiali.gigix
+        - name: external_services.prometheus.url
+          value: http://prometheus-stack-kube-prom-prometheus.prometheus-stack:9090/
+        # - name: external_services.grafana.enabled
+        #   value: 'true'
+      values: |
+        external_services:
+          server:
+            web_root: /
+            # web_schema: https
+          tracing:
+            enabled: true
+            in_cluster_url: 'http://jaeger-query.jaeger.svc.cluster.local:16685'
+            use_grpc: true
+            url: 'https://jaeger.gigix'
+          istio:
+            component_status:
+              components:
+              - app_label: "istiod"
+                is_core: true
+                is_proxy: false
+                # namespace: istio-system
+              - app_label: "istio-ingress"
+                is_core: true
+                is_proxy: true
+                # default: namespace is undefined
+                namespace: istio-ingress
+              - app_label: "istio-egress"
+                is_core: true
+                is_proxy: true
+                # default: namespace is undefined
+                namespace: istio-egress
+              enabled: true
+          grafana:
+            enabled: true
+            auth:
+              # ca_file: ""
+              # insecure_skip_verify: false
+              type: "basic" # cf https://kiali.io/docs/configuration/kialis.kiali.io/#.spec.external_services.tracing.auth.type
+              username: "admin"
+              password: "prom-operator"
+              # Create a reader service account in grafana and put the token below
+              # token: "xxx" # Store it in a secret => https://kiali.io/docs/configuration/kialis.kiali.io/#.spec.external_services
+              # type: "bearer"
+              use_kiali_token: false
+            dashboards:
+            - name: "Istio Service Dashboard"
+              variables:
+                namespace: "var-namespace"
+                service: "var-service"
+            - name: "Istio Workload Dashboard"
+              variables:
+                namespace: "var-namespace"
+                workload: "var-workload"
+            - name: "Istio Mesh Dashboard"
+            - name: "Istio Control Plane Dashboard"
+            - name: "Istio Performance Dashboard"
+            - name: "Istio Wasm Extension Dashboard"
+            # health_check_url: ""
+            # default: in_cluster_url is undefined
+            in_cluster_url: "http://prometheus-stack-grafana.prometheus-stack"
+            is_core: false
+            url: "http://grafana.gigix"
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ServerSideApply=true

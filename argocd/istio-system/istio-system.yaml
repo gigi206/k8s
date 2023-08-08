@@ -1,0 +1,87 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-system
+  namespace: argo-cd
+spec:
+  destination:
+    namespace: istio-system
+    server: 'https://kubernetes.default.svc'
+  sources:
+    - chart: base
+      repoURL: 'https://istio-release.storage.googleapis.com/charts'
+      targetRevision: 1.18.2
+    - chart: istiod
+      repoURL: 'https://istio-release.storage.googleapis.com/charts'
+      targetRevision: 1.18.2
+      helm:
+        values: |
+          meshConfig:
+            enableTracing: true
+            # enableEnvoyAccessLogService: true
+            # accessLogFile: /dev/stdout
+            # https://istio.io/latest/docs/tasks/observability/logs/otel-provider/#default-access-log-format
+            # accessLogFormat: |
+            #   [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS% %RESPONSE_CODE_DETAILS% %CONNECTION_TERMINATION_DETAILS% "%UPSTREAM_TRANSPORT_FAILURE_REASON%" %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% "%REQ(X-FORWARDED-FOR)%" "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%" %UPSTREAM_CLUSTER% %UPSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_REMOTE_ADDRESS% %REQUESTED_SERVER_NAME% %ROUTE_NAME% traceID=%REQ(x-b3-traceid)%
+            # defaultHttpRetryPolicy: 3 # 2 by default
+            defaultConfig:
+              sampling: 100.0
+              tracing:
+                zipkin:
+                  address: jaeger-collector.jaeger.svc.cluster.local:9411
+              # max_path_tag_length: 99999
+            defaultProviders:
+              # accessLogging:
+              # - loki
+              metrics:
+              - prometheus
+              tracing:
+              - jaeger
+              # - tempo
+              # - otlp-traces
+            extensionProviders:
+            - name: jaeger
+              zipkin:
+                service: jaeger-collector.jaeger.svc.cluster.local
+                port: 9411
+                # maxTagLength: 99999
+            # - name: tempo
+            #   opentelemetry:
+            #     service: grafana-tempo-distributor.grafana-tempo.svc.cluster.local
+            #     port: 4317
+            # - name: otlp-traces
+            #   opentelemetry:
+            #     service: demo-collector.opentelemetry.svc.cluster.local
+            #     port: 4317
+            # - name: loki
+            #   envoyOtelAls:
+            #     service: xxx.grafana-loki.svc.cluster.local
+            #     port: xxx
+        parameters:
+        # For meshConfig, see https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
+        # - name: meshConfig.ingressService
+        #   value: istio-ingress
+        # - name: meshConfig.ingressSelector
+        #   value: ingress
+        # - name: meshConfig.accessLogEncoding
+        #   value: <TEXT> OR <JSON>
+        # - name: meshConfig.outboundTrafficPolicy
+        #   value: REGISTRY_ONLY
+        # - name: meshConfig.localityLbSetting # https://istio.io/latest/docs/reference/config/networking/destination-rule/#LocalityLoadBalancerSetting
+        #   value: xxx
+        - name: meshConfig.enablePrometheusMerge
+          value: 'false'
+    # Enable Monitoring PodMonitor / ServiceMonitor
+    - repoURL: 'https://github.com/gigi206/k8s'
+      path: argocd/istio-system/kustomize/base
+      targetRevision: HEAD
+    # Enable Telemetry customization
+    - repoURL: 'https://github.com/gigi206/k8s'
+      path: argocd/istio-system/install
+      targetRevision: HEAD
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ServerSideApply=true

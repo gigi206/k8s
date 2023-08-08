@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-egress
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    namespace: istio-egress
+    server: 'https://kubernetes.default.svc'
+  source:
+    repoURL: 'https://istio-release.storage.googleapis.com/charts'
+    targetRevision: 1.18.2
+    chart: gateway
+    helm:
+      parameters:
+        - name: service.type
+          value: ClusterIP
+    #     - name: name
+    #       value: istio-egressgateway
+    #     - name: labels.app
+    #       value: istio-egressgateway
+    #     - name: labels.istio
+    #       value: egressgateway
+  project: default
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ServerSideApply=true
+  # managedNamespaceMetadata:
+  #   labels:
+  #     istio-injection: enabled
+  #   # annotations:
+  #   #   the: same
+  #   #   applies: for
+  #   #   annotations: on-the-namespace
