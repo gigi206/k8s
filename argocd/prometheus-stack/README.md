@@ -1,4 +1,6 @@
 # prometheus-stack
+## Backup
+Use [this tool](https://github.com/ysde/grafana-backup-tool/tree/master) to backup Dashboards, Datasources and others to add easily with `ConfigMaps`.
 
 ## issues
 
