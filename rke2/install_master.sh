@@ -65,6 +65,7 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 )
 
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+# https://krew.sigs.k8s.io/plugins/
 kubectl krew install ctx           # https://artifacthub.io/packages/krew/krew-index/ctx
 kubectl krew install ns            # https://artifacthub.io/packages/krew/krew-index/ns
 kubectl krew install access-matrix # https://artifacthub.io/packages/krew/krew-index/access-matrix
