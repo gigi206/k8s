@@ -12,7 +12,7 @@ spec:
   source:
     chart: external-dns
     repoURL: 'https://kubernetes-sigs.github.io/external-dns'
-    targetRevision: 1.10.1
+    targetRevision: 1.13.0
     helm:
       parameters:
         - name: rbac.create
