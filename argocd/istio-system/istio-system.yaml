@@ -25,14 +25,14 @@ spec:
             #   [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS% %RESPONSE_CODE_DETAILS% %CONNECTION_TERMINATION_DETAILS% "%UPSTREAM_TRANSPORT_FAILURE_REASON%" %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% "%REQ(X-FORWARDED-FOR)%" "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%" %UPSTREAM_CLUSTER% %UPSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_REMOTE_ADDRESS% %REQUESTED_SERVER_NAME% %ROUTE_NAME% traceID=%REQ(x-b3-traceid)%
             # defaultHttpRetryPolicy: 3 # 2 by default
             defaultConfig:
-              sampling: 100.0
               tracing:
+                sampling: 100.0
+                # max_path_tag_length: 99999
                 zipkin:
                   address: jaeger-collector.jaeger.svc.cluster.local:9411
-              # max_path_tag_length: 99999
             defaultProviders:
               # accessLogging:
-              # - loki
+              # - otlp-logs
               metrics:
               - prometheus
               tracing:
@@ -53,10 +53,10 @@ spec:
             #   opentelemetry:
             #     service: demo-collector.opentelemetry.svc.cluster.local
             #     port: 4317
-            # - name: loki
-            #   envoyOtelAls:
-            #     service: xxx.grafana-loki.svc.cluster.local
-            #     port: xxx
+            - name: otlp-logs
+              envoyOtelAls:
+                service: istio-proxy-collector.opentelemetry.svc.cluster.local
+                port: 4317
         parameters:
         # For meshConfig, see https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
         # - name: meshConfig.ingressService
@@ -79,6 +79,10 @@ spec:
     - repoURL: 'https://github.com/gigi206/k8s'
       path: argocd/istio-system/install
       targetRevision: HEAD
+      directory:
+        include: '*.yaml'
+        # exclude: 'opentelemetry.yaml'
+        # exclude: '{config.json,env-usw2/*}'
   project: default
   syncPolicy:
     syncOptions:

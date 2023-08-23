@@ -1,0 +1,39 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: istio-proxy
+  namespace: opentelemetry
+spec:
+  # https://hub.docker.com/r/otel/opentelemetry-collector-contrib/tags
+  image: otel/opentelemetry-collector-contrib:latest
+  mode: deployment
+  hostNetwork: false
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+    processors:
+      batch:
+      attributes:
+        actions:
+        - action: insert
+          key: loki.attribute.labels
+          value: pod, namespace, cluster, mesh
+    exporters:
+      loki:
+        endpoint: "http://loki-stack.loki-stack.svc.cluster.local:3100/loki/api/v1/push"
+      logging:
+        loglevel: debug
+    extensions:
+      health_check:
+    service:
+      extensions:
+      - health_check
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [attributes]
+          # exporters: [loki, logging]
+          exporters: [loki]
