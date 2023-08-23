@@ -9,6 +9,12 @@
 7. Install [powerdns](argocd/powerdns) (installed by external-dns)
 8. Install [longhorn](argocd/longhorn)
 
+# Vagrant sudoers
+Create the file `sudo EDITOR=vi visudo -f /etc/sudoers.d/vagrant`:
+```
+gigi ALL=(ALL:ALL) NOPASSWD: /usr/bin/chown 0\:0 /tmp/vagrant-exports, /usr/bin/mv -f /tmp/vagrant-exports /etc/exports, /usr/sbin/exportfs -ar
+```
+
 # Grow the VM disk
 
 ```bash
