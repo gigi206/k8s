@@ -4,8 +4,34 @@
 Add a `Loki` datasource in **Grafana** with **URL**: **http://loki-stack.loki-stack:3100**
 
 ## Articles
-
 * https://blog.octo.com/the-long-way-to-loki/
+
+# LogQL
+https://grafana.com/docs/loki/latest/logql/
+
+Some examples:
+* All logs from container `dokuwiki` on stdout from namespace `dokuwiki` that contains `GET`:
+```
+{namespace="dokuwiki", container="dokuwiki", stream="stdout"} |~ `GET`
+```
+
+* Format logs by uri and status: All logs from container `dokuwiki` on stdout from namespace `dokuwiki` that contains `GET` and have the status code `200`
+```
+{namespace="dokuwiki", container="dokuwiki", stream="stdout"} |~ "GET" | regexp "\"\\S+\\s+(?P<uri>\\S+)\\s+\\S+\"\\s+.*(?P<status>\\d{3}).*\\s+" | line_format "uri={{.uri}} status={{.status}}" | status=`200`
+```
+
+* Dynamic labels:
+```
+{namespace="dokuwiki", container="dokuwiki", stream="stdout"} |~ "GET" | pattern `<ip> - - <_> "<method> <uri> <_>" <status> <size>`
+```
+
+* Graph your logs:
+```
+count_over_time({namespace="dokuwiki", container="dokuwiki", stream="stdout"} |~ "GET" | pattern `<ip> - - <_> "<method> <uri> <_>" <status> <size>` [1m])
+sum by (instance) (count_over_time({namespace="dokuwiki", container="dokuwiki", stream="stdout"} |~ "GET" | pattern `<ip> - - <_> "<method> <uri> <_>" <status> <size>` [1m]))
+```
+
+
 
 ## Security issue
 

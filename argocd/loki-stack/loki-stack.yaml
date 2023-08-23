@@ -3,15 +3,17 @@ kind: Application
 metadata:
   name: loki-stack
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: loki-stack
     name: in-cluster
     # server: 'https://kubernetes.default.svc'
-  source:
-    chart: loki-stack
+  sources:
+  - chart: loki-stack
     repoURL: 'https://grafana.github.io/helm-charts'
-    targetRevision: '2.8.9'
+    targetRevision: '2.9.11'
     helm:
       parameters:
         # The actual chart (2.6.5) does not allow fine
@@ -30,12 +32,18 @@ spec:
           value: longhorn
         - name: loki.persistence.size
           value: 5Gi
+        - name: promtail.enabled
+          value: 'true'
         - name: promtail.readinessProbe.timeoutSeconds
           value: '5'
         - name: loki.readinessProbe.timeoutSeconds
           value: '5'
+  - repoURL: 'https://github.com/gigi206/k8s'
+    path: argocd/loki-stack/install
+    targetRevision: HEAD
   project: default
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
