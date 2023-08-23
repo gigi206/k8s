@@ -9,4 +9,4 @@ namespace: kubevip-system
 images:
   - name: ghcr.io/kube-vip/kube-vip
     newName: ghcr.io/kube-vip/kube-vip
-    newTag: v0.5.0
+    newTag: v0.6.0
