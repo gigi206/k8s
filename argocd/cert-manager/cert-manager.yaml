@@ -9,7 +9,7 @@ spec:
     server: 'https://kubernetes.default.svc'
   source:
     repoURL: 'https://charts.jetstack.io'
-    targetRevision: v1.10.1
+    targetRevision: v1.12.3
     chart: cert-manager
     helm:
       # https://github.com/jetstack/cert-manager/blob/master/deploy/charts/cert-manager/README.template.md#configuration
