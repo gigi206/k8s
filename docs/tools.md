@@ -36,7 +36,7 @@
 - [Kind](https://kind.sigs.k8s.io/)
   - [Github](https://github.com/kubernetes-sigs/kind)
   - [Youtube](https://www.youtube.com/watch?v=C0v5gJSWuSo)
-- [Crossplane](https://www.crossplane.io)
+- [Crossplane](https://www.crossplane.io) (UI: [Komoplane](https://github.com/komodorio/komoplane))
   - [Github](https://github.com/crossplane/crossplane)
   - [Youtube](https://www.youtube.com/watch?v=yrj4lmScKHQ)
 - [Cluster API](https://cluster-api.sigs.k8s.io) (CAPI)
