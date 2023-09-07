@@ -1,29 +1,86 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vcluster
-  namespace: argo-cd
+  name: vcluster-demo1
 spec:
   project: default
-  source:
-    repoURL: 'https://charts.loft.sh'
-    targetRevision: 0.11.2
   destination:
     name: in-cluster
-    # server: 'https://kubernetes.default.svc'
-    namespace: vcluster
+    namespace: vcluster-demo1
+  source:
+    repoURL: 'https://charts.loft.sh'
+    targetRevision: 0.14.2
     chart: vcluster
     helm:
+      # values: |
+      #   syncer:
+      #     volumeMounts: []
+      #   vcluster:
+      #     volumeMounts: []
       parameters:
+        - name: vcluster.image
+          value: rancher/k3s:v1.26.2-k3s1
+        - name: syncer.kubeConfigContextName
+          value: vcluster-demo1
+        # - name: syncer.extraArgs[0]
+        #   value: --tls-san k8s-api.vcluster-demo1.gigix
+        #   # value: --tls-san=x.x.x.x,y.y.y.y,z.z.z.z
+        # - name: service.type
+        #   value: LoadBalancer
+        - name: ingress.enabled
+          value: 'true'
+        - name: ingress.host
+          value: k8s-api.vcluster-demo1.gigix
+        # - name: >-
+        #     ingress.annotations.cert-manager\.io/cluster-issuer
+        #   value: selfsigned-cluster-issuer
+        # https://www.vcluster.com/docs/architecture/nodes#node-syncing-modes
+        - name: sync.nodes.enabled
+          value: 'true'
+        - name: sync.nodes.syncAllNodes
+          value: 'true'
+        - name: sync.persistentvolumes.enabled
+          value: 'false'
+        - name: sync.storageclasses.enabled
+          value: 'false'
+        # - name: sync.priorityclasses.enabled
+        #   value: 'true'
+        - name: sync.ingresses.enabled
+          value: 'true'
+        # - name: enableHA
+        #   value: 'true'
+        # - name: coredns.replicas
+        #   value: '2'
+        # - name: replicas
+        #   value: '2'
+        # - name: priorityClassName
+        #   value: xx
+        # - name: sync.fake-nodes.enabled
+        #   value: 'false'
         - name: storage.size
-          value: 10Gi
-        # - name: sync.persistentvolumes.enabled
+          value: 5Gi
+        - name: storage.persistence
+          value: 'true'
+        # - name: storage.className
+        #   value: longhorn
+        - name: securityContext.allowPrivilegeEscalation
+          value: 'false'
+        - name: isolation.enabled
+          value: 'true'
+        # - name: isolation.namespace
+        #   value: vluster-demo1
+        - name: isolation.podSecurityStandard
+          value: baseline
+        # - name: multiNamespaceMode.enabled
         #   value: 'true'
-        # - name: sync.nodes.enabled
-        #   value: 'true'
-        # - name: sync.nodes.syncAllNodes
-        #   value: 'true'
+        # - name: multiNamespaceMode.namespaces[0]
+        #   value: dev
+        # - name: isolation.resourceQuota.enabled
+        #   value: 'false'
+        # - name: isolation.limitRange.enabled
+        #   value: 'false'
   syncPolicy:
     syncOptions:
-      - PruneLast=true
+      - ServerSideApply=true
       - CreateNamespace=true
+      - PruneLast=true
