@@ -12,6 +12,21 @@ spec:
     repoURL: 'https://istio-release.storage.googleapis.com/charts'
     targetRevision: 1.18.2
     chart: cni
+    helm:
+      values: |
+        cni:
+          logLevel: info
+          # https://hub.docker.com/r/rancher/istio-install-cni/tags
+          # image: rancher/istio-install-cni:1.8.3
+          excludeNamespaces:
+            - istio-system
+            - kube-system
+          cniBinDir: /opt/cni/bin
+          cniConfDir: /etc/cni/net.d
+          # privileged: true # required for ebpf
+          ambient:
+            enabled: true
+            # redirectMode: ebpf
   project: default
   syncPolicy:
     syncOptions:
