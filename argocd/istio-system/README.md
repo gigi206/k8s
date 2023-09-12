@@ -100,7 +100,7 @@ export GATEWAY_URL=$INGRESS_HOST:$INGRESS_PORT
 
 * Create an Istio Gateway to access the Bookinfo application from outside the kubernetes cluster (fix the issue by replacing the `istio` label from `ingressgateway` to `ingress` and replace the port number from 8080 to 80):
 ```bash
-sed -e "s@istio: ingressgateway@istio: $(kubectl -n "$INGRESS_NS" get service "$INGRESS_NAME" -o jsonpath='{.metadata.labels.istio}')@g" -e "s@number: 8080@number: $(kubectl -n "$INGRESS_NS" get service "$INGRESS_NAME" -o jsonpath="{.spec.ports[?(@.name=='http2')].port}")@g" samples/bookinfo/networking/bookinfo-gateway.yaml | kubectl apply -n bookinfo -f -
+sed -e "s@istio: ingressgateway@istio: $(kubectl -n "$INGRESS_NS" get service "$INGRESS_NAME" -o jsonpath='{.metadata.labels.istio}')@g" -e "s@number: 8080@number: $(kubectl -n "$INGRESS_NS" get service "$INGRESS_NAME" -o jsonpath="{.spec.ports[?(@.name=='http2')].port}")@g" samples/bookinfo/networking/bookinfo-gateway.yaml | egrep -v 'prometheus.io' | kubectl apply -n bookinfo -f -
 ```
 
 By defaut the port number of the gateway is `8080` but no service listen on this port (only `80`, `443` and `15021` by the service `istio-ingress`). If you want access to port 8080 you must create a service on the namespace `istio-ingress`:
