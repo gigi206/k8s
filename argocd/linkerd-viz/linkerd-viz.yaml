@@ -8,64 +8,59 @@ spec:
   ignoreDifferences:
     - kind: Secret
       name: tap-injector-k8s-tls
-      # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
       jqPathExpressions:
-        - .data.tls.key
-        - .data.tls.crt
+        - .data."tls.key"
+        - .data."tls.crt"
     - kind: Secret
       name: tap-k8s-tls
-      # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
       jqPathExpressions:
-        - .data.tls.key
-        - .data.tls.crt
+        - .data."tls.key"
+        - .data."tls.crt"
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
       name: linkerd-tap-injector-webhook-config
-      # namespace: argo-cd
       jqPathExpressions:
-        - '.webhooks[0].clientConfig.caBundle'
+        - .webhooks[0].clientConfig.caBundle
     - group: apiregistration.k8s.io
       kind: APIService
       name: v1alpha1.tap.linkerd.io
-      # namespace: argo-cd
       jqPathExpressions:
-        - '.spec.caBundle'
+        - .spec.caBundle
     - group: apps
       kind: Deployment
       name: tap
-      # namespace: argo-cd
       jqPathExpressions:
         - .spec.template.metadata.annotations."checksum/config"
     - group: apps
       kind: Deployment
       name: tap-injector
-      # namespace: argo-cd
       jqPathExpressions:
         - .spec.template.metadata.annotations."checksum/config"
   destination:
     namespace: linkerd-viz
     server: 'https://kubernetes.default.svc'
   project: default
-  source:
-    chart: linkerd-viz
+  sources:
+  - chart: linkerd-viz
     repoURL: 'https://helm.linkerd.io/stable'
-    targetRevision: 2.11.4
+    targetRevision: 30.11.0
     helm:
-      parameters: []
-        # # - name: dashboard.enforcedHostRegexp
-        # #   value: ""
-        # - name: prometheus.enabled
-        #   value: 'false'
-        # - name: prometheusUrl
-        #   value: http://prometheus-stack-kube-prom-prometheus.prometheus-stack.svc.cluster.local:9090/
-        # - name: grafana.enabled
-        #   value: 'false'
-        # - name: grafanaUrl
-        #   value: http://prometheus-stack-grafana.prometheus-stack.svc.cluster.local/
-        # # - name: jaegerUrl
-        # #   value: xxx
+      parameters:
+        # - name: dashboard.enforcedHostRegexp
+        #   value: ""
+        - name: prometheus.enabled
+          value: 'false'
+        - name: prometheusUrl
+          value: http://prometheus-stack-kube-prom-prometheus.prometheus-stack.svc.cluster.local:9090
+        # - name: grafana.url
+        #   value: prometheus-stack-grafana.prometheus-stack.svc.cluster.local:80
+        - name: grafana.externalUrl
+          value: https://grafana.gigix
+        # - name: jaegerUrl
+        #   value: 'jaeger.linkerd-jaeger:16686'
+  - repoURL: 'https://github.com/gigi206/k8s'
+    path: argocd/linkerd-viz/install
+    targetRevision: HEAD
   syncPolicy:
     syncOptions:
       - CreateNamespace=true

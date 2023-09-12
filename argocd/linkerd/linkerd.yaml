@@ -1,4 +1,4 @@
-# Cf https://linkerd.io/2.11/tasks/install-helm/
+# Cf https://linkerd.io/2.14/tasks/install-helm/
 #########################################################
 # This file is not used, please edit install.sh instead #
 #########################################################
@@ -7,12 +7,68 @@ kind: Application
 metadata:
   name: linkerd
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: linkerd
     server: 'https://kubernetes.default.svc'
   project: default
-  source:
-    chart: linkerd2
+  sources:
+  - repoURL: https://github.com/gigi206/k8s
+    path: argocd/linkerd/install
+    targetRevision: HEAD
+  - chart: linkerd-crds
     repoURL: 'https://helm.linkerd.io/stable'
-    targetRevision: 2.11.4
+    targetRevision: 1.8.0
+  - chart: linkerd-control-plane
+    repoURL: 'https://helm.linkerd.io/stable'
+    targetRevision: 1.15.0
+    helm:
+      parameters:
+        - name: identity.externalCA
+          value: 'true'
+        - name: identity.issuer.scheme
+          value: kubernetes.io/tls
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+  # Fix bug
+  ignoreDifferences:
+    - kind: Secret
+      name: linkerd-policy-validator-k8s-tls
+      jqPathExpressions:
+        - .data."tls.key"
+        - .data."tls.crt"
+    - kind: Secret
+      name: linkerd-proxy-injector-k8s-tls
+      jqPathExpressions:
+        - .data."tls.key"
+        - .data."tls.crt"
+    - kind: Secret
+      name: linkerd-sp-validator-k8s-tls
+      jqPathExpressions:
+        - .data."tls.key"
+        - .data."tls.crt"
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      name: linkerd-proxy-injector-webhook-config
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: linkerd-policy-validator-webhook-config
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: linkerd-sp-validator-webhook-config
+      jqPathExpressions:
+        - '.webhooks[0].clientConfig.caBundle'
+    - group: batch
+      kind: CronJob
+      name: linkerd-heartbeat
+      jqPathExpressions:
+        - .spec.schedule

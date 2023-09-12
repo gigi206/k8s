@@ -1,3 +1,26 @@
+#!/usr/bin/env bash
+. "$(dirname $0)/../lib.sh"
+
+curl https://run.linkerd.io/install | bash
+cp -H /root/.linkerd2/bin/linkerd /usr/local/bin/
+# rm -fr /root/.linkerd2
+# linkerd check --pre
+
+# require_app cert-manager linkerd-cni
+kubectl create ns ${NAMESPACE}
+kubectl apply -f "$(dirname $0)/install/certificates.yaml"
+
+until [ $(kubectl get certificate -n linkerd linkerd-identity-issuer -o jsonpath="{.status.conditions[0].reason}") = Ready ]
+do
+    echo "Waiting for certificate..."
+    sleep 1
+done
+
+CA=$(kubectl get secrets -n ${NAMESPACE} linkerd-identity-issuer -o jsonpath="{.data.ca\.crt}" | base64 -d | sed "s/^/          /g")
+CRT=$(kubectl get secrets -n ${NAMESPACE} linkerd-identity-issuer -o jsonpath="{.data.tls\.crt}" | base64 -d | sed "s/^/          /g")
+KEY=$(kubectl get secrets -n ${NAMESPACE} linkerd-identity-issuer -o jsonpath="{.data.tls\.key}" | base64 -d | sed "s/^/          /g")
+
+cat <<EOF > "$(dirname $0)/_linkerd.yaml"
 # Cf https://linkerd.io/2.11/tasks/install-helm/
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -10,21 +33,21 @@ spec:
     - kind: Secret
       name: linkerd-policy-validator-k8s-tls
       # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print  }' | awk -F'/' '{ print  }'
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
       jqPathExpressions:
         - .data.tls.key
         - .data.tls.crt
     - kind: Secret
       name: linkerd-proxy-injector-k8s-tls
       # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print  }' | awk -F'/' '{ print  }'
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
       jqPathExpressions:
         - .data.tls.key
         - .data.tls.crt
     - kind: Secret
       name: linkerd-sp-validator-k8s-tls
       # namespace: argo-cd
-      # group: apps # kubectl api-resources | grep Deployment | awk '{ print  }' | awk -F'/' '{ print  }'
+      # group: apps # kubectl api-resources | grep Deployment | awk '{ print $3 }' | awk -F'/' '{ print $1 }'
       jqPathExpressions:
         - .data.tls.key
         - .data.tls.crt
@@ -64,7 +87,7 @@ spec:
       jqPathExpressions:
         - .spec.schedule
   destination:
-    namespace: linkerd
+    namespace: ${NAMESPACE}
     server: 'https://kubernetes.default.svc'
   project: default
   source:
@@ -77,46 +100,36 @@ spec:
       # step certificate create root.linkerd.cluster.local ca.crt ca.key --profile root-ca --no-password --insecure
       - name: identityTrustAnchorsPEM
         value: |
-          -----BEGIN CERTIFICATE-----
-          MIIB3TCCAYSgAwIBAgIQN+ymjRKPVZFa0ATfpReE2TAKBggqhkjOPQQDAjApMScw
-          JQYDVQQDEx5pZGVudGl0eS5saW5rZXJkLmNsdXN0ZXIubG9jYWwwHhcNMjIwODE1
-          MjIxNTQ5WhcNMjIwODE3MjIxNTQ5WjApMScwJQYDVQQDEx5pZGVudGl0eS5saW5r
-          ZXJkLmNsdXN0ZXIubG9jYWwwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQG3uxM
-          2EU0OXFSIFguiLe0dW0h6o0GVoAmB/PPtb1bxxhyIHjPjRbzJ9KkFH+yhuNJ1a7b
-          i326FOXGUEr9kjodo4GNMIGKMA4GA1UdDwEB/wQEAwIBBjAdBgNVHSUEFjAUBggr
-          BgEFBQcDAQYIKwYBBQUHAwIwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU47AE
-          E48sm2T6j9CLDjUK+/52zBIwKQYDVR0RBCIwIIIeaWRlbnRpdHkubGlua2VyZC5j
-          bHVzdGVyLmxvY2FsMAoGCCqGSM49BAMCA0cAMEQCIC7AAAQITa8gpHDxy8q3PSeW
-          wtvbc6UKN24xEBwxWrHMAiBeU9+m6n5U9quryvAGJSIyMd1+oTlR3rXEEEIqzfDd
-          aQ==
-          -----END CERTIFICATE-----
+${CA}
       # step certificate create identity.linkerd.cluster.local issuer.crt issuer.key --profile intermediate-ca --not-after 8760h --no-password --insecure --ca ca.crt --ca-key ca.key
       - name: identity.issuer.tls.crtPEM
         value: |
-          -----BEGIN CERTIFICATE-----
-          MIIB3TCCAYSgAwIBAgIQN+ymjRKPVZFa0ATfpReE2TAKBggqhkjOPQQDAjApMScw
-          JQYDVQQDEx5pZGVudGl0eS5saW5rZXJkLmNsdXN0ZXIubG9jYWwwHhcNMjIwODE1
-          MjIxNTQ5WhcNMjIwODE3MjIxNTQ5WjApMScwJQYDVQQDEx5pZGVudGl0eS5saW5r
-          ZXJkLmNsdXN0ZXIubG9jYWwwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQG3uxM
-          2EU0OXFSIFguiLe0dW0h6o0GVoAmB/PPtb1bxxhyIHjPjRbzJ9KkFH+yhuNJ1a7b
-          i326FOXGUEr9kjodo4GNMIGKMA4GA1UdDwEB/wQEAwIBBjAdBgNVHSUEFjAUBggr
-          BgEFBQcDAQYIKwYBBQUHAwIwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU47AE
-          E48sm2T6j9CLDjUK+/52zBIwKQYDVR0RBCIwIIIeaWRlbnRpdHkubGlua2VyZC5j
-          bHVzdGVyLmxvY2FsMAoGCCqGSM49BAMCA0cAMEQCIC7AAAQITa8gpHDxy8q3PSeW
-          wtvbc6UKN24xEBwxWrHMAiBeU9+m6n5U9quryvAGJSIyMd1+oTlR3rXEEEIqzfDd
-          aQ==
-          -----END CERTIFICATE-----
+${CRT}
       - name: identity.issuer.tls.keyPEM
         value: |
-          -----BEGIN EC PRIVATE KEY-----
-          MHcCAQEEIDbdqjs1npGqvrtiOOHChK8GcNUhpEOZlgQXWSt2/aMloAoGCCqGSM49
-          AwEHoUQDQgAEBt7sTNhFNDlxUiBYLoi3tHVtIeqNBlaAJgfzz7W9W8cYciB4z40W
-          8yfSpBR/sobjSdWu24t9uhTlxlBK/ZI6HQ==
-          -----END EC PRIVATE KEY-----
-      # echo $(date -d '+8760 hour' +"%Y-%m-%dT%H:%M:%SZ")
+${KEY}
+      # echo \$(date -d '+8760 hour' +"%Y-%m-%dT%H:%M:%SZ")
       # - name: identity.issuer.crtExpiry
       #   value: 2022-11-10T22:35:23Z
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+EOF
+
+####
+
+# install_app
+kubectl apply -f "$(dirname $0)/_linkerd.yaml"
+rm _linkerd.yaml
+sync_app
+wait_app
+show_ressources
+
+###
+
+linkerd check
+
+# linkerd viz install | kubectl apply -f -
+# linkerd check
+# linkerd viz dashboard --address 192.168.122.114

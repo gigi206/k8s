@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# cf https://linkerd.io/2.10/tasks/customize-install/
+# Cf https://linkerd.io/2.14/tasks/customize-install/
 mkdir -p "$(dirname $0)/kustomize"
 linkerd install > "$(dirname $0)/kustomize/linkerd.yaml"
 cat << EOF > kustomization.yaml

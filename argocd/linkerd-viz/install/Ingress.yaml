@@ -24,7 +24,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: linkerd
+  - host: linkerd.gigix
     http:
       paths:
       - path: /

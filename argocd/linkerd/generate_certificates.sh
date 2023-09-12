@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Cf https://linkerd.io/2.11/tasks/generate-certificates/
+# Cf https://linkerd.io/2.14/tasks/generate-certificates/
 
 wget -O step.tar.gz https://dl.step.sm/gh-release/cli/docs-ca-install/v0.17.5/step_linux_0.17.5_amd64.tar.gz
 

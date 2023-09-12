@@ -1,0 +1,97 @@
+# Cf https://github.com/BuoyantIO/cert-manager-workshop/blob/main/bootstrap_ca.yaml
+
+
+# The first certificate we need is our root certificate.
+# Root certificates are self-signed, must be CAs, and tend to last longer
+# than most other certificates.
+
+# We create the root certificate in the "cert-manager" so it can be used as
+# a ClusterIssuer
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: linkerd-root-ca
+  namespace: cert-manager-system
+spec:
+  isCA: true
+  commonName: root.linkerd.cluster.local
+  secretName: linkerd-root-ca
+  duration: 8760h # 365 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  usages:
+  - cert sign
+  - crl sign
+---
+# Once we're created our root certificate, we create a CA issuer
+# using that root certificate.
+# The CA issuer is cert-manager's way of doing in-cluster issuance.
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: linkerd-intermediate-issuer
+spec:
+  ca:
+    secretName: linkerd-root-ca
+---
+# Next we want to create an intermediate certificate, which will
+# be used to issue the certificates which will actually be used
+# in our mesh later!
+
+# The intermediate can be shorter lived than the root since it's
+# easier to rotate
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: linkerd-identity-issuer
+  namespace: linkerd
+spec:
+  isCA: true
+  commonName: identity.linkerd.cluster.local
+  secretName: linkerd-identity-issuer
+  duration: 48h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: linkerd-intermediate-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+  - identity.linkerd.cluster.local
+  usages:
+  - cert sign
+  - crl sign
+  - server auth
+  - client auth
+---
+# Finally, create a trust bundle so we can distribute our long-lived
+# root certificate to different namespaces.
+
+# This uses trust-manager to ensure that our root certificate is
+# available in every namespace (even though we only actually need it in the
+# linkerd namespace in practice for our purposes here)
+
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+    name: linkerd-identity-trust-roots
+spec:
+  sources:
+  - secret:
+      name: linkerd-root-ca
+      key: "ca.crt"
+  target:
+    configMap:
+      key: ca-bundle.crt
+    # namespaceSelector:
+    #   matchLabels:
+    #     linkerd.io/inject: enabled

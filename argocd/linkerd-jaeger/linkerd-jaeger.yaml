@@ -1,22 +1,18 @@
-# Cf https://linkerd.io/2.11/features/cni/
+# Cf https://linkerd.io/2.14/tasks/distributed-tracing/
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: linkerd-cni
+  name: linkerd-jaeger
   namespace: argo-cd
 spec:
   destination:
-    namespace: linkerd-cni
+    namespace: linkerd-jaeger
     server: 'https://kubernetes.default.svc'
   project: default
   source:
-    chart: linkerd2-cni
+    chart: linkerd-jaeger
     repoURL: 'https://helm.linkerd.io/stable'
     targetRevision: 30.11.0
-    # helm:
-    #  parameters:
-    #    - name: dashboard.enforcedHostRegexp
-    #      value: ""
   syncPolicy:
     syncOptions:
       - CreateNamespace=true

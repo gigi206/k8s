@@ -1,6 +1,21 @@
 # Linkerd
+## Pod injection
+### Show injected pods
+```bash
+kubectl -n emojivoto get po -o jsonpath='{.items[0].spec.containers[*].name}' | xargs | egrep -w linkerd-proxy > /dev/null && echo "Meshed" || echo "Not meshed"
+Meshed
+```
+### Injection by namespace
+```bash
+kubectl annotate namespace <namespace> linkerd.io/inject=enabled
+```
 
-## Certificate
-To generate certificate using cert-manager, [please read this part](https://linkerd.io/2.11/tasks/automatically-rotating-control-plane-tls-credentials/#cert-manager).
+```bash
+kubectl create ns test --dry-run=client -o yaml | linkerd inject - | kubectl apply -f -
+```
 
-This part in include in the `install.sh` script with the installation of [certificates.yaml](/argocd/linkerd/certificates.yaml) file.
+### Manual injection
+```bash
+kubectl get deploy -n <namespace> -o yaml | linkerd inject - | kubectl apply -f -
+```
+
