@@ -81,7 +81,7 @@ spec:
       targetRevision: HEAD
       directory:
         include: '*.yaml'
-        # exclude: 'opentelemetry.yaml'
+        exclude: 'opentelemetry.yaml'
         # exclude: '{config.json,env-usw2/*}'
   project: default
   syncPolicy:
