@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: local-path-provisioner
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: rancher-demo
@@ -11,7 +13,7 @@ spec:
   source:
     repoURL: 'https://github.com/gigi206/k8s'
     path: deploy/chart/local-path-provisioner
-    targetRevision: v0.0.22
+    targetRevision: v0.0.24
     helm:
       parameters:
         - name: nodePathMap[0].paths[0]
@@ -28,3 +30,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
