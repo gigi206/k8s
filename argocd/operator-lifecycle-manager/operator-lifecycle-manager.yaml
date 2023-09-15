@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: operator-lifecycle-manager
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: olm
@@ -10,7 +12,7 @@ spec:
   source:
     repoURL: 'https://github.com/operator-framework/operator-lifecycle-manager'
     path: deploy/chart
-    targetRevision: v0.22.0
+    targetRevision: v0.25.0
     helm:
       parameters:
         - name: catalog.replicaCount
@@ -35,3 +37,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
