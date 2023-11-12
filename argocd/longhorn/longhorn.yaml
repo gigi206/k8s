@@ -4,28 +4,49 @@ kind: Application
 metadata:
   name: longhorn
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: longhorn-system
     server: 'https://kubernetes.default.svc'
   project: default
-  source:
-    chart: longhorn
-    repoURL: 'https://charts.longhorn.io'
-    targetRevision: 1.5.1
-    helm:
-      parameters:
-        - name: persistence.defaultClassReplicaCount
-          value: "1"
-        - name: ingress.enabled
-          value: "true"
-        - name: ingress.host
-          value: longhorn.gigix
-        # - name: defaultSettings.backupTarget
-        #   value: nfs://192.168.121.1:/home/kvm/vagrant/vagrantfiles/k8s/backup/longhorn
-        # - name: service.ui.type
-        #   value: LoadBalancer
+  sources:
+    - repoURL: 'https://charts.longhorn.io'
+      chart: longhorn
+      targetRevision: 1.5.1
+      helm:
+        parameters:
+          - name: persistence.defaultClassReplicaCount
+            value: "1"
+          - name: longhornUI.replicas
+            value: "1"
+          - name: ingress.enabled
+            value: "true"
+          - name: ingress.host
+            value: longhorn.gigix
+          - name: ingress.ingressClassName
+            value: cilium
+          - name: ingress.tlsSecret
+            value: longhorn-cert-tls
+          - name: ingress.tls
+            value: "true"
+          - name: ingress.annotations.cert-manager\.io/cluster-issuer
+            value: selfsigned-cluster-issuer
+          # - name: ingress.secureBackends
+          #   value: "true"
+          # - name: defaultSettings.backupTarget
+          #   value: nfs://192.168.121.1:/home/kvm/vagrant/vagrantfiles/k8s/backup/longhorn
+          # - name: service.ui.type
+          #   value: LoadBalancer
+    - repoURL: 'https://github.com/gigi206/k8s'
+      path: argocd/istio-system/install
+      targetRevision: HEAD
+      directory:
+        include: '*.yaml'
+        # exclude: '{config.json,env-usw2/*}'
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
