@@ -16,7 +16,6 @@ gigi ALL=(ALL:ALL) NOPASSWD: /usr/bin/chown 0\:0 /tmp/vagrant-exports, /usr/bin/
 ```
 
 # Grow the VM disk
-
 ```bash
 mkdir -p /home/kvm/vagrant/vagrantfiles/k8s/git
 cd /home/kvm/vagrant/vagrantfiles/k8s/git
