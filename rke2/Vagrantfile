@@ -14,31 +14,36 @@ ENV["VAGRANT_DEFAULT_PROVIDER"] = "libvirt"
 management = false
 management_memory = 8192
 management_cpu = 4
+management_disk = 20
 
 # Only one node
 masters = 1
 workers = 0
 master_cpu = 16
 master_memory = 32768
+master_disk = 100
 
 # Masters + workers on the same node (no additionnal worker)
 # masters = 3
 # workers = 0
 # master_cpu = 8
 # master_memory = 16384
+# master_disk = 50
 
 # Masters + workers
 # masters = 3
 # workers = 3
 # master_cpu = 4
 # master_memory = 8192
+# master_disk = 20
 # worker_cpu = 8
 # worker_memory = 8192
+# worker_disk = 50
 
 Vagrant.configure("2") do |config|
   if management
     config.vm.define "k8s-management" do |management|
-      management.vm.box = "debian/bullseye64"
+      management.vm.box = "debian/bookworm64"
       management.vm.box_check_update = true
       # management.vm.box_check_update = false
       management.vm.hostname = "k8s-management"
@@ -48,6 +53,7 @@ Vagrant.configure("2") do |config|
         domain.default_prefix = ""
         domain.cpus = management_cpu
         domain.memory = management_memory
+        domain.machine_virtual_size = management_disk
         domain.keymap = "fr"
       end
       management.vm.provision "shell", path: "git/rke2/install_common.sh", args: ["management"]
@@ -57,7 +63,7 @@ Vagrant.configure("2") do |config|
 
   (1..masters).each do |i|
     config.vm.define "k8s-m#{i}" do |master|
-      master.vm.box = "debian/bullseye64"
+      master.vm.box = "debian/bookworm64"
       master.vm.box_check_update = true
       # master.vm.box_check_update = false
       master.vm.hostname = "k8s-m#{i}"
@@ -67,10 +73,10 @@ Vagrant.configure("2") do |config|
         #if i == 1
         #  domain.management_network_mac = "52:54:00:00:00:01"
         #end
+        domain.default_prefix = ""
         domain.cpus = master_cpu
         domain.memory = master_memory
-
-        domain.default_prefix = ""
+        domain.machine_virtual_size = master_disk
         domain.keymap = "fr"
       end
 
@@ -119,7 +125,7 @@ Vagrant.configure("2") do |config|
 
   (1..workers).each do |i|
     config.vm.define "k8s-w#{i}" do |worker|
-      worker.vm.box = "debian/bullseye64"
+      worker.vm.box = "debian/bookworm64"
       worker.vm.box_check_update = true
       # worker.vm.box_check_update = false
       worker.vm.hostname = "k8s-w#{i}"
@@ -129,6 +135,7 @@ Vagrant.configure("2") do |config|
         domain.default_prefix = ""
         domain.cpus = worker_cpu
         domain.memory = worker_memory
+        domain.machine_virtual_size = worker_disk
         domain.keymap = "fr"
       end
       worker.vm.provision "shell", path: "git/rke2/install_common.sh"

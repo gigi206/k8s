@@ -6,7 +6,7 @@ apt install -y curl git jq htop
 # Don't install that on the managemnt node
 if [ "$1" != "management" ]
 then
-    # Requirement for longhorn (normally for worker, but keep if we use worker + master)
+    # Requirement for Longhorn (normally for worker, but keep if we use worker + master)
     apt install -y open-iscsi nfs-common util-linux curl bash grep
     systemctl enable --now iscsid.service
 fi
