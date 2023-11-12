@@ -18,6 +18,7 @@ spec:
         values: |
           meshConfig:
             enableTracing: true
+            enablePrometheusMerge: false
             # enableEnvoyAccessLogService: true
             # accessLogFile: /dev/stdout
             # https://istio.io/latest/docs/tasks/observability/logs/otel-provider/#default-access-log-format
@@ -57,8 +58,8 @@ spec:
               envoyOtelAls:
                 service: istio-proxy-collector.opentelemetry.svc.cluster.local
                 port: 4317
-        parameters:
-        # For meshConfig, see https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
+        # parameters:
+        # # For meshConfig, see https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/
         # - name: meshConfig.ingressService
         #   value: istio-ingress
         # - name: meshConfig.ingressSelector
@@ -69,8 +70,8 @@ spec:
         #   value: REGISTRY_ONLY
         # - name: meshConfig.localityLbSetting # https://istio.io/latest/docs/reference/config/networking/destination-rule/#LocalityLoadBalancerSetting
         #   value: xxx
-        - name: meshConfig.enablePrometheusMerge
-          value: 'false'
+        # - name: meshConfig.enablePrometheusMerge
+        #   value: 'false'
     # Enable Monitoring PodMonitor / ServiceMonitor
     - repoURL: 'https://github.com/gigi206/k8s'
       path: argocd/istio-system/kustomize/base
