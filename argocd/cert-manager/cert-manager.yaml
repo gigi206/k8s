@@ -3,19 +3,23 @@ kind: Application
 metadata:
   name: cert-manager
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: cert-manager-system
     server: 'https://kubernetes.default.svc'
   source:
     repoURL: 'https://charts.jetstack.io'
-    targetRevision: v1.12.3
+    targetRevision: v1.13.1
     chart: cert-manager
     helm:
       # https://github.com/jetstack/cert-manager/blob/master/deploy/charts/cert-manager/README.template.md#configuration
       parameters:
         - name: installCRDs
           value: "true"
+        - name: extraArgs[0]
+          value: --feature-gates=ExperimentalGatewayAPISupport=true
         # - name: resources.requests.cpu
         #   value: 10m
         # - name: resources.requests.memory
@@ -64,3 +68,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
