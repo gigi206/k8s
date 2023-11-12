@@ -1,45 +1,25 @@
 # CoreDNS
+* [Annotations](https://github.com/kubernetes-sigs/external-dns/blob/master/docs/annotations/annotations.md)
+* [Tutorials](https://github.com/kubernetes-sigs/external-dns/tree/master/docs/tutorials)
 
-## Disable CoreDNS
-
-info: not tested yet
-
-CoreDNS is bootstrapped when rke2 server is starting.
-
-To disable CoreDNS add the following line in /etc/rancher/rke2/config.yaml:
-```
-disable: rke2-coredns
-````
-
-## Override CoreDNS configuration
-
-Documentation: https://docs.rke2.io/helm/
-
-RKE2 bootstrap some HelmChart here: **/var/lib/rancher/rke2/server/manifests/**
-
-The file /var/lib/rancher/rke2/server/manifests/rke2-coredns-config.yaml is used to boostrap coredns
-
-To list all HelmChart:
-```
-$ kubectl get HelmChart -A
-NAMESPACE     NAME                  AGE
-kube-system   rke2-canal            49d
-kube-system   rke2-coredns          49d
-kube-system   rke2-ingress-nginx    49d
-kube-system   rke2-metrics-server   49d
-```
-
-To override a HelmChart you need to create a [HelmChartConfig](https://docs.rke2.io/helm/#customizing-packaged-components-with-helmchartconfig)
-```
-apiVersion: helm.cattle.io/v1
-kind: HelmChartConfig
+## CRD
+When `crd.create` is set to `true` and `crd` is in the sources, you can defined `DNSEndpoint`:
+```yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
 metadata:
-  name: rke2-coredns
-  namespace: kube-system
+  name: test.gigix
+  namespace: test
 spec:
-  valuesContent: |-
-    image: coredns/coredns
-    imageTag: v1.7.1
+  endpoints:
+  - dnsName: test.gigix
+    recordTTL: 180
+    recordType: A
+    targets:
+    - 192.168.122.55
 ```
 
-The HelmChart definition is explained [here](https://docs.rke2.io/helm/#helmchart-field-definitions)
+**INFO:** You can even create wildcard DNS entries, for example by setting dnsName: `*.test.example.com`.
+
+## etcd TLS
+* [Example with TLS enabled](https://particule.io/en/blog/k8s-no-cloud/)

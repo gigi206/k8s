@@ -24,5 +24,6 @@ spec:
     targetPort: 53
   selector:
     app.kubernetes.io/instance: external-dns
-    app.kubernetes.io/name: powerdns
+    app.kubernetes.io/name: coredns
+    # app.kubernetes.io/name: powerdns
   type: LoadBalancer

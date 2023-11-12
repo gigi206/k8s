@@ -1,0 +1,125 @@
+#https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/pdns.md
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    namespace: external-dns-system
+    server: 'https://kubernetes.default.svc'
+  project: default
+  sources:
+    - chart: external-dns
+      repoURL: 'https://charts.bitnami.com/bitnami'
+      targetRevision: 6.28.4
+      helm:
+        parameters:
+          - name: policy
+            value: sync
+          - name: rbac.create
+            value: 'true'
+          # Required when crd source is enabled
+          - name: crd.create
+            value: 'true'
+          # - name: metrics.enabled
+          #   value: 'true'
+          # Sources: https://github.com/kubernetes-sigs/external-dns/blob/master/docs/sources/sources.md
+          - name: sources[0]
+            value: service
+          - name: sources[1]
+            value: ingress
+          - name: sources[2]
+            value: crd
+          # https://kubernetes-sigs.github.io/external-dns/v0.13.1/tutorials/gateway-api/
+          - name: sources[3]
+            value: gateway-httproute
+          - name: sources[4]
+            value: gateway-tlsroute
+          - name: sources[5]
+            value: gateway-tcproute
+          - name: sources[6]
+            value: gateway-udproute
+          - name: sources[7]
+            value: gateway-grpcroute
+          # https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/traefik-proxy.md
+          # - name: sources[8]
+          #   value: traefik-proxy
+          # Providers: https://github.com/kubernetes-sigs/external-dns/tree/master/provider
+          - name: provider
+            value: pdns
+          - name: txtOwnerId
+            value: external-dns
+          - name: interval
+            value: 15s
+          # - name: extraArgs[0]
+          #   value: --pdns-server=http://powerdns-webserver.powerdns-system.svc.cluster.local:8081
+          # - name: extraArgs[1]
+          #   value: --pdns-api-key=oZpVJqrGQUx3ao3m0e4ixTGa
+          # - name: resources.requests.cpu
+          #   value: 5m
+          # - name: resources.requests.memory
+          #   value: 32Mi
+          # - name: resources.limits.cpu
+          #   value: 10m
+          # - name: resources.limits.memory
+          #   value: 64Mi
+          # Following arguments are for the chart https://charts.bitnami.com/bitnami
+          - name: pdns.apiUrl
+            value: http://external-dns-powerdns-webserver
+          # kubectl describe cm powerdns -n powerdns-system | egrep ^api-key= | awk -F'=' '{ print $NF }'
+          - name: pdns.apiKey
+            value: oZpVJqrGQUx3ao3m0e4ixTGa
+          - name: pdns.apiPort
+            value: "8081"
+          # - name: domainFilters[0]
+          #   value: "gigix"
+          # - name: pdns.secretName
+          #   value: ""
+          #- name: logLevel
+          #  value: debug
+
+          # metrics
+          # - name: metrics.enabled
+          #   value: 'true'
+          # - name: metrics.serviceMonitor.enabled
+          #   value: 'true'
+          # - name: metrics.serviceMonitor.labels.release
+          #   value: prometheus-stack
+    - chart: powerdns
+      repoURL: 'https://k8s-at-home.com/charts/'
+      targetRevision: 5.0.0
+      helm:
+        parameters:
+          - name: powerdns.domain
+            value: gigix
+          - name: powerdns.api_key
+            value: oZpVJqrGQUx3ao3m0e4ixTGa
+          # - name: service.type
+          #   value: LoadBalancer
+          # - name: service.annotations.io\.cilium/lb-ipam-ips
+          #   value: 192.168.122.202
+          # - name: postgresql.persistence.enabled
+          #  value: "true"
+          # - name: replicaCount
+          #  value: "2"
+          # - name: resources.requests.cpu
+          #   value: 100m
+          # - name: resources.requests.memory
+          #   value: 64Mi
+          # - name: resources.limits.cpu
+          #   value: 100m
+          # - name: resources.limits.memory
+          #   value: 128Mi
+    - repoURL: 'https://github.com/gigi206/k8s'
+      path: argocd/external-dns/install
+      targetRevision: HEAD
+      directory:
+        include: '*.yaml'
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ServerSideApply=true
