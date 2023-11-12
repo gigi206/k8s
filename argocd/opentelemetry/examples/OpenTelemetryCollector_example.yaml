@@ -113,12 +113,18 @@ spec:
     - name: varlog
       hostPath:
         path: /var/log
+    - name: rke2agent
+      hostPath:
+        path: /var/lib/rancher/rke2/agent/logs/
     - name: journal
       hostPath:
         path: /var/log/journal
   volumeMounts:
     - mountPath: /var/log
       name: varlog
+      readOnly: true
+    - mountPath: /var/lib/rancher/rke2/agent/logs/
+      name: rke2agent
       readOnly: true
     - mountPath: /var/log/journal
       name: journal
