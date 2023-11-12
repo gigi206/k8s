@@ -6,8 +6,7 @@
 #   kubernetes.io/ingress.class: haproxy
 #   haproxy-ingress.github.io/secure-backends: "true"
 #   haproxy-ingress.github.io/ssl-redirect: "true"
-### https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/annotations.md ###
-# https://artifacthub.io/packages/helm/haproxytech/kubernetes-ingress
+### https://artifacthub.io/packages/helm/haproxytech/kubernetes-ingress ###
 # Example of annotations:
 # * https://www.haproxy.com/documentation/kubernetes/latest/
 # * https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/annotations.md
@@ -21,6 +20,8 @@ kind: Application
 metadata:
   name: ingress-haproxy
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: ingress-haproxy
@@ -28,15 +29,32 @@ spec:
   source:
     chart: kubernetes-ingress
     repoURL: 'https://haproxytech.github.io/helm-charts'
-    targetRevision: '1.24.0'
+    targetRevision: '1.33.1'
     helm:
       parameters:
         - name: controller.kind
-          value: DaemonSet
+          value: Deployment
+          # value: DaemonSet
+        - name: controller.replicaCount
+          value: "1"
+        - name: controller.autoscaling.enabled
+          value: "false"
+        - name: controller.autoscaling.minReplicas
+          value: "1"
+        - name: controller.autoscaling.maxReplicas
+          value: "5"
+        - name: controller.autoscaling.targetCPUUtilizationPercentage
+          value: "70"
         - name: controller.ingressClass
           value: haproxy
+        - name: controller.ingressClassResource.name
+          value: haproxy
         - name: controller.ingressClassResource.default
+          value: "false"
+        - name: controller.kubernetesGateway.enabled
           value: "true"
+        # - name: controller.kubernetesGateway.gatewayControllerName
+        #   value: haproxy.org/gateway-controller
         - name: controller.service.type
           value: LoadBalancer
         # - name: controller.enablePorts.stat
@@ -50,7 +68,7 @@ spec:
           value: "true"
         - name: controller.serviceMonitor.extraLabels.release
           value: prometheus-stack
-        # https://www.haproxy.com/documentation/kubernetes/latest/configuration/controller/#--configmap-tcp-services
+        # https://www.haproxy.com/documentation/kubernetes-ingress/enterprise/configuration-reference/startupargs/#%E2%80%93configmap-tcp-services
         # default/haproxy-configmap by default
         # - name: controller.extraArgs[0]
         #   value: --configmap-tcp-services=default/tcp
@@ -59,3 +77,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
