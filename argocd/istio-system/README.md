@@ -12,6 +12,7 @@ Ambient mode allow to use istio without sidecar proxy (alpha).
 
 ## cert-manager
 * https://cert-manager.io/docs/usage/istio/
+* https://cert-manager.io/docs/tutorials/istio-csr/istio-csr/
 * https://github.com/cert-manager/istio-csr
 
 For certificate secret format please read https://istio.io/latest/docs/tasks/traffic-management/ingress/secure-ingress/#key-formats
@@ -31,6 +32,7 @@ All dashboards:
 * (13277) [Istio Wasm Extension Dashboard](https://grafana.com/grafana/dashboards/13277-istio-wasm-extension-dashboard/)
 
 ## Istioctl
+### Download
 ```bash
 curl -L https://istio.io/downloadIstio | sh -
 ```
@@ -54,8 +56,8 @@ kubectl get crd gateways.gateway.networking.k8s.io &> /dev/null || \
   { kubectl kustomize "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.6.1" | kubectl apply -f -; }
 ```
 
-## Install bookinfo demo app
-
+## Tutorial
+### Install bookinfo demo app
 Cf https://istio.io/latest/docs/examples/bookinfo/#before-you-begin
 
 * Download source from Github:
@@ -133,4 +135,418 @@ http://192.168.122.204:80/productpage
 * Istio uses subsets, in destination rules, to define versions of a service. Run the following command to create default destination rules for the Bookinfo services:
 ```bash
 kubectl apply -f samples/bookinfo/networking/destination-rule-all.yaml -n bookinfo
+```
+
+### TLS
+#### TLS terminaison whith TLS backend
+* Example for ArgoCD with TLS backend enabled:
+```yaml
+#apiVersion: security.istio.io/v1beta1
+#kind: PeerAuthentication
+#metadata:
+#  name: argocd
+#  namespace: argo-cd
+#spec:
+#  mtls:
+#    mode: DISABLE
+#---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: argocd
+  namespace: argo-cd
+spec:
+  host: argo-cd-argocd-server
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+      # mode: SIMPLE
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd
+  namespace: istio-system
+spec:
+  dnsNames:
+    - argocd.gigix
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned-cluster-issuer
+  secretName: argocd-cert-tls
+  usages:
+    - digital signature
+    - key encipherment
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: argocd
+  namespace: argo-cd
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - argocd.gigix
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      #mode: MUTUAL
+      #mode: PASSTHROUGH
+      credentialName: argocd-cert-tls
+    hosts:
+    - argocd.gigix
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: argocd
+  namespace: argo-cd
+spec:
+  hosts:
+  - argocd.gigix
+  gateways:
+  - argocd
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        port:
+          number: 443
+        host: argo-cd-argocd-server
+```
+
+# TLS PASSTHROUGH
+* https://istio.io/latest/docs/tasks/traffic-management/ingress/ingress-sni-passthrough/
+
+#### httpbin
+* Deploy this example for `Ingress`, API and Istio `Gateway`:
+  * **httpbin.gigix**: API Gateway
+  * **httpbin2.gigix**: ISTIO Gateway
+  * **httpbin3.gigix**: Kubernetes Ingress
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: demo
+  name: demo
+spec:
+  finalizers:
+  - kubernetes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin
+  namespace: demo
+  labels:
+    app: httpbin
+    service: httpbin
+spec:
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 80
+  selector:
+    app: httpbin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: httpbin
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: httpbin
+        version: v1
+    spec:
+      #serviceAccountName: httpbin
+      containers:
+      - image: docker.io/kong/httpbin
+        imagePullPolicy: IfNotPresent
+        name: httpbin
+        ports:
+        - containerPort: 80
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: httpbin-cert-tls
+  namespace: demo
+spec:
+  dnsNames:
+    - httpbin.gigix
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned-cluster-issuer
+  secretName: httpbin-cert-tls
+  usages:
+    - digital signature
+    - key encipherment
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: httpbin2-cert-tls
+  namespace: istio-system
+spec:
+  dnsNames:
+    - httpbin2.gigix
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned-cluster-issuer
+  secretName: httpbin2-cert-tls
+  usages:
+    - digital signature
+    - key encipherment
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: httpbin3-cert-tls
+  namespace: istio-system
+spec:
+  dnsNames:
+    - httpbin3.gigix
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned-cluster-issuer
+  secretName: httpbin3-cert-tls
+  usages:
+    - digital signature
+    - key encipherment
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: httpbin2-gateway
+  namespace: demo
+spec:
+  # The selector matches the ingress gateway pod labels.
+  # If you installed Istio using Helm following the standard documentation, this would be "istio=ingress"
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - httpbin2.gigix
+    tls:
+      httpsRedirect: true
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      #mode: MUTUAL
+      #mode: PASSTHROUGH
+      credentialName: httpbin2-cert-tls
+    hosts:
+    - httpbin2.gigix
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: httpbin2
+  namespace: demo
+spec:
+  hosts:
+  - httpbin2.gigix
+  gateways:
+  - httpbin2-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        port:
+          number: 8000
+        host: httpbin
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: httpbin-gateway
+  namespace: demo
+  #namespace: istio-system
+spec:
+  gatewayClassName: istio
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: Same
+    #    from: All
+    #    from: Selector
+    #    selector:
+    #      matchLabels:
+    #        kubernetes.io/metadata.name: demo
+  - name: https
+    protocol: HTTPS
+    port: 443
+    hostname: httpbin.gigix
+    tls:
+      mode: Terminate
+      #mode: Passthrough
+      #options:
+      #  gateway.istio.io/tls-terminate-mode: MUTUAL
+      certificateRefs:
+        - name: httpbin-cert-tls
+          kind: Secret
+          #group: core # doesn't work with istio
+          group: ""
+    allowedRoutes:
+      namespaces:
+        from: Same
+    #    from: All
+    #    from: Selector
+    #    selector:
+    #      matchLabels:
+    #        kubernetes.io/metadata.name: demo
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: httpbin-route
+  namespace: demo
+spec:
+  hostnames:
+  - httpbin.gigix
+  parentRefs:
+  - name: httpbin-gateway
+    namespace: demo
+    #namespace: istio-system
+  rules:
+  # - filters:
+  #     - type: RequestRedirect
+  #       requestRedirect:
+  #         scheme: https
+  #         statusCode: 301
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: httpbin
+      port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  #annotations: # certificate must be created in the istio-system namespace
+  #  cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+  name: httpbin3
+  namespace: demo
+spec:
+  ingressClassName: istio
+  rules:
+  - host: httpbin3.gigix
+    http:
+      paths:
+      - backend:
+          service:
+            name: httpbin
+            port:
+              number: 8000
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - httpbin3.gigix
+    secretName: httpbin3-cert-tls
+```
+
+##### GATEWAY API
+* **Warning:**: Certificate must be created in the `demo` namespace:
+
+The Gateway API is configured for the hostname **httpbin.gigix**.
+```shell
+export GATEWAY_HOSTNAME=httpbin.gigix
+export GATEWAY_NAME=httpbin-gateway
+export GATEWAY_NS=demo
+export GATEWAY_HOST=$(kubectl get -n ${GATEWAY_NS} gateways.gateway.networking.k8s.io ${GATEWAY_NAME} -o jsonpath='{.status.addresses[0].value}')
+export GATEWAY_PORT=$(kubectl get -n ${GATEWAY_NS} gateways.gateway.networking.k8s.io ${GATEWAY_NAME} -o jsonpath='{.spec.listeners[?(@.name=="http")].port}')
+export SECURE_GATEWAY_PORT=$(kubectl get gateways.gateway.networking.k8s.io -n ${GATEWAY_NS} ${GATEWAY_NAME} -o jsonpath='{.spec.listeners[?(@.name=="https")].port}')
+```
+
+* GATEWAY API HTTP:
+```shell
+curl -Ik --resolve "${GATEWAY_HOSTNAME}:${GATEWAY_PORT}:${GATEWAY_HOST}" http://${GATEWAY_HOSTNAME}:${GATEWAY_PORT}
+```
+
+* GATEWAY API HTTPS:
+```shell
+curl -Ik --resolve "${GATEWAY_HOSTNAME}:${SECURE_GATEWAY_PORT}:${GATEWAY_HOST}" https://${GATEWAY_HOSTNAME}:${SECURE_GATEWAY_PORT}
+```
+
+##### Istio GATEWAY
+* **Warning:** Certificate must be created in the `istio-system` namespace and **NOT** in the **demo** namespace:
+
+The Istio Gateway is configured for the hostname **httpbin2.gigix**:
+```shell
+export ISTIO_INGRESS_HOSTNAME=httpbin2.gigix
+export ISTIO_INGRESS_NAME=istio-ingressgateway
+export ISTIO_INGRESS_NS=istio-system
+export ISTIO_INGRESS_HOST=$(kubectl -n "${ISTIO_INGRESS_NS}" get service "${ISTIO_INGRESS_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+export ISTIO_INGRESS_PORT=$(kubectl -n "${ISTIO_INGRESS_NS}" get service "${ISTIO_INGRESS_NAME}" -o jsonpath='{.spec.ports[?(@.name=="http2")].port}')
+export ISTIO_SECURE_INGRESS_PORT=$(kubectl -n "${ISTIO_INGRESS_NS}" get service "${ISTIO_INGRESS_NAME}" -o jsonpath='{.spec.ports[?(@.name=="https")].port}')
+```
+
+* ISTIO GW HTTP (redirect to https):
+```shell
+curl -Ik --resolve "${ISTIO_INGRESS_HOSTNAME}:${ISTIO_INGRESS_PORT}:${ISTIO_INGRESS_HOST}" http://${ISTIO_INGRESS_HOSTNAME}:${ISTIO_INGRESS_PORT}
+```
+
+* ISTIO GW HTTPS:
+```shell
+curl -Ik --resolve "${ISTIO_INGRESS_HOSTNAME}:${ISTIO_SECURE_INGRESS_PORT}:${ISTIO_INGRESS_HOST}" https://${ISTIO_INGRESS_HOSTNAME}:${ISTIO_SECURE_INGRESS_PORT}
+```
+
+##### Ingress (Kubernetes)
+* **Warning:**: Certificate must be created in the `istio-system` namespace (and **NOT** in the **demo** namespace) and **before** the istio `istio-ingressgateway` starts:
+
+The Ingress is configured for the hostname **httpbin3.gigix**:
+```shell
+export INGRESS_HOSTNAME=httpbin3.gigix
+export INGRESS_NAME=httpbin3
+export INGRESS_NS=demo
+export INGRESS_HOST=$(kubectl -n ${INGRESS_NS} get ing ${INGRESS_NAME} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+```
+
+* INGRESS HTTP:
+```shell
+curl -Ik --resolve "${INGRESS_HOSTNAME}:80:${INGRESS_HOST}" http://${INGRESS_HOSTNAME}
+```
+* INGRESS HTTPS:
+```shell
+curl -Ik --resolve "${INGRESS_HOSTNAME}:443:${INGRESS_HOST}" https://${INGRESS_HOSTNAME}
 ```
