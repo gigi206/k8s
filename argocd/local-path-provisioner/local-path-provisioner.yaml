@@ -7,21 +7,25 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
-    namespace: rancher-demo
+    namespace: local-path-provisioner
     server: 'https://kubernetes.default.svc'
   project: default
   source:
-    repoURL: 'https://github.com/gigi206/k8s'
+    repoURL: 'https://github.com/rancher/local-path-provisioner'
     path: deploy/chart/local-path-provisioner
     targetRevision: v0.0.24
     helm:
       parameters:
+        - name: 'nodePathMap[0].node'
+          value: DEFAULT_PATH_FOR_NON_LISTED_NODES
         - name: nodePathMap[0].paths[0]
           value: /opt/local-path-provisioner
+        - name: storageClass.name
+          value: local-path
+        - name: replicaCount
+          value: '1'
         # - name: storageClass.reclaimPolicy
         #   value: Retain
-        # - name: storageClass.name
-        #   value: local-path
         # - name: storageClass.provisionerName
         #   value: rancher.io/local-path
         # - name: storageClass.defaultClass
