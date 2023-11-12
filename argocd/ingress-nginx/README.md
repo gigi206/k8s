@@ -11,10 +11,11 @@ You must install the [grafana dashboard](https://raw.githubusercontent.com/kuber
 You can use a specific dashboard version https://github.com/kubernetes/ingress-nginx/blob/helm-chart-`<tag>`/deploy/grafana/dashboards/nginx.json, example https://github.com/kubernetes/ingress-nginx/blob/helm-chart-4.2.1/deploy/grafana/dashboards/nginx.json.
 
 ## Annotations
-https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/
+* https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/nginx-configuration/annotations.md
+* https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/
 
 ### Rate limiting
-https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#rate-limiting
+* https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/#rate-limiting
 
 Requests can be limited per second (rps for request by second) or per minute (rpm for request per minute):
 ```yaml
@@ -73,4 +74,4 @@ nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
 ```
 
 ### configmap
-https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/
+* https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/

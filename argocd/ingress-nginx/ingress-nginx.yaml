@@ -13,16 +13,31 @@ spec:
   source:
     chart: ingress-nginx
     repoURL: 'https://kubernetes.github.io/ingress-nginx'
-    targetRevision: '4.7.1'
+    targetRevision: '4.8.3'
     helm:
       parameters:
         - name: controller.kind
-          value: DaemonSet
+          value: Deployment
+          # value: DaemonSet
         - name: controller.ingressClassResource.default
-          value: "true"
+          value: 'true'
+        # Cf https://danielfm.me/post/painless-nginx-ingress/
+        # - name: controller.extraArgs.sort-backends
+        #   value: "true"
+        # Required to configure controller.resources
+        # - name: controller.autoscaling.enabled
+        #   value: 'false'
+        # - name: controller.autoscaling.minReplicas
+        #   value: '1'
+        # - name: controller.autoscaling.maxReplicas
+        #   value: '5'
+        # - name: controller.autoscaling.targetCPUUtilizationPercentage
+        #   value: '70'
+        # - name: controller.autoscaling.targetMemoryUtilizationPercentage
+        #   value: '70'
         # https://docs.gitlab.com/charts/advanced/external-nginx/
-        - name: tcp.22
-          value: gitlab/gitlab-gitlab-shell:22
+        # - name: tcp.22
+        #   value: gitlab/gitlab-gitlab-shell:22
         # - name: controller.config.use-forwarded-headers
         #   value: 'true'
         # - name: controller.config.compute-full-forwarded-for
@@ -48,11 +63,11 @@ spec:
         #   value: '3'
         # controller
         # - name: controller.resources.requests.cpu
-        #   value: 100m
+        #   value: 1000m
         # - name: controller.resources.requests.memory
         #   value: 512Mi
         # - name: controller.resources.limits.cpu
-        #   value: 100m
+        #   value: 1000m
         # - name: controller.resources.limits.memory
         #   value: 512Mi
         # controller.admissionWebhooks.createSecretJob
