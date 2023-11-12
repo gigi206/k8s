@@ -9,7 +9,7 @@ spec:
     namespace: vcluster-demo1
   source:
     repoURL: 'https://charts.loft.sh'
-    targetRevision: 0.14.2
+    targetRevision: 0.16.4
     chart: vcluster
     helm:
       # values: |
@@ -17,6 +17,10 @@ spec:
       #     volumeMounts: []
       #   vcluster:
       #     volumeMounts: []
+      #   mapServices:
+      #     fromHost:
+      #       - from: default/oteld-collector
+      #         to: default/oteld-virtual-collector
       parameters:
         - name: vcluster.image
           value: rancher/k3s:v1.26.2-k3s1
@@ -25,6 +29,7 @@ spec:
         # - name: syncer.extraArgs[0]
         #   value: --tls-san k8s-api.vcluster-demo1.gigix
         #   # value: --tls-san=x.x.x.x,y.y.y.y,z.z.z.z
+        #   # value: --enforce-toleration=key1=value1:NoSchedule
         # - name: service.type
         #   value: LoadBalancer
         - name: ingress.enabled
@@ -38,6 +43,8 @@ spec:
         - name: sync.nodes.enabled
           value: 'true'
         - name: sync.nodes.syncAllNodes
+          value: 'true'
+        - name: sync.nodes.enableScheduler
           value: 'true'
         - name: sync.persistentvolumes.enabled
           value: 'false'
@@ -57,6 +64,8 @@ spec:
         #   value: xx
         # - name: sync.fake-nodes.enabled
         #   value: 'false'
+        # - name: hostpathMapper.enabled
+        #   value: true
         - name: storage.size
           value: 5Gi
         - name: storage.persistence
@@ -65,16 +74,17 @@ spec:
         #   value: longhorn
         - name: securityContext.allowPrivilegeEscalation
           value: 'false'
+        # - name: multiNamespaceMode.enabled
+        #   value: 'true'
+        # - name: multiNamespaceMode.namespaces[0]
+        #   value: dev
         - name: isolation.enabled
           value: 'true'
         # - name: isolation.namespace
         #   value: vluster-demo1
         - name: isolation.podSecurityStandard
           value: baseline
-        # - name: multiNamespaceMode.enabled
-        #   value: 'true'
-        # - name: multiNamespaceMode.namespaces[0]
-        #   value: dev
+        # Example of resourceQuota / limitRange => https://youtu.be/vB-3JMb9twM?t=846
         # - name: isolation.resourceQuota.enabled
         #   value: 'false'
         # - name: isolation.limitRange.enabled
