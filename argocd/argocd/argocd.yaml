@@ -20,9 +20,15 @@ spec:
   source:
     chart: argo-cd
     repoURL: 'https://argoproj.github.io/argo-helm'
-    targetRevision: '5.41.2'
+    targetRevision: '5.51.1'
     helm:
       parameters:
+        # insecure is needed if you want to use ingress without TLS (no certificates)
+        # Cf https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/#option-2-multiple-ingress-objects-and-hosts
+        # - name: configs.params.server\.insecure
+        #   value: 'true'
+        # - name: 'server.extraArgs[0]'
+        #   value: '--insecure'
         - name: dex.enabled
           value: 'false'
         # - name: server.configEnabled
@@ -93,6 +99,7 @@ spec:
         - name: >-
             server.ingress.annotations.cert-manager\.io/cluster-issuer
           value: selfsigned-cluster-issuer
+        # Nginx
         - name: >-
             server.ingress.annotations.nginx\.ingress\.kubernetes\.io/server-alias
           value: argocd
@@ -105,6 +112,20 @@ spec:
         - name: >-
             server.ingress.annotations.nginx\.ingress\.kubernetes\.io/backend-protocol
           value: https
+        # Kong
+        # - name: server.service.annotations.konghq\.com/protocol
+        #   value: https
+        # - name: server.ingress.annotations.konghq\.com/https-redirect-status-code
+        #   value: "308"
+        # - name: server.ingress.annotations.konghq\.com/protocols
+        #   value: https
+        # HAProxytech
+        # - name: server.ingress.annotations.haproxy\.org/server-ssl
+        #   value: "true"
+        # - name: server.ingress.annotations.haproxy\.org/ssl-passthrough
+        #   value: "true"
+        # - name: server.ingress.annotations.haproxy\.org/ssl-redirect
+        #   value: "true"
 
         # Enable Prometheus metrics
         - name: applicationSet.metrics.enabled
@@ -187,10 +208,6 @@ spec:
             12 hours which means that the state of this cloud has drifted away from the
             state inside Git.
 
-        # insecure is needed if you want to use ingress without TLS (no certificates)
-        # Cf https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/#option-2-multiple-ingress-objects-and-hosts
-        # - name: 'server.extraArgs[0]'
-        #   value: '--insecure'
         # controller
         # - name: controller.resources.requests.cpu
         #   value: 250m

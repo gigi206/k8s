@@ -58,7 +58,8 @@ tty -s && (
 )
 
 # require_app cert-manager ingress-nginx
-require_app cert-manager ingress-nginx metallb kubevip external-dns
+require_app cert-manager external-dns
+# require_app cert-manager ingress-nginx metallb kubevip external-dns
 # require_app kubevip kubevip-cloud-provider cert-manager ingress-nginx
 
 # install_app
