@@ -4,15 +4,19 @@ kind: Application
 metadata:
   name: csi-external-snapshotter
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     repoURL: 'https://github.com/kubernetes-csi/external-snapshotter/'
     path: client/config/crd
-    targetRevision: v5.0.1
+    targetRevision: v6.2.1
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: default
+    namespace: csi-external-snapshotter
   syncPolicy:
     syncOptions:
+      - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
