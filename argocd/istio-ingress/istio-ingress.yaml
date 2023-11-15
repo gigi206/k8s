@@ -24,14 +24,14 @@ spec:
     repoURL: 'https://istio-release.storage.googleapis.com/charts'
     targetRevision: 1.18.2
     chart: gateway
-    # helm:
-    #   parameters:
-    #     - name: name
-    #       value: istio-ingressgateway
-    #     - name: labels.app
-    #       value: istio-ingressgateway
-    #     - name: labels.istio
-    #       value: ingressgateway
+    helm:
+      parameters:
+        - name: name
+          value: istio-ingressgateway
+        - name: labels.app
+          value: istio-ingressgateway
+        - name: labels.istio
+          value: ingressgateway
   project: default
   syncPolicy:
     syncOptions:

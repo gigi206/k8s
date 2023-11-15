@@ -16,6 +16,9 @@ spec:
       targetRevision: 1.18.2
       helm:
         values: |
+          pilot:
+            env:
+              K8S_INGRESS_NS: istio-ingress
           meshConfig:
             enableTracing: true
             enablePrometheusMerge: false
