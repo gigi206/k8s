@@ -1,4 +1,5 @@
-# Test deployment
+# Benchmark
+## Test deployment
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -38,17 +39,265 @@ spec:
     app: quote
 ```
 
-# Compare results
+## Compare results
 ```shell
-egrep -A25 -- "^#.*1$" benchmark.yaml | egrep -v \`
-egrep -A25 -- "^#.*10$" benchmark.yaml | egrep -v \`
-egrep -A25 -- "^#.*100$" benchmark.yaml | egrep -v \`
-egrep -A25 -- "^#.*1000$" benchmark.yaml | egrep -v \`
-egrep -A25 -- "^#.*10000$" benchmark.yaml | egrep -v \`
+egrep -A25 -- "^###.*1$" benchmark.yaml | egrep -v \`
+egrep -A25 -- "^###.*10$" benchmark.yaml | egrep -v \`
+egrep -A25 -- "^###.*100$" benchmark.yaml | egrep -v \`
+egrep -A25 -- "^###.*1000$" benchmark.yaml | egrep -v \`
+egrep -A25 -- "^###.*10000$" benchmark.yaml | egrep -v \`
 ```
 
+
+## Without ingress (LoadBalancer service)
+### Without ingress (LoadBalancer service) 1
+```shell
+hey -n 100000 -c 1 http://192.168.122.241
+
+Summary:
+  Total:	10.4206 secs
+  Slowest:	0.0033 secs
+  Fastest:	0.0001 secs
+  Average:	0.0001 secs
+  Requests/sec:	9596.3684
+
+  Total data:	15367745 bytes
+  Size/request:	153 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.000 [99166]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.001 [758]	|
+  0.001 [54]	|
+  0.001 [11]	|
+  0.002 [4]	|
+  0.002 [4]	|
+  0.002 [0]	|
+  0.003 [1]	|
+  0.003 [0]	|
+  0.003 [1]	|
+
+
+Latency distribution:
+  10% in 0.0001 secs
+  25% in 0.0001 secs
+  50% in 0.0001 secs
+  75% in 0.0001 secs
+  90% in 0.0001 secs
+  95% in 0.0002 secs
+  99% in 0.0004 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0033 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0000 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0003 secs
+  resp wait:	0.0001 secs, 0.0000 secs, 0.0033 secs
+  resp read:	0.0000 secs, 0.0000 secs, 0.0004 secs
+
+Status code distribution:
+  [200]	100000 responses
+```
+
+
+### Without ingress (LoadBalancer service) 10
+```shell
+hey -n 100000 -c 10 http://192.168.122.241
+
+Summary:
+  Total:	2.6026 secs
+  Slowest:	0.0133 secs
+  Fastest:	0.0001 secs
+  Average:	0.0003 secs
+  Requests/sec:	38423.5688
+
+  Total data:	15366181 bytes
+  Size/request:	153 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.001 [99766]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.003 [209]	|
+  0.004 [14]	|
+  0.005 [0]	|
+  0.007 [0]	|
+  0.008 [0]	|
+  0.009 [0]	|
+  0.011 [0]	|
+  0.012 [0]	|
+  0.013 [10]	|
+
+
+Latency distribution:
+  10% in 0.0001 secs
+  25% in 0.0002 secs
+  50% in 0.0002 secs
+  75% in 0.0003 secs
+  90% in 0.0004 secs
+  95% in 0.0006 secs
+  99% in 0.0009 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0133 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0000 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0011 secs
+  resp wait:	0.0002 secs, 0.0001 secs, 0.0132 secs
+  resp read:	0.0000 secs, 0.0000 secs, 0.0010 secs
+
+Status code distribution:
+  [200]	100000 responses
+```
+
+
+### Without ingress (LoadBalancer service) 100
+```shell
+hey -n 100000 -c 100 http://192.168.122.241
+
+Summary:
+  Total:	2.1341 secs
+  Slowest:	0.0765 secs
+  Fastest:	0.0001 secs
+  Average:	0.0021 secs
+  Requests/sec:	46858.2698
+
+  Total data:	15365788 bytes
+  Size/request:	153 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.008 [97964]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.015 [1875]	|■
+  0.023 [36]	|
+  0.031 [18]	|
+  0.038 [16]	|
+  0.046 [27]	|
+  0.054 [0]	|
+  0.061 [29]	|
+  0.069 [30]	|
+  0.076 [4]	|
+
+
+Latency distribution:
+  10% in 0.0004 secs
+  25% in 0.0007 secs
+  50% in 0.0014 secs
+  75% in 0.0028 secs
+  90% in 0.0047 secs
+  95% in 0.0058 secs
+  99% in 0.0092 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0765 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0000 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0372 secs
+  resp wait:	0.0020 secs, 0.0001 secs, 0.0415 secs
+  resp read:	0.0001 secs, 0.0000 secs, 0.0602 secs
+
+Status code distribution:
+  [200]	100000 responses
+```
+
+
+### Without ingress (LoadBalancer service) 1000
+```shell
+hey -n 1000000 -c 1000 http://192.168.122.241
+
+Summary:
+  Total:	11.5561 secs
+  Slowest:	0.2352 secs
+  Fastest:	0.0001 secs
+  Average:	0.0113 secs
+  Requests/sec:	86534.3295
+
+  Total data:	153698297 bytes
+  Size/request:	153 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.024 [919760]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.047 [72891]	|■■■
+  0.071 [5869]	|
+  0.094 [465]	|
+  0.118 [126]	|
+  0.141 [2]	|
+  0.165 [430]	|
+  0.188 [27]	|
+  0.212 [65]	|
+  0.235 [364]	|
+
+
+Latency distribution:
+  10% in 0.0040 secs
+  25% in 0.0059 secs
+  50% in 0.0088 secs
+  75% in 0.0137 secs
+  90% in 0.0216 secs
+  95% in 0.0278 secs
+  99% in 0.0437 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.2352 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0000 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.1535 secs
+  resp wait:	0.0100 secs, 0.0001 secs, 0.2328 secs
+  resp read:	0.0009 secs, 0.0000 secs, 0.0487 secs
+
+Status code distribution:
+  [200]	1000000 responses
+```
+
+
+### Without ingress (LoadBalancer service) 10000
+```shell
+hey -n 1000000 -c 10000 http://192.168.122.241
+
+Summary:
+  Total:	22.5087 secs
+  Slowest:	15.0441 secs
+  Fastest:	0.0001 secs
+  Average:	0.1447 secs
+  Requests/sec:	44427.3280
+
+  Total data:	153718626 bytes
+  Size/request:	153 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  1.504 [989375]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  3.009 [5491]	|
+  4.513 [3161]	|
+  6.018 [7]	|
+  7.522 [1409]	|
+  9.026 [150]	|
+  10.531 [0]	|
+  12.035 [0]	|
+  13.540 [0]	|
+  15.044 [406]	|
+
+
+Latency distribution:
+  10% in 0.0066 secs
+  25% in 0.0106 secs
+  50% in 0.0169 secs
+  75% in 0.0950 secs
+  90% in 0.3547 secs
+  95% in 0.6102 secs
+  99% in 1.6075 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0010 secs, 0.0001 secs, 15.0441 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0000 secs
+  req write:	0.0003 secs, 0.0000 secs, 0.6002 secs
+  resp wait:	0.1351 secs, 0.0000 secs, 15.0425 secs
+  resp read:	0.0046 secs, 0.0000 secs, 0.7863 secs
+
+Status code distribution:
+  [200]	1000000 responses
+```
+
+
+## Ingresses
 ### emissary-ingress
-# emissary-ingress 1
+#### emissary-ingress 1
 ```shell
 hey -n 100000 -c 1 http://quote.gigix/
 
@@ -97,7 +346,7 @@ Status code distribution:
 ```
 
 
-# emissary-ingress 10
+#### emissary-ingress 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -146,7 +395,7 @@ Status code distribution:
 ```
 
 
-# emissary-ingress 100
+#### emissary-ingress 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -195,7 +444,7 @@ Status code distribution:
 ```
 
 
-# emissary-ingress 1000
+#### emissary-ingress 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -244,7 +493,7 @@ Status code distribution:
 ```
 
 
-# emissary-ingress 10000
+#### emissary-ingress 10000
 ```shell
 hey -n 1000000 -c 10000 http://quote.gigix/
 
@@ -300,7 +549,7 @@ Error distribution:
 
 
 ### Traefik
-# Traefik 1
+#### Traefik 1
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -350,7 +599,7 @@ Status code distribution:
 ```
 
 
-# Traefik 10
+#### Traefik 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -399,7 +648,7 @@ Status code distribution:
 ```
 
 
-# Traefik 100
+#### Traefik 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -448,7 +697,7 @@ Status code distribution:
 ```
 
 
-# Traefik 1000
+#### Traefik 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -497,12 +746,12 @@ Status code distribution:
   [502]	32286 responses
 ```
 
-# Traefik 10000
+#### Traefik 10000
 Not tested because Treafik crash at 1000 connections.
 
 
 ## Nginx
-# Nginx 1
+#### Nginx 1
 ```shell
 hey -n 100000 -c 1 http://quote.gigix/
 
@@ -551,7 +800,7 @@ Status code distribution:
 ```
 
 
-# Nginx 10
+#### Nginx 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -600,7 +849,7 @@ Status code distribution:
 ```
 
 
-# Nginx 100
+#### Nginx 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -649,7 +898,7 @@ Status code distribution:
 ```
 
 
-# Nginx 1000
+#### Nginx 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -697,7 +946,7 @@ Status code distribution:
   [200]	1000000 responses
 ```
 
-# Nginx 10000
+#### Nginx 10000
 ```shell
 hey -n 1000000 -c 10000 http://quote.gigix/
 
@@ -764,7 +1013,7 @@ Error distribution:
 ```
 
 ### Kong
-# Kong 1
+#### Kong 1
 ```shell
 hey -n 100000 -c 1 http://quote.gigix/
 
@@ -813,7 +1062,7 @@ Status code distribution:
 ```
 
 
-# Kong 10
+#### Kong 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -862,7 +1111,7 @@ Status code distribution:
 ```
 
 
-# Kong 100
+#### Kong 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -911,7 +1160,7 @@ Status code distribution:
 ```
 
 
-# Kong 1000
+#### Kong 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -960,7 +1209,7 @@ Status code distribution:
 ```
 
 
-# Kong 10000
+#### Kong 10000
 ```shell
 hey -n 1000000 -c 10000 http://quote.gigix/
 
@@ -1021,7 +1270,7 @@ Error distribution:
 
 
 ### Apisix
-# Apisix 1
+#### Apisix 1
 ```shell
 hey -n 100000 -c 1 http://quote.gigix/
 
@@ -1070,7 +1319,7 @@ Status code distribution:
 ```
 
 
-# Apisix 10
+#### Apisix 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -1119,7 +1368,7 @@ Status code distribution:
 ```
 
 
-# Apisix 100
+#### Apisix 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -1168,7 +1417,7 @@ Status code distribution:
 ```
 
 
-# Apisix 1000
+#### Apisix 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -1217,7 +1466,7 @@ Status code distribution:
 ```
 
 
-# Apisix 10000
+#### Apisix 10000
 ```shell
 hey -n 1000000 -c 10000 http://quote.gigix/
 
@@ -1266,7 +1515,7 @@ Status code distribution:
 ```
 
 ### HAProxyTech
-# HAProxyTech 1
+#### HAProxyTech 1
 ```shell
 hey -n 100000 -c 1 http://quote.gigix/
 
@@ -1315,7 +1564,7 @@ Status code distribution:
 ```
 
 
-# HAProxyTech 10
+#### HAProxyTech 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -1363,7 +1612,7 @@ Status code distribution:
   [200]	100000 responses
 ```
 
-# HAProxyTech 100
+#### HAProxyTech 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -1411,7 +1660,7 @@ Status code distribution:
   [200]	100000 responses
 ```
 
-# HAProxyTech 1000
+#### HAProxyTech 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -1459,7 +1708,7 @@ Status code distribution:
   [200]	1000000 responses
 ```
 
-# HAProxyTech 10000
+#### HAProxyTech 10000
 ```
 hey -n 1000000 -c 10000 http://quote.gigix/
 
@@ -1509,7 +1758,7 @@ Status code distribution:
 
 
 ### ISTIO (NO MESH)
-# ISTIO (NO MESH) 1
+#### ISTIO (NO MESH) 1
 ```shell
 hey -n 100000 -c 1 http://quote.gigix/
 
@@ -1558,7 +1807,7 @@ Status code distribution:
 ```
 
 
-# ISTIO (NO MESH) 10
+#### ISTIO (NO MESH) 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -1606,7 +1855,7 @@ Status code distribution:
   [200]	100000 responses
 ```
 
-# ISTIO (NO MESH) 100
+#### ISTIO (NO MESH) 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -1655,7 +1904,7 @@ Status code distribution:
 ```
 
 
-# ISTIO (NO MESH) 1000
+#### ISTIO (NO MESH) 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -1704,7 +1953,7 @@ Status code distribution:
 ```
 
 
-# ISTIO (NO MESH) 10000
+#### ISTIO (NO MESH) 10000
 ```
 hey -n 1000000 -c 10000 http://quote.gigix/
 
@@ -1759,7 +2008,7 @@ Error distribution:
 
 
 ### ISTIO (MESHED)
-# ISTIO (MESHED) 1
+#### ISTIO (MESHED) 1
 ```shell
 hey -n 100000 -c 1 http://quote.gigix/
 
@@ -1808,7 +2057,7 @@ Status code distribution:
 ```
 
 
-# ISTIO (MESHED) 10
+#### ISTIO (MESHED) 10
 ```shell
 hey -n 100000 -c 10 http://quote.gigix/
 
@@ -1857,7 +2106,7 @@ Status code distribution:
 ```
 
 
-# ISTIO (MESHED) 100
+#### ISTIO (MESHED) 100
 ```shell
 hey -n 100000 -c 100 http://quote.gigix/
 
@@ -1906,7 +2155,7 @@ Status code distribution:
 ```
 
 
-# ISTIO (MESHED) 1000
+#### ISTIO (MESHED) 1000
 ```shell
 hey -n 1000000 -c 1000 http://quote.gigix/
 
@@ -1955,7 +2204,7 @@ Status code distribution:
 ```
 
 
-# ISTIO (MESHED) 10000
+#### ISTIO (MESHED) 10000
 ```shell
 hey -n 1000000 -c 10000 http://quote.gigix/
 
