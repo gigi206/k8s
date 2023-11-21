@@ -12,7 +12,7 @@ spec:
   sources:
     - chart: apisix
       repoURL: 'https://charts.apiseven.com'
-      targetRevision: 2.3.0
+      targetRevision: 2.3.1
       helm:
         values: |
           dashboard:
@@ -30,6 +30,8 @@ spec:
           - name: ingress.enabled
             value: 'false'
           # https://apisix.apache.org/docs/apisix/deployment-modes/#standalone
+          - name: apisix.deployment.mode
+            value: standalone
           - name: apisix.deployment.role
             value: data_plane
           - name: apisix.deployment.role_data_plane.config_provider
