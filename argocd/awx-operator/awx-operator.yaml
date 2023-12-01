@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: awx-operator
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: awx-operator
+  sources:
+    - chart: awx-operator
+      repoURL: https://ansible.github.io/awx-operator
+      targetRevision: 2.8.0
+      helm:
+        parameters:
+          # Automatic configuration for an AWX instance (kubectl get AWX -n ansible-awx-operator awx -o yaml)
+          # Cf kubectl explain AWX.spec
+          # https://github.com/ansible/awx-operator/blob/devel/roles/installer/defaults/main.yml
+          - name: AWX.enabled
+            value: 'false'
+          # - name: AWX.postgres.enabled
+          #   value: 'true'
+          # - name: AWX.postgres.host
+          #   value: CHANGEME
+          # - name: AWX.postgres.dbName
+          #   value: awx
+          # - name: AWX.postgres.username
+          #   value: awx
+          # - name: AWX.postgres.password
+          #   value: P@ssW0rd
+    - repoURL: 'https://github.com/gigi206/k8s'
+      path: argocd/awx-operator/install
+      targetRevision: HEAD
+      directory:
+        include: '*.yaml'
+    # - chart: postgresql
+    #   repoURL: https://charts.bitnami.com/bitnami
+    #   targetRevision: 13.2.21
+    #   helm:
+    #     parameters:
+    #       # - name: primary.service.type
+    #       #   value: LoadBalancer
+    #       # - name: >-
+    #       #     primary.service.annotations.external-dns\.alpha\.kubernetes\.io/hostname
+    #       #   value: awx-postgres.gigix
+    #       - name: primary.persistence.size
+    #         value: 2Gi
+    #       - name: global.postgresql.auth.database
+    #         value: awx
+    #       - name: global.postgresql.auth.username
+    #         value: admin
+    #       - name: global.postgresql.auth.password
+    #         value: admin
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ServerSideApply=true

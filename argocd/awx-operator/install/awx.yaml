@@ -1,0 +1,36 @@
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: awx
+  namespace: awx-operator
+spec:
+  replicas: 1
+  task_replicas: 1
+  # task_resource_requirements: {}
+  web_replicas: 1
+  # web_resource_requirements: {}
+  auto_upgrade: true
+  ipv6_disabled: false
+  postgres_configuration_secret: awx-postgres-configuration
+  postgres_storage_class: longhorn
+  # postgres_init_container_resource_requirements: {}
+  # postgres_resource_requirements: {}
+  postgres_storage_requirements:
+    requests:
+      storage: 2Gi
+  projects_persistence: true
+  projects_storage_class: longhorn
+  projects_storage_size: 2Gi
+  # projects_existing_claim: awx-projects-claim
+  garbage_collect_secrets: false
+  service_type: ClusterIP
+  ingress_type: ingress
+  ingress_tls_secret: awx-tls
+  ingress_annotations: |
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+  ingress_class_name: nginx
+  hostname: awx.gigix
+  # ee_resource_requirements: {}
+  # no_log: true
+  # admin_email: xxx@xxx.com
+  # admin_password_secret: awx-admin
