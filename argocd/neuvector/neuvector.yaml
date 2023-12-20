@@ -4,6 +4,8 @@ kind: Application
 metadata:
   name: neuvector
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     server: 'https://kubernetes.default.svc'
@@ -12,7 +14,7 @@ spec:
   source:
     chart: core
     repoURL: 'https://neuvector.github.io/neuvector-helm/'
-    targetRevision: 2.4.1
+    targetRevision: 2.6.6
     helm:
       parameters:
         #- name: imagePullSecrets
@@ -77,3 +79,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
