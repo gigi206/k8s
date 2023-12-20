@@ -2,6 +2,80 @@
 ## Backup
 Use [this tool](https://github.com/ysde/grafana-backup-tool/tree/master) to backup Dashboards, Datasources and others to add easily with `ConfigMaps`.
 
+## Prometheus
+### Sysdig tips
+* Sysdig: [How to rightsize the Kubernetes resource limits](https://sysdig.com/blog/kubernetes-resource-limits/)
+
+* Containers without CPU limits by namespace:
+```js
+sum by (namespace)(count by (namespace,pod,container)(kube_pod_container_info{container!=""}) unless sum by (namespace,pod,container)(kube_pod_container_resource_limits{resource="cpu"}))
+```
+
+* Containers without memory limits by namespace:
+```js
+sum by (namespace)(count by (namespace,pod,container)(kube_pod_container_info{container!=""}) unless sum by (namespace,pod,container)(kube_pod_container_resource_limits{resource="memory"}))
+```
+
+* Top 10 containers without CPU limits, using more CPU:
+```js
+topk(10,sum by (namespace,pod,container)(rate(container_cpu_usage_seconds_total{container!=""}[5m])) unless sum by (namespace,pod,container)(kube_pod_container_resource_limits{resource="cpu"}))
+```
+
+* Top 10 containers without memory limits, using more memory:
+```js
+topk(10,sum by (namespace,pod,container)(container_memory_usage_bytes{container!=""}) unless sum by (namespace,pod,container)(kube_pod_container_resource_limits{resource="memory"}))
+```
+
+* Detecting containers with very tight CPU limits:
+```js
+(sum by (namespace,pod,container)(rate(container_cpu_usage_seconds_total{container!=""}[5m])) / sum by (namespace,pod,container)(kube_pod_container_resource_limits{resource="cpu"})) > 0.8
+```
+
+* Containers whose memory usage is close to its limits:
+```js
+(sum by (namespace,pod,container)(container_memory_usage_bytes{container!=""}) / sum by (namespace,pod,container)(kube_pod_container_resource_limits{resource="memory"})) > 0.8
+```
+
+* Finding the right CPU limit, with the conservative strategy:
+```js
+max by (namespace,owner_name,container)((rate(container_cpu_usage_seconds_total{container!="POD",container!=""}[5m])) * on(namespace,pod) group_left(owner_name) avg by (namespace,pod,owner_name)(kube_pod_owner{owner_kind=~"DaemonSet|StatefulSet|Deployment"}))
+```
+
+* Finding the right memory limit, with the conservative strategy:
+```js
+max by (namespace,owner_name,container)((container_memory_usage_bytes{container!="POD",container!=""}) * on(namespace,pod) group_left(owner_name) avg by (namespace,pod,owner_name)(kube_pod_owner{owner_kind=~"DaemonSet|StatefulSet|Deployment"}))
+```
+
+* Finding the right CPU limit, with the aggressive strategy:
+```js
+quantile by (namespace,owner_name,container)(0.99,(rate(container_cpu_usage_seconds_total{container!="POD",container!=""}[5m])) * on(namespace,pod) group_left(owner_name) avg by (namespace,pod,owner_name)(kube_pod_owner{owner_kind=~"DaemonSet|StatefulSet|Deployment"}))
+```
+
+* Finding the right memory limit, with the aggressive strategy:
+```js
+quantile by (namespace,owner_name,container)(0.99,(container_memory_usage_bytes{container!="POD",container!=""}) * on(namespace,pod) group_left(owner_name) avg by (namespace,pod,owner_name)(kube_pod_owner{owner_kind=~"DaemonSet|StatefulSet|Deployment"}))
+```
+
+* % memory overcommitted of the cluster:
+```js
+100 * sum(kube_pod_container_resource_limits{container!="",resource="memory"} ) / sum(kube_node_status_capacity{resource="memory"})
+```
+
+* % CPU overcommitted of the cluster:
+```js
+100 * sum(kube_pod_container_resource_limits{container!="",resource="cpu"} ) / sum(kube_node_status_capacity{resource="cpu"})
+```
+
+* % memory overcommitted of the node:
+```js
+sum by (node)(kube_pod_container_resource_limits{container!="",resource="memory"} ) / sum by (node)(kube_node_status_capacity{resource="memory"})
+```
+
+* % CPU overcommitted of the node
+```js
+sum by (node)(kube_pod_container_resource_limits{container!="",resource="cpu"} ) / sum by (node)(kube_node_status_capacity{resource="cpu"})
+```
+
 ## issues
 
 ### crd
