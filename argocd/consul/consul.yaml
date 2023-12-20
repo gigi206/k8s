@@ -1,0 +1,162 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: consul
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    namespace: consul
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    targetRevision: 1.3.0
+    chart: consul
+    helm:
+      parameters:
+        - name: global.enabled # Enable children set with `enabled: "-"` => server + server.exposeService + dns + ui + ui.metrics
+          value: 'true'
+        - name: global.argocd.enabled
+          value: 'true'
+        - name: global.datacenter
+          value: dc1
+        # - name: global.domain
+        #   value: gigix
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=server
+        # Server configuration
+        - name: server.replicas
+          value: '1'
+        - name: server.storage
+          value: 1Gi
+        - name: server.storageClass
+          value: longhorn
+        # If true, the chart will install resources necessary to run the snapshot agent
+        # - name: server.snapshotAgent.enabled
+        #   value: 'true'
+        # If true, the Helm chart will be configured to talk to the external servers (you must also set `server.enabled` to false)
+        # - name: externalServers.enabled
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=server
+        # Client configuration
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=dns
+        # Configuration for DNS configuration within the Kubernetes cluster
+        # - name: dns.enabled
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=ui
+        # Values that configure the Consul UI
+        - name: ui.enabled
+          value: 'true'
+        - name: ui.ingress.enabled
+          value: 'true'
+        - name: ui.ingress.ingressClassName
+          value: 'nginx'
+        - name: ui.ingress.hosts[0].host
+          value: consul.gigix
+        - name: 'ui.ingress.hosts[0].paths[0]'
+          value: /
+        - name: 'ui.ingress.pathType'
+          value: Prefix
+        - name: ui.ingress.tls[0].secretName
+          value: consul-tls
+        - name: ui.ingress.tls[0].hosts[0]
+          value: consul.gigix
+        - name: ui.ingress.annotations
+          value: |
+            cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+
+        # - name: ui.metrics.enabled
+        #   value: 'true'
+        # - name: ui.metrics.provider
+        #   value: prometheus
+        # - name: ui.metrics.baseURL
+        #   value: http://prometheus-stack-kube-prom-prometheus.prometheus-stack.svc.cluster.local
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=global.acls
+        # If true, the Helm chart will automatically manage ACL tokens and policies for all Consul and consul-k8s-control-plane components
+        # - name: global.acls.manageSystemACLs
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=connectInject
+        # Configures the automatic Connect sidecar injector
+        # - name: connectInject.enabled
+        #   value: 'true'
+        # - name: connectInject.replicas
+        #   value: '1'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=ingressGateways
+        # Configuration options for ingress gateways
+        # - name: ingressGateways.enabled
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=meshGateway
+        # If [mesh gateways](https://developer.hashicorp.com/consul/docs/connect/gateways/mesh-gateway) are enabled, a Deployment will be created that runs gateways and Consul service mesh will be configured to use gateways
+        # This setting is required for [Cluster Peering](https://developer.hashicorp.com/consul/docs/connect/cluster-peering/k8s)
+        # - name: meshGateway.enabled
+        #   value: 'true'
+        # - name: meshGateway.replicas
+        #   value: '1'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=terminatingGateways
+        # Configuration options for terminating gateways
+        # - name: terminatingGateways.enabled
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=global.syncCatalog
+        # Configure the catalog sync process to sync K8S with Consul services
+        # This can run bidirectional (default) or unidirectionally (Consul to K8S or K8S to Consul only)
+        # - name: syncCatalog.enabled
+        #   value: 'true'
+        # - name: syncCatalog.ingress.enabled
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=global.metrics
+        # Enable metrics
+        # - name: global.metrics.enabled
+        #   value: 'true'
+        # - name: global.metrics.enableAgentMetrics
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=global.secretsBackend.vault
+        # Enabling the Vault secrets backend will replace Kubernetes secrets with referenced Vault secrets
+        # - name: global.secretsBackend.vault.enabled
+        # - value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=global.tls
+        # If true, the Helm chart will enable TLS for Consul
+        # servers and clients and all consul-k8s-control-plane components, as well as generate certificate authority (optional) and server and client certificates
+        # This setting is required for [Cluster Peering](https://developer.hashicorp.com/consul/docs/connect/cluster-peering/k8s)
+        # - global.tls.enabled:
+        #   value: 'true'
+        # - global.tls.enableAutoEncrypt:
+        #   value: 'true'
+        # - name: global.tls.verify
+        #   value: 'true'
+        # - name: global.tls.httpsOnly
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=global.federation
+        # If enabled, this datacenter will be federation-capable
+        # Requires `global.tls.enabled`, `connectInject.enabled`, and one of `meshGateway.enabled` or `externalServers.enabled` to be true
+        # - name: global.federation.enabled
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=global.cloud
+        # If true, the Helm chart will enable the installation of an HCP Consul self-managed cluster
+        # - name: global.cloud.enabled
+        #   value: 'true'
+
+        # https://artifacthub.io/packages/helm/hashicorp/consul?modal=values&path=telemetryCollector
+        # Enables the consul-telemetry-collector deployment
+        # - name: telemetryCollector.enabled
+        #   value: 'true'
+  project: default
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+      - PruneLast=true
