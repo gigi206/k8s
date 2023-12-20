@@ -1,0 +1,91 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    namespace: vault
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    targetRevision: 0.27.0
+    chart: vault
+    helm:
+      values: |
+        serverTelemetry:
+          prometheusRules:
+            rules:
+              - alert: vault-HighResponseTime
+                annotations:
+                  message: The response time of Vault is over 500ms on average over the last 5 minutes.
+                expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 500
+                for: 5m
+                labels:
+                  severity: warning
+              - alert: vault-HighResponseTime
+                annotations:
+                  message: The response time of Vault is over 1s on average over the last 5 minutes.
+                expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 1000
+                for: 5m
+                labels:
+                  severity: critical
+      parameters:
+        - name: server.dev.enabled
+          value: 'false'
+        # https://developer.hashicorp.com/vault/docs/platform/k8s/helm/examples/ha-with-raft
+        - name: server.ha.enabled
+          value: 'false'
+        - name: server.ha.replicas
+          value: '3'
+        - name: server.ha.raft.enabled
+          value: 'true'
+        - name: global.enabled
+          value: 'true'
+        # - name: global.tlsDisable
+        #   value: 'false'
+        # - name: injector.metrics
+        #   value: 'true'
+        # - name: serverTelemetry.serviceMonitor.enabled
+        #   value: 'true'
+        # - name: serverTelemetry.serviceMonitor.selectors.release
+        #   value: prometheus-stack
+        # - name: serverTelemetry.prometheusRules.enabled
+        #   value: 'true'
+        # - name: serverTelemetry.prometheusRules.selectors.release
+        #   value: prometheus-stack
+        - name: ui.enabled
+          value: 'true'
+        - name: server.ingress.enabled
+          value: 'true'
+        - name: server.ingress.ingressClassName
+          value: nginx
+        - name: server.ingress.annotations.cert-manager\.io/cluster-issuer
+          value: selfsigned-cluster-issuer
+        - name: server.ingress.hosts[0].host
+          value: vault.gigix
+        - name: server.ingress.hosts[0].paths[0]
+          value: /
+        - name: server.ingress.tls[0].secretName
+          value: vault-cert-tls
+        - name: server.ingress.tls[0].hosts[0]
+          value: vault.gigix
+        - name: server.dataStorage.size
+          value: 1Gi
+        - name: server.dataStorage.storageClass
+          value: longhorn
+        # Requires installing the secrets-store-csi-driver separately, see: https://github.com/kubernetes-sigs/secrets-store-csi-driver#install-the-secrets-store-csi-driver
+        # - name: csi.enabled
+        #   value: 'true'
+        # - name: server.auditStorage.enabled
+        #   value: 'true'
+        # - name: server.auditStorage.size
+        #   value: 1Gi
+  project: default
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+      - PruneLast=true
