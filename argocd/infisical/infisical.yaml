@@ -1,0 +1,80 @@
+# https://github.com/Infisical/infisical/tree/main/helm-charts/infisical
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infisical
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  destination:
+    namespace: infisical
+    server: https://kubernetes.default.svc
+  sources:
+    - repoURL: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
+      targetRevision: 0.4.2
+      chart: infisical
+      helm:
+        parameters:
+          # https://github.com/Infisical/infisical/blob/main/helm-charts/infisical/values.yaml
+          - name: backend.replicaCount
+            value: '1'
+          - name: ingress.hostName
+            value: infisical.gigix
+          - name: ingress.ingressClassName
+            value: nginx
+          - name: ingress.tls[0].secretName
+            value: infisical-tls
+          - name: ingress.tls[0].hosts[0]
+            value: infisical.gigix
+          - name: ingress.annotations.cert-manager\.io/cluster-issuer
+            value: selfsigned-cluster-issuer
+          # mongo => https://github.com/bitnami/charts/blob/main/bitnami/mongodb/values.yaml
+          - name: mongodb.persistence.enabled
+            value: 'true'
+          - name: mongodb.persistence.size
+            value: 1Gi
+          # mailhog => https://github.com/codecentric/helm-charts/blob/master/charts/mailhog/values.yaml
+          - name: mailhog.enabled
+            value: 'true'
+          - name: mailhog.ingress.ingressClassName
+            value: nginx
+          - name: mailhog.ingress.hosts[0].host
+            value: mailhog-infisical.gigix
+          - name: mailhog.ingress.hosts[0].paths[0].path
+            value: /
+          - name: mailhog.ingress.hosts[0].paths[0].pathType
+            value: Prefix
+          # backendEnvironmentVariables => https://infisical.com/docs/self-hosting/configuration/envars
+          - name: backendEnvironmentVariables.SITE_URL
+            value: https://infisical.gigix
+          - name: backendEnvironmentVariables.SMTP_FROM_ADDRESS
+            value: noreply@infisical.gigix
+          - name: backendEnvironmentVariables.SMTP_FROM_NAME
+            value: Infisical
+          - name: backendEnvironmentVariables.SMTP_HOST
+            value: mailhog
+          - name: backendEnvironmentVariables.SMTP_PASSWORD
+            value: ''
+          - name: backendEnvironmentVariables.SMTP_PORT
+            value: '1025'
+          - name: backendEnvironmentVariables.SMTP_SECURE
+            value: 'false'
+          - name: backendEnvironmentVariables.SMTP_USERNAME
+            value: ''
+          # redis => https://github.com/bitnami/charts/tree/main/bitnami/redis#parameters
+          - name: redis.enabled
+            value: 'true'
+    # https://github.com/Infisical/infisical/tree/main/helm-charts/secrets-operator
+    - repoURL: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
+      targetRevision: 0.3.3
+      chart: secrets-operator
+      helm:
+        parameters:
+          - name: controllerManager.replicas
+            value: '1'
+  syncPolicy:
+    automated: null
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
