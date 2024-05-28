@@ -43,15 +43,24 @@ kube-controller-manager-arg:
 # kube-apiserver-arg:
 #   - feature-gates=TopologyAwareHints=true,JobTrackingWithFinalizers=true
 kube-scheduler-arg:
-- bind-address=0.0.0.0" \
->> /etc/rancher/rke2/config.yaml
+- bind-address=0.0.0.0
+# etcd-snapshot-name: xxx
+# etcd-snapshot-schedule-cron: */22****
+# etcd-snapshot-retention: 7
+# etcd-s3: true
+# etcd-s3-bucket: minio
+# etcd-s3-region: us-north-9
+# etcd-s3-endpoint: minio.gigix
+# etcd-s3-access-key: **************************
+# etcd-s3-secret-key: **************************" \
+  >>/etc/rancher/rke2/config.yaml
 
 # Examples tuning Cilium
 # Cilium’s eBPF kube-proxy replacement currently cannot be used with Transparent Encryption
 # Cf https://github.com/rancher/rke2-charts/tree/main/charts/rke2-cilium/rke2-cilium/1.14.100
 # Cf https://artifacthub.io/packages/helm/cilium/cilium
 mkdir -p /var/lib/rancher/rke2/server/manifests
-cat << EOF > /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+cat <<EOF >/var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -267,17 +276,6 @@ spec:
     #           release: prometheus-stack
 EOF
 
-# etcd-snapshot-name: xxx
-# etcd-snapshot-schedule-cron: */22****
-# etcd-snapshot-retention: 7
-# etcd-s3: true
-# etcd-s3-bucket: minio
-# etcd-s3-region: us-north-9
-# etcd-s3-endpoint: minio.gigix
-# etcd-s3-access-key: **************************
-# etcd-s3-secret-key: **************************
-
-
 # echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
 # echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
 systemctl enable --now rke2-server.service
@@ -289,10 +287,10 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 # kubectl krew
 (
   krew_tmp_dir="$(mktemp -d)" &&
-  curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz" &&
-  tar zxvf krew-linux_amd64.tar.gz &&
-  KREW=./krew-linux_amd64 &&
-  "${KREW}" install krew
+    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz" &&
+    tar zxvf krew-linux_amd64.tar.gz &&
+    KREW=./krew-linux_amd64 &&
+    "${KREW}" install krew
   rm -fr "${krew_tmp_dir}"
 )
 
@@ -327,8 +325,7 @@ kubectl krew install pexec         # https://artifacthub.io/packages/krew/krew-i
 # Install k9s (Cf https://k9scli.io/)
 (mkdir k9s && cd k9s && wget https://github.com/derailed/k9s/releases/download/$(curl -s https://api.github.com/repos/derailed/k9s/releases/latest | jq -r '.tag_name')/k9s_Linux_amd64.tar.gz && tar xzf k9s_Linux_amd64.tar.gz && mv k9s /usr/local/bin/ && cd .. && rm -fr k9s)
 
-while true
-  do
+while true; do
   lsof -Pni:6443 &>/dev/null && break
   echo "Waiting for the kubernetes API..."
   sleep 1
