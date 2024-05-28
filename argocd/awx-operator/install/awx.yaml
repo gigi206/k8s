@@ -13,8 +13,19 @@ spec:
   ipv6_disabled: false
   postgres_configuration_secret: awx-postgres-configuration
   postgres_storage_class: longhorn
-  # postgres_init_container_resource_requirements: {}
+  postgres_init_container_resource_requirements: {}
+  postgres_data_volume_init: true
   # postgres_resource_requirements: {}
+  # postgres_resource_requirements:
+  #   requests:
+  #     cpu: 100m
+  #     memory: 256Mi
+  #   limits:
+  #     cpu: 500m
+  #     memory: 512Mi
+  # postgres_init_container_commands: |
+  #   chown 26:0 /var/lib/pgsql/data
+  #   chmod 700 /var/lib/pgsql/data
   postgres_storage_requirements:
     requests:
       storage: 2Gi

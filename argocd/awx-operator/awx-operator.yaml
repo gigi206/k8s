@@ -13,7 +13,7 @@ spec:
   sources:
     - chart: awx-operator
       repoURL: https://ansible.github.io/awx-operator
-      targetRevision: 2.8.0
+      targetRevision: 2.17.0
       helm:
         parameters:
           # Automatic configuration for an AWX instance (kubectl get AWX -n ansible-awx-operator awx -o yaml)
