@@ -316,7 +316,7 @@ kubectl krew install pexec         # https://artifacthub.io/packages/krew/krew-i
 # Waiting for the kubernetes API before interacting with it
 
 # Install kustomize
-(cd /usr/local/bin && curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh)
+(cd /usr/local/bin && curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash)
 
 # Install Cilium
 (mkdir cilium && cd cilium && wget https://github.com/cilium/cilium-cli/releases/download/$(curl -s https://api.github.com/repos/cilium/cilium-cli/releases/latest | jq -r '.tag_name')/cilium-linux-amd64.tar.gz && tar xzf cilium-linux-amd64.tar.gz && mv cilium /usr/local/bin/ && cd .. && rm -fr cilium)
