@@ -8,7 +8,7 @@ See the [official documentation](https://kubernetes.io/docs/tasks/debug/debug-ap
 * [Debugging using a copy of the Pod](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/#debugging-using-a-copy-of-the-pod)
 * [https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/#node-shell-session](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/#node-shell-session)
 
-* List containers from pod pro
+* List containers from pod productpage:
 ```bash
 kubectl get pod productpage-v1-6f89b6c557-h5q6z -n bookinfo -o=jsonpath='{.spec.containers[*].name}' | tr ' ' '\n' && echo
 productpage

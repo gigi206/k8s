@@ -1,0 +1,1 @@
+* [Deep dive into Kubernetes network model and communication](https://addozhang.medium.com/deep-dive-into-kubernetes-network-model-and-communication-57a2bffc852e)
