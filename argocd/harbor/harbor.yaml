@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: harbor
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: harbor
@@ -10,81 +12,117 @@ spec:
   project: default
   source:
     chart: harbor
-    repoURL: 'https://helm.goharbor.io'
-    targetRevision: 1.11.0
+    repoURL: 'https://charts.bitnami.com/bitnami'
+    targetRevision: 21.4.6
     helm:
-      parameters:
-        - name: metrics.enabled
-          value: 'true'
-        # - name: expose.type
-        #   value: loadBalancer
-        # - name: >-
-        #     expose.loadBalancer.annotations.external-dns\.alpha\.kubernetes\.io/hostname
-        #   value: harbor.gigix
-        # - name: expose.tls.auto.commonName
-        #   value: harbor.gigix
-        - name: expose.tls.certSource
-          value: secret
-        - name: expose.tls.secret.secretName
-          value: harbor-tls
-        - name: expose.tls.secret.notarySecretName
-          value: notary-tls
-        - name: externalURL
-          value: https://core.harbor.gigix
-        - name: harborAdminPassword
-          value: Harbor12345
-        - name: expose.ingress.hosts.core
-          value: core.harbor.gigix
-        - name: expose.ingress.hosts.notary
-          value: notary.harbor.gigix
-        - name: expose.ingress.className
-          value: nginx
-        - name: expose.ingress.annotations.cert-manager\.io/cluster-issuer
-          value: selfsigned-cluster-issuer
-        - name: persistence.enabled
-          value: 'true'
-        - name: persistence.resourcePolicy
-          value: keep
-        # - name: secretKey
-        #   value: not-a-secure-key
-        # - name: database.internal.password
-        #   value: changeit
-        - name: persistence.imageChartStorage.type
-          value: filesystem
-        - name: persistence.persistentVolumeClaim.registry.storageClass
-          value: longhorn
-        - name: persistence.persistentVolumeClaim.registry.size
-          value: 5Gi
-        - name: persistence.persistentVolumeClaim.chartmuseum.storageClass
-          value: longhorn
-        - name: persistence.persistentVolumeClaim.chartmuseum.size
-          value: 5Gi
-        - name: persistence.persistentVolumeClaim.jobservice.storageClass
-          value: longhorn
-        - name: persistence.persistentVolumeClaim.jobservice.size
-          value: 1Gi
-        - name: persistence.persistentVolumeClaim.database.storageClass
-          value: longhorn
-        - name: persistence.persistentVolumeClaim.database.size
-          value: 1Gi
-        - name: persistence.persistentVolumeClaim.redis.storageClass
-          value: longhorn
-        - name: persistence.persistentVolumeClaim.redis.size
-          value: 1Gi
-        - name: persistence.persistentVolumeClaim.trivy.storageClass
-          value: longhorn
-        - name: persistence.persistentVolumeClaim.trivy.size
-          value: 5Gi
-        - name: metrics.enabled
-          value: 'true'
-        - name: metrics.serviceMonitor.enabled
-          value: 'true'
-        - name: metrics.serviceMonitor.additionalLabels.release
-          value: prometheus-stack
-        - name: ipFamily.ipv6.enabled
-          value: 'false'
+      values: |
+        global:
+          storageClass: longhorn
+        adminPassword: "Harbor123!"
+        externalURL: https://core.harbor.gigix
+        logLevel: info
+        internalTLS:
+          enabled: false
+        ipFamily:
+          ipv6:
+            enabled: false
+          ipv4:
+            enabled: true
+        exposureType: ingress
+        ingress:
+          core:
+            ingressClassName: nginx
+            # pathType: ImplementationSpecific
+            hostname: core.harbor.gigix
+            annotations:
+              ingress.kubernetes.io/ssl-redirect: "true"
+              ingress.kubernetes.io/proxy-body-size: "0"
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+              cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+            selfSigned: false
+            tls: true
+        persistence:
+          enabled: true
+          resourcePolicy: keep
+          persistentVolumeClaim:
+            registry:
+              storageClass: longhorn
+              size: 5Gi
+              accessModes:
+                - ReadWriteOnce
+            jobservice:
+              storageClass: longhorn
+              size: 1Gi
+              accessModes:
+                - ReadWriteOnce
+            trivy:
+              storageClass: longhorn
+              size: 1Gi
+              accessModes:
+                - ReadWriteOnce
+        volumePermissions:
+          enabled: false
+        tracing:
+          enabled: false
+        core:
+          secretName: harbor-tls
+          replicaCount: 1
+        portal:
+          pdb:
+            create: false
+          replicaCount: 1
+        jobservice:
+          pdb:
+            create: false
+        registry:
+          pdb:
+            create: false
+          replicaCount: 1
+        trivy:
+          enabled: true
+          pdb:
+            create: false
+          replicaCount: 1
+        exporter:
+          pdb:
+            create: false
+          replicaCount: 1
+        metrics:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+            labels:
+              release: prometheus-stack
+        # https://artifacthub.io/packages/helm/bitnami/postgresql
+        postgresql:
+          enabled: true
+          primary:
+            persistence:
+              enabled: true
+              storageClass: longhorn
+              size: 1Gi
+              accessModes:
+                - ReadWriteOnce
+            pdb:
+              create: false
+          backup:
+            enabled: false
+        # https://artifacthub.io/packages/helm/bitnami/redis
+        redis:
+          enabled: true
+          master:
+            count: 1
+            persistence:
+              enabled: true
+              storageClass: longhorn
+              size: 1Gi
+              accessModes:
+                - ReadWriteOnce
+            pdb:
+              create: false
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
-
+      - ServerSideApply=true
