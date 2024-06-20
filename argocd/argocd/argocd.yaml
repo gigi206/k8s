@@ -4,6 +4,8 @@ kind: Application
 metadata:
   name: argo-cd
   namespace: argo-cd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   # Fix bug
   ignoreDifferences:
@@ -20,9 +22,11 @@ spec:
   source:
     chart: argo-cd
     repoURL: 'https://argoproj.github.io/argo-helm'
-    targetRevision: '5.51.1'
+    targetRevision: '7.2.0'
     helm:
       parameters:
+        - name: global.domain
+          value: argocd.gigix
         # insecure is needed if you want to use ingress without TLS (no certificates)
         # Cf https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/#option-2-multiple-ingress-objects-and-hosts
         # - name: configs.params.server\.insecure
@@ -86,16 +90,16 @@ spec:
         #   value: https://kubernetes.default.svc
         - name: server.ingress.enabled
           value: 'true'
+        - name: server.ingress.tls
+          value: 'true'
         - name: server.ingress.ingressClassName
           value: nginx
         - name: server.ingress.hosts[0]
           value: argocd.gigix
-        - name: server.ingress.tls[0].secretName
+        - name: server.ingress.extraTls[0].secretName
           value: argocd-cert-tls
-        - name: server.ingress.tls[0].hosts[0]
+        - name: server.ingress.extraTls[0].hosts[0]
           value: argocd.gigix
-        - name: server.ingress.https
-          value: 'true'
         - name: >-
             server.ingress.annotations.cert-manager\.io/cluster-issuer
           value: selfsigned-cluster-issuer
@@ -284,3 +288,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
