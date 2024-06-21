@@ -11,15 +11,19 @@ spec:
     server: 'https://kubernetes.default.svc'
   source:
     repoURL: 'https://charts.jetstack.io'
-    targetRevision: v1.13.1
+    targetRevision: v1.15.0
     chart: cert-manager
     helm:
       # https://github.com/jetstack/cert-manager/blob/master/deploy/charts/cert-manager/README.template.md#configuration
       parameters:
         - name: installCRDs
           value: "true"
-        - name: extraArgs[0]
-          value: --feature-gates=ExperimentalGatewayAPISupport=true
+        # - name: extraArgs[0]
+        #   value: --feature-gates=ExperimentalGatewayAPISupport=true
+        # - name: featureGates
+        #   value: ExperimentalGatewayAPISupport
+        # - name: config.featureGates.ExperimentalGatewayAPISupport
+        #   value: "true"
         # - name: resources.requests.cpu
         #   value: 10m
         # - name: resources.requests.memory
