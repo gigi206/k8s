@@ -1,0 +1,12 @@
+persistence:
+  defaultClassReplicaCount: 1
+longhornUI:
+  replicas: 1
+ingress:
+  enabled: true
+  host: longhorn.local
+  ingressClassName: nginx
+  tlsSecret: longhorn-cert-tls
+  tls: true
+  annotations:
+   cert-manager.iocluster-issuer: selfsigned-cluster-issuer
