@@ -6,6 +6,8 @@ kind: Application
 metadata:
   name: ingress-nginx
   namespace: argo-cd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     namespace: ingress-nginx
@@ -13,7 +15,7 @@ spec:
   source:
     chart: ingress-nginx
     repoURL: 'https://kubernetes.github.io/ingress-nginx'
-    targetRevision: '4.8.3'
+    targetRevision: '4.12.0'
     helm:
       parameters:
         - name: controller.kind
@@ -177,3 +179,5 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - PruneLast=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
