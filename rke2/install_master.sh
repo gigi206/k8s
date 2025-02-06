@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export DEBIAN_FRONTEND=noninteractive
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 . /vagrant/git/rke2/RKE2_ENV.sh
@@ -14,11 +15,13 @@ mkdir -p /etc/rancher/rke2
 # echo "cni: [multus, calico]" > /etc/rancher/rke2/config.yaml
 echo "disable:
 - rke2-ingress-nginx
+- rke2-kube-proxy # Disable kube-proxy with Cilium => https://docs.rke2.io/install/network_options/
 - rke2-canal # disable it with cilium
 # - rke2-metrics-server
 # - rke2-ingress-nginx
 # - rke2-coredns
 # disable: [rke2-ingress-nginx, rke2-coredns]
+disable-kube-proxy: true
 # profile: cis-1.23
 # cluster-cidr: 10.220.0.0/16
 # service-cidr: 10.221.0.0/16
@@ -33,7 +36,6 @@ tls-san:
 - k8s-api.gigix
 - 192.168.122.200
 # debug:true
-etcd-expose-metrics: true
 kube-controller-manager-arg:
 # - address=0.0.0.0
 - bind-address=0.0.0.0
@@ -44,6 +46,7 @@ kube-controller-manager-arg:
 #   - feature-gates=TopologyAwareHints=true,JobTrackingWithFinalizers=true
 kube-scheduler-arg:
 - bind-address=0.0.0.0
+etcd-expose-metrics: true
 # etcd-snapshot-name: xxx
 # etcd-snapshot-schedule-cron: */22****
 # etcd-snapshot-retention: 7
@@ -53,7 +56,10 @@ kube-scheduler-arg:
 # etcd-s3-endpoint: minio.gigix
 # etcd-s3-access-key: **************************
 # etcd-s3-secret-key: **************************" \
-  >>/etc/rancher/rke2/config.yaml
+>>/etc/rancher/rke2/config.yaml
+
+# echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
+# echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
 
 # Examples tuning Cilium
 # Cilium’s eBPF kube-proxy replacement currently cannot be used with Transparent Encryption
@@ -68,13 +74,12 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    # image:
-    #   tag: v1.14.3 # Fix L2 Announcements Lease issue
     kubeProxyReplacement: true # https://docs.cilium.io/en/latest/network/kubernetes/kubeproxy-free/
-    k8sServiceHost: 127.0.0.1 # IP dataplane (master) / comment this line if you set kubeProxyReplacement=false
-    k8sServicePort: 6443 # Comment this line if you set kubeProxyReplacement=false
-    routingMode: native # https://docs.cilium.io/en/latest/network/concepts/routing/#native-routing
-    ipv4NativeRoutingCIDR: 10.0.0.0/8 # https://docs.cilium.io/en/latest/network/clustermesh/clustermesh/#additional-requirements-for-native-routed-datapath-modes
+    # k8sServiceHost: kubernetes.default.svc.cluster.local
+    k8sServiceHost: 127.0.0.1 # IP dataplane (10.43.0.1) => kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}' => comment this line if you set kubeProxyReplacement=false
+    k8sServicePort: 6443 # Port dataplane (443) => kubectl get svc kubernetes -n default -o jsonpath='{.spec.ports[0].port}' => comment this line if you set kubeProxyReplacement=false
+    # routingMode: native # https://docs.cilium.io/en/latest/network/concepts/routing/#native-routing
+    # ipv4NativeRoutingCIDR: 10.0.0.0/8 # https://docs.cilium.io/en/latest/network/clustermesh/clustermesh/#additional-requirements-for-native-routed-datapath-modes
     # routingMode: tunnel # https://docs.cilium.io/en/latest/network/concepts/routing/
     # autoDirectNodeRoutes: true
     # tunnelProtocol: ""
@@ -90,33 +95,33 @@ spec:
     #   enabled: true
     #   hostNamespaceOnly: true # (For Istio by example) https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#socket-loadbalancer-bypass-in-pod-namespace
     # sessionAffinity: ClientIP # https://docs.cilium.io/en/latest/network/kubernetes/kubeproxy-free/#session-affinity
-    # ingressController:
-    #   enabled: true
-    #   default: true
-    #   loadbalancerMode: shared # https://docs.cilium.io/en/stable/network/servicemesh/ingress/ (Cf Annotations: ingress.cilium.io/loadbalancer-mode: shared|dedicated)
+    ingressController:
+      enabled: false
+      # default: true
+      loadbalancerMode: shared  # Activation du mode "shared" pour le LoadBalancer, c'est à dire que plusieurs services peuvent utiliser le même LoadBalancer avec la même IP => https://docs.cilium.io/en/stable/network/servicemesh/ingress/ (Cf Annotations: ingress.cilium.io/loadbalancer-mode: shared|dedicated)
     # extraConfig:
     #   enable-envoy-config: true # https://docs.cilium.io/en/stable/network/servicemesh/l7-traffic-management/ (envoy traffic management feature without Ingress support (ingressController.enabled=false))
-    l7Proxy: true
-    loadBalancer:
-      mode: dsr # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr
-      dsrDispatch: geneve # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr-with-geneve
-      algorithm: maglev # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#maglev-consistent-hashing
-      serviceTopology: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#topology-aware-hints
-      # acceleration: native # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#loadbalancer-nodeport-xdp-acceleration
-      l7:
-        algorithm: least_request # round_robin, least_request, random (cf https://docs.cilium.io/en/stable/network/servicemesh/envoy-load-balancing/#supported-annotations)
-        backend: envoy # https://docs.cilium.io/en/stable/network/servicemesh/l7-traffic-management/
+    # l7Proxy: true
+    # loadBalancer:
+    #   mode: dsr # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr
+    #   dsrDispatch: geneve # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr-with-geneve
+    #   algorithm: maglev # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#maglev-consistent-hashing
+    #   serviceTopology: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#topology-aware-hints
+    #   # acceleration: native # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#loadbalancer-nodeport-xdp-acceleration
+    #   l7:
+    #     algorithm: least_request # round_robin, least_request, random (cf https://docs.cilium.io/en/stable/network/servicemesh/envoy-load-balancing/#supported-annotations)
+    #     backend: envoy # https://docs.cilium.io/en/stable/network/servicemesh/l7-traffic-management/
     # maglev:
     #   tableSize: 65521
     #   hashSeed: $(head -c12 /dev/urandom | base64 -w0)
     # gatewayAPI: # https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/
     #   enabled: true # require kubeProxyReplacement=true
     enableCiliumEndpointSlice: true # https://docs.cilium.io/en/latest/network/kubernetes/ciliumendpointslice_beta/#deploy-cilium-with-ces
-    bpf:
-      # preallocateMaps: true # Increase memory usage but can reduce latency
-      masquerade: true
-      autoDirectNodeRoutes: true
-      hostLegacyRouting: false
+    # bpf:
+    #   # preallocateMaps: true # Increase memory usage but can reduce latency
+    #   masquerade: true
+    #   autoDirectNodeRoutes: true
+    #   hostLegacyRouting: false
     #   lbExternalClusterIP: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#external-access-to-clusterip-services
     # authentication: # https://docs.cilium.io/en/latest/network/servicemesh/mutual-authentication/mutual-authentication/ (https://youtu.be/tE9U1gNWzqs)
     #   mutual:
@@ -141,9 +146,9 @@ spec:
     encryption:
       enabled: false
       type: wireguard # https://docs.cilium.io/en/latest/security/network/encryption-wireguard
-      nodeEncryption: true # https://docs.cilium.io/en/latest/security/network/encryption-wireguard/#node-to-node-encryption-beta
-    hostFirewall: # https://docs.cilium.io/en/stable/security/host-firewall/
-      enabled: true
+      # nodeEncryption: true # https://docs.cilium.io/en/latest/security/network/encryption-wireguard/#node-to-node-encryption-beta
+    # hostFirewall: # https://docs.cilium.io/en/stable/security/host-firewall/
+    #   enabled: true
     policyEnforcementMode: default # https://docs.cilium.io/en/stable/security/policy/intro/
     ipam:
       mode: kubernetes
@@ -160,9 +165,7 @@ spec:
     cni:
       chainingMode: "none"
       # exclusive: false # Set to false with Multus
-    # bgpControlPlane: # replace bgp
-    #   enabled: true
-    l2announcements: # https://docs.cilium.io/en/stable/network/l2-announcements/
+    l2announcements:
       enabled: true
       # leaseDuration: 3s
       # leaseRenewDeadline: 1s
@@ -170,17 +173,25 @@ spec:
       # leaseDuration: 300s
       # leaseRenewDeadline: 60s
       # leaseRetryPeriod: 10s
+      # interface: eth0
     # k8sClientRateLimit: # https://docs.cilium.io/en/latest/network/l2-announcements/#sizing-client-rate-limit
     #   qps: 10
     #   burst: 25
+    # bgp:
+    #   enabled: true
+    #   announce:
+    #     loadbalancerIP: true
+    #     podCIDR: true
+    # bgpControlPlane:
+    #   enabled: true
     # sctp:
     #   # -- Enable SCTP support. NOTE: Currently, SCTP support does not support rewriting ports or multihoming.
     #   enabled: true
-    ipv4:
-      enabled: true
-    enableIPv4BIGTCP: true
-    ipv6:
-      enabled: false
+    # ipv4:
+    #   enabled: true
+    # enableIPv4BIGTCP: true
+    # ipv6:
+    #   enabled: false
     enableIPv6BIGTCP: false
     hubble:
       enabled: true
@@ -204,7 +215,7 @@ spec:
         # examplars=true will let us display OpenTelemetry trace points from application traces as an overlay on the Grafana graphs
         # labelsContext is set to add extra labels to metrics including source/destination IPs, source/destination namespaces, source/destination workloads, as well as traffic direction (ingress or egress)
         # sourceContext sets how the source label is built, in this case using the workload name when possible, or a reserved identity (e.g. world) otherwise
-        # - "kafka:labelsContext=source_namespace,source_workload,destination_namespace,destination_workload,traffic_direction;sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity" 
+        # - "kafka:labelsContext=source_namespace,source_workload,destination_namespace,destination_workload,traffic_direction;sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity"
         # destinationContext does the same for destinations
         dashboards:
           enabled: true
@@ -251,7 +262,6 @@ spec:
     dashboard:
       enabled: true
       # namespace: ~
-      label: grafana_dashboard
       labelValue: "1"
       annotations:
         grafana_folder: /tmp/dashboards/Cilium
@@ -276,23 +286,103 @@ spec:
     #           release: prometheus-stack
 EOF
 
-# echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
-# echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
+# Import etcd client certs required by rke2-coredns-config.yaml
+# kubectl -n kube-system create secret generic etcd-client-certs \
+#   --from-file=ca.crt=/var/lib/rancher/rke2/server/tls/etcd/server-ca.crt \
+#   --from-file=client.crt=/var/lib/rancher/rke2/server/tls/etcd/client.crt \
+#   --from-file=client.key=/var/lib/rancher/rke2/server/tls/etcd/client.key
+
+# cat <<EOF >/var/lib/rancher/rke2/server/manifests/rke2-coredns-config.yaml
+# apiVersion: helm.cattle.io/v1
+# kind: HelmChartConfig
+# metadata:
+#   name: rke2-coredns
+#   namespace: kube-system
+# spec:
+#   valuesContent: |-
+#     rbac:
+#       create: true
+#       # serviceAccountName: default
+#     # isClusterService specifies whether the chart should be deployed as cluster-service or regular k8s app.
+#     isClusterService: true
+#     extraSecrets:
+#     - name: etcd-client-certs
+#       mountPath: /etc/coredns/tls/etcd
+#     servers:
+#     - zones:
+#       - zone: .
+#       port: 53
+#       # -- expose the service on a different port
+#       # servicePort: 5353
+#       # If serviceType is nodePort you can specify nodePort here
+#       # nodePort: 30053
+#       # hostPort: 53
+#       plugins:
+#       - name: errors
+#       # Serves a /health endpoint on :8080, required for livenessProbe
+#       - name: health
+#         configBlock: |-
+#           lameduck 5s
+#       # Serves a /ready endpoint on :8181, required for readinessProbe
+#       - name: ready
+#       # Required to query kubernetes API for data
+#       - name: kubernetes
+#         parameters: cluster.local in-addr.arpa ip6.arpa
+#         configBlock: |-
+#           pods insecure
+#           fallthrough in-addr.arpa ip6.arpa
+#           ttl 30
+#       # Serves a /metrics endpoint on :9153, required for serviceMonitor
+#       - name: prometheus
+#         parameters: 0.0.0.0:9153
+#       - name: forward
+#         parameters: . /etc/resolv.conf
+#       - name: cache
+#         parameters: 30
+#       - name: loop
+#       - name: reload
+#       - name: loadbalance
+#     - zones:
+#       - zone: gigix.
+#       port: 53
+#       plugins:
+#       - name: etcd
+#         parameters: gigix.
+#         configBlock: |-
+#               stubzones
+#               path /skydns
+#               # endpoint http://etcd.kube-system:2379
+#               endpoint https://192.168.121.175:2379
+#               tls /etc/coredns/tls/etcd/client.crt /etc/coredns/tls/etcd/client.key /etc/coredns/tls/etcd/ca.crt
+# EOF
+
+# Start rke2 server
 systemctl enable --now rke2-server.service
+
 crictl config --set runtime-endpoint=unix:///run/k3s/containerd/containerd.sock
 
-# Helm
-curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+# Brew requirements
+apt-get install -y build-essential procps curl file git
+curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | sudo -u vagrant bash -
+echo 'eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)' >>~vagrant/.bashrc
+sed -i '1i eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)' ~/.bashrc
 
+# Helm
+# curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install helm'
+
+# Krew
 # kubectl krew
-(
-  krew_tmp_dir="$(mktemp -d)" &&
-    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz" &&
-    tar zxvf krew-linux_amd64.tar.gz &&
-    KREW=./krew-linux_amd64 &&
-    "${KREW}" install krew
-  rm -fr "${krew_tmp_dir}"
-)
+# (
+#   krew_tmp_dir="$(mktemp -d)" &&
+#     curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz" &&
+#     tar zxvf krew-linux_amd64.tar.gz &&
+#     KREW=./krew-linux_amd64 &&
+#     "${KREW}" install krew
+#   rm -fr "${krew_tmp_dir}"
+# )
+sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install krew'
+eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)
 
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 # https://krew.sigs.k8s.io/plugins/
@@ -313,17 +403,8 @@ kubectl krew install pexec         # https://artifacthub.io/packages/krew/krew-i
 # kubectl krew install ingress-nginx # https://artifacthub.io/packages/krew/krew-index/ingress-nginx
 # Waiting for the kubernetes API before interacting with it
 
-# Install kustomize
-(cd /usr/local/bin && curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash)
-
-# Install Cilium
-(mkdir cilium && cd cilium && wget https://github.com/cilium/cilium-cli/releases/download/$(curl -s https://api.github.com/repos/cilium/cilium-cli/releases/latest | jq -r '.tag_name')/cilium-linux-amd64.tar.gz && tar xzf cilium-linux-amd64.tar.gz && mv cilium /usr/local/bin/ && cd .. && rm -fr cilium)
-
-# Install Hubble
-(mkdir hubble && cd hubble && wget https://github.com/cilium/hubble/releases/download/$(curl -s https://api.github.com/repos/cilium/hubble/releases/latest | jq -r '.tag_name')/hubble-linux-amd64.tar.gz && tar xzf hubble-linux-amd64.tar.gz && mv hubble /usr/local/bin/ && cd .. && rm -fr hubble)
-
-# Install k9s (Cf https://k9scli.io/)
-(mkdir k9s && cd k9s && wget https://github.com/derailed/k9s/releases/download/$(curl -s https://api.github.com/repos/derailed/k9s/releases/latest | jq -r '.tag_name')/k9s_Linux_amd64.tar.gz && tar xzf k9s_Linux_amd64.tar.gz && mv k9s /usr/local/bin/ && cd .. && rm -fr k9s)
+# Install which linuxbrew
+sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install kustomize cilium-cli hubble k9s'
 
 while true; do
   lsof -Pni:6443 &>/dev/null && break
@@ -331,8 +412,118 @@ while true; do
   sleep 1
 done
 
-# Change ClusterIP to LoadBalancer
-kubectl patch svc kubernetes -n default -p '{"spec": {"type": "LoadBalancer"}, "metadata": {"annotations": {"external-dns.alpha.kubernetes.io/hostname": "k8s-api.gigix", "io.cilium/lb-ipam-ips": "192.168.122.200"}}}'
+# svc : requirements for CoreDNS /skydns
+# cat <<EOF | kubectl apply -f -
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: etcd
+#   namespace: kube-system
+#   labels:
+#     component: etcd
+#     tier: control-plane
+# spec:
+#   ports:
+#     - port: 2379
+#       targetPort: 2379
+#       name: client
+#     - port: 2380
+#       targetPort: 2380
+#       name: peer
+#   selector:
+#     component: etcd
+#     tier: control-plane
+# EOF
+
+# Ajout IPs LB 192.168.122.200 à 192.168.122.250 => https://docs.cilium.io/en/stable/network/lb-ipam/
+cat <<EOF | kubectl apply -f -
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: apiserver
+spec:
+  blocks:
+  - cidr: 192.168.122.200/32
+  serviceSelector:
+    matchLabels:
+      component: apiserver
+      provider: kubernetes
+      "io.kubernetes.service.namespace": default
+      "io.kubernetes.service.name": kubernetes
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: default
+spec:
+  blocks:
+    #- cidr: 10.0.10.0/24
+    - start: 192.168.122.201
+      stop: 192.168.122.250
+  serviceSelector:
+    matchExpressions:
+      - {key: component, operator: NotIn, values: [apiserver]}
+      - {key: provider, operator: NotIn, values: [kubernetes]}
+# ---
+# apiVersion: cilium.io/v2alpha1
+# kind: CiliumL2AnnouncementPolicy
+# metadata:
+#   name: default
+# spec:
+#   #serviceSelector:
+#   #  matchLabels:
+#   #    L2Announcement: true
+#   #    expose: true
+#   #nodeSelector:
+#   #  matchExpressions:
+#   #  - key: node-role.kubernetes.io/control-plane
+#   #    operator: DoesNotExist
+#   #    #operator: Exists
+#   interfaces:
+#     #- ^eth[0-9]+
+#     - ^eth1$
+#   externalIPs: true
+#   loadBalancerIPs: true
+EOF
+
+# Change ClusterIP to LoadBalancer with external-dns.alpha.kubernetes.io/hostname annotation to k8s-api.gigix
+kubectl patch svc kubernetes -n default -p '{"spec": {"type": "LoadBalancer"}, "metadata": {"annotations": {"external-dns.alpha.kubernetes.io/hostname": "k8s-api.gigix"}}}'
+
+# Change ClusterIP to LoadBalancer to have DNS available from outside
+# kubectl patch svc rke2-coredns-rke2-coredns -n kube-system -p '{"spec": {"type": "LoadBalancer"}}'
+
+# FIXME: Replicas must be set to 1 in the Cilium helm chart
+# kubectl scale deployment cilium-operator -n kube-system --replicas=1
+# kubectl wait --for=condition=Ready -n kube-system pod -l app.kubernetes.io/name=cilium-operator --timeout=60s && (
+#   # Change k8sServiceHost to 192.168.122.200
+#   sed -i "s/\(^\s*\)k8sServiceHost:.*/\1k8sServiceHost: $(kubectl get svc kubernetes -n default -o jsonpath='{.status.loadBalancer.ingress[0].ip}')/" /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+
+#   # Change k8sServicePort to 443
+#   sed -i 's/\(^\s*\)k8sServicePort:.*/\1k8sServicePort: 443/' /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+# )
+
+# Announce L2
+# cat <<EOF | kubectl apply -f -
+# apiVersion: "cilium.io/v2alpha1"
+# kind: CiliumL2AnnouncementPolicy
+# metadata:
+#   name: policy1
+# spec:
+#   #serviceSelector:
+#   #  matchLabels:
+#   #    L2Announcement: true
+#   #    expose: true
+#   #nodeSelector:
+#   #  matchExpressions:
+#   #  - key: node-role.kubernetes.io/control-plane
+#   #    operator: DoesNotExist
+#   #    #operator: Exists
+#   interfaces:
+#     #- ^eth[0-9]+
+#     - ^eth1$
+#   externalIPs: true
+#   loadBalancerIPs: true
+# EOF
 
 # Configure default PriorityClass to avoid preemption
 cat <<EOF | kubectl apply -f -

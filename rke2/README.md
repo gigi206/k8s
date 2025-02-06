@@ -1,7 +1,5 @@
 # RKE2 commands
-
 ## Install
-
 ```
 curl -sL https://get.rke2.io | sh
 systemctl daemon-reload
@@ -11,7 +9,6 @@ systemctl start rke2-server
 Various exploration/debug commmands for RKE2
 
 ## binaries
-
 ```
 $ ls -1 /var/lib/rancher/rke2/bin/*
 /var/lib/rancher/rke2/bin/containerd
@@ -26,7 +23,6 @@ $ ls -1 /var/lib/rancher/rke2/bin/*
 ```
 
 ## tar.gz contents
-
 ```
 lib/
 lib/systemd/
@@ -49,12 +45,10 @@ bin/rke2-killall.sh
 ```
 
 ## systemd
-
 * `/usr/local/lib/systemd/system/rke2-server.service`
 * `/usr/local/lib/systemd/system/rke2-agent.service`
 
 ## kubeconfig
-
 ```
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 /var/lib/rancher/rke2/bin/kubectl get nodes
@@ -65,11 +59,9 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 ```
 
 ## containerd
-
 * socket located at `/run/k3s/containerd/containerd.sock`
 
 ### ctr
-
 List containers using ctr
 
 ```
@@ -77,7 +69,6 @@ List containers using ctr
 ```
 
 ### crictl
-
 ```
 export CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml
 /var/lib/rancher/rke2/bin/crictl ps
@@ -92,15 +83,12 @@ export CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml
 ```
 
 ## logging
-
 * `journalctl -f -u rke2-server`
 * `/var/lib/rancher/rke2/agent/containerd/containerd.log`
 * `/var/lib/rancher/rke2/agent/logs/kubelet.log`
 
 ## etcd
-
 ### using kubectl
-
 * `etcdctl check perf`
 
 ```
@@ -145,7 +133,6 @@ This does not work with the embedded curl in the image and the ECDSA certificate
 
 
 ### on the etcd host itself
-
 ```
 export CRI_CONFIG_FILE=/var/lib/rancher/rke2/agent/etc/crictl.yaml
 etcdcontainer=$(/var/lib/rancher/rke2/bin/crictl ps --label io.kubernetes.container.name=etcd --quiet)

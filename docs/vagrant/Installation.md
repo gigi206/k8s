@@ -39,11 +39,10 @@ net-create --file vagrant-libvirt.xml
 
 * Start vagrant:
 ```bash
-vagrant up
+vagrant up --no-destroy-on-error
 ```
 
 ## Docker
-
 To get the image with the most recent release:
 
 ```
@@ -87,7 +86,6 @@ vagrant(){
 ```
 
 ## Podman
-
 Preparing the podman run, only once:
 
 ```

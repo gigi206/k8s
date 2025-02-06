@@ -71,7 +71,7 @@ vagrant up k8s-m1
 ```
 
 ```bash
-virsh -c qemu:///system blockresize k8s-m1 /home/kvm/vms/k8s-m1.img 50G
+virsh -c qemu:///system blockresize k8s-m1 /home/kvm/vms/k8s-m1.img 50GiB
 Block device '/home/kvm/vms/k8s-m1.img' is resized
 ```
 
