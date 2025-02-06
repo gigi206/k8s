@@ -6,5 +6,5 @@
 # require_app csi-external-snapshotter prometheus-stack
 require_app csi-external-snapshotter
 install_app
-wait_app
-show_ressources
+# wait_app
+# show_ressources
