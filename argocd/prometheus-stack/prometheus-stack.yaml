@@ -19,7 +19,7 @@ spec:
   sources:
     - chart: kube-prometheus-stack
       repoURL: 'https://prometheus-community.github.io/helm-charts'
-      targetRevision: 52.0.0
+      targetRevision: 68.4.4
       helm:
         parameters:
           ### grafana ###
@@ -132,7 +132,7 @@ spec:
     # https://itnext.io/prometheus-kubernetes-endpoints-monitoring-with-blackbox-exporter-a027ae136b8d
     # - chart: prometheus-blackbox-exporter
     #   repoURL: 'https://prometheus-community.github.io/helm-charts'
-    #   targetRevision: 8.4.0
+    #   targetRevision: 9.2.0
   project: default
   syncPolicy:
     syncOptions:
@@ -140,3 +140,4 @@ spec:
       - CreateNamespace=true
       - PruneLast=true
       - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
