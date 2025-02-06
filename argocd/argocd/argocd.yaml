@@ -22,7 +22,7 @@ spec:
   source:
     chart: argo-cd
     repoURL: 'https://argoproj.github.io/argo-helm'
-    targetRevision: '7.2.0'
+    targetRevision: '7.7.23'
     helm:
       parameters:
         - name: global.domain
@@ -96,10 +96,12 @@ spec:
           value: nginx
         - name: server.ingress.hosts[0]
           value: argocd.gigix
-        - name: server.ingress.extraTls[0].secretName
+        - name: server.ingress.tls[0].secretName
           value: argocd-cert-tls
-        - name: server.ingress.extraTls[0].hosts[0]
+        - name: server.ingress.tls[0].hosts[0]
           value: argocd.gigix
+        - name: server.ingress.https
+          value: 'true'
         - name: >-
             server.ingress.annotations.cert-manager\.io/cluster-issuer
           value: selfsigned-cluster-issuer
@@ -289,3 +291,4 @@ spec:
       - CreateNamespace=true
       - PruneLast=true
       - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true

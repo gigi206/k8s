@@ -26,8 +26,10 @@ ARGOCD_CMD_INSTALL="argocd --port-forward --port-forward-namespace ${NAMESPACE_A
 rm -fr ~/.argocd
 
 echo "Downloading argocd binary..."
-test -x /usr/local/bin/argocd || curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-chmod +x /usr/local/bin/argocd
+# test -x /usr/local/bin/argocd || curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+# chmod +x /usr/local/bin/argocd
+which argocd || sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install argocd'
+eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)
 
 # helm repo add argo-cd https://argoproj.github.io/argo-helm
 # helm repo update
@@ -48,8 +50,7 @@ echo "PASSWORD: ${PASSWORD}"
 ${ARGOCD_CMD_INSTALL} login --username admin --password "${PASSWORD}"
 
 tty -s && (
-    while true
-    do
+    while true; do
         echo -n "New password:"
         read -s NEW_PASSWORD
         ${ARGOCD_CMD_INSTALL} account update-password --current-password "${PASSWORD}" --new-password "${NEW_PASSWORD}" && break || echo "Failed to change the argocd password"
@@ -58,7 +59,7 @@ tty -s && (
 )
 
 # require_app cert-manager ingress-nginx
-require_app cert-manager external-dns
+require_app cert-manager ingress-nginx external-dns
 # require_app cert-manager ingress-nginx metallb kubevip external-dns
 # require_app kubevip kubevip-cloud-provider cert-manager ingress-nginx
 
@@ -66,8 +67,7 @@ require_app cert-manager external-dns
 kubectl apply -f "$(dirname $0)/argocd.yaml"
 ${ARGOCD_CMD_INSTALL} app sync ${APPNAME}
 # wait_app
-for RESSOURCE in $(kubectl get -n ${NAMESPACE_ARGOCD} deploy -o name) $(kubectl get -n ${NAMESPACE_ARGOCD} sts -o name) $(kubectl get -n ${NAMESPACE_ARGOCD} daemonset -o name)
-do
+for RESSOURCE in $(kubectl get -n ${NAMESPACE_ARGOCD} deploy -o name) $(kubectl get -n ${NAMESPACE_ARGOCD} sts -o name) $(kubectl get -n ${NAMESPACE_ARGOCD} daemonset -o name); do
     echo "Waiting ressource ${RESSOURCE}"
     kubectl rollout -n ${NAMESPACE_ARGOCD} status ${RESSOURCE}
 done
