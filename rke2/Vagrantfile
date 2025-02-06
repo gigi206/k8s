@@ -114,10 +114,13 @@ Vagrant.configure("2") do |config|
 
       if i == 1
         master.vm.provision "shell", inline: <<-SHELL
-          cp /etc/rancher/rke2/rke2.yaml /vagrant/kube.config
-          sed -i "s@127.0.0.1@$(cat /vagrant/ip_master)@g" /vagrant/kube.config
-          # sed -i "s@127.0.0.1@k8s-api.gigix@g" /vagrant/kube.config
-          cp /var/lib/rancher/rke2/server/node-token /vagrant/k8s-token
+          if test -f /etc/rancher/rke2/rke2.yaml
+          then
+            cp /etc/rancher/rke2/rke2.yaml /vagrant/kube.config
+            sed -i "s@127.0.0.1@$(cat /vagrant/ip_master)@g" /vagrant/kube.config
+            # sed -i "s@127.0.0.1@k8s-api.gigix@g" /vagrant/kube.config
+            cp /var/lib/rancher/rke2/server/node-token /vagrant/k8s-token
+          fi
         SHELL
       end
     end
