@@ -7,7 +7,7 @@ NAMESPACE="$(echo ${MANIFEST} | jq -r '.spec.destination.namespace')"
 VERSION="$(echo ${MANIFEST} | jq -r '.spec.source.targetRevision')"
 APPNAME="$(echo ${MANIFEST} | jq -r '.metadata.name')"
 #TARGET_REGISTRY="my.registry.com"
-ARGOCD_CMD="argocd --port-forward --port-forward-namespace ${NAMESPACE_ARGOCD} --insecure"
+ARGOCD_CMD="argocd --grpc-web --port-forward --port-forward-namespace ${NAMESPACE_ARGOCD} --insecure"
 #ARGOCD_CMD="argocd --port-forward --port-forward-namespace ${NAMESPACE_ARGOCD} --plaintext"
 REPO_URL=$(kubectl apply -f \"${DIRNAME}/${BASENAME}.yaml\" --dry-run=client -o json | jq -r ".spec.source.repoURL")
 RUNTIME_ENDPOINT="/run/k3s/containerd/containerd.sock"

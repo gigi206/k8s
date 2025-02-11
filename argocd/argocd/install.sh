@@ -23,6 +23,10 @@ eval $(cat $(dirname $0)/../lib.sh | egrep -w ^NAMESPACE_ARGOCD)
 
 ARGOCD_CMD_INSTALL="argocd --port-forward --port-forward-namespace ${NAMESPACE_ARGOCD} --insecure"
 
+# ARGOCD_CMD_INSTALL="argocd"
+# kubectl config set-context --current --namespace=argo-cd
+# ${ARGOCD_CMD_INSTALL} login --core
+
 rm -fr ~/.argocd
 
 echo "Downloading argocd binary..."
@@ -71,6 +75,9 @@ for RESSOURCE in $(kubectl get -n ${NAMESPACE_ARGOCD} deploy -o name) $(kubectl 
     echo "Waiting ressource ${RESSOURCE}"
     kubectl rollout -n ${NAMESPACE_ARGOCD} status ${RESSOURCE}
 done
+
+# kubectl config set-context --current --namespace=default
+
 # show_ressources
 
 # INGRESS_HOST=$(kubectl get ingress argo-cd-argocd-server -n ${NAMESPACE_ARGOCD} -o json | jq -r ".spec.rules[0].host")

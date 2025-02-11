@@ -22,6 +22,8 @@ echo "disable:
 # - rke2-coredns
 # disable: [rke2-ingress-nginx, rke2-coredns]
 disable-kube-proxy: true
+# kube-controller-manager-arg:
+#   - feature-gates=TopologyAwareHints=true
 # profile: cis-1.23
 # cluster-cidr: 10.220.0.0/16
 # service-cidr: 10.221.0.0/16
@@ -78,21 +80,22 @@ spec:
     # k8sServiceHost: kubernetes.default.svc.cluster.local
     k8sServiceHost: 127.0.0.1 # IP dataplane (10.43.0.1) => kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}' => comment this line if you set kubeProxyReplacement=false
     k8sServicePort: 6443 # Port dataplane (443) => kubectl get svc kubernetes -n default -o jsonpath='{.spec.ports[0].port}' => comment this line if you set kubeProxyReplacement=false
-    # routingMode: native # https://docs.cilium.io/en/latest/network/concepts/routing/#native-routing
-    # ipv4NativeRoutingCIDR: 10.0.0.0/8 # https://docs.cilium.io/en/latest/network/clustermesh/clustermesh/#additional-requirements-for-native-routed-datapath-modes
     # routingMode: tunnel # https://docs.cilium.io/en/latest/network/concepts/routing/
-    # autoDirectNodeRoutes: true
-    # tunnelProtocol: ""
-    # tunnelProtocol: geneve # https://docs.cilium.io/en/latest/security/policy/caveats/#security-identity-for-n-s-service-traffic
-    devices:
-    - ^eth[0-9]+
+    routingMode: native # https://docs.cilium.io/en/latest/network/concepts/routing/#native-routing
+    autoDirectNodeRoutes: true # Si le réseau entre les nœuds inclut des passerelles (gateways), l'option autoDirectNodeRoutes peut ne pas fonctionner correctement, car elle est conçue pour des environnements où les nœuds sont directement connectés sur le même segment L2
+    # directRoutingDevice: eth0
+    ipv4NativeRoutingCIDR: 10.42.0.0/16 # https://docs.cilium.io/en/latest/network/clustermesh/clustermesh/#additional-requirements-for-native-routed-datapath-modes
+    # ipv4NativeRoutingCIDR: 10.0.0.0/8
+    tunnelProtocol: geneve # https://docs.cilium.io/en/latest/security/policy/caveats/#security-identity-for-n-s-service-traffic
+    # devices:
+    # - ^eth[0-9]+
     # - eth0
     externalIPs:
       enabled: true
     nodePort:
       enabled: false
-    # socketLB:
-    #   enabled: true
+    socketLB:
+      enabled: true
     #   hostNamespaceOnly: true # (For Istio by example) https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#socket-loadbalancer-bypass-in-pod-namespace
     # sessionAffinity: ClientIP # https://docs.cilium.io/en/latest/network/kubernetes/kubeproxy-free/#session-affinity
     ingressController:
@@ -101,27 +104,34 @@ spec:
       loadbalancerMode: shared  # Activation du mode "shared" pour le LoadBalancer, c'est à dire que plusieurs services peuvent utiliser le même LoadBalancer avec la même IP => https://docs.cilium.io/en/stable/network/servicemesh/ingress/ (Cf Annotations: ingress.cilium.io/loadbalancer-mode: shared|dedicated)
     # extraConfig:
     #   enable-envoy-config: true # https://docs.cilium.io/en/stable/network/servicemesh/l7-traffic-management/ (envoy traffic management feature without Ingress support (ingressController.enabled=false))
-    # l7Proxy: true
-    # loadBalancer:
-    #   mode: dsr # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr
-    #   dsrDispatch: geneve # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr-with-geneve
-    #   algorithm: maglev # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#maglev-consistent-hashing
-    #   serviceTopology: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#topology-aware-hints
-    #   # acceleration: native # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#loadbalancer-nodeport-xdp-acceleration
-    #   l7:
-    #     algorithm: least_request # round_robin, least_request, random (cf https://docs.cilium.io/en/stable/network/servicemesh/envoy-load-balancing/#supported-annotations)
-    #     backend: envoy # https://docs.cilium.io/en/stable/network/servicemesh/l7-traffic-management/
+    l7Proxy: true
+    loadBalancer:
+      mode: dsr # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr
+      dsrDispatch: geneve # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#direct-server-return-dsr-with-geneve
+      algorithm: maglev # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#maglev-consistent-hashing
+      serviceTopology: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#topology-aware-hints (service.kubernetes.io/topology-aware-hints: "auto"  # Active les hints / topology.kubernetes.io/zone / topology.kubernetes.io/region)
+      acceleration: native # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#loadbalancer-nodeport-xdp-acceleration => liste des drivers des cartes compatibles https://docs.cilium.io/en/stable/reference-guides/bpf/progtypes/#xdp-drivers
+      # l7: # CiliumHTTPRoute CRD
+      #   algorithm: least_request # round_robin, least_request, random (cf https://docs.cilium.io/en/stable/network/servicemesh/envoy-load-balancing/#supported-annotations)
+      #   backend: envoy # https://docs.cilium.io/en/stable/network/servicemesh/l7-traffic-management/
+      #   # envoy: # https://docs.cilium.io/en/stable/helm-reference/ (use with service type LoadBalancer and can be configured with CRD CiliumHTTPRoute)
+      #   #   idleTimeout: 60s  # Délai d'inactivité avant fermeture de la connexion
+      #   #   maxRequestsPerConnection: 100  # Limite de requêtes par connexion
+      #   #   retries: 3  # Nombre de tentatives de réessai
+      #   #   requestTimeout: 60s  # Délai de timeout de requête
     # maglev:
     #   tableSize: 65521
     #   hashSeed: $(head -c12 /dev/urandom | base64 -w0)
-    # gatewayAPI: # https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/
-    #   enabled: true # require kubeProxyReplacement=true
-    enableCiliumEndpointSlice: true # https://docs.cilium.io/en/latest/network/kubernetes/ciliumendpointslice_beta/#deploy-cilium-with-ces
-    # bpf:
-    #   # preallocateMaps: true # Increase memory usage but can reduce latency
-    #   masquerade: true
-    #   autoDirectNodeRoutes: true
-    #   hostLegacyRouting: false
+    gatewayAPI: # https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/
+      enabled: false # require kubeProxyReplacement=true
+    enableCiliumEndpointSlice: true # https://docs.cilium.io/en/latest/network/kubernetes/ciliumendpointslice/#deploy-cilium-with-ces
+    ipMasqAgent:
+      enabled: false
+    bpf:
+      preallocateMaps: true # Increase memory usage but can reduce latency
+      masquerade: true
+      autoDirectNodeRoutes: true
+      hostLegacyRouting: false
     #   lbExternalClusterIP: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#external-access-to-clusterip-services
     # authentication: # https://docs.cilium.io/en/latest/network/servicemesh/mutual-authentication/mutual-authentication/ (https://youtu.be/tE9U1gNWzqs)
     #   mutual:
@@ -140,15 +150,15 @@ spec:
       prometheus:
         enabled: true
         serviceMonitor:
-          enabled: true
+          # enabled: true # A activer une fois prometheus-stack installé
           labels:
             release: prometheus-stack
-    encryption:
-      enabled: false
-      type: wireguard # https://docs.cilium.io/en/latest/security/network/encryption-wireguard
-      # nodeEncryption: true # https://docs.cilium.io/en/latest/security/network/encryption-wireguard/#node-to-node-encryption-beta
-    # hostFirewall: # https://docs.cilium.io/en/stable/security/host-firewall/
+    # encryption:
     #   enabled: true
+    #   type: wireguard # https://docs.cilium.io/en/latest/security/network/encryption-wireguard
+    #   # nodeEncryption: true # https://docs.cilium.io/en/latest/security/network/encryption-wireguard/#node-to-node-encryption-beta
+    hostFirewall: # https://docs.cilium.io/en/stable/security/host-firewall/
+      enabled: true
     policyEnforcementMode: default # https://docs.cilium.io/en/stable/security/policy/intro/
     ipam:
       mode: kubernetes
@@ -167,13 +177,13 @@ spec:
       # exclusive: false # Set to false with Multus
     l2announcements:
       enabled: true
+      interface: eth1
       # leaseDuration: 3s
       # leaseRenewDeadline: 1s
       # leaseRetryPeriod: 500ms
       # leaseDuration: 300s
       # leaseRenewDeadline: 60s
       # leaseRetryPeriod: 10s
-      # interface: eth0
     # k8sClientRateLimit: # https://docs.cilium.io/en/latest/network/l2-announcements/#sizing-client-rate-limit
     #   qps: 10
     #   burst: 25
@@ -187,18 +197,18 @@ spec:
     # sctp:
     #   # -- Enable SCTP support. NOTE: Currently, SCTP support does not support rewriting ports or multihoming.
     #   enabled: true
-    # ipv4:
-    #   enabled: true
-    # enableIPv4BIGTCP: true
-    # ipv6:
-    #   enabled: false
+    ipv4:
+      enabled: true
+    # enableIPv4BIGTCP: true # kernel >= 6.3 + harware compatibility (mlx4, mlx5, ice)
+    ipv6:
+      enabled: false
     enableIPv6BIGTCP: false
     hubble:
       enabled: true
       metrics:
         enableOpenMetrics: true
         serviceMonitor:
-          enabled: true
+          # enabled: true # A activer une fois prometheus-stack installé
           labels:
             release: prometheus-stack
         enabled: # https://docs.cilium.io/en/stable/observability/metrics/#context-options
@@ -231,7 +241,7 @@ spec:
         prometheus:
           enabled: true
           serviceMonitor:
-              enabled: true
+              # enabled: true # A activer une fois prometheus-stack installé
               labels:
                 release: prometheus-stack
       ui:
@@ -256,7 +266,7 @@ spec:
       # port: 19090
       # Configure this serviceMonitor section AFTER Rancher Monitoring is enabled!
       serviceMonitor:
-        enabled: true
+        # enabled: true # A activer une fois prometheus-stack installé
         labels:
           release: prometheus-stack
     dashboard:
@@ -270,7 +280,7 @@ spec:
       prometheus:
         enabled: true
         serviceMonitor:
-          enabled: true
+          # enabled: true # A activer une fois prometheus-stack installé
           labels:
             release: prometheus-stack
     # clustermesh:
@@ -281,7 +291,7 @@ spec:
     #       etcd:
     #         enabled: true
     #       serviceMonitor:
-    #         enabled: true
+    #         # enabled: true # A activer une fois prometheus-stack installé
     #         labels:
     #           release: prometheus-stack
 EOF
