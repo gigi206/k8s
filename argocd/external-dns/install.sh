@@ -2,6 +2,8 @@
 
 . "$(dirname $0)/../lib.sh"
 
+kubectl apply -f install/repo-oci.yaml
+
 # kubectl -n external-dns-system create secret generic etcd-client-certs \
 #   --from-file=ca.crt=/var/lib/rancher/rke2/server/tls/etcd/server-ca.crt \
 #   --from-file=client.crt=/var/lib/rancher/rke2/server/tls/etcd/client.crt \

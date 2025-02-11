@@ -39,16 +39,16 @@ spec:
             value: crd
           # sources: service,ingress,node,pod,gateway-httproute,gateway-grpcroute,gateway-tlsroute,gateway-tcproute,gateway-udproute,istio-gateway,istio-virtualservice,cloudfoundry,contour-httpproxy,gloo-proxy,fake,connector,crd,empty,skipper-routegroup,openshift-route,ambassador-host,kong-tcpingress,f5-virtualserver,traefik-proxy
           # https://kubernetes-sigs.github.io/external-dns/v0.13.1/tutorials/gateway-api/
-          - name: sources[3]
-            value: gateway-httproute
-          - name: sources[4]
-            value: gateway-tlsroute
-          - name: sources[5]
-            value: gateway-tcproute
-          - name: sources[6]
-            value: gateway-udproute
-          - name: sources[7]
-            value: gateway-grpcroute
+          # - name: sources[3]
+          #   value: gateway-httproute
+          # - name: sources[4]
+          #   value: gateway-tlsroute
+          # - name: sources[5]
+          #   value: gateway-tcproute
+          # - name: sources[6]
+          #   value: gateway-udproute
+          # - name: sources[7]
+          #   value: gateway-grpcroute
           # https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/traefik-proxy.md
           # - name: sources[8]
           #   value: traefik-proxy
@@ -140,6 +140,8 @@ spec:
                 endpoint http://external-dns-etcd:2379
                 # tls CERT KEY CACERT
         parameters:
+          - name: service.annotations.io\.cilium/lb-ipam-ips
+            value: 192.168.122.222
           - name: serviceType
             value: LoadBalancer
           - name: replicaCount
@@ -149,8 +151,10 @@ spec:
           - name: isClusterService
             value: 'false'
     - chart: etcd
-      repoURL: https://charts.bitnami.com/bitnami
-      targetRevision: 11.0.6
+      # repoURL: https://charts.bitnami.com/bitnami
+      repoURL: registry-1.docker.io/bitnamicharts
+      # targetRevision: 11.0.6
+      targetRevision: 10.7.3
       helm:
         parameters:
           - name: replicaCount
