@@ -402,6 +402,74 @@ enable-envoy-config                            true
 loadbalancer-l7                                envoy
 ```
 
+By default a `LoadBalancer` service doesn't cross the L7 Envoy because it's considered L4 unless with the annotation `cilium.io/l7-proxy: "enabled"`.
+* From external:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-l7-service
+  annotations:
+    cilium.io/l7-proxy: "enabled"  # Force l'utilisation d'Envoy
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    app: my-app
+```
+
+Or from Internal with CRD `CiliumHTTPRoute` (require `gatewayAPI.enabled=true`):
+```yaml
+apiVersion: cilium.io/v2
+kind: CiliumHTTPRoute
+metadata:
+  name: internal-route
+spec:
+  rules:
+    - matches:
+        - path: "/api/v1"
+      backendRefs:
+        - name: backend-v1
+          port: 8080
+```
+
+* Or from external with **Ingress** or **Gateway API**:
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: my-gateway
+spec:
+  gatewayClassName: cilium  # Utilise la classe Cilium
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        kinds:
+          - kind: HTTPRoute
+```
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-app-1
+spec:
+  parentRefs:
+    - name: my-gateway  # Référence la Gateway ci-dessus
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /details
+      backendRefs:
+        - name: details  # Suppose que le Service "details" existe
+          port: 9080
+```
+
 ### Gateway API
 * https://docs.cilium.io/en/latest/network/servicemesh/gateway-api/gateway-api/
 ```shell
