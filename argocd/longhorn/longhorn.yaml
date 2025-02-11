@@ -9,18 +9,18 @@ metadata:
 spec:
   destination:
     namespace: longhorn-system
-    server: 'https://kubernetes.default.svc'
+    server: "https://kubernetes.default.svc"
   project: default
   sources:
     - chart: longhorn
-      repoURL: 'https://charts.longhorn.io'
+      repoURL: "https://charts.longhorn.io"
       targetRevision: 1.8.0
       helm:
         parameters:
           - name: persistence.defaultClassReplicaCount
             value: "1"
           - name: longhornUI.replicas
-            value: '1'
+            value: "1"
           - name: ingress.enabled
             value: "true"
           - name: ingress.host
@@ -38,12 +38,12 @@ spec:
           # - name: service.ui.type
           #   value: LoadBalancer
           - name: preUpgradeChecker.jobEnabled # https://longhorn.io/docs/1.6.1/deploy/install/install-with-argocd/
-            value: false
-    - repoURL: 'https://github.com/gigi206/k8s'
+            value: "false"
+    - repoURL: "https://github.com/gigi206/k8s"
       path: argocd/longhorn/install
       targetRevision: HEAD
       directory:
-        include: '*.yaml'
+        include: "*.yaml"
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
