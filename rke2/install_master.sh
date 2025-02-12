@@ -177,7 +177,7 @@ spec:
       # exclusive: false # Set to false with Multus
     l2announcements:
       enabled: true
-      interface: eth1
+      # interface: eth1
       # leaseDuration: 3s
       # leaseRenewDeadline: 1s
       # leaseRetryPeriod: 500ms
@@ -513,27 +513,27 @@ kubectl patch svc kubernetes -n default -p '{"spec": {"type": "LoadBalancer"}, "
 # )
 
 # Announce L2
-# cat <<EOF | kubectl apply -f -
-# apiVersion: "cilium.io/v2alpha1"
-# kind: CiliumL2AnnouncementPolicy
-# metadata:
-#   name: policy1
-# spec:
-#   #serviceSelector:
-#   #  matchLabels:
-#   #    L2Announcement: true
-#   #    expose: true
-#   #nodeSelector:
-#   #  matchExpressions:
-#   #  - key: node-role.kubernetes.io/control-plane
-#   #    operator: DoesNotExist
-#   #    #operator: Exists
-#   interfaces:
-#     #- ^eth[0-9]+
-#     - ^eth1$
-#   externalIPs: true
-#   loadBalancerIPs: true
-# EOF
+cat <<EOF | kubectl apply -f -
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: policy1
+spec:
+  #serviceSelector:
+  #  matchLabels:
+  #    L2Announcement: true
+  #    expose: true
+  #nodeSelector:
+  #  matchExpressions:
+  #  - key: node-role.kubernetes.io/control-plane
+  #    operator: DoesNotExist
+  #    #operator: Exists
+  interfaces:
+    #- ^eth[0-9]+
+    - ^eth1$
+  externalIPs: true
+  loadBalancerIPs: true
+EOF
 
 # Configure default PriorityClass to avoid preemption
 cat <<EOF | kubectl apply -f -
