@@ -17,6 +17,16 @@ spec:
       targetRevision: 1.8.0
       helm:
         parameters:
+          - name: csi.attacherReplicaCount
+            value: "1"
+          - name: csi.provisionerReplicaCount
+            value: "1"
+          - name: csi.resizerReplicaCount
+            value: "1"
+          - name: csi.snapshotterReplicaCount
+            value: "1"
+          - name: defaultSettings.defaultReplicaCount
+            value: "1"
           - name: persistence.defaultClassReplicaCount
             value: "1"
           - name: longhornUI.replicas
