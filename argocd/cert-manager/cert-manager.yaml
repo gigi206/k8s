@@ -9,64 +9,67 @@ spec:
   destination:
     namespace: cert-manager-system
     server: 'https://kubernetes.default.svc'
-  source:
-    repoURL: 'https://charts.jetstack.io'
-    targetRevision: v1.17.0
-    chart: cert-manager
-    helm:
-      # https://github.com/jetstack/cert-manager/blob/master/deploy/charts/cert-manager/README.template.md#configuration
-      parameters:
-        - name: installCRDs
-          value: "true"
-        # - name: extraArgs[0]
-        #   value: --feature-gates=ExperimentalGatewayAPISupport=true
-        # - name: featureGates
-        #   value: ExperimentalGatewayAPISupport
-        # - name: config.featureGates.ExperimentalGatewayAPISupport
-        #   value: "true"
-        # - name: resources.requests.cpu
-        #   value: 10m
-        # - name: resources.requests.memory
-        #   value: 64Mi
-        # - name: resources.limits.cpu
-        #   value: 20m
-        # - name: resources.limits.memory
-        #   value: 128Mi
-        # # webhook
-        # - name: webhook.resources.requests.cpu
-        #   value: 10m
-        # - name: webhook.resources.requests.memory
-        #   value: 32Mi
-        # - name: webhook.resources.limits.cpu
-        #   value: 20m
-        # - name: webhook.resources.limits.memory
-        #   value: 64Mi
-        # # cainjector.resources
-        # - name: cainjector.resources.requests.cpu
-        #   value: 10m
-        # - name: cainjector.resources.requests.memory
-        #   value: 64Mi
-        # - name: cainjector.resources.limits.cpu
-        #   value: 20m
-        # - name: cainjector.resources.limits.memory
-        #   value: 128Mi
-        # startupapicheck.resources
-        # - name: startupapicheck.resources.requests.cpu
-        #   value: 10m
-        # - name: startupapicheck.resources.requests.memory
-        #   value: 32Mi
-        # - name: startupapicheck.resources.limits.cpu
-        #   value: 20m
-        # - name: startupapicheck.resources.limits.memory
-        #   value: 64Mi
+  sources:
+    - repoURL: 'https://github.com/gigi206/k8s'
+      path: argocd/cert-manager/install
+      targetRevision: HEAD
+    - repoURL: 'https://charts.jetstack.io'
+      targetRevision: v1.17.0
+      chart: cert-manager
+      helm:
+        # https://github.com/jetstack/cert-manager/blob/master/deploy/charts/cert-manager/README.template.md#configuration
+        parameters:
+          - name: installCRDs
+            value: "true"
+          # - name: extraArgs[0]
+          #   value: --feature-gates=ExperimentalGatewayAPISupport=true
+          # - name: featureGates
+          #   value: ExperimentalGatewayAPISupport
+          # - name: config.featureGates.ExperimentalGatewayAPISupport
+          #   value: "true"
+          # - name: resources.requests.cpu
+          #   value: 10m
+          # - name: resources.requests.memory
+          #   value: 64Mi
+          # - name: resources.limits.cpu
+          #   value: 20m
+          # - name: resources.limits.memory
+          #   value: 128Mi
+          # # webhook
+          # - name: webhook.resources.requests.cpu
+          #   value: 10m
+          # - name: webhook.resources.requests.memory
+          #   value: 32Mi
+          # - name: webhook.resources.limits.cpu
+          #   value: 20m
+          # - name: webhook.resources.limits.memory
+          #   value: 64Mi
+          # # cainjector.resources
+          # - name: cainjector.resources.requests.cpu
+          #   value: 10m
+          # - name: cainjector.resources.requests.memory
+          #   value: 64Mi
+          # - name: cainjector.resources.limits.cpu
+          #   value: 20m
+          # - name: cainjector.resources.limits.memory
+          #   value: 128Mi
+          # startupapicheck.resources
+          # - name: startupapicheck.resources.requests.cpu
+          #   value: 10m
+          # - name: startupapicheck.resources.requests.memory
+          #   value: 32Mi
+          # - name: startupapicheck.resources.limits.cpu
+          #   value: 20m
+          # - name: startupapicheck.resources.limits.memory
+          #   value: 64Mi
 
-        # metrics
-        - name: prometheus.enabled
-          value: 'true'
-        - name: prometheus.servicemonitor.enabled
-          value: 'true'
-        - name: prometheus.servicemonitor.labels.release
-          value: prometheus-stack
+          # metrics
+          - name: prometheus.enabled
+            value: 'true'
+          - name: prometheus.servicemonitor.enabled
+            value: 'true'
+          - name: prometheus.servicemonitor.labels.release
+            value: prometheus-stack
   project: default
   syncPolicy:
     syncOptions:

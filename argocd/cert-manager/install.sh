@@ -8,5 +8,5 @@ require_app prometheus-stack
 install_app
 # wait_app
 # show_ressources
-$(dirname $0)/self-signed.sh
+# $(dirname $0)/self-signed.sh
 kubectl apply -f $(dirname $0)/prometheus.yaml
