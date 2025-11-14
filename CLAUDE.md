@@ -235,7 +235,9 @@ deploy/argocd/apps/my-app/resources/values.yaml
 kubectl apply -f deploy/argocd/apps/my-app/applicationset.yaml
 ```
 
-6. Commit and push
+6. **IMPORTANT: Add Prometheus alerts** (see Prometheus Monitoring section below)
+
+7. Commit and push
 
 ### Feature Flags and Conditional Deployment
 
@@ -331,6 +333,223 @@ templatePatch: |
 **Applications using this pattern**:
 - argocd, metallb, external-dns, cert-manager, ingress-nginx, longhorn (PrometheusRules)
 - cilium-monitoring, prometheus-stack (ServiceMonitors and PrometheusRules)
+
+## Prometheus Monitoring and Alerts
+
+### ⚠️ MANDATORY: Always Add Prometheus Alerts for New Applications
+
+**CRITICAL RULE**: When adding a new application to the cluster, you MUST systematically create Prometheus alerts to monitor its health and performance. This is not optional.
+
+**Why this is mandatory**:
+- **Proactive monitoring**: Detect issues before they impact users
+- **Observability**: Maintain complete visibility of the cluster infrastructure
+- **SRE best practices**: Every component should have alerting coverage
+- **Current coverage**: 10/11 applications have alerts (91% coverage) - maintain this standard
+
+### Steps to Add Prometheus Alerts for a New Application
+
+1. **Create the PrometheusRule file**:
+```bash
+mkdir -p deploy/argocd/apps/<app-name>/kustomize
+touch deploy/argocd/apps/<app-name>/kustomize/prometheus.yaml
+touch deploy/argocd/apps/<app-name>/kustomize/kustomization.yaml
+```
+
+2. **Define alerts based on application type**:
+
+**For applications WITH native Prometheus metrics**:
+```yaml
+# apps/<app-name>/kustomize/prometheus.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: <app-name>-prometheus-rules
+  namespace: <app-namespace>
+  labels:
+    prometheus: <app-name>
+    role: alert-rules
+spec:
+  groups:
+  - name: <app-name>.rules
+    interval: 30s
+    rules:
+    # CRITICAL: Component availability
+    - alert: <AppName>Down
+      expr: absent(up{job="<app-name>"}) == 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: <App> is unavailable
+        description: <App> has been down for 5 minutes
+
+    # HIGH: Performance degradation
+    - alert: <AppName>HighLatency
+      expr: histogram_quantile(0.99, rate(<metric>_bucket[5m])) > <threshold>
+      for: 10m
+      labels:
+        severity: high
+
+    # WARNING: Resource saturation
+    - alert: <AppName>HighMemory
+      expr: <memory_metric> > <threshold>
+      for: 10m
+      labels:
+        severity: warning
+```
+
+**For applications WITHOUT native metrics** (use kube-state-metrics):
+```yaml
+# apps/<app-name>/kustomize/prometheus.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: <app-name>-prometheus-rules
+  namespace: <app-namespace>
+spec:
+  groups:
+  - name: <app-name>.rules
+    interval: 30s
+    rules:
+    - alert: <AppName>PodDown
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="<app-name>",
+          namespace="<namespace>"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: <AppName>PodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"<app-name>.*",
+          namespace="<namespace>"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+```
+
+3. **Create kustomization.yaml**:
+```yaml
+# apps/<app-name>/kustomize/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - prometheus.yaml
+```
+
+4. **Update ApplicationSet to include monitoring source**:
+```yaml
+# apps/<app-name>/applicationset.yaml
+templatePatch: |
+  spec:
+    {{- if .features.monitoring.enabled }}
+    sources:
+      # Source 1: Main application resources
+      - repoURL: https://github.com/gigi206/k8s
+        targetRevision: '{{ .git.revision }}'
+        path: deploy/argocd/apps/<app-name>/resources
+
+      # Source 2: PrometheusRules (with release label)
+      - repoURL: https://github.com/gigi206/k8s
+        targetRevision: '{{ .git.revision }}'
+        path: deploy/argocd/apps/<app-name>/kustomize
+        kustomize:
+          commonLabels:
+            release: '{{ .features.monitoring.release }}'
+    {{- end }}
+```
+
+### Alert Severity Guidelines
+
+Use these severity levels consistently:
+
+- **critical**: Component down, data loss, security breach
+  - Examples: Pod unavailable, database down, certificate expired
+  - Action: Immediate response required (pager alert)
+
+- **high**: Performance degradation, partial failure
+  - Examples: High latency (>5s), replica down, disk >90%
+  - Action: Investigate within 1 hour
+
+- **warning**: Approaching limits, minor issues
+  - Examples: Disk >70%, high connection rate, sync errors
+  - Action: Investigate during business hours
+
+- **medium**: Informational, trends
+  - Examples: Config reload, backup completed
+  - Action: Track for patterns
+
+### Mandatory Alert Categories per Application Type
+
+**Infrastructure components** (LoadBalancer, Ingress, Storage):
+- ✅ Availability alerts (component down, pods not ready)
+- ✅ Performance alerts (high latency, throughput)
+- ✅ Resource alerts (CPU/memory/disk saturation)
+- ✅ Error rate alerts (5xx errors, failures)
+
+**Data layer** (Databases, Storage):
+- ✅ Availability + Performance + Resource
+- ✅ Data integrity alerts (replication lag, corruption)
+- ✅ Capacity alerts (disk space, connection pools)
+
+**Networking** (CNI, DNS, Proxy):
+- ✅ Availability + Performance
+- ✅ Connectivity alerts (node-to-node, endpoints)
+- ✅ Packet loss/drops
+
+**Observability** (Monitoring, Logging):
+- ✅ Availability
+- ✅ Data loss alerts (events lost, scrape failures)
+- ✅ Self-monitoring (Prometheus disk full)
+
+### Current Alert Coverage
+
+| Application | Alerts | Status |
+|-------------|--------|--------|
+| cilium-monitoring | 10 | ✅ Complete |
+| longhorn | 9 | ✅ Complete |
+| ingress-nginx | 9 | ✅ Complete |
+| argocd | 13 | ✅ Complete |
+| metallb | 8 | ✅ Complete |
+| external-dns | 7 | ✅ Complete |
+| cert-manager | 6 | ✅ Complete |
+| kube-vip | 3 | ✅ Complete |
+| csi-external-snapshotter | 3 | ✅ Complete |
+| prometheus-stack | 57+ | ✅ Complete |
+| gateway-api-controller | 0 | ⚠️ No metrics available |
+
+**Target**: Maintain >90% application coverage
+
+### Testing Alerts
+
+After creating alerts, verify they work:
+
+```bash
+# 1. Check PrometheusRule is loaded
+kubectl get prometheusrules -A
+
+# 2. Verify in Prometheus UI
+kubectl port-forward -n monitoring svc/prometheus-stack-kube-prom-prometheus 9090:9090
+# Browse to http://localhost:9090/rules
+
+# 3. Test alert triggers (optional, in dev only)
+# Scale down app to trigger alert
+kubectl scale deployment <app-name> --replicas=0 -n <namespace>
+
+# 4. Check alert fires in Prometheus/Grafana
+# Wait for alert "for" duration + evaluation interval
+```
+
+### Resources for Creating Alerts
+
+- **Metrics discovery**: `kubectl port-forward -n monitoring prometheus-xyz 9090:9090` → http://localhost:9090/graph
+- **PromQL help**: https://prometheus.io/docs/prometheus/latest/querying/basics/
+- **Alert examples**: Check existing apps in `apps/*/kustomize/prometheus.yaml`
+- **Metric naming**: https://prometheus.io/docs/practices/naming/
 
 ## Environment Differences
 
