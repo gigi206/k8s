@@ -1,0 +1,110 @@
+---
+# Configuration ArgoCD - Prod
+environment: prod
+appName: argocd
+
+# Dashboard configuration
+dashboard:
+  folder: "ArgoCD"  # Subfolder under baseFolder for ArgoCD dashboards
+
+# versions:
+#   argocd: "9.0.5"
+
+argocd:
+  server:
+    ingress:
+      enabled: true
+      # hostname managed by ApplicationSet: argocd.{{ .common.domain }}
+    replicas: 3
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    metrics:
+      serviceMonitor:
+        relabelings:
+          - targetLabel: cluster
+            replacement: in-cluster
+            action: replace
+
+  controller:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    metrics:
+      serviceMonitor:
+        relabelings:
+          - targetLabel: cluster
+            replacement: in-cluster
+            action: replace
+
+  repoServer:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    metrics:
+      serviceMonitor:
+        relabelings:
+          - targetLabel: cluster
+            replacement: in-cluster
+            action: replace
+
+  # Redis HA for production
+  redis:
+    ha: true
+
+  # Dex/SSO (optional - configure OIDC here)
+  dex:
+    enabled: false
+    # enabled: true
+    # config: |
+    #   connectors:
+    #   - type: oidc
+    #     id: keycloak
+    #     name: Keycloak
+    #     config:
+    #       issuer: https://keycloak.example.com/realms/master
+    #       clientID: argocd
+    #       clientSecret: $dex.keycloak.clientSecret
+    #       requestedScopes:
+    #       - openid
+    #       - profile
+    #       - email
+    #       - groups
+
+  # ApplicationSet controller
+  applicationSet:
+    metrics:
+      serviceMonitor:
+        relabelings:
+          - targetLabel: cluster
+            replacement: in-cluster
+            action: replace
+
+  # Notifications controller
+  notifications:
+    metrics:
+      serviceMonitor:
+        relabelings:
+          - targetLabel: cluster
+            replacement: in-cluster
+            action: replace
+
+syncPolicy:
+  automated:
+    enabled: false  # Prod: manual sync
+    prune: true
+    selfHeal: true

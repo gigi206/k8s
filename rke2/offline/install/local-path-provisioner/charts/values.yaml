@@ -1,4 +1,0 @@
-# Cf git/local-path-provisionner/deploy/chart/local-path-provisioner/values.yaml
-storageClass:
-  create: true
-  defaultClass: true

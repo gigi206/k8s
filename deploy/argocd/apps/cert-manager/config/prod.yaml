@@ -1,0 +1,75 @@
+---
+# Configuration Cert-Manager - Prod
+environment: prod
+appName: cert-manager
+
+# Dashboard configuration
+dashboard:
+  folder: "Cert-Manager"  # Sous-dossier pour les dashboards Cert-Manager
+
+# versions:
+#   certManager: "v1.19.1"
+
+certManager:
+  # Gateway API support (v1.15+)
+  gatewayAPI:
+    enabled: true
+
+  # Controller replicas (prod: 3 for HA)
+  replicas: 3
+
+  # Controller resources (prod: higher limits)
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+  # Webhook configuration
+  webhook:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "20m"
+        memory: "64Mi"
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+
+  # CA Injector configuration
+  cainjector:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+  # Startup API Check
+  startupapicheck:
+    resources:
+      requests:
+        cpu: "20m"
+        memory: "64Mi"
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+
+  # ClusterIssuers
+  clusterIssuers:
+    staging:
+      email: "admin@example.local"
+      server: "https://acme-staging-v02.api.letsencrypt.org/directory"
+    prod:
+      email: "admin@example.local"
+      server: "https://acme-v02.api.letsencrypt.org/directory"
+
+syncPolicy:
+  automated:
+    enabled: false  # Prod: manual sync
+    prune: true
+    selfHeal: true

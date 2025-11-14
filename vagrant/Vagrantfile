@@ -1,0 +1,142 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# virsh net-list --all
+# virsh net-update vagrant-libvirt add-last ip-dhcp-host '<host mac="52:54:00:00:00:01" ip="192.168.121.100"/>' --live --config --parent-index 0
+# virsh net-dumpxml vagrant-libvirt
+
+# https://www.rubydoc.info/gems/vagrant-libvirt/0.0.28
+
+ENV["VAGRANT_DEFAULT_PROVIDER"] = "libvirt"
+
+# Charger la configuration d'environnement
+# Par défaut: dev, peut être surchargé via ENV['K8S_ENV']
+env = ENV['K8S_ENV'] || 'dev'
+config_file = File.join(File.dirname(__FILE__), 'config', "#{env}.rb")
+
+unless File.exist?(config_file)
+  raise "Configuration file not found: #{config_file}\nAvailable environments: dev, prod"
+end
+
+# Charger la configuration de l'environnement
+load config_file
+
+Vagrant.configure("2") do |config|
+  # Configuration NFS pour Ubuntu 24.04 (NFSv4 + TCP)
+  config.vm.synced_folder ".", "/vagrant",
+    type: "nfs",
+    nfs_version: 4,
+    nfs_udp: false
+
+  # Configuration du management node (optionnel)
+  if $management
+    config.vm.define "k8s-management" do |management|
+      management.vm.box = $vm_box
+      management.vm.box_check_update = $box_check_update
+      management.vm.hostname = "k8s-management"
+      management.vm.network "private_network", ip: "#{$network_prefix}.10"
+
+      management.vm.provider "libvirt" do |domain|
+        domain.default_prefix = ""
+        domain.cpus = $management_cpu
+        domain.memory = $management_memory
+        domain.machine_virtual_size = $management_disk
+        domain.keymap = $keymap
+      end
+
+      management.vm.provision "shell", path: "scripts/install_common.sh", args: ["management"]
+      management.vm.provision "shell", path: "scripts/install_management.sh"
+    end
+  end
+
+  # Configuration des masters
+  (1..$masters).each do |i|
+    config.vm.define "k8s-#{$cluster_name}-m#{i}" do |master|
+      master.vm.box = $vm_box
+      master.vm.box_check_update = $box_check_update
+      master.vm.hostname = "k8s-#{$cluster_name}-m#{i}"
+      master.vm.network "private_network", ip: "#{$network_prefix}.1#{i}"
+
+      master.vm.provider "libvirt" do |domain|
+        domain.default_prefix = ""
+        domain.cpus = $master_cpu
+        domain.memory = $master_memory
+        domain.machine_virtual_size = $master_disk
+        domain.keymap = $keymap
+      end
+
+      # Premier master: initialisation du cluster
+      if i == 1
+        master.vm.provision "shell", inline: <<-SHELL
+          rm -f /vagrant/{k8s-token,ip_master,kube.config}
+          ip a show dev eth1 | egrep -w inet | awk '{ print $2 }' | awk -F'/' '{ print $1 }' > /vagrant/ip_master
+        SHELL
+      end
+
+      # Masters suivants: attente du premier master
+      if i > 1
+        master.vm.provision "shell", inline: <<-SHELL
+          echo "Waiting 1st master node to finish his installation"
+          while true
+          do
+            sleep 5
+            test -f /vagrant/k8s-token && break
+          done
+          echo "1st master node has finished his installation. This node can continue his installation"
+          mkdir -p /etc/rancher/rke2
+          echo "server: https://$(cat /vagrant/ip_master):9345" >> /etc/rancher/rke2/config.yaml
+          echo "token: $(cat /vagrant/k8s-token)" >> /etc/rancher/rke2/config.yaml
+        SHELL
+      end
+
+      # Masters avec workers séparés: ajouter taint
+      if $masters > 1 and $workers > 0
+        master.vm.provision "shell", inline: <<-SHELL
+          echo "node-taint:" >> /etc/rancher/rke2/config.yaml
+          echo '  - "CriticalAddonsOnly=true:NoExecute"' >> /etc/rancher/rke2/config.yaml
+        SHELL
+      end
+
+      master.vm.provision "shell", path: "scripts/install_common.sh"
+      master.vm.provision "shell", path: "scripts/install_master.sh"
+
+      # Premier master: export kubeconfig et token
+      if i == 1
+        master.vm.provision "shell", inline: <<-SHELL
+          if test -f /etc/rancher/rke2/rke2.yaml
+          then
+            cp /etc/rancher/rke2/rke2.yaml /vagrant/kube.config
+            #{if defined?($api_server_ip) && $api_server_ip
+              "sed -i \"s@127.0.0.1@#{$api_server_ip}@g\" /vagrant/kube.config"
+            else
+              "sed -i \"s@127.0.0.1@$(cat /vagrant/ip_master)@g\" /vagrant/kube.config"
+            end}
+            # sed -i "s@127.0.0.1@k8s-api.gigix@g" /vagrant/kube.config
+            cp /var/lib/rancher/rke2/server/node-token /vagrant/k8s-token
+          fi
+        SHELL
+      end
+    end
+  end
+
+  # Configuration des workers
+  (1..$workers).each do |i|
+    config.vm.define "k8s-#{$cluster_name}-w#{i}" do |worker|
+      worker.vm.box = $vm_box
+      worker.vm.box_check_update = $box_check_update
+      worker.vm.hostname = "k8s-#{$cluster_name}-w#{i}"
+      worker.vm.network "private_network", ip: "#{$network_prefix}.10#{i}"
+
+      worker.vm.provider "libvirt" do |domain|
+        domain.default_prefix = ""
+        domain.cpus = $worker_cpu
+        domain.memory = $worker_memory
+        domain.machine_virtual_size = $worker_disk
+        domain.keymap = $keymap
+      end
+
+      worker.vm.provision "shell", path: "scripts/install_common.sh"
+      worker.vm.provision "shell", path: "scripts/install_worker.sh"
+    end
+  end
+end

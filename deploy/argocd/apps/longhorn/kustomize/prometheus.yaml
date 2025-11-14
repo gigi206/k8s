@@ -1,0 +1,121 @@
+---
+# =============================================================================
+# Longhorn Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour monitoring Longhorn avec Prometheus
+# Note: ServiceMonitor est créé par le chart Helm Longhorn (metrics.serviceMonitor.enabled)
+# =============================================================================
+
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: longhorn-prometheus-rules
+  namespace: longhorn-system
+  labels:
+    prometheus: longhorn
+    role: alert-rules
+spec:
+  groups:
+  - name: longhorn.rules
+    interval: 30s
+    rules:
+    - alert: LonghornVolumeUsageCritical
+      annotations:
+        description: Longhorn volume {{$labels.volume}} usage on {{$labels.node}} is {{$value}}%.
+        summary: Longhorn volume capacity is over 90% used.
+      expr: 100 * (longhorn_volume_actual_size_bytes / longhorn_volume_capacity_bytes) > 90
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: LonghornNodeUsageCritical
+      annotations:
+        description: Longhorn node {{$labels.node}} usage is {{$value}}%.
+        summary: Longhorn node storage capacity is over 90% used.
+      expr: 100 * (longhorn_node_storage_usage_bytes / longhorn_node_storage_capacity_bytes) > 90
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: LonghornDiskUsageCritical
+      annotations:
+        description: Longhorn disk {{$labels.disk}} on node {{$labels.node}} usage is {{$value}}%.
+        summary: Longhorn disk capacity is over 90% used.
+      expr: 100 * (longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes) > 90
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: LonghornVolumeUnhealthy
+      annotations:
+        description: |
+          Longhorn volume {{$labels.volume}} is in unhealthy state (robustness: {{$labels.robustness}}).
+          Volume may be degraded or faulted.
+        summary: Longhorn volume is degraded or faulted.
+      expr: |
+        longhorn_volume_robustness{robustness!="healthy"} == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: LonghornVolumeHighLatency
+      annotations:
+        description: |
+          Longhorn volume {{$labels.volume}} has high I/O latency (read: {{$value}}ms).
+          Check disk performance and network connectivity.
+        summary: Longhorn volume I/O latency is elevated.
+      expr: |
+        (longhorn_volume_read_latency > 100) or (longhorn_volume_write_latency > 100)
+      for: 10m
+      labels:
+        severity: high
+
+    - alert: LonghornReplicaDown
+      annotations:
+        description: |
+          Longhorn replica {{$labels.replica}} for volume {{$labels.volume}} is down.
+          Data redundancy is compromised.
+        summary: Longhorn replica is unavailable.
+      expr: |
+        longhorn_replica_running{state!="running"} == 1
+      for: 5m
+      labels:
+        severity: high
+
+    - alert: LonghornNodeDown
+      annotations:
+        description: |
+          Longhorn node {{$labels.node}} storage is offline.
+          Volumes on this node are inaccessible.
+        summary: Longhorn node is down.
+      expr: |
+        longhorn_node_status{condition="ready"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: LonghornDiskPressure
+      annotations:
+        description: |
+          Longhorn disk {{$labels.disk}} on node {{$labels.node}} usage is {{$value}}%.
+          Approaching critical threshold (90%).
+        summary: Longhorn disk capacity is under pressure.
+      expr: |
+        100 * (longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes) > 70 and
+        100 * (longhorn_disk_usage_bytes / longhorn_disk_capacity_bytes) <= 90
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: LonghornEngineDown
+      annotations:
+        description: |
+          Longhorn engine for volume {{$labels.volume}} is not running (state: {{$labels.state}}).
+          Volume is inaccessible to pods.
+        summary: Longhorn volume engine is down.
+      expr: |
+        longhorn_engine_state{state!="running"} == 1
+      for: 5m
+      labels:
+        severity: critical

@@ -1,0 +1,6 @@
+# Vagrant runtime files
+.vagrant/
+ip_master
+k8s-token
+kube.config
+*.log

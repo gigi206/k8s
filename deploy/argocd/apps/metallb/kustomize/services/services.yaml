@@ -1,0 +1,48 @@
+---
+# =============================================================================
+# MetalLB Prometheus Monitoring
+# =============================================================================
+# ServiceMonitor et PrometheusRule pour alertes MetalLB
+# Docs: https://metallb.universe.tf/configuration/_advanced_l2_configuration/
+# Metrics: port 7472
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: metallb-speaker-metrics
+  namespace: metallb-system
+  labels:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/component: speaker
+spec:
+  ports:
+  - name: metrics
+    port: 7472
+    targetPort: monitoring  # Nom du port dans le pod (pas le numéro)
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/component: speaker
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metallb-controller-metrics
+  namespace: metallb-system
+  labels:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/component: controller
+spec:
+  ports:
+  - name: metrics
+    port: 7472
+    targetPort: monitoring  # Nom du port dans le pod
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/component: controller
+  type: ClusterIP
+

@@ -1,0 +1,113 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: external-dns
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/name: external-dns
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: external-dns-prometheus-rules
+  namespace: external-dns
+  labels:
+    prometheus: external-dns
+    role: alert-rules
+spec:
+  groups:
+  - name: external-dns.rules
+    interval: 30s
+    rules:
+    - alert: ExternalDNSDown
+      annotations:
+        description: |
+          External-DNS has been down for more than 5 minutes.
+          DNS records will not be synchronized.
+        summary: External-DNS is down
+      expr: absent(up{job="external-dns-metrics"}) == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: ExternalDNSSyncErrors
+      annotations:
+        description: |
+          External-DNS is experiencing sync errors for provider {{ $labels.provider }}.
+          DNS records may not be updated correctly.
+        summary: External-DNS sync errors detected
+      expr: rate(external_dns_registry_errors_total[5m]) > 0
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: ExternalDNSSourceErrors
+      annotations:
+        description: |
+          External-DNS is experiencing source errors.
+          Cannot read Kubernetes resources (Ingress, Service, etc.).
+        summary: External-DNS source errors detected
+      expr: rate(external_dns_source_errors_total[5m]) > 0
+      for: 10m
+      labels:
+        severity: warning
+
+    # Note: ExternalDNSHighLatency removed - v0.14+ uses timestamp instead of duration
+    # Use external_dns_controller_last_sync_timestamp_seconds to detect stale syncs
+
+    - alert: ExternalDNSStaleSyncs
+      annotations:
+        description: |
+          External-DNS has not synced for more than 5 minutes.
+          DNS updates may be delayed.
+        summary: External-DNS syncs are stale
+      expr: (time() - external_dns_controller_last_sync_timestamp_seconds) > 300
+      for: 10m
+      labels:
+        severity: warning
+
+    # Note: ExternalDNSVerifyErrors removed - v0.14+ uses different verification metrics
+    # Use external_dns_controller_verified_records to monitor verification
+
+    - alert: ExternalDNSRegistryErrors
+      annotations:
+        description: |
+          External-DNS registry errors are increasing.
+          Problem communicating with DNS provider {{ $labels.provider }}.
+        summary: External-DNS registry errors
+      expr: increase(external_dns_registry_errors_total[15m]) > 5
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: ExternalDNSNoEndpoints
+      annotations:
+        description: |
+          External-DNS has no endpoints to synchronize.
+          Check if sources (Ingress, Service) are configured correctly.
+        summary: External-DNS has no endpoints
+      expr: external_dns_source_endpoints_total == 0
+      for: 30m
+      labels:
+        severity: warning
+
+    - alert: ExternalDNSMetricsMissing
+      annotations:
+        description: |
+          External-DNS has not reported any metrics data for the past 10 minutes.
+          The pod may be down or not functioning properly.
+        summary: '[External-DNS] No reported metrics'
+      expr: absent(external_dns_controller_last_sync_timestamp_seconds)
+      for: 10m
+      labels:
+        severity: critical

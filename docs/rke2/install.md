@@ -76,7 +76,7 @@ echo "disable:
 write-kubeconfig-mode: "0644"
 tls-san:
 - k8s-api.gigix
-- 192.168.122.200
+- 192.168.121.200
 # debug:true
 etcd-expose-metrics: true" \
 >> /etc/rancher/rke2/config.yaml

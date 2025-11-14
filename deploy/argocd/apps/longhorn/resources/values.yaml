@@ -1,0 +1,22 @@
+# =============================================================================
+# Longhorn Base Values
+# =============================================================================
+# Ces valeurs sont communes à tous les environnements.
+# Les valeurs spécifiques (replicas, etc.) sont dans config-dev.yaml et
+# config-prod.yaml et surcharges via templatePatch.
+# =============================================================================
+
+# Disable preUpgradeChecker (known ArgoCD issue)
+preUpgradeChecker:
+  jobEnabled: false
+
+# Storage Settings (defaults, overridden by config-*.yaml)
+persistence:
+  defaultClass: true
+
+defaultSettings:
+  defaultDataPath: "/var/lib/longhorn"
+
+# Monitoring
+# Note: metrics.serviceMonitor.enabled is configured via ApplicationSet templatePatch
+# based on .features.monitoring.enabled from global config

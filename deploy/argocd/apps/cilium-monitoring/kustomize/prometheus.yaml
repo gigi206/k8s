@@ -1,0 +1,141 @@
+---
+# =============================================================================
+# Cilium Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour alertes Cilium CNI et Hubble observability
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cilium-prometheus-rules
+  namespace: kube-system
+  labels:
+    prometheus: cilium
+    role: alert-rules
+spec:
+  groups:
+  - name: cilium.rules
+    interval: 30s
+    rules:
+    - alert: CiliumAgentDown
+      annotations:
+        description: |
+          Cilium agent pod is down on node {{$labels.node}}.
+          Network connectivity for pods on this node is compromised.
+        summary: Cilium agent is unavailable (CNI critical failure).
+      expr: |
+        absent(up{job=~"cilium-agent.*"}) == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: CiliumEndpointNotReady
+      annotations:
+        description: |
+          Cilium has {{$value}} endpoints in non-ready state.
+          Pods may not have functional network connectivity.
+        summary: Cilium endpoints are not ready.
+      expr: |
+        sum(cilium_endpoint_state{endpoint_state!="ready"}) > 0
+      for: 10m
+      labels:
+        severity: critical
+
+    - alert: CiliumControllersFailing
+      annotations:
+        description: |
+          Cilium has {{$value}} failing controllers.
+          This may indicate bugs or reconciliation issues.
+        summary: Cilium controllers are failing.
+      expr: |
+        cilium_controllers_failing > 0
+      for: 15m
+      labels:
+        severity: warning
+
+    - alert: CiliumBPFMapPressure
+      annotations:
+        description: |
+          Cilium BPF map pressure is at {{$value | humanizePercentage}} on {{$labels.pod}}.
+          eBPF kernel limits are being reached.
+        summary: Cilium BPF maps are saturated.
+      expr: |
+        cilium_bpf_map_pressure > 0.9
+      for: 10m
+      labels:
+        severity: critical
+
+    - alert: CiliumDatapathDrops
+      annotations:
+        description: |
+          Cilium is dropping packets at {{$value}}/s due to {{$labels.reason}}.
+          This may indicate network policy issues or connectivity problems.
+        summary: Cilium datapath is dropping packets.
+      expr: |
+        rate(cilium_drop_count_total[5m]) > 100
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: HubbleEventsLost
+      annotations:
+        description: |
+          Hubble is losing events at {{$value}}/s.
+          Observability buffer overflow detected.
+        summary: Hubble events are being lost.
+      expr: |
+        rate(hubble_lost_events_total[5m]) > 10
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: CiliumNodeConnectivityIssue
+      annotations:
+        description: |
+          Cilium node {{$labels.source_node}} cannot reach {{$labels.target_node}}.
+          Inter-node network connectivity is broken.
+        summary: Cilium node health connectivity issue.
+      expr: |
+        cilium_node_connectivity_status{type="icmp"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: CiliumOperatorDown
+      annotations:
+        description: |
+          Cilium operator pod is down.
+          IPAM management and CRD reconciliation is compromised.
+        summary: Cilium operator is unavailable.
+      expr: |
+        absent(up{job="cilium-operator"}) == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: CiliumHighPolicyLatency
+      annotations:
+        description: |
+          Cilium policy enforcement latency is high ({{ $value }}s at p99).
+          This may indicate eBPF compilation issues or overload.
+        summary: Cilium network policy latency is elevated.
+      expr: |
+        histogram_quantile(0.99,
+          rate(cilium_policy_implementation_delay_bucket[5m])
+        ) > 30
+      for: 10m
+      labels:
+        severity: high
+
+    - alert: CiliumIdentityAllocationErrors
+      annotations:
+        description: |
+          Cilium operator is experiencing identity allocation errors at {{$value}}/s.
+          CIDR exhaustion or quota issues detected.
+        summary: Cilium identity allocation failures.
+      expr: |
+        rate(cilium_operator_errors_warnings_total{level="error",subsystem="identity-allocation"}[5m]) > 0
+      for: 10m
+      labels:
+        severity: high

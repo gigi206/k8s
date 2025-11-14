@@ -1,0 +1,120 @@
+---
+# =============================================================================
+# Ingress-NGINX Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour alertes ingress-nginx
+# Docs: https://kubernetes.github.io/ingress-nginx/user-guide/monitoring/
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ingress-nginx-prometheus-rules
+  namespace: ingress-nginx
+  labels:
+    prometheus: ingress-nginx
+    role: alert-rules
+spec:
+  groups:
+  - name: ingress-nginx.rules
+    interval: 30s
+    rules:
+    - alert: NGINXConfigFailed
+      annotations:
+        description: Bad ingress config - nginx config test failed
+        summary: Uninstall the latest ingress changes to allow config reloads to resume
+      expr: count(nginx_ingress_controller_config_last_reload_successful == 0) > 0
+      for: 1s
+      labels:
+        severity: critical
+
+    - alert: NGINXCertificateExpiry
+      annotations:
+        description: SSL certificate(s) will expire in less than a week
+        summary: Renew expiring certificates to avoid downtime
+      expr: (avg(nginx_ingress_controller_ssl_expire_time_seconds) by (host) - time()) < 604800
+      for: 1s
+      labels:
+        severity: critical
+
+    - alert: NGINXTooMany500s
+      annotations:
+        description: Too many 5XXs
+        summary: More than 5% of all requests returned 5XX, this requires your attention
+      expr: 100 * ( sum( nginx_ingress_controller_requests{status=~"5.+"} ) / sum(nginx_ingress_controller_requests) ) > 5
+      for: 1m
+      labels:
+        severity: warning
+
+    - alert: NGINXTooMany4XXs
+      annotations:
+        description: Too many 4XXs
+        summary: More than 5% of all requests returned 4XX, this requires your attention
+      expr: 100 * ( sum( nginx_ingress_controller_requests{status=~"4.+"} ) / sum(nginx_ingress_controller_requests) ) > 5
+      for: 1m
+      labels:
+        severity: warning
+
+    - alert: NGINXMetricsMissing
+      annotations:
+        description: |
+          Nginx has not reported any metrics data for the past 15 minutes which means
+          that it must be down or not functioning properly.
+        summary: '[ingress-nginx] No reported metrics'
+      expr: absent(nginx_ingress_controller_build_info)
+      for: 15m
+      labels:
+        severity: critical
+
+    - alert: NGINXHighLatency
+      annotations:
+        description: |
+          NGINX Ingress Controller has high request latency ({{ $value }}s at p99).
+          Backend services may be slow or overloaded.
+        summary: NGINX Ingress latency is elevated.
+      expr: |
+        histogram_quantile(0.99,
+          rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])
+        ) > 5
+      for: 10m
+      labels:
+        severity: high
+
+    - alert: NGINXHighConnectionRate
+      annotations:
+        description: |
+          NGINX Ingress Controller has {{$value}} active connections.
+          This may indicate high load or potential DoS attack.
+        summary: NGINX Ingress has high connection count.
+      expr: |
+        nginx_ingress_controller_nginx_process_connections > 10000
+      for: 10m
+      labels:
+        severity: medium
+
+    - alert: NGINXControllerDown
+      annotations:
+        description: |
+          NGINX Ingress Controller pod is down.
+          Ingress traffic routing is unavailable.
+        summary: NGINX Ingress Controller is unavailable.
+      expr: |
+        absent(up{job="ingress-nginx-controller-metrics"}) == 1
+        or
+        up{job="ingress-nginx-controller-metrics"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: NGINXIngressWithoutEndpoints
+      annotations:
+        description: |
+          Ingress {{$labels.ingress}} in namespace {{$labels.namespace}} has no endpoints.
+          Traffic cannot be routed to backend service.
+        summary: NGINX Ingress has no backend endpoints.
+      expr: |
+        nginx_ingress_controller_ingress_upstream_latency_seconds_count{upstream="<error>"}
+        > 0
+      for: 10m
+      labels:
+        severity: warning

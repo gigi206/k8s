@@ -1,0 +1,83 @@
+---
+# =============================================================================
+# Cilium Monitoring ApplicationSet - Wave 76 (After Prometheus-Stack)
+# =============================================================================
+# Deploys ServiceMonitors for Cilium/Hubble to enable Prometheus scraping
+# This complements the RKE2-installed Cilium CNI with monitoring capabilities
+# Deployed after prometheus-stack since ServiceMonitors depend on Prometheus CRDs
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cilium-monitoring
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "76"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/cilium-monitoring/config/*.yaml
+
+  template:
+    metadata:
+      name: cilium-monitoring
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "76"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/gigi206/k8s
+        targetRevision: '{{ .git.revision }}'
+        path: deploy/argocd/apps/cilium-monitoring/kustomize
+        kustomize:
+          commonLabels:
+            release: '{{ .features.monitoring.release }}'
+            grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+          commonAnnotations:
+            "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: kube-system
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}

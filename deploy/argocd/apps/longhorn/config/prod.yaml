@@ -1,0 +1,38 @@
+---
+# Configuration Longhorn - Prod
+environment: prod
+appName: longhorn
+
+# Dashboard configuration
+dashboard:
+  folder: "Longhorn"  # Sous-dossier pour les dashboards Longhorn
+
+# versions:
+#   longhorn: "1.10.0"
+
+longhorn:
+  # CSI Components (prod: HA with 3 replicas)
+  csi:
+    attacherReplicaCount: 3
+    provisionerReplicaCount: 3
+    resizerReplicaCount: 3
+    snapshotterReplicaCount: 3
+
+  # Storage Settings (prod: HA with 3 replicas)
+  defaultSettings:
+    defaultReplicaCount: "3"
+    defaultDataPath: "/var/lib/longhorn"
+    # backupTarget: "nfs://backup.example.com:/longhorn-backups"
+  persistence:
+    defaultClass: "true"
+    defaultClassReplicaCount: "3"
+
+  # UI (prod: 2 replicas for availability)
+  ui:
+    replicas: 2
+
+syncPolicy:
+  automated:
+    enabled: false  # Prod: manual sync
+    prune: true
+    selfHeal: true

@@ -1,0 +1,14 @@
+---
+# Configuration CSI External Snapshotter - Prod
+environment: prod
+appName: csi-external-snapshotter
+
+
+# versions:
+#   csiSnapshotter: "v8.4.0"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

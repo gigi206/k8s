@@ -1,0 +1,81 @@
+---
+# Configuration Ingress-NGINX - Dev
+environment: dev
+appName: ingress-nginx
+
+# Dashboard configuration
+dashboard:
+  folder: "Ingress-NGINX"  # Sous-dossier pour les dashboards Ingress-NGINX
+
+# versions:
+#   ingressNginx: "4.13.3"
+
+ingressNginx:
+  controller:
+    # Kind: Deployment or DaemonSet
+    kind: "Deployment"
+
+    # Set this IngressClass as default
+    ingressClassResource:
+      default: true
+
+    # Controller configuration
+    config:
+      proxy-body-size: "100m"  # Max request body size
+
+    # Service configuration
+    service:
+      type: "LoadBalancer"
+
+    # Metrics
+    metrics:
+      enabled: true
+
+    # Replicas (dev: 1)
+    replicaCount: 1
+
+    # Controller resources (dev: minimal)
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+    # Admission webhooks resources
+    admissionWebhooks:
+      createSecretJob:
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "64Mi"
+          limits:
+            cpu: "50m"
+            memory: "128Mi"
+      patchWebhookJob:
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "64Mi"
+          limits:
+            cpu: "50m"
+            memory: "128Mi"
+
+  # Default backend (optional)
+  defaultBackend:
+    enabled: true
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "64Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

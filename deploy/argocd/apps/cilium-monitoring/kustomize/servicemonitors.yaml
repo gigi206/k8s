@@ -1,0 +1,60 @@
+---
+# =============================================================================
+# Cilium/Hubble ServiceMonitors for Prometheus
+# =============================================================================
+# These ServiceMonitors enable Prometheus to scrape Cilium and Hubble metrics
+# Docs: https://docs.cilium.io/en/stable/observability/metrics/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+#       from features.monitoring.release in config.yaml
+# =============================================================================
+
+# Note: cilium-agent and cilium-operator ServiceMonitors are disabled
+# because RKE2 doesn't create Services for them. Metrics are exposed on
+# pods but ServiceMonitors require Services for discovery.
+# To enable, create Services or use PodMonitors instead.
+
+# ServiceMonitor for Hubble metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hubble
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: hubble
+  endpoints:
+  - port: hubble-metrics
+    interval: 30s
+    path: /metrics
+---
+# ServiceMonitor for Hubble Relay metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hubble-relay
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: hubble-relay
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+---
+# ServiceMonitor for Cilium Envoy metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cilium-envoy
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: cilium-envoy
+  endpoints:
+  - port: envoy-metrics
+    interval: 30s
+    path: /metrics

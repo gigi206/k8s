@@ -1,0 +1,33 @@
+---
+# Configuration Kube-VIP - Dev
+environment: dev
+appName: kube-vip
+
+kubeVip:
+  # Version de l'image kube-vip
+  version: "v0.8.9"
+
+  # VIP pour l'API Kubernetes
+  vip: "192.168.121.200"
+
+  # Interface réseau à utiliser
+  interface: "eth1"
+
+  # Mode ARP (pour environnements non-BGP)
+  arp: true
+
+  # Leader election
+  leaderElection: true
+
+  # Logging
+  logLevel: "5"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - PruneLast=true

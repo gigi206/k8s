@@ -1,7 +1,0 @@
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: GatewayClass
-metadata:
-  name: apisix
-spec:
-  # https://github.com/apache/apisix-ingress-controller/blob/master/pkg/config/config.go#L59C20-L59C56
-  controllerName: apisix.apache.org/gateway-controller

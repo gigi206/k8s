@@ -1,6 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  # - crunchy-postgres-olm-operator.yaml
-  - https://raw.githubusercontent.com/gigi206/k8s/main/argocd/crunchy-postgres-olm-operator/kustomize/base/crunchy-postgres-olm-operator.yaml
-namespace: crunchy-postgres-olm-operator

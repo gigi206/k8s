@@ -1,0 +1,14 @@
+---
+# Configuration Gateway API Controller - Prod
+environment: prod
+appName: gateway-api-controller
+
+gatewayApiController:
+  # CRD path (experimental pour avoir Gateway API v1)
+  crdPath: "config/crd/experimental"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false

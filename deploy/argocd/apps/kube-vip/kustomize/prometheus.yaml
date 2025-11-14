@@ -1,0 +1,66 @@
+---
+# =============================================================================
+# Kube-VIP Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour monitoring Kube-VIP (VIP haute disponibilité API Kubernetes)
+# Note: Kube-VIP n'expose pas de métriques Prometheus natives.
+#       Ces alertes utilisent kube-state-metrics pour surveiller le DaemonSet.
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kube-vip-prometheus-rules
+  namespace: kube-system
+  labels:
+    prometheus: kube-vip
+    role: alert-rules
+spec:
+  groups:
+  - name: kube-vip.rules
+    interval: 30s
+    rules:
+    - alert: KubeVIPDaemonSetNotReady
+      annotations:
+        description: |
+          Kube-VIP DaemonSet has {{$value}} pods not ready.
+          VIP failover capability may be compromised.
+        summary: Kube-VIP DaemonSet pods are not ready.
+      expr: |
+        kube_daemonset_status_number_ready{daemonset="kube-vip-ds",namespace="kube-system"}
+        <
+        kube_daemonset_status_desired_number_scheduled{daemonset="kube-vip-ds",namespace="kube-system"}
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: KubeVIPPodCrashLooping
+      annotations:
+        description: |
+          Kube-VIP pod {{$labels.pod}} is crash looping ({{$value}} restarts).
+          VIP may be unstable or unavailable.
+        summary: Kube-VIP pod is restarting frequently.
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"kube-vip.*",
+          namespace="kube-system"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+
+    - alert: KubeVIPPodNotRunning
+      annotations:
+        description: |
+          Kube-VIP pod {{$labels.pod}} is in state {{$labels.phase}}.
+          VIP failover may not function.
+        summary: Kube-VIP pod is not running.
+      expr: |
+        kube_pod_status_phase{
+          pod=~"kube-vip.*",
+          namespace="kube-system",
+          phase!="Running"
+        } == 1
+      for: 5m
+      labels:
+        severity: critical

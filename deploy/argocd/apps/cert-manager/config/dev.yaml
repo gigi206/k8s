@@ -1,0 +1,75 @@
+---
+# Configuration Cert-Manager - Dev
+environment: dev
+appName: cert-manager
+
+# Dashboard configuration
+dashboard:
+  folder: "Cert-Manager"  # Sous-dossier pour les dashboards Cert-Manager
+
+# versions:
+#   certManager: "v1.19.1"
+
+certManager:
+  # Gateway API support (v1.15+)
+  gatewayAPI:
+    enabled: true
+
+  # Controller replicas (dev: 1)
+  replicas: 1
+
+  # Controller resources (dev: minimal)
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+  # Webhook configuration
+  webhook:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
+
+  # CA Injector configuration
+  cainjector:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "64Mi"
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+
+  # Startup API Check
+  startupapicheck:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
+
+  # ClusterIssuers
+  clusterIssuers:
+    staging:
+      email: "dev@gigix"
+      server: "https://acme-staging-v02.api.letsencrypt.org/directory"
+    prod:
+      email: "dev@gigix"
+      server: "https://acme-v02.api.letsencrypt.org/directory"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

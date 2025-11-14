@@ -1,0 +1,46 @@
+---
+# =============================================================================
+# Cert-Manager ClusterIssuers - Let's Encrypt
+# =============================================================================
+# ClusterIssuers pour Let's Encrypt (prod/staging)
+# DISABLED: Requires real email domain (not example.com)
+#
+# To enable:
+# 1. Rename this file to clusterissuer-letsencrypt.yaml
+# 2. Update email addresses with your real domain
+# 3. Commit and push
+# =============================================================================
+
+---
+# ClusterIssuer Let's Encrypt Staging (test)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@yourdomain.com  # UPDATE THIS
+    privateKeySecretRef:
+      name: letsencrypt-staging-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+
+---
+# ClusterIssuer Let's Encrypt Production
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: prod@yourdomain.com  # UPDATE THIS
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

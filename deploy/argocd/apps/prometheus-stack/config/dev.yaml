@@ -1,0 +1,120 @@
+---
+# Configuration Prometheus-Stack - Dev
+environment: dev
+appName: prometheus-stack
+
+
+# versions:
+#   prometheusStack: "79.0.0"
+
+prometheusStack:
+  prometheus:
+    # Retention and storage
+    retention: "2d"
+    storageSize: "2Gi"
+
+    # Replicas (dev: 1)
+    replicas: 1
+
+    # Resources (dev: minimal)
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "512Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+
+    # Ingress (dev: enabled)
+    ingress:
+      enabled: true
+      hostname: "prometheus.{{ .common.domain }}"
+
+  grafana:
+    # Admin password
+    adminPassword: "admin"
+
+    # Replicas (dev: 1)
+    replicas: 1
+
+    # Persistence (dev: enabled via features.storage.enabled)
+    # Note: ApplicationSet utilise directement features.storage.enabled pour grafana.persistence.enabled
+    # Note: storageClassName est géré par ApplicationSet via features.storage.class
+    persistence:
+      # enabled: true  # Géré automatiquement par features.storage.enabled dans ApplicationSet
+      # storageClassName: géré par ApplicationSet (default: features.storage.class)
+      size: "1Gi"
+
+    # Resources (dev: minimal, augmenté pour éviter OOMKill)
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "256Mi"
+      limits:
+        cpu: "200m"
+        memory: "512Mi"
+
+    # Ingress (dev: enabled)
+    ingress:
+      enabled: true
+      hostname: "grafana.{{ .common.domain }}"
+
+    # Grafana.ini configuration
+    grafanaIni:
+      analytics:
+        check_for_updates: false
+
+      # Alerting configuration
+      unified_alerting:
+        enabled: true      # Nouveau système d'alerting (Grafana 8+, obligatoire depuis Grafana 12+)
+
+    # Sidecar dashboards configuration
+    # Note: folderAnnotation est géré par ApplicationSet via features.monitoring.dashboard.folderAnnotation
+    sidecar:
+      dashboards:
+        enabled: true
+        # folderAnnotation: géré par ApplicationSet (default: features.monitoring.dashboard.folderAnnotation)
+        folder: "Prometheus Stack"  # Nom du dossier Grafana pour les dashboards
+        provider:
+          foldersFromFilesStructure: true
+
+    # Readiness probe
+    readinessProbe:
+      timeoutSeconds: 5
+
+    # ServiceMonitor for Grafana metrics
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: "{{ .features.monitoring.release }}"
+
+  alertmanager:
+    # Alertmanager (dev: enabled)
+    enabled: true
+
+    # Replicas (dev: 1)
+    replicas: 1
+
+    # Resources (dev: minimal)
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+
+    # Ingress (dev: enabled)
+    ingress:
+      enabled: true
+      hostname: "alertmanager.{{ .common.domain }}"
+
+    # Storage
+    storage:
+      size: "1Gi"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

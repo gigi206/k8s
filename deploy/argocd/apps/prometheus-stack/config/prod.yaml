@@ -1,0 +1,95 @@
+---
+# Configuration Prometheus-Stack - Prod
+environment: prod
+appName: prometheus-stack
+
+# versions:
+#   prometheusStack: "79.0.0"
+
+prometheusStack:
+  prometheus:
+    # Retention and storage
+    retention: "7d"
+    storageSize: "5Gi"
+
+    # Replicas (prod: 2 for HA)
+    replicas: 2
+
+    # Resources (prod: higher limits)
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+      limits:
+        cpu: "2000m"
+        memory: "4Gi"
+
+    # Ingress (prod: enabled)
+    ingress:
+      enabled: true
+      hostname: "prometheus.{{ .common.domain }}"
+
+  grafana:
+    # Admin password (CHANGE IN PRODUCTION!)
+    adminPassword: "CHANGE_ME_IN_PRODUCTION"
+
+    # Replicas (prod: 2 for HA)
+    replicas: 2
+
+    # Persistence (prod: enabled)
+    persistence:
+      enabled: true
+      size: "10Gi"
+
+    # Resources (prod: higher limits)
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+    # Ingress (prod: enabled)
+    ingress:
+      enabled: true
+      hostname: "grafana.{{ .common.domain }}"
+
+    # Grafana.ini configuration
+    grafanaIni:
+      analytics:
+        check_for_updates: false
+
+      # Alerting configuration
+      unified_alerting:
+        enabled: true      # Nouveau système d'alerting (Grafana 8+, obligatoire depuis Grafana 12+)
+
+    # Sidecar dashboards configuration
+    # Note: folderAnnotation est géré par ApplicationSet via features.monitoring.dashboard.folderAnnotation
+    sidecar:
+      dashboards:
+        enabled: true
+        # folderAnnotation: géré par ApplicationSet (default: features.monitoring.dashboard.folderAnnotation)
+        folder: "Prometheus Stack"  # Nom du dossier Grafana pour les dashboards
+        provider:
+          foldersFromFilesStructure: true
+
+    # Readiness probe
+    readinessProbe:
+      timeoutSeconds: 5
+
+  alertmanager:
+    # Alertmanager (prod: enabled)
+    enabled: true
+    replicas: 3
+
+    # Ingress (prod: enabled)
+    ingress:
+      enabled: true
+      hostname: "alertmanager.{{ .common.domain }}"
+
+syncPolicy:
+  automated:
+    enabled: false  # Prod: manual sync
+    prune: true
+    selfHeal: true

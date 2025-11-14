@@ -1,0 +1,212 @@
+---
+# =============================================================================
+# Ingress-NGINX ApplicationSet - Wave 40 (Ingress Controller)
+# =============================================================================
+# Déploie Ingress-NGINX pour gérer le routage HTTP/HTTPS
+# Docs: https://kubernetes.github.io/ingress-nginx/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ingress-nginx
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/ingress-nginx/config/*.yaml
+
+  template:
+    metadata:
+      name: ingress-nginx
+      namespace: argo-cd
+      # labels:
+      #   app: ingress-nginx
+      #   environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "40"
+    spec:
+      project: default
+
+      sources:
+        # Source 1: Helm chart ingress-nginx
+        - repoURL: https://kubernetes.github.io/ingress-nginx
+          targetRevision: '{{ .versions.ingressNginx }}'
+          chart: ingress-nginx
+          helm:
+            parameters:
+              # Controller kind
+              - name: controller.kind
+                value: '{{ .ingressNginx.controller.kind | default "Deployment" }}'
+
+              # Set as default IngressClass
+              - name: controller.ingressClassResource.default
+                value: '{{ .ingressNginx.controller.ingressClassResource.default | default "true" }}'
+
+              # Controller config
+              - name: controller.config.proxy-body-size
+                value: '{{ index .ingressNginx.controller.config "proxy-body-size" | default "100m" }}'
+
+              # Service type
+              - name: controller.service.type
+                value: '{{ .ingressNginx.controller.service.type | default "LoadBalancer" }}'
+
+              # Metrics
+              - name: controller.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: controller.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: controller.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: ingress-nginx
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source 2: Prometheus monitoring + Grafana dashboard (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/ingress-nginx/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+        # Source 1: Helm chart with dynamic parameters
+        - repoURL: https://kubernetes.github.io/ingress-nginx
+          targetRevision: '{{ .versions.ingressNginx }}'
+          chart: ingress-nginx
+          helm:
+            parameters:
+            # Base parameters (must be here because templatePatch overwrites template)
+            - name: controller.kind
+              value: '{{ .ingressNginx.controller.kind | default "Deployment" }}'
+            - name: controller.ingressClassResource.default
+              value: '{{ .ingressNginx.controller.ingressClassResource.default | default "true" }}'
+            - name: controller.config.proxy-body-size
+              value: '{{ index .ingressNginx.controller.config "proxy-body-size" | default "100m" }}'
+            - name: controller.service.type
+              value: '{{ .ingressNginx.controller.service.type | default "LoadBalancer" }}'
+            - name: controller.metrics.enabled
+              value: '{{ .features.monitoring.enabled }}'
+            - name: controller.metrics.serviceMonitor.enabled
+              value: '{{ .features.monitoring.enabled }}'
+            - name: controller.metrics.serviceMonitor.additionalLabels.release
+              value: '{{ .features.monitoring.release }}'
+
+            # Admission webhooks with cert-manager
+            - name: controller.admissionWebhooks.enabled
+              value: "true"
+            - name: controller.admissionWebhooks.certManager.enabled
+              value: "true"
+            - name: controller.admissionWebhooks.patch.enabled
+              value: "false"
+
+            # Controller replicas
+            {{- if .ingressNginx.controller.replicaCount }}
+            - name: controller.replicaCount
+              value: "{{ .ingressNginx.controller.replicaCount }}"
+            {{- end }}
+
+            # Controller resources
+            {{- if .ingressNginx.controller.resources }}
+            - name: controller.resources.requests.cpu
+              value: '{{ .ingressNginx.controller.resources.requests.cpu }}'
+            - name: controller.resources.requests.memory
+              value: '{{ .ingressNginx.controller.resources.requests.memory }}'
+            - name: controller.resources.limits.cpu
+              value: '{{ .ingressNginx.controller.resources.limits.cpu }}'
+            - name: controller.resources.limits.memory
+              value: '{{ .ingressNginx.controller.resources.limits.memory }}'
+            {{- end }}
+
+            # Admission webhooks resources
+            {{- if .ingressNginx.controller.admissionWebhooks }}
+            {{- if .ingressNginx.controller.admissionWebhooks.createSecretJob.resources }}
+            - name: controller.admissionWebhooks.createSecretJob.resources.requests.cpu
+              value: '{{ .ingressNginx.controller.admissionWebhooks.createSecretJob.resources.requests.cpu }}'
+            - name: controller.admissionWebhooks.createSecretJob.resources.requests.memory
+              value: '{{ .ingressNginx.controller.admissionWebhooks.createSecretJob.resources.requests.memory }}'
+            - name: controller.admissionWebhooks.createSecretJob.resources.limits.cpu
+              value: '{{ .ingressNginx.controller.admissionWebhooks.createSecretJob.resources.limits.cpu }}'
+            - name: controller.admissionWebhooks.createSecretJob.resources.limits.memory
+              value: '{{ .ingressNginx.controller.admissionWebhooks.createSecretJob.resources.limits.memory }}'
+            {{- end }}
+            {{- if .ingressNginx.controller.admissionWebhooks.patchWebhookJob.resources }}
+            - name: controller.admissionWebhooks.patchWebhookJob.resources.requests.cpu
+              value: '{{ .ingressNginx.controller.admissionWebhooks.patchWebhookJob.resources.requests.cpu }}'
+            - name: controller.admissionWebhooks.patchWebhookJob.resources.requests.memory
+              value: '{{ .ingressNginx.controller.admissionWebhooks.patchWebhookJob.resources.requests.memory }}'
+            - name: controller.admissionWebhooks.patchWebhookJob.resources.limits.cpu
+              value: '{{ .ingressNginx.controller.admissionWebhooks.patchWebhookJob.resources.limits.cpu }}'
+            - name: controller.admissionWebhooks.patchWebhookJob.resources.limits.memory
+              value: '{{ .ingressNginx.controller.admissionWebhooks.patchWebhookJob.resources.limits.memory }}'
+            {{- end }}
+            {{- end }}
+
+            # Default backend
+            {{- if .ingressNginx.defaultBackend }}
+            {{- if .ingressNginx.defaultBackend.enabled }}
+            - name: defaultBackend.enabled
+              value: "{{ .ingressNginx.defaultBackend.enabled }}"
+            {{- if .ingressNginx.defaultBackend.replicaCount }}
+            - name: defaultBackend.replicaCount
+              value: "{{ .ingressNginx.defaultBackend.replicaCount }}"
+            {{- end }}
+            {{- if .ingressNginx.defaultBackend.resources }}
+            - name: defaultBackend.resources.requests.cpu
+              value: '{{ .ingressNginx.defaultBackend.resources.requests.cpu }}'
+            - name: defaultBackend.resources.requests.memory
+              value: '{{ .ingressNginx.defaultBackend.resources.requests.memory }}'
+            - name: defaultBackend.resources.limits.cpu
+              value: '{{ .ingressNginx.defaultBackend.resources.limits.cpu }}'
+            - name: defaultBackend.resources.limits.memory
+              value: '{{ .ingressNginx.defaultBackend.resources.limits.memory }}'
+            {{- end }}
+            {{- end }}
+            {{- end }}

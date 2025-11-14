@@ -1,0 +1,67 @@
+---
+# =============================================================================
+# CSI External Snapshotter Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour monitoring CSI Snapshotter (gestion snapshots volumes)
+# Note: CSI Snapshotter n'expose pas de métriques Prometheus natives.
+#       Ces alertes utilisent kube-state-metrics pour surveiller le controller.
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: csi-snapshotter-prometheus-rules
+  namespace: kube-system
+  labels:
+    prometheus: csi-snapshotter
+    role: alert-rules
+spec:
+  groups:
+  - name: csi-snapshotter.rules
+    interval: 30s
+    rules:
+    - alert: SnapshotControllerDown
+      annotations:
+        description: |
+          CSI Snapshot Controller deployment has no ready replicas.
+          Volume snapshots cannot be created or managed.
+        summary: CSI Snapshot Controller is unavailable.
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="snapshot-controller",
+          namespace="kube-system"
+        } == 0
+      for: 5m
+      labels:
+        severity: medium
+
+    - alert: VolumeSnapshotFailed
+      annotations:
+        description: |
+          VolumeSnapshot {{$labels.volumesnapshot}} in namespace {{$labels.namespace}} has failed.
+          Check snapshot class and storage backend.
+        summary: Volume snapshot creation failed.
+      expr: |
+        kube_volumesnapshot_status_condition{
+          condition="ready",
+          status="false"
+        } == 1
+      for: 10m
+      labels:
+        severity: high
+
+    - alert: VolumeSnapshotNotReady
+      annotations:
+        description: |
+          VolumeSnapshot {{$labels.volumesnapshot}} in namespace {{$labels.namespace}}
+          is not ready after 30 minutes.
+        summary: Volume snapshot is taking too long to complete.
+      expr: |
+        kube_volumesnapshot_created{job="kube-state-metrics"}
+        and on(volumesnapshot, namespace)
+        kube_volumesnapshot_status_condition{condition="ready", status="false"} == 1
+        and
+        (time() - kube_volumesnapshot_created) > 1800
+      for: 5m
+      labels:
+        severity: warning
