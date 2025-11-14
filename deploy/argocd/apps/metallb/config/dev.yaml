@@ -1,0 +1,20 @@
+---
+# Configuration MetalLB - Dev
+environment: dev
+appName: metallb
+
+
+# versions:
+#   metallb: "0.15.2"
+
+metallb:
+  ipAddressPool:
+    - name: default
+      addresses:
+        - 192.168.121.220-192.168.121.250
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

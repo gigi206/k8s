@@ -1,0 +1,161 @@
+---
+# =============================================================================
+# ArgoCD Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour alertes ArgoCD
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argocd-prometheus-rules
+  namespace: argo-cd
+  labels:
+    prometheus: argocd
+    role: alert-rules
+spec:
+  groups:
+  - name: argocd.rules
+    interval: 30s
+    rules:
+    - alert: ArgoCDAppMissing
+      annotations:
+        description: ArgoCD application {{$labels.name}} is missing.
+        summary: ArgoCD application has been deleted/lost.
+      expr: |
+        absent(argocd_app_info) == 1
+      for: 15m
+      labels:
+        severity: critical
+
+    - alert: ArgoCDAppNotSynced
+      annotations:
+        description: ArgoCD application {{$labels.name}} in namespace {{$labels.dest_namespace}} is not synced for more than 12 hours.
+        summary: ArgoCD application not synced for over 12 hours.
+      expr: |
+        argocd_app_info{sync_status!="Synced"} == 1
+      for: 12h
+      labels:
+        severity: warning
+
+    - alert: ArgoCDAppHealthyIssue
+      annotations:
+        description: ArgoCD application {{$labels.name}} health status is {{$labels.health_status}}.
+        summary: ArgoCD application health issue detected.
+      expr: |
+        argocd_app_info{health_status!~"Healthy|Progressing"} == 1
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: ArgoCDGitRequestSlow
+      annotations:
+        description: |
+          ArgoCD Git requests to repository {{$labels.repo}} are taking excessive time (>30s at p99).
+          This may indicate network issues, repository size problems, or connectivity issues.
+        summary: ArgoCD Git requests are slow (potential connection issues).
+      expr: |
+        histogram_quantile(0.99,
+          rate(argocd_git_request_duration_seconds_bucket{request_type="ls-remote"}[5m])
+        ) > 30
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: ArgoCDAppSyncFailed
+      annotations:
+        description: |
+          ArgoCD application {{$labels.name}} sync is actively failing.
+          Check application status and sync errors.
+        summary: ArgoCD application sync failed
+      expr: |
+        rate(argocd_app_sync_total{phase="Failed"}[5m]) > 0
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: ArgoCDAppOutOfSync
+      annotations:
+        description: |
+          ArgoCD application {{$labels.name}} is out of sync for more than 15 minutes.
+          Git state differs from cluster state.
+        summary: ArgoCD application out of sync
+      expr: |
+        argocd_app_info{sync_status!="Synced"} == 1
+      for: 15m
+      labels:
+        severity: warning
+
+    - alert: ArgoCDControllerUnhealthy
+      annotations:
+        description: |
+          ArgoCD application controller is unhealthy.
+          Applications may not be synchronized properly.
+        summary: ArgoCD controller is unhealthy
+      expr: |
+        sum(up{job="argocd-application-controller"}) == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: ArgoCDRepoServerUnhealthy
+      annotations:
+        description: |
+          ArgoCD repo server is unhealthy.
+          Git repositories cannot be accessed.
+        summary: ArgoCD repo server is unhealthy
+      expr: |
+        sum(up{job="argocd-repo-server"}) == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: ArgoCDAPIServerUnhealthy
+      annotations:
+        description: |
+          ArgoCD API server is unhealthy.
+          ArgoCD UI and CLI are unavailable.
+        summary: ArgoCD API server is unhealthy
+      expr: |
+        sum(up{job="argocd-server"}) == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: ArgoCDHighReconcileTime
+      annotations:
+        description: |
+          ArgoCD application {{$labels.name}} reconciliation time is high ({{ $value }}s).
+          Sync operations are taking longer than expected.
+        summary: ArgoCD high reconciliation time
+      expr: |
+        argocd_app_reconcile_duration_seconds > 300
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: ArgoCDGitOperationSlow
+      annotations:
+        description: |
+          ArgoCD Git operations are taking excessive time (>60s at p95).
+          This may indicate Git fetch/clone performance issues.
+        summary: ArgoCD Git operations are slow
+      expr: |
+        histogram_quantile(0.95,
+          rate(argocd_git_request_duration_seconds_bucket[5m])
+        ) > 60
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: ArgoCDRedisDown
+      annotations:
+        description: |
+          ArgoCD Redis cache is down.
+          ArgoCD performance will be degraded.
+        summary: ArgoCD Redis is down
+      expr: |
+        sum(up{job="argocd-redis"}) == 0
+      for: 5m
+      labels:
+        severity: warning

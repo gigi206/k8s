@@ -1,0 +1,14 @@
+---
+# Configuration Cilium Monitoring - Dev
+environment: dev
+appName: cilium-monitoring
+
+# Dashboard configuration
+dashboard:
+  folder: "Cilium"  # Subfolder under baseFolder for Cilium dashboards
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

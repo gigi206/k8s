@@ -52,7 +52,7 @@ egrep -A25 -- "^###.*10000$" benchmark.yaml | egrep -v \`
 ## Without ingress (LoadBalancer service)
 ### Without ingress (LoadBalancer service) 1
 ```shell
-hey -n 100000 -c 1 http://192.168.122.241
+hey -n 100000 -c 1 http://192.168.121.241
 
 Summary:
   Total:	10.4206 secs
@@ -101,7 +101,7 @@ Status code distribution:
 
 ### Without ingress (LoadBalancer service) 10
 ```shell
-hey -n 100000 -c 10 http://192.168.122.241
+hey -n 100000 -c 10 http://192.168.121.241
 
 Summary:
   Total:	2.6026 secs
@@ -150,7 +150,7 @@ Status code distribution:
 
 ### Without ingress (LoadBalancer service) 100
 ```shell
-hey -n 100000 -c 100 http://192.168.122.241
+hey -n 100000 -c 100 http://192.168.121.241
 
 Summary:
   Total:	2.1341 secs
@@ -199,7 +199,7 @@ Status code distribution:
 
 ### Without ingress (LoadBalancer service) 1000
 ```shell
-hey -n 1000000 -c 1000 http://192.168.122.241
+hey -n 1000000 -c 1000 http://192.168.121.241
 
 Summary:
   Total:	11.5561 secs
@@ -248,7 +248,7 @@ Status code distribution:
 
 ### Without ingress (LoadBalancer service) 10000
 ```shell
-hey -n 1000000 -c 10000 http://192.168.122.241
+hey -n 1000000 -c 10000 http://192.168.121.241
 
 Summary:
   Total:	22.5087 secs
@@ -543,8 +543,8 @@ Status code distribution:
 
 Error distribution:
   [717]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [20546]	Get "http://quote.gigix/": dial tcp 192.168.122.252:80: connect: cannot assign requested address
-  [7]	Get "http://quote.gigix/": dial tcp 192.168.122.252:80: connect: connection refused
+  [20546]	Get "http://quote.gigix/": dial tcp 192.168.121.252:80: connect: cannot assign requested address
+  [7]	Get "http://quote.gigix/": dial tcp 192.168.121.252:80: connect: connection refused
 ```
 
 
@@ -997,16 +997,16 @@ Status code distribution:
 
 Error distribution:
   [5412]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [90839]	Get "http://quote.gigix/": dial tcp 192.168.122.13:80: connect: connection refused
-  [10]	Get "http://quote.gigix/": dial tcp 192.168.122.13:80: connect: connection reset by peer
-  [3366]	Get "http://quote.gigix/": dial tcp 192.168.122.13:80: i/o timeout (Client.Timeout exceeded while awaiting headers)
-  [2]	Get "http://quote.gigix/": read tcp 192.168.122.1:32776->192.168.122.13:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.122.1:32782->192.168.122.13:80: read: connection reset by peer
-  [3]	Get "http://quote.gigix/": read tcp 192.168.122.1:32798->192.168.122.13:80: read: connection reset by peer
-  [2]	Get "http://quote.gigix/": read tcp 192.168.122.1:32802->192.168.122.13:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.122.1:32810->192.168.122.13:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.122.1:32812->192.168.122.13:80: read: connection reset by peer
-  [3]	Get "http://quote.gigix/": read tcp 192.168.122.1:32814->192.168.122.13:80: read: connection reset by peer
+  [90839]	Get "http://quote.gigix/": dial tcp 192.168.121.13:80: connect: connection refused
+  [10]	Get "http://quote.gigix/": dial tcp 192.168.121.13:80: connect: connection reset by peer
+  [3366]	Get "http://quote.gigix/": dial tcp 192.168.121.13:80: i/o timeout (Client.Timeout exceeded while awaiting headers)
+  [2]	Get "http://quote.gigix/": read tcp 192.168.121.1:32776->192.168.121.13:80: read: connection reset by peer
+  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:32782->192.168.121.13:80: read: connection reset by peer
+  [3]	Get "http://quote.gigix/": read tcp 192.168.121.1:32798->192.168.121.13:80: read: connection reset by peer
+  [2]	Get "http://quote.gigix/": read tcp 192.168.121.1:32802->192.168.121.13:80: read: connection reset by peer
+  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:32810->192.168.121.13:80: read: connection reset by peer
+  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:32812->192.168.121.13:80: read: connection reset by peer
+  [3]	Get "http://quote.gigix/": read tcp 192.168.121.1:32814->192.168.121.13:80: read: connection reset by peer
 ...
 ...
 ...
@@ -1259,10 +1259,10 @@ Status code distribution:
 
 Error distribution:
   [8626]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [363415]	Get "http://quote.gigix/": dial tcp 192.168.122.226:80: connect: connection refused
-  [1]	Get "http://quote.gigix/": read tcp 192.168.122.1:40612->192.168.122.226:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.122.1:40626->192.168.122.226:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.122.1:40640->192.168.122.226:80: read: connection reset by peer
+  [363415]	Get "http://quote.gigix/": dial tcp 192.168.121.226:80: connect: connection refused
+  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:40612->192.168.121.226:80: read: connection reset by peer
+  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:40626->192.168.121.226:80: read: connection reset by peer
+  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:40640->192.168.121.226:80: read: connection reset by peer
 ...
 ...
 ...
@@ -2002,8 +2002,8 @@ Status code distribution:
 
 Error distribution:
   [533]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [10880]	Get "http://quote.gigix/": dial tcp 192.168.122.236:80: connect: cannot assign requested address
-  [11]	Get "http://quote.gigix/": dial tcp 192.168.122.236:80: connect: connection refused
+  [10880]	Get "http://quote.gigix/": dial tcp 192.168.121.236:80: connect: cannot assign requested address
+  [11]	Get "http://quote.gigix/": dial tcp 192.168.121.236:80: connect: connection refused
 ```
 
 

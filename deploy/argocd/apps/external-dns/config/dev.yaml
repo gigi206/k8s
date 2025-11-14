@@ -1,0 +1,55 @@
+---
+# Configuration External-DNS - Dev
+environment: dev
+appName: external-dns
+
+
+# versions:
+#   externalDns: "1.19.0"
+
+externalDns:
+  # Provider: cloudflare, aws, google, coredns, etc.
+  # Use "coredns" for local DNS with etcd backend
+  provider: "coredns"
+
+  # TXT owner ID
+  txtOwnerId: "external-dns-dev"
+
+  # Sources to watch (service, ingress, crd, istio-gateway, etc.)
+  sources:
+    - "service"
+    - "ingress"
+    - "crd"
+
+  # Sync interval
+  interval: "30s"
+
+  # Policy: sync or upsert-only
+  policy: "sync"
+
+  # RBAC
+  rbac:
+    create: true
+
+  # CRD support
+  crd:
+    create: true
+
+  # CoreDNS configuration (only when provider=coredns)
+  coredns:
+    enabled: true
+    replicas: 1
+    serviceType: "LoadBalancer"
+    # MetalLB IP for external-dns CoreDNS service
+    loadBalancerIP: "192.168.121.201"
+
+  # etcd configuration (only when provider=coredns)
+  etcd:
+    enabled: true
+    replicas: 1
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

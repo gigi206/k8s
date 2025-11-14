@@ -1,0 +1,27 @@
+---
+# Configuration NGINX Gateway Fabric - Prod
+environment: prod
+appName: nginx-gateway-fabric
+
+versions:
+  nginxGatewayFabric: "v1.5.1"
+
+nginxGatewayFabric:
+  replicas: 2             # HA en prod
+  serviceType: LoadBalancer
+  gatewayClassName: nginx-gwf
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+syncPolicy:
+  automated:
+    enabled: false        # Sync manuel en prod
+    prune: true
+    selfHeal: false
+  syncOptions:
+    - CreateNamespace=true

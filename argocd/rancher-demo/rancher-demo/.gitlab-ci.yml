@@ -1,8 +1,0 @@
-helm-lint:
-  image: lwolf/helm-kubectl-docker:latest
-  stage: test
-  script:
-    - helm lint charts/rancher-demo-helm/0.1.0/
-    - helm lint charts/rancher-demo-helm/0.2.0/
-  except:
-    - master

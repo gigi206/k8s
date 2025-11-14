@@ -1,0 +1,207 @@
+---
+# =============================================================================
+# Prometheus Stack Health Monitoring
+# =============================================================================
+# PrometheusRule pour alertes sur la santé du monitoring stack lui-même
+# Note: The 'release' label is injected by Kustomize via commonLabels
+#       from features.monitoring.release in config.yaml
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: prometheus-stack-health-rules
+  namespace: monitoring
+  labels:
+    prometheus: prometheus-stack
+    role: alert-rules
+spec:
+  groups:
+  - name: prometheus-stack-health.rules
+    interval: 30s
+    rules:
+    - alert: PrometheusDown
+      annotations:
+        description: |
+          Prometheus instance {{ $labels.instance }} is down.
+          No metrics are being collected.
+        summary: Prometheus is down
+      expr: up{job="prometheus-stack-kube-prom-prometheus"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: PrometheusHighMemory
+      annotations:
+        description: |
+          Prometheus instance {{ $labels.instance }} memory usage is {{ $value | humanizePercentage }}.
+          May cause OOMKill or degraded performance.
+        summary: Prometheus high memory usage
+      expr: |
+        (process_resident_memory_bytes{job="prometheus-stack-kube-prom-prometheus"} /
+         on(pod) group_left() kube_pod_container_resource_limits{resource="memory", container="prometheus"}) > 0.9
+      for: 15m
+      labels:
+        severity: warning
+
+    - alert: PrometheusDiskFull
+      annotations:
+        description: |
+          Prometheus instance {{ $labels.instance }} disk usage is {{ $value | humanizePercentage }}.
+          Storage is running out of space.
+        summary: Prometheus disk is almost full
+      expr: |
+        (prometheus_tsdb_storage_blocks_bytes /
+         prometheus_tsdb_retention_limit_bytes{job="prometheus-stack-kube-prom-prometheus"}) > 0.9
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: PrometheusConfigReloadFailed
+      annotations:
+        description: |
+          Prometheus instance {{ $labels.instance }} config reload has failed.
+          Configuration changes are not applied.
+        summary: Prometheus config reload failed
+      expr: prometheus_config_last_reload_successful{job="prometheus-stack-kube-prom-prometheus"} == 0
+      for: 5m
+      labels:
+        severity: warning
+
+    - alert: PrometheusTSDBCompactionsFailed
+      annotations:
+        description: |
+          Prometheus instance {{ $labels.instance }} TSDB compactions are failing.
+          Disk usage may increase.
+        summary: Prometheus TSDB compactions failed
+      expr: rate(prometheus_tsdb_compactions_failed_total{job="prometheus-stack-kube-prom-prometheus"}[5m]) > 0
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: PrometheusNotConnectedToAlertmanagers
+      annotations:
+        description: |
+          Prometheus instance {{ $labels.instance }} is not connected to any Alertmanagers.
+          Alerts will not be sent.
+        summary: Prometheus not connected to Alertmanagers
+      expr: |
+        min by(job, instance) (prometheus_notifications_alertmanagers_discovered{job="prometheus-stack-kube-prom-prometheus"}) < 1
+      for: 10m
+      labels:
+        severity: critical
+
+    - alert: GrafanaDown
+      annotations:
+        description: |
+          Grafana instance is down.
+          Dashboards are not accessible.
+        summary: Grafana is down
+      expr: up{job="prometheus-stack-grafana"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: GrafanaHighMemory
+      annotations:
+        description: |
+          Grafana instance {{ $labels.instance }} memory usage is {{ $value | humanizePercentage }}.
+          May cause OOMKill or degraded performance.
+        summary: Grafana high memory usage
+      expr: |
+        (process_resident_memory_bytes{job="prometheus-stack-grafana"} /
+         on(pod) group_left() kube_pod_container_resource_limits{resource="memory", container="grafana"}) > 0.9
+      for: 15m
+      labels:
+        severity: warning
+
+    - alert: AlertmanagerDown
+      annotations:
+        description: |
+          Alertmanager instance {{ $labels.instance }} is down.
+          Alerts will not be sent.
+        summary: Alertmanager is down
+      expr: up{job="prometheus-stack-kube-prom-alertmanager"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: AlertmanagerConfigInconsistent
+      annotations:
+        description: |
+          Alertmanager instances have inconsistent configuration.
+          Alerting behavior may be unpredictable.
+        summary: Alertmanager config inconsistent
+      expr: |
+        count by(job) (count by(job, config_hash) (alertmanager_config_hash{job="prometheus-stack-kube-prom-alertmanager"})) > 1
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: AlertmanagerClusterDown
+      annotations:
+        description: |
+          Alertmanager cluster has {{ $value }} healthy members.
+          High availability is compromised.
+        summary: Alertmanager cluster degraded
+      expr: |
+        avg by(job) (alertmanager_cluster_members{job="prometheus-stack-kube-prom-alertmanager"}) < 2
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: AlertmanagerFailedToSendAlerts
+      annotations:
+        description: |
+          Alertmanager instance {{ $labels.instance }} is failing to send alerts.
+          Check notification config and receivers.
+        summary: Alertmanager failed to send alerts
+      expr: |
+        rate(alertmanager_notifications_failed_total{job="prometheus-stack-kube-prom-alertmanager"}[5m]) > 0
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: NodeExporterDown
+      annotations:
+        description: |
+          Node Exporter on {{ $labels.instance }} is down.
+          Node metrics are not being collected.
+        summary: Node Exporter is down
+      expr: up{job="prometheus-stack-prometheus-node-exporter"} == 0
+      for: 5m
+      labels:
+        severity: warning
+
+    - alert: KubeStateMetricsDown
+      annotations:
+        description: |
+          Kube-State-Metrics is down.
+          Kubernetes object metrics are not being collected.
+        summary: Kube-State-Metrics is down
+      expr: up{job="prometheus-stack-kube-state-metrics"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: PrometheusOperatorDown
+      annotations:
+        description: |
+          Prometheus Operator is down.
+          ServiceMonitors and PrometheusRules will not be processed.
+        summary: Prometheus Operator is down
+      expr: up{job="prometheus-stack-kube-prom-operator"} == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: PrometheusRuleFailures
+      annotations:
+        description: |
+          Prometheus instance {{ $labels.instance }} has failed to evaluate {{ $value }} rules.
+          Some alerts may not fire.
+        summary: Prometheus rule evaluation failures
+      expr: increase(prometheus_rule_evaluation_failures_total{job="prometheus-stack-kube-prom-prometheus"}[5m]) > 0
+      for: 10m
+      labels:
+        severity: warning

@@ -1,8 +1,0 @@
-[submodule "rke2/offline/install/external-snapshotter/git/external-snapshotter"]
-	path = rke2/offline/install/external-snapshotter/git/external-snapshotter
-	url = https://github.com/kubernetes-csi/external-snapshotter
-	branch = master
-[submodule "rke2/offline/install/local-path-provisioner/git/local-path-provisioner"]
-	path = rke2/offline/install/local-path-provisioner/git/local-path-provisioner
-	url = https://github.com/rancher/local-path-provisioner
-	branch = master

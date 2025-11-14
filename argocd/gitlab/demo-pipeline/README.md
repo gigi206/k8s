@@ -1,3 +1,0 @@
-# Demo
-
-Simple demo pipeline

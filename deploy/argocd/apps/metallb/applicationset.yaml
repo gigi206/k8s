@@ -1,0 +1,121 @@
+---
+# =============================================================================
+# MetalLB ApplicationSet - Wave 10 (Load Balancer)
+# =============================================================================
+# Déploie MetalLB pour fournir des IPs LoadBalancer dans un cluster bare-metal
+# Docs: https://metallb.universe.tf/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: metallb
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/metallb/config/*.yaml
+
+  template:
+    metadata:
+      name: metallb
+      namespace: argo-cd
+      # labels:
+      #   app: metallb
+      #   environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "10"
+    spec:
+      project: default
+
+      sources:
+        # Source 1: Chart Helm MetalLB
+        - repoURL: https://metallb.github.io/metallb
+          targetRevision: '{{ .versions.metallb }}'
+          chart: metallb
+          helm:
+            parameters:
+              - name: speaker.frr.enabled
+                value: "false"
+
+        # Source 2: Ressources MetalLB (IPAddressPool, L2Advertisement)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: 'deploy/argocd/apps/{{ .appName }}/resources'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: metallb-system
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      {{- if .features.monitoring.enabled }}
+      sources:
+        # Source 1: Chart Helm MetalLB
+        - repoURL: https://metallb.github.io/metallb
+          targetRevision: '{{ .versions.metallb }}'
+          chart: metallb
+          helm:
+            parameters:
+              - name: speaker.frr.enabled
+                value: "false"
+
+        # Source 2: Ressources MetalLB (IPAddressPool, L2Advertisement)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: 'deploy/argocd/apps/{{ .appName }}/resources'
+          directory:
+            include: "*.yaml"
+            exclude: "prometheus.yaml"
+
+        # Source 3: Services pour métriques (sans label release dans selectors)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/kustomize/services
+
+        # Source 4: ServiceMonitors et PrometheusRules (avec label release)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/kustomize/monitors
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+      {{- end }}

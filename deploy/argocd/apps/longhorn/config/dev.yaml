@@ -1,0 +1,37 @@
+---
+# Configuration Longhorn - Dev
+environment: dev
+appName: longhorn
+
+# Dashboard configuration
+dashboard:
+  folder: "Longhorn"  # Sous-dossier pour les dashboards Longhorn
+
+# versions:
+#   longhorn: "1.10.0"
+
+longhorn:
+  # CSI Components (dev: minimal replicas)
+  csi:
+    attacherReplicaCount: 1
+    provisionerReplicaCount: 1
+    resizerReplicaCount: 1
+    snapshotterReplicaCount: 1
+
+  # Storage Settings (dev: single replica)
+  defaultSettings:
+    defaultReplicaCount: "1"
+    defaultDataPath: "/var/lib/longhorn"
+  persistence:
+    defaultClass: "true"
+    defaultClassReplicaCount: "1"
+
+  # UI (dev: single instance)
+  ui:
+    replicas: 1
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

@@ -1,0 +1,91 @@
+---
+# =============================================================================
+# Kube-VIP ApplicationSet - Wave 15 (Load Balancer for API Server)
+# =============================================================================
+# Déploie Kube-VIP pour fournir une VIP HA pour l'API Kubernetes
+# Docs: https://kube-vip.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: kube-vip
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "15"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/kube-vip/config/*.yaml
+
+  template:
+    metadata:
+      name: kube-vip
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "15"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/gigi206/k8s
+        targetRevision: '{{ .git.revision }}'
+        path: 'deploy/argocd/apps/{{ .appName }}/resources'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: kube-system
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      {{- if .features.monitoring.enabled }}
+      sources:
+        # Source 1: Kube-VIP resources (RBAC, DaemonSet)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: 'deploy/argocd/apps/{{ .appName }}/resources'
+
+        # Source 2: PrometheusRules (avec label release)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kube-vip/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+      {{- end }}

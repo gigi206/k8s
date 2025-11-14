@@ -1,0 +1,21 @@
+---
+# Configuration NGINX Gateway Fabric - Dev
+environment: dev
+appName: nginx-gateway-fabric
+
+versions:
+  nginxGatewayFabric: "v1.5.1"
+
+nginxGatewayFabric:
+  replicas: 1
+  serviceType: LoadBalancer
+  gatewayClassName: nginx-gwf  # Différent de "nginx" pour éviter conflit avec nginx-ingress
+  resources: {}  # Pas de limits/requests en dev (défini en prod)
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=true

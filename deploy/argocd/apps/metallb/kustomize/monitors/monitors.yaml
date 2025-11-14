@@ -1,0 +1,146 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: metallb-speaker
+  namespace: metallb-system
+  labels:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/component: speaker
+    # Note: label 'release' ajouté dynamiquement par kustomize.commonLabels dans ApplicationSet
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: metallb
+      app.kubernetes.io/component: speaker
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: metallb-controller
+  namespace: metallb-system
+  labels:
+    app.kubernetes.io/name: metallb
+    app.kubernetes.io/component: controller
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: metallb
+      app.kubernetes.io/component: controller
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: metallb-prometheus-rules
+  namespace: metallb-system
+  labels:
+    prometheus: metallb
+    role: alert-rules
+spec:
+  groups:
+  - name: metallb.rules
+    interval: 30s
+    rules:
+    - alert: MetalLBControllerDown
+      annotations:
+        description: |
+          MetalLB controller has been down for more than 5 minutes.
+          No new LoadBalancer IP allocations can be performed.
+        summary: MetalLB controller is down
+      expr: absent(up{job="metallb-controller-metrics"}) == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: MetalLBSpeakerDown
+      annotations:
+        description: |
+          MetalLB speaker pod is down on node {{ $labels.instance }}.
+          LoadBalancer services may not be reachable on this node.
+        summary: MetalLB speaker is down
+      expr: up{job="metallb-speaker-metrics"} == 0
+      for: 2m
+      labels:
+        severity: warning
+
+    - alert: MetalLBAllSpeakersDown
+      annotations:
+        description: |
+          All MetalLB speaker pods are down.
+          All LoadBalancer services are unreachable.
+        summary: All MetalLB speakers are down
+      expr: absent(up{job="metallb-speaker-metrics"}) == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: MetalLBIPPoolExhausted
+      annotations:
+        description: |
+          IP address pool "{{ $labels.pool }}" is exhausted.
+          No more IPs available for new LoadBalancer services.
+        summary: MetalLB IP pool exhausted
+      expr: |
+        (metallb_allocator_addresses_in_use_total / metallb_allocator_addresses_total) > 0.9
+        and metallb_allocator_addresses_total > 1
+      for: 5m
+      labels:
+        severity: warning
+
+    - alert: MetalLBIPPoolFull
+      annotations:
+        description: |
+          IP address pool "{{ $labels.pool }}" is completely full (100%).
+          Cannot allocate IPs for new LoadBalancer services.
+        summary: MetalLB IP pool completely full
+      expr: |
+        (metallb_allocator_addresses_in_use_total / metallb_allocator_addresses_total) >= 1
+        and metallb_allocator_addresses_total > 1
+      for: 1m
+      labels:
+        severity: critical
+
+    - alert: MetalLBBGPSessionDown
+      annotations:
+        description: |
+          BGP session to peer {{ $labels.peer }} is down.
+          LoadBalancer routes may not be advertised.
+        summary: MetalLB BGP session is down
+      expr: metallb_bgp_session_up == 0
+      for: 2m
+      labels:
+        severity: warning
+
+    - alert: MetalLBStaleConfig
+      annotations:
+        description: |
+          MetalLB configuration has not been updated successfully.
+          Configuration changes may not be applied.
+        summary: MetalLB has stale configuration
+      expr: metallb_k8s_client_config_stale_bool == 1
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: MetalLBMetricsMissing
+      annotations:
+        description: |
+          MetalLB has not reported any metrics data for the past 10 minutes.
+          The controller or speaker may be down.
+        summary: '[MetalLB] No reported metrics'
+      expr: |
+        absent(metallb_allocator_addresses_total) and
+        absent(up{job=~"metallb.*"})
+      for: 10m
+      labels:
+        severity: critical

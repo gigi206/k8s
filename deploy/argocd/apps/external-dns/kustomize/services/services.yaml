@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# External-DNS Prometheus Monitoring
+# =============================================================================
+# ServiceMonitor et PrometheusRule pour alertes External-DNS
+# Docs: https://github.com/kubernetes-sigs/external-dns/blob/master/docs/faq.md#how-can-i-run-external-dns-under-a-specific-gid
+# Metrics: port 7979, endpoint /metrics
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-dns-metrics
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/name: external-dns
+spec:
+  ports:
+  - name: metrics
+    port: 7979
+    targetPort: http  # Nom du port dans le pod
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: external-dns
+  type: ClusterIP
+

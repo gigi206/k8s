@@ -1,0 +1,154 @@
+---
+# =============================================================================
+# Longhorn ApplicationSet - Wave 60 (Distributed Storage)
+# =============================================================================
+# Déploie Longhorn pour fournir du stockage persistant distribué
+# Docs: https://longhorn.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: longhorn
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "60"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/longhorn/config/*.yaml
+
+  template:
+    metadata:
+      name: longhorn
+      namespace: argo-cd
+      # labels:
+      #   app: longhorn
+      #   environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "60"
+    spec:
+      project: default
+
+      sources:
+        # Source 1: Longhorn Helm Chart
+        - repoURL: https://charts.longhorn.io
+          targetRevision: '{{ .versions.longhorn }}'
+          chart: longhorn
+          helm:
+            valueFiles:
+              - $values/deploy/argocd/apps/longhorn/resources/values.yaml
+        # Source 2: Values reference
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          ref: values
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: longhorn-system
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source 3: Prometheus monitoring + Grafana dashboard (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+        # Source 1: Longhorn Helm Chart
+        - repoURL: https://charts.longhorn.io
+          targetRevision: '{{ .versions.longhorn }}'
+          chart: longhorn
+          helm:
+            valueFiles:
+              - $values/deploy/argocd/apps/longhorn/resources/values.yaml
+            values: |
+              metrics:
+                serviceMonitor:
+                  enabled: {{ .features.monitoring.enabled }}
+                  {{- if .features.monitoring.enabled }}
+                  additionalLabels:
+                    release: '{{ .features.monitoring.release }}'
+                  {{- end }}
+              {{- if .longhorn.csi }}
+              csi:
+                attacherReplicaCount: {{ .longhorn.csi.attacherReplicaCount }}
+                provisionerReplicaCount: {{ .longhorn.csi.provisionerReplicaCount }}
+                resizerReplicaCount: {{ .longhorn.csi.resizerReplicaCount }}
+                snapshotterReplicaCount: {{ .longhorn.csi.snapshotterReplicaCount }}
+              {{- end }}
+              {{- if .longhorn.ui }}
+              longhornUI:
+                replicas: {{ .longhorn.ui.replicas }}
+              {{- end }}
+              {{- if .longhorn.defaultSettings }}
+              defaultSettings:
+                defaultReplicaCount: {{ .longhorn.defaultSettings.defaultReplicaCount | quote }}
+                {{- if and .longhorn.defaultSettings (hasKey .longhorn.defaultSettings "backupTarget") }}
+                backupTarget: {{ .longhorn.defaultSettings.backupTarget | quote }}
+                {{- end }}
+              {{- end }}
+              {{- if .longhorn.persistence }}
+              persistence:
+                defaultClassReplicaCount: {{ .longhorn.persistence.defaultClassReplicaCount | quote }}
+              {{- end }}
+              {{- if .features.ingress.enabled }}
+              ingress:
+                enabled: true
+                host: longhorn.{{ .common.domain }}
+                ingressClassName: {{ .features.ingress.class }}
+                {{- if .features.certManager.enabled }}
+                tls: true
+                tlsSecret: longhorn-cert-tls
+                annotations:
+                  cert-manager.io/cluster-issuer: {{ .common.clusterIssuer }}
+                {{- end }}
+              {{- end }}
+        # Source 2: Values reference
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          ref: values

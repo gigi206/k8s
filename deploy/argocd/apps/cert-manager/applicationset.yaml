@@ -1,0 +1,201 @@
+---
+# =============================================================================
+# Cert-Manager ApplicationSet - Wave 20 (Certificate Management)
+# =============================================================================
+# Déploie Cert-Manager pour gérer automatiquement les certificats TLS
+# Docs: https://cert-manager.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cert-manager
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/cert-manager/config/*.yaml
+
+  template:
+    metadata:
+      name: cert-manager
+      namespace: argo-cd
+      # labels:
+      #   app: cert-manager
+      #   environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "20"
+    spec:
+      project: default
+
+      sources:
+        # Source 1: Chart Helm Cert-Manager
+        - repoURL: https://charts.jetstack.io
+          targetRevision: '{{ .versions.certManager }}'
+          chart: cert-manager
+          helm:
+            parameters:
+              - name: crds.enabled
+                value: "true"
+              - name: crds.keep
+                value: "true"
+              - name: prometheus.enabled
+                value: '{{ .features.monitoring.enabled }}'
+
+        # Source 2: ClusterIssuers (Let's Encrypt, Self-Signed)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: 'deploy/argocd/apps/{{ .appName }}/resources'
+          directory:
+            include: "*.yaml"
+            exclude: "{prometheus.yaml,grafana-dashboard.yaml}"
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: cert-manager
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source 3: Prometheus monitoring (conditional) - with dynamic release label
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cert-manager/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+        - repoURL: https://charts.jetstack.io
+          targetRevision: '{{ .versions.certManager }}'
+          chart: cert-manager
+          helm:
+            parameters:
+            # CRDs installation (required)
+            - name: crds.enabled
+              value: "true"
+            - name: crds.keep
+              value: "true"
+
+            # Prometheus metrics
+            - name: prometheus.enabled
+              value: '{{ .features.monitoring.enabled }}'
+            - name: prometheus.servicemonitor.enabled
+              value: '{{ .features.monitoring.enabled }}'
+            - name: prometheus.servicemonitor.labels.release
+              value: '{{ .features.monitoring.release }}'
+
+            # Gateway API support (since v1.15+, no longer experimental)
+            {{- if .certManager.gatewayAPI.enabled }}
+            - name: config.enableGatewayAPI
+              value: "true"
+            {{- end }}
+
+            # Controller replicas and resources
+            {{- if .certManager.replicas }}
+            - name: replicaCount
+              value: "{{ .certManager.replicas }}"
+            {{- end }}
+            {{- if .certManager.resources }}
+            - name: resources.requests.cpu
+              value: '{{ .certManager.resources.requests.cpu }}'
+            - name: resources.requests.memory
+              value: '{{ .certManager.resources.requests.memory }}'
+            - name: resources.limits.cpu
+              value: '{{ .certManager.resources.limits.cpu }}'
+            - name: resources.limits.memory
+              value: '{{ .certManager.resources.limits.memory }}'
+            {{- end }}
+
+            # Webhook configuration
+            {{- if .certManager.webhook.replicas }}
+            - name: webhook.replicaCount
+              value: "{{ .certManager.webhook.replicas }}"
+            {{- end }}
+            {{- if .certManager.webhook.resources }}
+            - name: webhook.resources.requests.cpu
+              value: '{{ .certManager.webhook.resources.requests.cpu }}'
+            - name: webhook.resources.requests.memory
+              value: '{{ .certManager.webhook.resources.requests.memory }}'
+            - name: webhook.resources.limits.cpu
+              value: '{{ .certManager.webhook.resources.limits.cpu }}'
+            - name: webhook.resources.limits.memory
+              value: '{{ .certManager.webhook.resources.limits.memory }}'
+            {{- end }}
+
+            # CA Injector configuration
+            {{- if .certManager.cainjector.replicas }}
+            - name: cainjector.replicaCount
+              value: "{{ .certManager.cainjector.replicas }}"
+            {{- end }}
+            {{- if .certManager.cainjector.resources }}
+            - name: cainjector.resources.requests.cpu
+              value: '{{ .certManager.cainjector.resources.requests.cpu }}'
+            - name: cainjector.resources.requests.memory
+              value: '{{ .certManager.cainjector.resources.requests.memory }}'
+            - name: cainjector.resources.limits.cpu
+              value: '{{ .certManager.cainjector.resources.limits.cpu }}'
+            - name: cainjector.resources.limits.memory
+              value: '{{ .certManager.cainjector.resources.limits.memory }}'
+            {{- end }}
+
+            # Startup API Check
+            {{- if .certManager.startupapicheck.resources }}
+            - name: startupapicheck.resources.requests.cpu
+              value: '{{ .certManager.startupapicheck.resources.requests.cpu }}'
+            - name: startupapicheck.resources.requests.memory
+              value: '{{ .certManager.startupapicheck.resources.requests.memory }}'
+            - name: startupapicheck.resources.limits.cpu
+              value: '{{ .certManager.startupapicheck.resources.limits.cpu }}'
+            - name: startupapicheck.resources.limits.memory
+              value: '{{ .certManager.startupapicheck.resources.limits.memory }}'
+            {{- end }}
+        # Source 2: ClusterIssuers (Let's Encrypt, Self-Signed)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: 'deploy/argocd/apps/{{ .appName }}/resources'
+          directory:
+            include: "*.yaml"
+            exclude: "{prometheus.yaml,grafana-dashboard.yaml}"

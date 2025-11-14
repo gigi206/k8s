@@ -1,0 +1,284 @@
+---
+# =============================================================================
+# Prometheus-Stack ApplicationSet - Wave 75 (Monitoring)
+# =============================================================================
+# Déploie la stack complète de monitoring: Prometheus, Grafana, Alertmanager
+# Docs: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+# Note: Wave 75 pour laisser le temps à Longhorn (Wave 60) de stabiliser la StorageClass
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: prometheus-stack
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "75"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+            # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+            # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/prometheus-stack/config/*.yaml
+
+  template:
+    metadata:
+      name: prometheus-stack
+      namespace: argo-cd
+      # labels:
+      #   app: prometheus-stack
+      #   environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "75"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://prometheus-community.github.io/helm-charts
+        targetRevision: '{{ .versions.prometheusStack }}'
+        chart: kube-prometheus-stack
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: monitoring
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source 2: Prometheus health alerts (conditional) - with dynamic release label
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}
+        # Source 1: Helm chart with dynamic parameters
+        - repoURL: https://prometheus-community.github.io/helm-charts
+          targetRevision: '{{ .versions.prometheusStack }}'
+          chart: kube-prometheus-stack
+          helm:
+            parameters:
+            # Base parameters (must be here because templatePatch overwrites template)
+            # Prometheus: retention and storage
+            - name: prometheus.prometheusSpec.retention
+              value: '{{ .prometheusStack.prometheus.retention | default "7d" }}'
+            - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage
+              value: '{{ .prometheusStack.prometheus.storageSize | default "5Gi" }}'
+            - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName
+              value: '{{ .features.storage.class | default "longhorn" }}'
+            - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]
+              value: "ReadWriteOnce"
+
+            # Grafana: admin password
+            - name: grafana.adminPassword
+              value: '{{ .prometheusStack.grafana.adminPassword | default "admin" }}'
+
+            # Grafana: persistence (enabled automatiquement si features.storage.enabled)
+            - name: grafana.persistence.enabled
+              value: '{{ .features.storage.enabled }}'
+            {{- if .features.storage.enabled }}
+            - name: grafana.persistence.storageClassName
+              value: '{{ .features.storage.class }}'
+            - name: grafana.persistence.size
+              value: '{{ .prometheusStack.grafana.persistence.size | default "1Gi" }}'
+            {{- end }}
+
+            # Grafana: readiness probe
+            - name: grafana.readinessProbe.timeoutSeconds
+              value: '{{ .prometheusStack.grafana.readinessProbe.timeoutSeconds | default "5" }}'
+
+            # Grafana: sidecar dashboards
+            - name: grafana.sidecar.dashboards.enabled
+              value: '{{ .prometheusStack.grafana.sidecar.dashboards.enabled | default "true" }}'
+            - name: grafana.sidecar.dashboards.folderAnnotation
+              value: '{{ .features.monitoring.dashboard.folderAnnotation }}'
+            - name: grafana.sidecar.dashboards.annotations.grafana_dashboard_folder
+              value: '{{ .features.monitoring.dashboard.baseFolder }}/{{ .prometheusStack.grafana.sidecar.dashboards.folder }}'
+            - name: grafana.sidecar.dashboards.provider.foldersFromFilesStructure
+              value: '{{ .prometheusStack.grafana.sidecar.dashboards.provider.foldersFromFilesStructure | default "true" }}'
+
+            # Grafana: ServiceMonitor
+            - name: grafana.serviceMonitor.enabled
+              value: '{{ .prometheusStack.grafana.serviceMonitor.enabled | default "true" }}'
+            - name: grafana.serviceMonitor.labels.release
+              value: '{{ .features.monitoring.release }}'
+
+            # Alertmanager
+            - name: alertmanager.enabled
+              value: '{{ .prometheusStack.alertmanager.enabled | default "false" }}'
+
+            # Node Exporter: disable non-Linux dashboards
+            - name: nodeExporter.operatingSystems.linux.enabled
+              value: "true"
+            - name: nodeExporter.operatingSystems.darwin.enabled
+              value: "false"
+            - name: nodeExporter.operatingSystems.aix.enabled
+              value: "false"
+
+            # Kube-proxy: disable (Cilium replaces kube-proxy)
+            - name: kubeProxy.enabled
+              value: "false"
+
+            # Prometheus: replicas and resources
+            {{- if .prometheusStack.prometheus.replicas }}
+            - name: prometheus.prometheusSpec.replicas
+              value: "{{ .prometheusStack.prometheus.replicas }}"
+            {{- end }}
+            {{- if .prometheusStack.prometheus.resources }}
+            - name: prometheus.prometheusSpec.resources.requests.cpu
+              value: '{{ .prometheusStack.prometheus.resources.requests.cpu }}'
+            - name: prometheus.prometheusSpec.resources.requests.memory
+              value: '{{ .prometheusStack.prometheus.resources.requests.memory }}'
+            - name: prometheus.prometheusSpec.resources.limits.cpu
+              value: '{{ .prometheusStack.prometheus.resources.limits.cpu }}'
+            - name: prometheus.prometheusSpec.resources.limits.memory
+              value: '{{ .prometheusStack.prometheus.resources.limits.memory }}'
+            {{- end }}
+
+            # Prometheus: ingress
+            {{- if .prometheusStack.prometheus.ingress }}
+            {{- if .prometheusStack.prometheus.ingress.enabled }}
+            - name: prometheus.ingress.enabled
+              value: "true"
+            - name: prometheus.ingress.ingressClassName
+              value: '{{ .features.ingress.class }}'
+            - name: prometheus.ingress.hosts[0]
+              value: 'prometheus.{{ .common.domain }}'
+            {{- if .features.certManager.enabled }}
+            - name: prometheus.ingress.annotations.cert-manager\.io/cluster-issuer
+              value: '{{ .common.clusterIssuer }}'
+            - name: prometheus.ingress.tls[0].secretName
+              value: prometheus-cert-tls
+            - name: prometheus.ingress.tls[0].hosts[0]
+              value: 'prometheus.{{ .common.domain }}'
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
+            # Grafana: replicas and resources
+            {{- if .prometheusStack.grafana.replicas }}
+            - name: grafana.replicas
+              value: "{{ .prometheusStack.grafana.replicas }}"
+            {{- end }}
+            {{- if .prometheusStack.grafana.resources }}
+            - name: grafana.resources.requests.cpu
+              value: '{{ .prometheusStack.grafana.resources.requests.cpu }}'
+            - name: grafana.resources.requests.memory
+              value: '{{ .prometheusStack.grafana.resources.requests.memory }}'
+            - name: grafana.resources.limits.cpu
+              value: '{{ .prometheusStack.grafana.resources.limits.cpu }}'
+            - name: grafana.resources.limits.memory
+              value: '{{ .prometheusStack.grafana.resources.limits.memory }}'
+            {{- end }}
+
+            # Grafana: ingress
+            {{- if .prometheusStack.grafana.ingress }}
+            {{- if .prometheusStack.grafana.ingress.enabled }}
+            - name: grafana.ingress.enabled
+              value: "true"
+            - name: grafana.ingress.ingressClassName
+              value: '{{ .features.ingress.class }}'
+            - name: grafana.ingress.hosts[0]
+              value: 'grafana.{{ .common.domain }}'
+            {{- if .features.certManager.enabled }}
+            - name: grafana.ingress.annotations.cert-manager\.io/cluster-issuer
+              value: '{{ .common.clusterIssuer }}'
+            - name: grafana.ingress.tls[0].secretName
+              value: grafana-cert-tls
+            - name: grafana.ingress.tls[0].hosts[0]
+              value: 'grafana.{{ .common.domain }}'
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
+            # Alertmanager: enabled and replicas
+            {{- if .prometheusStack.alertmanager.enabled }}
+            - name: alertmanager.alertmanagerSpec.replicas
+              value: '{{ .prometheusStack.alertmanager.replicas | default "1" }}'
+
+            # Alertmanager: ingress
+            {{- if .prometheusStack.alertmanager.ingress }}
+            {{- if .prometheusStack.alertmanager.ingress.enabled }}
+            - name: alertmanager.ingress.enabled
+              value: "true"
+            - name: alertmanager.ingress.ingressClassName
+              value: '{{ .features.ingress.class }}'
+            - name: alertmanager.ingress.hosts[0]
+              value: 'alertmanager.{{ .common.domain }}'
+            {{- if .features.certManager.enabled }}
+            - name: alertmanager.ingress.annotations.cert-manager\.io/cluster-issuer
+              value: '{{ .common.clusterIssuer }}'
+            - name: alertmanager.ingress.tls[0].secretName
+              value: alertmanager-cert-tls
+            - name: alertmanager.ingress.tls[0].hosts[0]
+              value: 'alertmanager.{{ .common.domain }}'
+            {{- end }}
+            {{- end }}
+
+            # Alertmanager: resources
+            {{- if .prometheusStack.alertmanager.resources }}
+            - name: alertmanager.alertmanagerSpec.resources.requests.cpu
+              value: '{{ .prometheusStack.alertmanager.resources.requests.cpu }}'
+            - name: alertmanager.alertmanagerSpec.resources.requests.memory
+              value: '{{ .prometheusStack.alertmanager.resources.requests.memory }}'
+            - name: alertmanager.alertmanagerSpec.resources.limits.cpu
+              value: '{{ .prometheusStack.alertmanager.resources.limits.cpu }}'
+            - name: alertmanager.alertmanagerSpec.resources.limits.memory
+              value: '{{ .prometheusStack.alertmanager.resources.limits.memory }}'
+            {{- end }}
+
+            # Alertmanager: storage
+            {{- if .prometheusStack.alertmanager.storage }}
+            - name: alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.storageClassName
+              value: '{{ .features.storage.class }}'
+            - name: alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage
+              value: '{{ .prometheusStack.alertmanager.storage.size }}'
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
+            # Grafana: grafana.ini configuration (via valuesObject pour structure imbriquée)
+            # Note: Grafana 12+ a supprimé Legacy Alerting, seul unified_alerting est disponible
+            valuesObject:
+              grafana:
+                grafana.ini:
+                  analytics:
+                    check_for_updates: {{ .prometheusStack.grafana.grafanaIni.analytics.check_for_updates | default false }}
+                  unified_alerting:
+                    enabled: {{ .prometheusStack.grafana.grafanaIni.unified_alerting.enabled | default true }}

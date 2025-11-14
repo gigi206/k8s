@@ -1,0 +1,76 @@
+---
+# =============================================================================
+# Gateway API Controller ApplicationSet - Wave 15 (API Gateway CRDs)
+# =============================================================================
+# Déploie les Gateway API CRDs (requis pour cert-manager Gateway API support)
+# Docs: https://gateway-api.sigs.k8s.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gateway-api-controller
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "15"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/gateway-api-controller/config/*.yaml
+
+  template:
+    metadata:
+      name: gateway-api-controller
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "15"
+    spec:
+      project: default
+
+      source:
+        repoURL: 'https://github.com/kubernetes-sigs/gateway-api/'
+        targetRevision: '{{ .versions.gatewayApiController }}'
+        path: '{{ .gatewayApiController.crdPath | default "config/crd/experimental" }}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: gateway-api-controller
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}

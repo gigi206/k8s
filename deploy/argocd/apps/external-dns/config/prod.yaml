@@ -1,0 +1,58 @@
+---
+# Configuration External-DNS - Prod
+environment: prod
+appName: external-dns
+
+# Override domain for prod environment if needed
+# common:
+#   domain: "example.local"
+
+# versions:
+#   externalDns: "1.19.0"
+
+externalDns:
+  # Provider: cloudflare, aws, google, coredns, etc.
+  # Use "coredns" for local DNS with etcd backend
+  provider: "coredns"
+
+  # TXT owner ID
+  txtOwnerId: "external-dns-prod"
+
+  # Sources to watch (service, ingress, crd, istio-gateway, etc.)
+  sources:
+    - "service"
+    - "ingress"
+    - "crd"
+
+  # Sync interval
+  interval: "15s"
+
+  # Policy: sync or upsert-only
+  policy: "sync"
+
+  # RBAC
+  rbac:
+    create: true
+
+  # CRD support
+  crd:
+    create: true
+
+  # CoreDNS configuration (only when provider=coredns)
+  coredns:
+    enabled: false
+    replicas: 2
+    serviceType: "LoadBalancer"
+    # Optional: loadBalancerIP for MetalLB
+    # loadBalancerIP: "192.168.121.100"
+
+  # etcd configuration (only when provider=coredns)
+  etcd:
+    enabled: false
+    replicas: 3
+
+syncPolicy:
+  automated:
+    enabled: false  # Prod: manual sync
+    prune: true
+    selfHeal: true

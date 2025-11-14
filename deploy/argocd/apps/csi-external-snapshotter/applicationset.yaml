@@ -1,0 +1,94 @@
+---
+# =============================================================================
+# CSI External Snapshotter ApplicationSet - Wave 55 (Volume Snapshots)
+# =============================================================================
+# Déploie les CRDs CSI snapshot requis pour Longhorn
+# Docs: https://longhorn.io/docs/latest/snapshots-and-backups/csi-snapshot-support/
+# Repo: https://github.com/kubernetes-csi/external-snapshotter/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: csi-external-snapshotter
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "55"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/csi-external-snapshotter/config/*.yaml
+
+  template:
+    metadata:
+      name: csi-external-snapshotter
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "55"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/kubernetes-csi/external-snapshotter/
+        targetRevision: '{{ .versions.csiSnapshotter }}'
+        path: client/config/crd
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: csi-external-snapshotter
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      {{- if .features.monitoring.enabled }}
+      sources:
+        # Source 1: CSI Snapshot CRDs (external repo)
+        - repoURL: https://github.com/kubernetes-csi/external-snapshotter/
+          targetRevision: '{{ .versions.csiSnapshotter }}'
+          path: client/config/crd
+
+        # Source 2: PrometheusRules (avec label release)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/csi-external-snapshotter/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+      {{- end }}

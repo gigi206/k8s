@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# Cilium/Operator PodMonitors for Prometheus
+# =============================================================================
+# PodMonitors scrapent directement les pods sans nécessiter de Services
+# Utilisés pour cilium-agent et cilium-operator car RKE2 ne crée pas de Services
+# =============================================================================
+
+# PodMonitor pour Cilium Agent (DaemonSet)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cilium-agent
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  podMetricsEndpoints:
+  - port: prometheus
+    interval: 30s
+    path: /metrics
+    relabelings:
+    # Ajouter le label k8s_app=cilium pour compatibilité dashboard
+    - targetLabel: k8s_app
+      replacement: cilium
+      action: replace
+---
+# PodMonitor pour Cilium Operator
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cilium-operator
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      io.cilium/app: operator
+      name: cilium-operator
+  podMetricsEndpoints:
+  - port: prometheus
+    interval: 30s
+    path: /metrics
+    relabelings:
+    # Copier le label io.cilium/app du pod vers io_cilium_app dans les métriques
+    - sourceLabels: [__meta_kubernetes_pod_label_io_cilium_app]
+      targetLabel: io_cilium_app
+      action: replace
+    # Ajouter aussi k8s_app pour compatibilité avec d'autres dashboards
+    - targetLabel: k8s_app
+      replacement: cilium-operator
+      action: replace

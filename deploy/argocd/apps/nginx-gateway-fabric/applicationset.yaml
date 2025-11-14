@@ -1,0 +1,132 @@
+---
+# =============================================================================
+# NGINX Gateway Fabric ApplicationSet - Wave 41 (Gateway API Controller)
+# =============================================================================
+# Déploie NGINX Gateway Fabric pour Gateway API (nouvelle génération)
+# Coexiste avec nginx-ingress (Wave 40) pour transition progressive
+# Docs: https://docs.nginx.com/nginx-gateway-fabric/
+# Repo: https://github.com/nginxinc/nginx-gateway-fabric
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nginx-gateway-fabric
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "41"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/nginx-gateway-fabric/config/*.yaml
+
+  template:
+    metadata:
+      name: nginx-gateway-fabric
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "41"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/nginxinc/nginx-gateway-fabric
+        targetRevision: '{{ .versions.nginxGatewayFabric }}'
+        path: charts/nginx-gateway-fabric
+        helm:
+          parameters:
+            # Nombre de réplicas
+            - name: nginxGateway.replicaCount
+              value: '{{ .nginxGatewayFabric.replicas | default "1" }}'
+
+            # Service type (LoadBalancer pour MetalLB)
+            - name: nginxGateway.service.type
+              value: '{{ .nginxGatewayFabric.serviceType | default "LoadBalancer" }}'
+
+            # GatewayClass name
+            - name: nginxGateway.gatewayClassName
+              value: '{{ .nginxGatewayFabric.gatewayClassName | default "nginx" }}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: nginx-gateway
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      source:
+        repoURL: https://github.com/nginxinc/nginx-gateway-fabric
+        targetRevision: '{{ .versions.nginxGatewayFabric }}'
+        path: charts/nginx-gateway-fabric
+        helm:
+          parameters:
+            # Nombre de réplicas
+            - name: nginxGateway.replicaCount
+              value: '{{ .nginxGatewayFabric.replicas | default "1" }}'
+
+            # Service type
+            - name: nginxGateway.service.type
+              value: '{{ .nginxGatewayFabric.serviceType | default "LoadBalancer" }}'
+
+            # GatewayClass name
+            - name: nginxGateway.gatewayClassName
+              value: '{{ .nginxGatewayFabric.gatewayClassName | default "nginx-gwf" }}'
+
+            # Resources (optional)
+            {{- with .nginxGatewayFabric.resources }}
+            {{- if .requests }}
+            - name: nginxGateway.resources.requests.cpu
+              value: '{{ .requests.cpu }}'
+            - name: nginxGateway.resources.requests.memory
+              value: '{{ .requests.memory }}'
+            {{- end }}
+            {{- if .limits }}
+            - name: nginxGateway.resources.limits.cpu
+              value: '{{ .limits.cpu }}'
+            - name: nginxGateway.resources.limits.memory
+              value: '{{ .limits.memory }}'
+            {{- end }}
+            {{- end }}
+
+            # Metrics (Prometheus)
+            {{- if .features.monitoring.enabled }}
+            - name: metrics.enabled
+              value: "true"
+            - name: metrics.port
+              value: "9113"
+            {{- end }}

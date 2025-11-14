@@ -1,0 +1,254 @@
+---
+# =============================================================================
+# ArgoCD ApplicationSet - Wave 50 (GitOps Controller)
+# =============================================================================
+# Déploie ArgoCD pour qu'il se gère lui-même (self-managed)
+# Docs: https://argo-cd.readthedocs.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: argocd
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "50"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+            # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+            # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/argocd/config/*.yaml
+
+  template:
+    metadata:
+      name: argocd
+      namespace: argo-cd
+      # labels:
+      #   app: argocd
+      #   environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "50"
+    spec:
+      project: default
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argo-cd
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source 2: Prometheus monitoring + Grafana dashboards (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+        # Source 1: Helm chart with dynamic parameters
+        - repoURL: https://argoproj.github.io/argo-helm
+          targetRevision: '{{ .versions.argocd }}'
+          chart: argo-cd
+          helm:
+            parameters:
+              # Ingress configuration (must be here because templatePatch overwrites template)
+              {{- if .features.ingress }}
+              - name: server.ingress.enabled
+                value: '{{ .features.ingress.enabled }}'
+              - name: server.ingress.ingressClassName
+                value: '{{ .features.ingress.class }}'
+              - name: server.ingress.hostname
+                value: 'argocd.{{ .common.domain }}'
+              {{- end }}
+
+              # Metrics - Core components (must be here because templatePatch overwrites template)
+              - name: server.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: server.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: server.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+              - name: controller.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: controller.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: controller.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+              - name: repoServer.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: repoServer.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: repoServer.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+
+              # ArgoCD Configuration (configs.cm)
+              - name: configs.cm.timeout\.reconciliation
+                value: "60s"
+
+            # Server configuration
+              {{- if .argocd.server.replicas }}
+              - name: server.replicas
+                value: "{{ .argocd.server.replicas }}"
+              {{- end }}
+              {{- if .argocd.server.resources }}
+              - name: server.resources.requests.cpu
+                value: '{{ .argocd.server.resources.requests.cpu }}'
+              - name: server.resources.requests.memory
+                value: '{{ .argocd.server.resources.requests.memory }}'
+              - name: server.resources.limits.cpu
+                value: '{{ .argocd.server.resources.limits.cpu }}'
+              - name: server.resources.limits.memory
+                value: '{{ .argocd.server.resources.limits.memory }}'
+              {{- end }}
+
+            # Controller configuration
+              {{- if .argocd.controller.replicas }}
+              - name: controller.replicas
+                value: "{{ .argocd.controller.replicas }}"
+              {{- end }}
+              {{- if .argocd.controller.resources }}
+              - name: controller.resources.requests.cpu
+                value: '{{ .argocd.controller.resources.requests.cpu }}'
+              - name: controller.resources.requests.memory
+                value: '{{ .argocd.controller.resources.requests.memory }}'
+              - name: controller.resources.limits.cpu
+                value: '{{ .argocd.controller.resources.limits.cpu }}'
+              - name: controller.resources.limits.memory
+                value: '{{ .argocd.controller.resources.limits.memory }}'
+              {{- end }}
+
+            # Repo Server configuration
+              {{- if .argocd.repoServer.replicas }}
+              - name: repoServer.replicas
+                value: "{{ .argocd.repoServer.replicas }}"
+              {{- end }}
+              {{- if .argocd.repoServer.resources }}
+              - name: repoServer.resources.requests.cpu
+                value: '{{ .argocd.repoServer.resources.requests.cpu }}'
+              - name: repoServer.resources.requests.memory
+                value: '{{ .argocd.repoServer.resources.requests.memory }}'
+              - name: repoServer.resources.limits.cpu
+                value: '{{ .argocd.repoServer.resources.limits.cpu }}'
+              - name: repoServer.resources.limits.memory
+                value: '{{ .argocd.repoServer.resources.limits.memory }}'
+              {{- end }}
+              # Liveness probe timeout (augmenté pour éviter redémarrages lors traitement Helm charts)
+              - name: repoServer.livenessProbe.timeoutSeconds
+                value: "10"
+              - name: repoServer.livenessProbe.periodSeconds
+                value: "10"
+
+            # Ingress with TLS and annotations
+              {{- if .features.ingress.enabled }}
+              {{- if .features.certManager.enabled }}
+              - name: server.ingress.annotations.cert-manager\.io/cluster-issuer
+                value: '{{ .common.clusterIssuer }}'
+              - name: server.ingress.tls
+                value: "true"
+              {{- end }}
+              {{- if eq .features.ingress.class "nginx" }}
+              - name: server.ingress.annotations.nginx\.ingress\.kubernetes\.io/server-alias
+                value: argocd
+              - name: server.ingress.annotations.nginx\.ingress\.kubernetes\.io/force-ssl-redirect
+                value: "true"
+              - name: server.ingress.annotations.nginx\.ingress\.kubernetes\.io/ssl-passthrough
+                value: "true"
+              - name: server.ingress.annotations.nginx\.ingress\.kubernetes\.io/backend-protocol
+                value: HTTPS
+              {{- end }}
+              {{- end }}
+
+            # Monitoring - All components metrics
+              {{- if .features.monitoring.enabled }}
+              - name: applicationSet.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: applicationSet.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: applicationSet.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+              - name: notifications.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: notifications.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: notifications.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+              - name: redis.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: redis.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: redis.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+              - name: dex.metrics.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: dex.metrics.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: dex.metrics.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+              {{- end }}
+
+            # Redis HA for production
+              {{- if .argocd.redis }}
+              {{- if .argocd.redis.ha }}
+              - name: redis.enabled
+                value: "false"
+              - name: redis-ha.enabled
+                value: "true"
+              - name: redis-ha.haproxy.enabled
+                value: "true"
+              {{- end }}
+              {{- end }}
+
+            # Dex (OIDC/SSO) - disabled by default
+              - name: dex.enabled
+                value: "false"
+              {{- if .argocd.dex }}
+              {{- if .argocd.dex.enabled }}
+              - name: dex.enabled
+                value: "true"
+              {{- if .argocd.dex.config }}
+              - name: server.config
+                value: |
+              {{ .argocd.dex.config }}
+              {{- end }}
+              {{- end }}
+              {{- end }}
