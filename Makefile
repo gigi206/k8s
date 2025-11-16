@@ -257,7 +257,8 @@ argocd-install-dev:
 	echo "" && \
 	echo "$(GREEN)⚙️  Étape 3/4: Installation ArgoCD via Helm...$(NC)" && \
 	kubectl create namespace $(ARGOCD_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f - && \
-	helm template argocd argo/argo-cd --namespace $(ARGOCD_NAMESPACE) | kubectl apply -f - && \
+	K8S_VERSION=$$(kubectl version -o json | jq -r '.serverVersion.gitVersion' | sed 's/^v//; s/+.*//' ) && \
+	helm template argocd argo/argo-cd --namespace $(ARGOCD_NAMESPACE) --kube-version $$K8S_VERSION | kubectl apply -f - && \
 	echo "   Attente du démarrage d'ArgoCD..." && \
 	kubectl wait --for=condition=available deployment -l app.kubernetes.io/name=argocd-server -n $(ARGOCD_NAMESPACE) --timeout=10m && \
 	echo "" && \
