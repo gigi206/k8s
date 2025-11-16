@@ -130,6 +130,11 @@ spec:
               value: '{{ .ingressNginx.controller.ingressClassResource.default | default "true" }}'
             - name: controller.config.proxy-body-size
               value: '{{ index .ingressNginx.controller.config "proxy-body-size" | default "100m" }}'
+            # Allow snippet annotations (required for Keep and other apps using nginx snippets)
+            - name: controller.allowSnippetAnnotations
+              value: 'true'
+            - name: controller.config.annotations-risk-level
+              value: 'Critical'
             - name: controller.service.type
               value: '{{ .ingressNginx.controller.service.type | default "LoadBalancer" }}'
             - name: controller.metrics.enabled
