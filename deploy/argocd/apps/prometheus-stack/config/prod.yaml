@@ -29,6 +29,9 @@ prometheusStack:
       enabled: true
       hostname: "prometheus.{{ .common.domain }}"
 
+    # Remote write receiver (for external metrics)
+    enableRemoteWriteReceiver: false
+
   grafana:
     # Admin password (CHANGE IN PRODUCTION!)
     adminPassword: "CHANGE_ME_IN_PRODUCTION"
@@ -87,6 +90,24 @@ prometheusStack:
     ingress:
       enabled: true
       hostname: "alertmanager.{{ .common.domain }}"
+
+  pushgateway:
+    # Pushgateway (prod: disabled)
+    enabled: false
+
+    # Resources (prod: higher limits)
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "512Mi"
+
+    # ServiceMonitor
+    serviceMonitor:
+      enabled: true
+      namespace: "monitoring"
 
 syncPolicy:
   automated:

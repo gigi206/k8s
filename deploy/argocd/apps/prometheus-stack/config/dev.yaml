@@ -30,6 +30,9 @@ prometheusStack:
       enabled: true
       hostname: "prometheus.{{ .common.domain }}"
 
+    # Remote write receiver (for external metrics)
+    enableRemoteWriteReceiver: false
+
   grafana:
     # Admin password
     adminPassword: "admin"
@@ -112,6 +115,24 @@ prometheusStack:
     # Storage
     storage:
       size: "1Gi"
+
+  pushgateway:
+    # Pushgateway (dev: disabled)
+    enabled: false
+
+    # Resources (dev: minimal)
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+
+    # ServiceMonitor
+    serviceMonitor:
+      enabled: true
+      namespace: "monitoring"
 
 syncPolicy:
   automated:
