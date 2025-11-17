@@ -1,0 +1,56 @@
+---
+# =============================================================================
+# Istio ServiceMonitors for Prometheus
+# =============================================================================
+# These ServiceMonitors enable Prometheus to scrape Istio component metrics
+# Docs: https://istio.io/latest/docs/ops/integrations/prometheus/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+#       from features.monitoring.release in config.yaml
+# =============================================================================
+
+# ServiceMonitor for istiod (Control Plane)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: istiod
+      istio: pilot
+  endpoints:
+  - port: http-monitoring
+    interval: 30s
+    path: /metrics
+---
+# ServiceMonitor for Istio Ingress Gateway
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+  endpoints:
+  - port: status-port
+    interval: 30s
+    path: /stats/prometheus
+---
+# ServiceMonitor for ztunnel (Ambient Data Plane)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ztunnel
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: ztunnel
+  endpoints:
+  - port: ztunnel-stats
+    interval: 30s
+    path: /stats/prometheus

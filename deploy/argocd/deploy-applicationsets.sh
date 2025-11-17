@@ -270,7 +270,7 @@ APPLICATIONSETS=(
   "apps/gateway-api-controller/applicationset.yaml"     # Wave 15
   "apps/cert-manager/applicationset.yaml"               # Wave 20
   "apps/external-dns/applicationset.yaml"               # Wave 30
-  "apps/ingress-nginx/applicationset.yaml"              # Wave 40
+  "apps/istio/applicationset.yaml"                      # Wave 40
   "apps/argocd/applicationset.yaml"                     # Wave 50
   "apps/csi-external-snapshotter/applicationset.yaml"   # Wave 55
   "apps/longhorn/applicationset.yaml"                   # Wave 60

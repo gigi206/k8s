@@ -93,7 +93,7 @@ spec:
       enabled: false
     bpf:
       preallocateMaps: true # Increase memory usage but can reduce latency
-      masquerade: true
+      masquerade: false # REQUIRED for Istio Ambient (BPF masq incompatible with Istio link-local IPs)
       autoDirectNodeRoutes: true
       hostLegacyRouting: false
     #   lbExternalClusterIP: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#external-access-to-clusterip-services
@@ -142,7 +142,9 @@ spec:
     #   enabled: true
     cni:
       chainingMode: "none"
-      # exclusive: false # Set to false with Multus
+      exclusive: false # REQUIRED for Istio Ambient (CNI chaining with istio-cni)
+    socketLB:
+      hostNamespaceOnly: true # REQUIRED for Istio Ambient (prevents socket LB conflicts with ztunnel)
 
     # L2 Announcements - ENABLED for general L2 features
     # ===================================================

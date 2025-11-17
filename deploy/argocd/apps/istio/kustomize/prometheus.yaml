@@ -1,0 +1,346 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: istio-prometheus-rules
+  namespace: istio-system
+  labels:
+    prometheus: istio
+    role: alert-rules
+spec:
+  groups:
+  - name: istio.rules
+    interval: 30s
+    rules:
+    # ========================================================================
+    # CRITICAL: Istiod (Control Plane) Alerts
+    # ========================================================================
+
+    - alert: IstiodDown
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="istiod",
+          namespace="istio-system"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: istiod
+      annotations:
+        summary: "Istio control plane is unavailable"
+        description: "Istiod has no available replicas for 5 minutes. Service mesh control plane is down."
+
+    - alert: IstiodPodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"istiod-.*",
+          namespace="istio-system"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+        component: istiod
+      annotations:
+        summary: "Istiod pod is crash looping"
+        description: "Istiod pod {{ $labels.pod }} is restarting frequently ({{ $value }} restarts/sec over 15min)."
+
+    # ========================================================================
+    # CRITICAL: Istio CNI Alerts
+    # ========================================================================
+
+    - alert: IstioCNIDown
+      expr: |
+        kube_daemonset_status_number_ready{
+          daemonset="istio-cni-node",
+          namespace="istio-system"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: istio-cni
+      annotations:
+        summary: "Istio CNI is unavailable"
+        description: "Istio CNI DaemonSet has no ready pods for 5 minutes. New pods cannot join the mesh."
+
+    - alert: IstioCNIPodNotReady
+      expr: |
+        kube_daemonset_status_number_ready{
+          daemonset="istio-cni-node",
+          namespace="istio-system"
+        } < kube_daemonset_status_desired_number_scheduled{
+          daemonset="istio-cni-node",
+          namespace="istio-system"
+        }
+      for: 10m
+      labels:
+        severity: high
+        component: istio-cni
+      annotations:
+        summary: "Istio CNI pods not ready on all nodes"
+        description: "{{ $value }} Istio CNI pods are not ready. Expected pods on all nodes."
+
+    # ========================================================================
+    # CRITICAL: ztunnel (Ambient Data Plane) Alerts
+    # ========================================================================
+
+    - alert: ZtunnelDown
+      expr: |
+        kube_daemonset_status_number_ready{
+          daemonset="ztunnel",
+          namespace="istio-system"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: ztunnel
+      annotations:
+        summary: "ztunnel is unavailable"
+        description: "ztunnel DaemonSet has no ready pods for 5 minutes. Ambient mesh data plane is down."
+
+    - alert: ZtunnelPodNotReady
+      expr: |
+        kube_daemonset_status_number_ready{
+          daemonset="ztunnel",
+          namespace="istio-system"
+        } < kube_daemonset_status_desired_number_scheduled{
+          daemonset="ztunnel",
+          namespace="istio-system"
+        }
+      for: 10m
+      labels:
+        severity: high
+        component: ztunnel
+      annotations:
+        summary: "ztunnel pods not ready on all nodes"
+        description: "{{ $value }} ztunnel pods are not ready. Ambient mesh unavailable on some nodes."
+
+    - alert: ZtunnelPodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"ztunnel-.*",
+          namespace="istio-system"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+        component: ztunnel
+      annotations:
+        summary: "ztunnel pod is crash looping"
+        description: "ztunnel pod {{ $labels.pod }} is restarting frequently."
+
+    # ========================================================================
+    # HIGH: Istiod Resource Alerts
+    # ========================================================================
+
+    - alert: IstiodHighMemoryUsage
+      expr: |
+        container_memory_working_set_bytes{
+          pod=~"istiod-.*",
+          namespace="istio-system",
+          container="discovery"
+        } / container_spec_memory_limit_bytes{
+          pod=~"istiod-.*",
+          namespace="istio-system",
+          container="discovery"
+        } > 0.85
+      for: 10m
+      labels:
+        severity: high
+        component: istiod
+      annotations:
+        summary: "Istiod high memory usage"
+        description: "Istiod pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit."
+
+    - alert: IstiodHighCPUUsage
+      expr: |
+        rate(container_cpu_usage_seconds_total{
+          pod=~"istiod-.*",
+          namespace="istio-system",
+          container="discovery"
+        }[5m]) / container_spec_cpu_quota{
+          pod=~"istiod-.*",
+          namespace="istio-system",
+          container="discovery"
+        } * 100000 > 85
+      for: 10m
+      labels:
+        severity: high
+        component: istiod
+      annotations:
+        summary: "Istiod high CPU usage"
+        description: "Istiod pod {{ $labels.pod }} is using {{ $value }}% of its CPU limit."
+
+    # ========================================================================
+    # WARNING: ztunnel Resource Alerts
+    # ========================================================================
+
+    - alert: ZtunnelHighMemoryUsage
+      expr: |
+        container_memory_working_set_bytes{
+          pod=~"ztunnel-.*",
+          namespace="istio-system",
+          container="istio-proxy"
+        } / container_spec_memory_limit_bytes{
+          pod=~"ztunnel-.*",
+          namespace="istio-system",
+          container="istio-proxy"
+        } > 0.85
+      for: 10m
+      labels:
+        severity: warning
+        component: ztunnel
+      annotations:
+        summary: "ztunnel high memory usage"
+        description: "ztunnel pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit."
+
+    - alert: ZtunnelHighCPUUsage
+      expr: |
+        rate(container_cpu_usage_seconds_total{
+          pod=~"ztunnel-.*",
+          namespace="istio-system",
+          container="istio-proxy"
+        }[5m]) / container_spec_cpu_quota{
+          pod=~"ztunnel-.*",
+          namespace="istio-system",
+          container="istio-proxy"
+        } * 100000 > 85
+      for: 10m
+      labels:
+        severity: warning
+        component: ztunnel
+      annotations:
+        summary: "ztunnel high CPU usage"
+        description: "ztunnel pod {{ $labels.pod }} is using {{ $value }}% of its CPU limit."
+
+    # ========================================================================
+    # MEDIUM: Istiod Replica Mismatch (HA)
+    # ========================================================================
+
+    - alert: IstiodReplicaMismatch
+      expr: |
+        kube_deployment_spec_replicas{
+          deployment="istiod",
+          namespace="istio-system"
+        } != kube_deployment_status_replicas_available{
+          deployment="istiod",
+          namespace="istio-system"
+        }
+      for: 15m
+      labels:
+        severity: medium
+        component: istiod
+      annotations:
+        summary: "Istiod replica count mismatch"
+        description: "Istiod has {{ $value }} replicas available but expected more for HA."
+
+    # ========================================================================
+    # CRITICAL: Istio Ingress Gateway Alerts
+    # ========================================================================
+
+    - alert: IstioIngressGatewayDown
+      expr: |
+        (kube_deployment_status_replicas_available{
+          deployment=~"istio-ingressgateway.*",
+          namespace="istio-system"
+        } == 0)
+        or
+        (kube_daemonset_status_number_ready{
+          daemonset=~"istio-ingressgateway.*",
+          namespace="istio-system"
+        } == 0)
+      for: 5m
+      labels:
+        severity: critical
+        component: istio-ingressgateway
+      annotations:
+        summary: "Istio Ingress Gateway is unavailable"
+        description: "Istio Ingress Gateway has no available replicas for 5 minutes. Incoming traffic is blocked."
+
+    # ========================================================================
+    # HIGH: Istio Ingress Gateway Performance Alerts
+    # ========================================================================
+
+    - alert: IstioIngressGatewayPodNotReady
+      expr: |
+        (kube_deployment_spec_replicas{
+          deployment=~"istio-ingressgateway.*",
+          namespace="istio-system"
+        } > kube_deployment_status_replicas_available{
+          deployment=~"istio-ingressgateway.*",
+          namespace="istio-system"
+        })
+        or
+        (kube_daemonset_status_desired_number_scheduled{
+          daemonset=~"istio-ingressgateway.*",
+          namespace="istio-system"
+        } > kube_daemonset_status_number_ready{
+          daemonset=~"istio-ingressgateway.*",
+          namespace="istio-system"
+        })
+      for: 10m
+      labels:
+        severity: high
+        component: istio-ingressgateway
+      annotations:
+        summary: "Istio Ingress Gateway pods not ready"
+        description: "Some Istio Ingress Gateway pods are not ready. Reduced capacity for incoming traffic."
+
+    - alert: IstioIngressGatewayHighErrorRate
+      expr: |
+        sum(rate(istio_requests_total{
+          reporter="destination",
+          destination_service_name=~"istio-ingressgateway.*",
+          response_code=~"5.."
+        }[5m])) by (destination_service_name)
+        /
+        sum(rate(istio_requests_total{
+          reporter="destination",
+          destination_service_name=~"istio-ingressgateway.*"
+        }[5m])) by (destination_service_name)
+        > 0.05
+      for: 5m
+      labels:
+        severity: high
+        component: istio-ingressgateway
+      annotations:
+        summary: "Istio Ingress Gateway high error rate"
+        description: "Istio Ingress Gateway {{ $labels.destination_service_name }} has {{ $value | humanizePercentage }} error rate (HTTP 5xx)."
+
+    - alert: IstioIngressGatewayHighLatency
+      expr: |
+        histogram_quantile(0.99,
+          sum(rate(istio_request_duration_milliseconds_bucket{
+            reporter="destination",
+            destination_service_name=~"istio-ingressgateway.*"
+          }[5m])) by (destination_service_name, le)
+        ) > 5000
+      for: 10m
+      labels:
+        severity: high
+        component: istio-ingressgateway
+      annotations:
+        summary: "Istio Ingress Gateway high latency"
+        description: "Istio Ingress Gateway {{ $labels.destination_service_name }} P99 latency is {{ $value }}ms (>5s)."
+
+    # ========================================================================
+    # WARNING: Istio Ingress Gateway Resource Alerts
+    # ========================================================================
+
+    - alert: IstioIngressGatewayHighMemoryUsage
+      expr: |
+        container_memory_working_set_bytes{
+          pod=~"istio-ingressgateway-.*",
+          namespace="istio-system",
+          container="istio-proxy"
+        } / container_spec_memory_limit_bytes{
+          pod=~"istio-ingressgateway-.*",
+          namespace="istio-system",
+          container="istio-proxy"
+        } > 0.85
+      for: 10m
+      labels:
+        severity: warning
+        component: istio-ingressgateway
+      annotations:
+        summary: "Istio Ingress Gateway high memory usage"
+        description: "Istio Ingress Gateway pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit."

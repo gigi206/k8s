@@ -77,7 +77,7 @@ features:
 
   ingress:
     enabled: true
-    class: "nginx"
+    class: "istio"  # Istio Ingress Gateway (LoadBalancer via MetalLB)
 
   storage:
     enabled: true
