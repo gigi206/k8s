@@ -171,6 +171,12 @@ spec:
               value: '{{ .prometheusStack.prometheus.resources.limits.memory }}'
             {{- end }}
 
+            # Prometheus: remote write receiver
+            {{- if .prometheusStack.prometheus.enableRemoteWriteReceiver }}
+            - name: prometheus.prometheusSpec.enableRemoteWriteReceiver
+              value: '{{ .prometheusStack.prometheus.enableRemoteWriteReceiver }}'
+            {{- end }}
+
             # Prometheus: ingress
             {{- if .prometheusStack.prometheus.ingress }}
             {{- if .prometheusStack.prometheus.ingress.enabled }}
@@ -270,6 +276,28 @@ spec:
             - name: alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage
               value: '{{ .prometheusStack.alertmanager.storage.size }}'
             {{- end }}
+            {{- end }}
+            {{- end }}
+
+            # Prometheus Pushgateway
+            - name: prometheus-pushgateway.enabled
+              value: '{{ .prometheusStack.pushgateway.enabled }}'
+            {{- if .prometheusStack.pushgateway.enabled }}
+            {{- if .prometheusStack.pushgateway.resources }}
+            - name: prometheus-pushgateway.resources.requests.cpu
+              value: '{{ .prometheusStack.pushgateway.resources.requests.cpu }}'
+            - name: prometheus-pushgateway.resources.requests.memory
+              value: '{{ .prometheusStack.pushgateway.resources.requests.memory }}'
+            - name: prometheus-pushgateway.resources.limits.cpu
+              value: '{{ .prometheusStack.pushgateway.resources.limits.cpu }}'
+            - name: prometheus-pushgateway.resources.limits.memory
+              value: '{{ .prometheusStack.pushgateway.resources.limits.memory }}'
+            {{- end }}
+            {{- if .prometheusStack.pushgateway.serviceMonitor }}
+            - name: prometheus-pushgateway.serviceMonitor.enabled
+              value: '{{ .prometheusStack.pushgateway.serviceMonitor.enabled }}'
+            - name: prometheus-pushgateway.serviceMonitor.namespace
+              value: '{{ .prometheusStack.pushgateway.serviceMonitor.namespace }}'
             {{- end }}
             {{- end }}
 
