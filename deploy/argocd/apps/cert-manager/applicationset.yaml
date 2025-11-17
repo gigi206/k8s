@@ -104,7 +104,7 @@ spec:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
-            
+
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}

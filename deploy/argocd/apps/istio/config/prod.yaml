@@ -1,0 +1,57 @@
+---
+environment: prod
+appName: istio
+
+istio:
+  namespace: istio-system
+  version: "1.28.0"  # Latest Istio 1.28.x with improved ambient mesh support
+
+  # Istiod (Control Plane)
+  pilot:
+    replicas: 3  # Prod: HA with 3 replicas
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+      limits:
+        cpu: "2000m"
+        memory: "4Gi"
+
+  # Istio CNI (Required for Ambient)
+  cni:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # ztunnel (Ambient Data Plane)
+  ztunnel:
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+  # Istio Ingress Gateway
+  ingressGateway:
+    kind: "DaemonSet"  # DaemonSet (1 per node, recommended) or Deployment
+    replicas: 3  # Only used if kind=Deployment
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+
+# Sync policy (manual for prod)
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false

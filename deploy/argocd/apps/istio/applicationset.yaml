@@ -1,0 +1,233 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: istio
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/istio/config/*.yaml
+
+  template:
+    metadata:
+      name: 'istio'
+      namespace: argo-cd
+      labels:
+        app: istio
+        environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "40"
+        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: gitops-notifications
+    spec:
+      project: default
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .istio.namespace }}'
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m
+
+      ignoreDifferences:
+        # Ignore dynamic caBundle in ValidatingWebhookConfigurations
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          name: istio-validator-istio-system
+          jqPathExpressions:
+            - .webhooks[]
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          name: istiod-default-validator
+          jqPathExpressions:
+            - .webhooks[]
+        # Ignore dynamic metadata in DaemonSet
+        - group: apps
+          kind: DaemonSet
+          name: ztunnel
+          namespace: istio-system
+          jqPathExpressions:
+            - .metadata.annotations["deprecated.daemonset.template.generation"]
+            - .spec.template
+
+      sources:
+        # Source 0: Base resources (Namespace, IngressClass)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "*.yaml"
+
+        # Source 1: Istio Base (CRDs)
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          chart: base
+          targetRevision: {{ .istio.version }}
+          helm:
+            releaseName: istio-base
+            valuesObject:
+              global:
+                istioNamespace: {{ .istio.namespace }}
+
+        # Source 2: Istiod (Control Plane)
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          chart: istiod
+          targetRevision: {{ .istio.version }}
+          helm:
+            releaseName: istiod
+            valuesObject:
+              global:
+                istioNamespace: {{ .istio.namespace }}
+
+              # Pilot configuration
+              pilot:
+                replicaCount: {{ .istio.pilot.replicas }}
+                resources:
+                  requests:
+                    cpu: {{ .istio.pilot.resources.requests.cpu }}
+                    memory: {{ .istio.pilot.resources.requests.memory }}
+                  limits:
+                    cpu: {{ .istio.pilot.resources.limits.cpu }}
+                    memory: {{ .istio.pilot.resources.limits.memory }}
+
+                # Enable ambient profile
+                env:
+                  PILOT_ENABLE_AMBIENT: "true"
+
+              # Metrics and monitoring
+              telemetry:
+                enabled: true
+                v2:
+                  enabled: true
+                  prometheus:
+                    enabled: true
+
+        # Source 3: Istio CNI (Required for Ambient)
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          chart: cni
+          targetRevision: {{ .istio.version }}
+          helm:
+            releaseName: istio-cni
+            valuesObject:
+              global:
+                istioNamespace: {{ .istio.namespace }}
+
+              cni:
+                # CNI chaining with Cilium
+                chained: true
+                cniBinDir: /opt/cni/bin
+                cniConfDir: /etc/cni/net.d
+                cniConfFileName: "05-cilium.conflist"
+
+                # Enable ambient mode
+                ambient:
+                  enabled: true
+
+                # Resources for CNI DaemonSet
+                resources:
+                  requests:
+                    cpu: {{ .istio.cni.resources.requests.cpu }}
+                    memory: {{ .istio.cni.resources.requests.memory }}
+                  limits:
+                    cpu: {{ .istio.cni.resources.limits.cpu }}
+                    memory: {{ .istio.cni.resources.limits.memory }}
+
+        # Source 4: ztunnel (Ambient Data Plane)
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          chart: ztunnel
+          targetRevision: {{ .istio.version }}
+          helm:
+            releaseName: ztunnel
+            valuesObject:
+              global:
+                istioNamespace: {{ .istio.namespace }}
+
+              # Resources for ztunnel DaemonSet
+              resources:
+                requests:
+                  cpu: {{ .istio.ztunnel.resources.requests.cpu }}
+                  memory: {{ .istio.ztunnel.resources.requests.memory }}
+                limits:
+                  cpu: {{ .istio.ztunnel.resources.limits.cpu }}
+                  memory: {{ .istio.ztunnel.resources.limits.memory }}
+
+        # Source 5: Istio Ingress Gateway
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          chart: gateway
+          targetRevision: {{ .istio.version }}
+          helm:
+            releaseName: istio-ingressgateway
+            valuesObject:
+              # Deployment type (Deployment or DaemonSet)
+              kind: {{ .istio.ingressGateway.kind }}
+
+              # Service configuration
+              service:
+                type: LoadBalancer
+                ports:
+                  - name: status-port
+                    port: 15021
+                    targetPort: 15021
+                  - name: http2
+                    port: 80
+                    targetPort: 80
+                  - name: https
+                    port: 443
+                    targetPort: 443
+
+              {{- if eq .istio.ingressGateway.kind "Deployment" }}
+              # Replica count (only for Deployment)
+              replicaCount: {{ .istio.ingressGateway.replicas }}
+              {{- end }}
+
+              # Resources for Ingress Gateway
+              resources:
+                requests:
+                  cpu: {{ .istio.ingressGateway.resources.requests.cpu }}
+                  memory: {{ .istio.ingressGateway.resources.requests.memory }}
+                limits:
+                  cpu: {{ .istio.ingressGateway.resources.limits.cpu }}
+                  memory: {{ .istio.ingressGateway.resources.limits.memory }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source 6: PrometheusRules for monitoring Istio (with release label)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}
