@@ -71,7 +71,6 @@ spec:
 
   templatePatch: |
     spec:
-      {{- if .features.ingress.enabled }}
       sources:
         # Source 1: Kustomize resources (ServiceMonitors, PrometheusRules, Dashboards)
         - repoURL: https://github.com/gigi206/k8s
@@ -83,11 +82,12 @@ spec:
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- if .features.ingress.enabled }}
         # Source 2: Hubble UI Ingress (with Go templating for domain and ingressClass)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium-monitoring/resources
-      {{- end }}
+        {{- end }}
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
