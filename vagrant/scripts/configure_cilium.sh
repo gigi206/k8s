@@ -237,17 +237,17 @@ spec:
         # service:
         #   type: LoadBalancer
         replicas: 1
-        ingress:
-          enabled: true
-          # className: cilium
-          hosts:
-            - hubble.gigix
-          annotations:
-            cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
-          tls:
-          - secretName: hubble-ui-tls
-            hosts:
-            - hubble.gigix
+        # ingress:  # Géré par ArgoCD cilium-monitoring app (avec variables dynamiques)
+        #   enabled: true
+        #   # className: cilium
+        #   hosts:
+        #     - hubble.gigix
+        #   annotations:
+        #     cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+        #   tls:
+        #   - secretName: hubble-ui-tls
+        #     hosts:
+        #     - hubble.gigix
 
     # Prometheus Metrics
     # ==================

@@ -1,0 +1,27 @@
+---
+# Ingress pour Hubble UI (observabilité Cilium)
+# Géré par ArgoCD cilium-monitoring au lieu du chart Helm rke2-cilium
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hubble-ui
+  namespace: kube-system
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .common.clusterIssuer }}
+spec:
+  ingressClassName: {{ .features.ingress.class }}
+  rules:
+  - host: hubble.{{ .common.domain }}
+    http:
+      paths:
+      - backend:
+          service:
+            name: hubble-ui
+            port:
+              name: http
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - hubble.{{ .common.domain }}
+    secretName: hubble-ui-tls
