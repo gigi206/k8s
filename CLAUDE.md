@@ -274,6 +274,47 @@ features:
     class: "longhorn"
 ```
 
+### ⚠️ IMPORTANT: Go Template Variable Limitations
+
+**CRITICAL**: Go templates (`{{ .variable }}`) **ONLY work in ApplicationSet definitions**, NOT in manifest YAML files.
+
+**Where Go templates work**:
+- ✅ ApplicationSet `template` section
+- ✅ ApplicationSet `templatePatch` section
+- ✅ Helm `parameters` (as strings passed to Helm)
+
+**Where Go templates DON'T work**:
+- ❌ YAML manifests in `resources/` or `kustomize/` directories
+- ❌ Helm values files (use Helm's own templating instead)
+- ❌ Raw Kubernetes manifests loaded via directory sources
+
+**Solutions for using variables in manifests**:
+1. **Kustomize replacements**: Define replacements in kustomization.yaml
+2. **Helm charts**: Use Helm's template syntax with values
+3. **Hardcode values**: Simple approach for static values (domain, ingressClass, etc.)
+
+**Example - WRONG** (Go templates in manifest):
+```yaml
+# ❌ apps/my-app/resources/ingress.yaml - WON'T WORK
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+spec:
+  ingressClassName: {{ .features.ingress.class }}  # ❌ NOT evaluated!
+  rules:
+  - host: myapp.{{ .common.domain }}  # ❌ NOT evaluated!
+```
+
+**Example - CORRECT** (hardcoded values or Kustomize):
+```yaml
+# ✅ apps/my-app/kustomize/ingress.yaml - WORKS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+spec:
+  ingressClassName: istio  # ✅ Hardcoded or use Kustomize replacements
+  rules:
+  - host: myapp.gigix  # ✅ Hardcoded
+```
+
 ### ServiceMonitors and PrometheusRules with Kustomize
 
 **Pattern**: Use Kustomize `commonLabels` to inject dynamic labels (like `release: prometheus-stack`) instead of hardcoding values.
