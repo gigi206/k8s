@@ -109,6 +109,9 @@ spec:
           helm:
             releaseName: istiod
             valuesObject:
+              # Use ambient profile for ambient mesh mode
+              profile: ambient
+
               # Mesh configuration
               meshConfig:
                 # Enable Kubernetes Ingress controller
@@ -123,8 +126,6 @@ spec:
 
               # Pilot configuration
               pilot:
-                deploymentAnnotations:
-                  argocd.argoproj.io/sync-wave: "-1"
                 replicaCount: {{ .istio.pilot.replicas }}
                 resources:
                   requests:
@@ -133,10 +134,6 @@ spec:
                   limits:
                     cpu: {{ .istio.pilot.resources.limits.cpu }}
                     memory: {{ .istio.pilot.resources.limits.memory }}
-
-                # Enable ambient profile
-                env:
-                  PILOT_ENABLE_AMBIENT: "true"
 
               # Metrics and monitoring
               telemetry:
@@ -153,22 +150,18 @@ spec:
           helm:
             releaseName: istio-cni
             valuesObject:
+              # Use ambient profile for ambient mesh mode
+              profile: ambient
+
               global:
                 istioNamespace: {{ .istio.namespace }}
 
               cni:
-                # Sync Wave: Ensure CNI starts early
-                daemonSetAnnotations:
-                  argocd.argoproj.io/sync-wave: "-1"
                 # CNI chaining with Cilium
                 chained: true
                 cniBinDir: /opt/cni/bin
                 cniConfDir: /etc/cni/net.d
                 cniConfFileName: "05-cilium.conflist"
-
-                # Enable ambient mode
-                ambient:
-                  enabled: true
 
                 # Resources for CNI DaemonSet
                 resources:
@@ -190,8 +183,6 @@ spec:
                 istioNamespace: {{ .istio.namespace }}
 
               # Resources for ztunnel DaemonSet
-              annotations:
-                argocd.argoproj.io/sync-wave: "-1"
               resources:
                 requests:
                   cpu: {{ .istio.ztunnel.resources.requests.cpu }}
