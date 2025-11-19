@@ -109,6 +109,15 @@ spec:
           helm:
             releaseName: istiod
             valuesObject:
+              # Mesh configuration
+              meshConfig:
+                # Enable Kubernetes Ingress controller
+                # Modes: OFF, STRICT (requires annotation), DEFAULT (all ingress)
+                ingressControllerMode: DEFAULT
+                # Namespace where ingress controller runs
+                ingressService: istio-ingressgateway
+                ingressSelector: istio-ingressgateway
+
               global:
                 istioNamespace: {{ .istio.namespace }}
 
