@@ -24,13 +24,13 @@ environment: dev
 # Politique de synchronisation (base, peut être override par environnement)
 syncPolicy:
   automated:
-    enabled: false  # Désactivé par défaut (prod = sync manuel)
+    enabled: false
   retry:
-    limit: 5        # Augmenté de 3 à 5
+    limit: 5
     backoff:
       duration: 5s
       factor: 2
-      maxDuration: 5m  # Augmenté de 3m à 5m
+      maxDuration: 5m
   syncOptions:
     - CreateNamespace=true
     - ServerSideApply=true
@@ -45,7 +45,7 @@ common:
 
 # Configuration Git
 git:
-  revision: "HEAD"  # Branche Git utilisée pour les ApplicationSets
+  revision: "HEAD"
 
 # Versions des charts Helm
 versions:
@@ -70,6 +70,7 @@ features:
   certManager:
     enabled: true
     issuerType: "letsencrypt-staging"
+    # issuerType: "letsencrypt-prod"
 
   externalDns:
     enabled: true
