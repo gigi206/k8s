@@ -114,6 +114,8 @@ spec:
 
               # Pilot configuration
               pilot:
+                deploymentAnnotations:
+                  argocd.argoproj.io/sync-wave: "-1"
                 replicaCount: {{ .istio.pilot.replicas }}
                 resources:
                   requests:
@@ -146,6 +148,9 @@ spec:
                 istioNamespace: {{ .istio.namespace }}
 
               cni:
+                # Sync Wave: Ensure CNI starts early
+                daemonSetAnnotations:
+                  argocd.argoproj.io/sync-wave: "-1"
                 # CNI chaining with Cilium
                 chained: true
                 cniBinDir: /opt/cni/bin
@@ -176,6 +181,8 @@ spec:
                 istioNamespace: {{ .istio.namespace }}
 
               # Resources for ztunnel DaemonSet
+              annotations:
+                argocd.argoproj.io/sync-wave: "-1"
               resources:
                 requests:
                   cpu: {{ .istio.ztunnel.resources.requests.cpu }}
