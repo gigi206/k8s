@@ -1,0 +1,26 @@
+---
+environment: prod
+appName: istio-gateway
+
+istio:
+  namespace: istio-system
+  version: "1.28.0"  # Must match istio control plane version
+
+  # Istio Ingress Gateway
+  ingressGateway:
+    kind: "DaemonSet"  # DaemonSet (1 per node, recommended) or Deployment
+    replicas: 3  # Only used if kind=Deployment
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+
+# Sync policy (manual for prod)
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false
