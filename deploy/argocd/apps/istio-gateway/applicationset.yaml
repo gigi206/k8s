@@ -1,0 +1,120 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: istio-gateway
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "41"  # After istio control plane (wave 40)
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/istio-gateway/config/*.yaml
+
+  template:
+    metadata:
+      name: 'istio-gateway'
+      namespace: argo-cd
+      labels:
+        app: istio-gateway
+        environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "41"  # Deploy after control plane
+        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: gitops-notifications
+    spec:
+      project: default
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .istio.namespace }}'
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m
+
+      ignoreDifferences:
+        # Ignore dynamic metadata in DaemonSet
+        - group: apps
+          kind: DaemonSet
+          name: istio-ingressgateway
+          namespace: istio-system
+          jqPathExpressions:
+            - .metadata.annotations["deprecated.daemonset.template.generation"]
+            - .spec.template
+
+      sources:
+        # Source 0: Gateway and Certificate resources
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio-gateway/resources
+          directory:
+            include: "*.yaml"
+
+        # Source 1: Istio Ingress Gateway Helm Chart
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          chart: gateway
+          targetRevision: {{ .istio.version }}
+          helm:
+            releaseName: istio-ingressgateway
+            valuesObject:
+              # Deployment type (Deployment or DaemonSet)
+              kind: {{ .istio.ingressGateway.kind }}
+
+              # Service configuration
+              service:
+                type: LoadBalancer
+                ports:
+                  - name: status-port
+                    port: 15021
+                    targetPort: 15021
+                  - name: http2
+                    port: 80
+                    targetPort: 80
+                  - name: https
+                    port: 443
+                    targetPort: 443
+
+              {{- if eq .istio.ingressGateway.kind "Deployment" }}
+              # Replica count (only for Deployment)
+              replicaCount: {{ .istio.ingressGateway.replicas }}
+              {{- end }}
+
+              # Resources for Ingress Gateway
+              resources:
+                requests:
+                  cpu: {{ .istio.ingressGateway.resources.requests.cpu }}
+                  memory: {{ .istio.ingressGateway.resources.requests.memory }}
+                limits:
+                  cpu: {{ .istio.ingressGateway.resources.limits.cpu }}
+                  memory: {{ .istio.ingressGateway.resources.limits.memory }}

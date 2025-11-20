@@ -119,7 +119,7 @@ spec:
                 ingressControllerMode: DEFAULT
                 ingressClass: istio
                 ingressService: istio-ingressgateway
-                ingressSelector: istio-ingressgateway
+                ingressSelector: ingressgateway
 
               global:
                 istioNamespace: {{ .istio.namespace }}
@@ -191,46 +191,8 @@ spec:
                   cpu: {{ .istio.ztunnel.resources.limits.cpu }}
                   memory: {{ .istio.ztunnel.resources.limits.memory }}
 
-        # Source 5: Istio Ingress Gateway
-        - repoURL: https://istio-release.storage.googleapis.com/charts
-          chart: gateway
-          targetRevision: {{ .istio.version }}
-          helm:
-            releaseName: istio-ingressgateway
-            valuesObject:
-              # Deployment type (Deployment or DaemonSet)
-              kind: {{ .istio.ingressGateway.kind }}
-
-              # Service configuration
-              service:
-                type: LoadBalancer
-                ports:
-                  - name: status-port
-                    port: 15021
-                    targetPort: 15021
-                  - name: http2
-                    port: 80
-                    targetPort: 80
-                  - name: https
-                    port: 443
-                    targetPort: 443
-
-              {{- if eq .istio.ingressGateway.kind "Deployment" }}
-              # Replica count (only for Deployment)
-              replicaCount: {{ .istio.ingressGateway.replicas }}
-              {{- end }}
-
-              # Resources for Ingress Gateway
-              resources:
-                requests:
-                  cpu: {{ .istio.ingressGateway.resources.requests.cpu }}
-                  memory: {{ .istio.ingressGateway.resources.requests.memory }}
-                limits:
-                  cpu: {{ .istio.ingressGateway.resources.limits.cpu }}
-                  memory: {{ .istio.ingressGateway.resources.limits.memory }}
-
         {{- if .features.monitoring.enabled }}
-        # Source 6: PrometheusRules for monitoring Istio (with release label)
+        # Source 5: PrometheusRules for monitoring Istio (with release label)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/kustomize

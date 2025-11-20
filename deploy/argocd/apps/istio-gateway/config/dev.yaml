@@ -1,0 +1,30 @@
+---
+environment: dev
+appName: istio-gateway
+
+# Git configuration (override for dev to use test branch)
+git:
+  revision: "test"
+
+istio:
+  namespace: istio-system
+  version: "1.28.0"  # Must match istio control plane version
+
+  # Istio Ingress Gateway
+  ingressGateway:
+    kind: "DaemonSet"  # DaemonSet (1 per node) or Deployment
+    replicas: 1  # Only used if kind=Deployment
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+# Sync policy
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
