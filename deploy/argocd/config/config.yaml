@@ -77,7 +77,7 @@ features:
     # provider: "coredns"  # ou: aws, google, azure, etc.
 
   ingress:
-    enabled: true
+    enabled: false  # Disabled - using Gateway API HTTPRoute instead
     class: "istio"  # Istio Ingress Gateway (LoadBalancer via MetalLB)
 
   storage:

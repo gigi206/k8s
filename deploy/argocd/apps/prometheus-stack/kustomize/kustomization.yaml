@@ -4,3 +4,7 @@ kind: Kustomization
 
 resources:
   - prometheus.yaml
+  - prometheus-httproute.yaml
+  - grafana-httproute.yaml
+  - alertmanager-httproute.yaml
+  - referencegrant.yaml

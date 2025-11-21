@@ -25,9 +25,9 @@ prometheusStack:
         cpu: "500m"
         memory: "1Gi"
 
-    # Ingress (dev: enabled)
+    # Ingress (dev: disabled - using Gateway API HTTPRoute)
     ingress:
-      enabled: true
+      enabled: false
       hostname: "prometheus.{{ .common.domain }}"
 
     # Remote write receiver (for external metrics)
@@ -57,9 +57,9 @@ prometheusStack:
         cpu: "200m"
         memory: "512Mi"
 
-    # Ingress (dev: enabled)
+    # Ingress (dev: disabled - using Gateway API HTTPRoute)
     ingress:
-      enabled: true
+      enabled: false
       hostname: "grafana.{{ .common.domain }}"
 
     # Grafana.ini configuration
@@ -107,9 +107,9 @@ prometheusStack:
         cpu: "100m"
         memory: "128Mi"
 
-    # Ingress (dev: enabled)
+    # Ingress (dev: disabled - using Gateway API HTTPRoute)
     ingress:
-      enabled: true
+      enabled: false
       hostname: "alertmanager.{{ .common.domain }}"
 
     # Storage

@@ -1,28 +1,31 @@
 ---
-apiVersion: networking.istio.io/v1beta1
+apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: istio-ingressgateway
+  name: istio-gateway
   namespace: istio-system
 spec:
-  selector:
-    istio: ingressgateway
-  servers:
-  # HTTP server
-  - port:
-      number: 80
-      name: http
-      protocol: HTTP
-    hosts:
-    - "*"
+  gatewayClassName: istio
+  listeners:
+  # HTTP listener
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow HTTPRoute from any namespace
 
-  # HTTPS server
-  - port:
-      number: 443
-      name: https-default
-      protocol: HTTPS
-    hosts:
-    - "*"
+  # HTTPS listener
+  - name: https
+    hostname: "*.gigix"
+    protocol: HTTPS
+    port: 443
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow HTTPRoute from any namespace
     tls:
-      mode: SIMPLE
-      credentialName: wildcard-gigix-tls
+      mode: Terminate
+      certificateRefs:
+      - name: wildcard-gigix-tls
+        kind: Secret
+        # Secret in same namespace (istio-system) - wildcard cert for *.gigix
