@@ -95,6 +95,8 @@ spec:
               service:
                 type: LoadBalancer
                 ports:
+                  # Port 15020 est le port de status par défaut pour Istio ambient mesh
+                  # (contrairement à 15021 utilisé dans sidecar mode)
                   - name: status-port
                     port: 15020
                     targetPort: 15020

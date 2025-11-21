@@ -1,0 +1,6 @@
+[tools]
+yq = "latest"
+kubectl = "latest"
+helm = "latest"
+kustomize = "latest"
+argocd = "latest"

@@ -1,0 +1,38 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gateway-api-controller-prometheus-rules
+  namespace: gateway-api-controller
+  labels:
+    prometheus: gateway-api-controller
+    role: alert-rules
+spec:
+  groups:
+  - name: gateway-api-controller.rules
+    interval: 30s
+    rules:
+    - alert: GatewayApiControllerPodDown
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="gateway-api-admission-server",
+          namespace="gateway-api-controller"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Gateway API Controller is unavailable
+        description: Gateway API Controller has been down for 5 minutes
+
+    - alert: GatewayApiControllerPodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"gateway-api-admission-server.*",
+          namespace="gateway-api-controller"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: Gateway API Controller is crash looping
+        description: Gateway API Controller is restarting frequently
