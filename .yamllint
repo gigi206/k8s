@@ -1,0 +1,29 @@
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  
+  document-start: disable
+  
+  truthy:
+    level: warning
+    check-keys: false
+  
+  comments:
+    level: warning
+    min-spaces-from-content: 1
+
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+ignore: |
+  .git/
+  .vagrant/
+  vendor/
+  charts/
