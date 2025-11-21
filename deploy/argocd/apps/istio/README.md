@@ -347,6 +347,20 @@ To import dashboards manually:
    kubectl describe pod -n istio-system <istiod-pod>
    ```
 
+### Kubernetes Ingress HTTPS Not Working
+
+**Symptom**: Kubernetes Ingress resources work in HTTP but fail in HTTPS (connection reset).
+
+**Cause**: Istio Ingress Gateway cannot read TLS secrets from other namespaces. This is a known limitation when using Kubernetes Ingress with Istio 1.28.0.
+
+**Solution**: See the comprehensive troubleshooting guide:
+- **[TROUBLESHOOTING-INGRESS.md](./TROUBLESHOOTING-INGRESS.md)** - Detailed analysis and 5 solution options
+
+**Quick Summary**:
+- Root cause: TLS secrets created by cert-manager in application namespaces (kube-system, monitoring, etc.) are inaccessible to Istio Ingress Gateway in istio-system
+- Recommended short-term: Use wildcard certificate
+- Recommended long-term: Migrate to Kubernetes Gateway API + HTTPRoute
+
 ## Configuration
 
 ### Environment-Specific Settings
