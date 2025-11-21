@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a GitOps infrastructure project that manages Kubernetes applications using ArgoCD with ApplicationSet pattern. The infrastructure supports multiple environments (dev/prod) with centralized configuration, Go templating, and per-application overrides.
 
+## Prerequisites
+
+- **mise**: For managing tool versions (yq, etc.)
+- **yq**: For parsing YAML configuration (installed via mise)
+- **kubectl**: For cluster interaction
+- **helm**: For chart management
+- **kustomize**: For manifest customization
+- **argocd**: For ArgoCD interaction
+- **vagrant**: For local cluster creation (dev environment)
+
 ## Key Architecture Concepts
 
 ### ApplicationSet-Based Application Management
@@ -45,6 +55,7 @@ deploy/argocd/apps/<app-name>/
 ```
 deploy-applicationsets.sh script
   → Applies ApplicationSets from hardcoded list in script (lines ~267-278)
+  → Uses `yq` to parse configuration (installed via `mise`)
   → Each ApplicationSet uses Git Merge Generator:
       - Reads deploy/argocd/config/config.yaml (global)
       - Reads deploy/argocd/apps/<app-name>/config/*.yaml (app-specific)
@@ -52,6 +63,7 @@ deploy-applicationsets.sh script
   → Go template evaluation (conditions, variables)
   → Generates ArgoCD Application per environment
   → ArgoCD deploys apps via sync waves
+  → Patches Ingress resources (if any) with configured ingress class
 ```
 
 ApplicationSets are explicitly listed in the script, not auto-discovered. This allows selective deployment.
@@ -63,7 +75,8 @@ Applications deploy in order via `argocd.argoproj.io/sync-wave` annotations:
 - **Wave 15**: Gateway-API-Controller, Kube-VIP (API HA)
 - **Wave 20**: Cert-Manager (TLS certificates)
 - **Wave 30**: External-DNS (DNS automation)
-- **Wave 40**: Ingress-NGINX (Ingress controller)
+- **Wave 40**: Istio (Service Mesh)
+- **Wave 41**: Istio-Gateway (Ingress Gateway)
 - **Wave 50**: ArgoCD (self-management)
 - **Wave 55**: CSI-External-Snapshotter (volume snapshots)
 - **Wave 60**: Longhorn (distributed storage)
@@ -79,12 +92,13 @@ Applications deploy in order via `argocd.argoproj.io/sync-wave` annotations:
 3. **kube-vip** - VIP for Kubernetes API (192.168.121.200)
 4. **cert-manager** - Certificate management (self-signed issuer in dev)
 5. **external-dns** - DNS automation with CoreDNS
-6. **ingress-nginx** - Ingress controller
-7. **argocd** - GitOps controller (self-managed)
-8. **csi-external-snapshotter** - Snapshot CRDs for Longhorn
-9. **longhorn** - Distributed block storage
-10. **prometheus-stack** - Prometheus, Grafana, Alertmanager
-11. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
+6. **istio** - Service Mesh (Ambient mode)
+7. **istio-gateway** - Ingress Gateway
+8. **argocd** - GitOps controller (self-managed)
+9. **csi-external-snapshotter** - Snapshot CRDs for Longhorn
+10. **longhorn** - Distributed block storage
+11. **prometheus-stack** - Prometheus, Grafana, Alertmanager
+12. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
 
 ## Common Development Commands
 
@@ -553,7 +567,7 @@ Use these severity levels consistently:
 |-------------|--------|--------|
 | cilium-monitoring | 10 | ✅ Complete |
 | longhorn | 9 | ✅ Complete |
-| ingress-nginx | 9 | ✅ Complete |
+| istio | 5 | ✅ Complete |
 | argocd | 13 | ✅ Complete |
 | metallb | 8 | ✅ Complete |
 | external-dns | 7 | ✅ Complete |
@@ -561,7 +575,7 @@ Use these severity levels consistently:
 | kube-vip | 3 | ✅ Complete |
 | csi-external-snapshotter | 3 | ✅ Complete |
 | prometheus-stack | 57+ | ✅ Complete |
-| gateway-api-controller | 0 | ⚠️ No metrics available |
+| gateway-api-controller | 2 | ✅ Complete |
 
 **Target**: Maintain >90% application coverage
 
@@ -776,6 +790,7 @@ deploy/argocd/
 │       │   └── servicemonitors.yaml
 │       └── README.md
 └── deploy-applicationsets.sh              # Deployment automation script
+mise.toml                                  # Tool version management (yq)
 ```
 
 ## Key Advantages of Current Architecture

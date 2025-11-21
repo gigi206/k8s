@@ -74,3 +74,17 @@ spec:
           prune: {{ .syncPolicy.automated.prune }}
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
+      sources:
+        # Source 1: Gateway API CRDs
+        - repoURL: 'https://github.com/kubernetes-sigs/gateway-api/'
+          targetRevision: '{{ .versions.gatewayApiController }}'
+          path: '{{ .gatewayApiController.crdPath | default "config/crd/experimental" }}'
+        {{- if .features.monitoring.enabled }}
+        # Source 2: Prometheus monitoring (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/gateway-api-controller/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}

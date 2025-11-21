@@ -152,6 +152,10 @@ validate_prerequisites() {
     missing_tools+=("jq")
   fi
 
+  if ! command -v yq &> /dev/null; then
+    missing_tools+=("yq")
+  fi
+
   if [[ ${#missing_tools[@]} -gt 0 ]]; then
     log_error "Outils manquants: ${missing_tools[*]}"
     log_error "Installez-les avant de continuer."
@@ -517,35 +521,34 @@ fi
 echo ""
 log_info "Vérification des ingress sans IngressClass..."
 
-# Attendre que ingress-nginx soit déployé
-if kubectl get ingressclass 2>/dev/null | grep -q "nginx"; then
-  # Récupérer l'IngressClass par défaut
-  DEFAULT_INGRESS_CLASS=$(kubectl get ingressclass -o json 2>/dev/null | \
-    jq -r '.items[] | select(.metadata.annotations["ingressclass.kubernetes.io/is-default-class"]=="true") | .metadata.name' | head -1)
+# Lire la configuration globale pour connaître la classe d'ingress préférée
+CONFIG_FILE="${SCRIPT_DIR}/config/config.yaml"
+INGRESS_ENABLED=$(yq -r '.features.ingress.enabled' "$CONFIG_FILE")
+INGRESS_CLASS=$(yq -r '.features.ingress.class' "$CONFIG_FILE")
 
-  if [[ -n "$DEFAULT_INGRESS_CLASS" ]]; then
-    log_debug "IngressClass par défaut: $DEFAULT_INGRESS_CLASS"
-
-    # Trouver tous les ingress sans ingressClassName
-    INGRESS_TO_PATCH=$(kubectl get ingress -A -o json 2>/dev/null | \
-      jq -r '.items[] | select(.spec.ingressClassName == null) | "\(.metadata.namespace)/\(.metadata.name)"')
-
-    if [[ -n "$INGRESS_TO_PATCH" ]]; then
-      echo "$INGRESS_TO_PATCH" | while IFS='/' read -r namespace name; do
-        log_info "Patch de l'ingress $namespace/$name avec ingressClassName=$DEFAULT_INGRESS_CLASS"
-        kubectl patch ingress "$name" -n "$namespace" --type merge \
-          -p "{\"spec\":{\"ingressClassName\":\"$DEFAULT_INGRESS_CLASS\"}}" 2>/dev/null || \
-          log_warning "Impossible de patcher $namespace/$name"
-      done
-      log_success "Ingress patchés avec succès"
-    else
-      log_debug "Tous les ingress ont déjà un ingressClassName"
-    fi
-  else
-    log_debug "Aucune IngressClass par défaut trouvée"
-  fi
+# Si l'ingress est désactivé ou si la classe n'est pas définie, on ne fait rien
+if [[ "$INGRESS_ENABLED" == "false" ]]; then
+  log_debug "Ingress désactivé dans la configuration, pas de patch automatique."
+elif [[ -z "$INGRESS_CLASS" ]]; then
+  log_debug "Pas de classe d'ingress définie dans la configuration."
 else
-  log_debug "Aucune IngressClass disponible"
+  log_info "Classe d'ingress configurée: $INGRESS_CLASS"
+
+  # Trouver tous les ingress sans ingressClassName
+  INGRESS_TO_PATCH=$(kubectl get ingress -A -o json 2>/dev/null | \
+    jq -r '.items[] | select(.spec.ingressClassName == null) | "\(.metadata.namespace)/\(.metadata.name)"')
+
+  if [[ -n "$INGRESS_TO_PATCH" ]]; then
+    echo "$INGRESS_TO_PATCH" | while IFS='/' read -r namespace name; do
+      log_info "Patch de l'ingress $namespace/$name avec ingressClassName=$INGRESS_CLASS"
+      kubectl patch ingress "$name" -n "$namespace" --type merge \
+        -p "{\"spec\":{\"ingressClassName\":\"$INGRESS_CLASS\"}}" 2>/dev/null || \
+        log_warning "Impossible de patcher $namespace/$name"
+    done
+    log_success "Ingress patchés avec succès"
+  else
+    log_debug "Tous les ingress ont déjà un ingressClassName"
+  fi
 fi
 
 # =============================================================================
