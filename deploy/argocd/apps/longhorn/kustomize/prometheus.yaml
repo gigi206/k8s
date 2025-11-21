@@ -50,11 +50,11 @@ spec:
     - alert: LonghornVolumeUnhealthy
       annotations:
         description: |
-          Longhorn volume {{$labels.volume}} is in unhealthy state (robustness: {{$labels.robustness}}).
-          Volume may be degraded or faulted.
+          Longhorn volume {{$labels.volume}} is in unhealthy state (robustness value: {{$value}}).
+          Volume may be degraded (1) or faulted (0). Healthy = 2, Unknown = 3.
         summary: Longhorn volume is degraded or faulted.
       expr: |
-        longhorn_volume_robustness{robustness!="healthy"} == 1
+        longhorn_volume_robustness < 2
       for: 5m
       labels:
         severity: critical
