@@ -14,6 +14,7 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 - **helm**: For chart management
 - **kustomize**: For manifest customization
 - **argocd**: For ArgoCD interaction
+- **yamllint**: For YAML style checking
 - **vagrant**: For local cluster creation (dev environment)
 
 ## Key Architecture Concepts
