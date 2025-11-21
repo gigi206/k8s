@@ -18,18 +18,6 @@ spec:
   - name: cilium.rules
     interval: 30s
     rules:
-    - alert: CiliumAgentDown
-      annotations:
-        description: |
-          Cilium agent pod is down on node {{$labels.node}}.
-          Network connectivity for pods on this node is compromised.
-        summary: Cilium agent is unavailable (CNI critical failure).
-      expr: |
-        absent(up{job=~"cilium-agent.*"}) == 1
-      for: 5m
-      labels:
-        severity: critical
-
     - alert: CiliumEndpointNotReady
       annotations:
         description: |
@@ -98,18 +86,6 @@ spec:
         summary: Cilium node health connectivity issue.
       expr: |
         cilium_node_connectivity_status{type="icmp"} == 0
-      for: 5m
-      labels:
-        severity: critical
-
-    - alert: CiliumOperatorDown
-      annotations:
-        description: |
-          Cilium operator pod is down.
-          IPAM management and CRD reconciliation is compromised.
-        summary: Cilium operator is unavailable.
-      expr: |
-        absent(up{job="cilium-operator"}) == 1
       for: 5m
       labels:
         severity: critical
