@@ -1,0 +1,25 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd-server
+  namespace: argo-cd
+  annotations:
+    # cert-manager will create argocd-server-tls secret in argo-cd
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+spec:
+  parentRefs:
+  - name: istio-gateway
+    namespace: istio-system
+    kind: Gateway
+    sectionName: https
+  hostnames:
+  - "argocd.gigix"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: argocd-server
+      port: 80

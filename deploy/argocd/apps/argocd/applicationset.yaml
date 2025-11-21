@@ -125,6 +125,10 @@ spec:
               - name: configs.cm.timeout\.reconciliation
                 value: "60s"
 
+              # ArgoCD params (configs.params) - hardcoded for Gateway API TLS termination
+              - name: configs.params.server\.insecure
+                value: "true"
+
             # Server configuration
               {{- if .argocd.server.replicas }}
               - name: server.replicas

@@ -11,9 +11,13 @@ dashboard:
 #   argocd: "9.0.5"
 
 argocd:
+  configs:
+    params:
+      "server.insecure": "true"  # Run server without TLS (TLS terminated by Gateway API)
+
   server:
     ingress:
-      enabled: true
+      enabled: false  # Disabled - using Gateway API HTTPRoute instead
       # hostname managed by ApplicationSet: argocd.{{ .common.domain }}
     replicas: 1
     resources:
