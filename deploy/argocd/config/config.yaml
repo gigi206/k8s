@@ -78,7 +78,8 @@ features:
 
   ingress:
     enabled: false  # Disabled - using Gateway API HTTPRoute instead
-    class: "istio"  # Istio Ingress Gateway (LoadBalancer via MetalLB)
+    class: "istio"  # Used by deploy-applicationsets.sh to patch Ingress resources if needed
+                    # For Istio, we use Gateway API, but some legacy charts might still create Ingress
 
   storage:
     enabled: true
