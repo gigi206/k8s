@@ -1,0 +1,26 @@
+---
+# Configuration Envoy Gateway - Prod
+environment: prod
+appName: envoy-gateway
+
+versions:
+  envoyGateway: "v1.6.0"
+
+envoyGateway:
+  replicas: 3  # HA en production
+  gatewayClassName: envoy
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+syncPolicy:
+  automated:
+    enabled: false  # Sync manuel en production
+    prune: false
+    selfHeal: false
+  syncOptions:
+    - CreateNamespace=true

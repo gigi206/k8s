@@ -1,0 +1,140 @@
+---
+# =============================================================================
+# Envoy Gateway ApplicationSet - Wave 41 (Gateway API Controller)
+# =============================================================================
+# Déploie Envoy Gateway pour Gateway API (nouvelle génération)
+# Implémentation officielle d'EnvoyProxy pour Gateway API
+# Docs: https://gateway.envoyproxy.io/
+# Repo: https://github.com/envoyproxy/gateway
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: envoy-gateway
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "41"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/envoy-gateway/config/*.yaml
+
+  template:
+    metadata:
+      name: envoy-gateway
+      namespace: argo-cd
+      labels:
+        app: envoy-gateway
+        environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "41"
+    spec:
+      project: default
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: envoy-gateway-system
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+
+      {{- if .features.monitoring.enabled }}
+      # Multi-source: Helm chart + PrometheusRules
+      sources:
+        # Source 0: Envoy Gateway Helm Chart (OCI)
+        - repoURL: oci://docker.io/envoyproxy/gateway-helm
+          chart: gateway-helm
+          targetRevision: '{{ .versions.envoyGateway }}'
+          helm:
+            releaseName: envoy-gateway
+            valuesObject:
+              # Deployment configuration
+              deployment:
+                replicas: {{ .envoyGateway.replicas | default "1" }}
+                envoyGateway:
+                  resources:
+                    requests:
+                      cpu: {{ .envoyGateway.resources.requests.cpu | default "100m" }}
+                      memory: {{ .envoyGateway.resources.requests.memory | default "256Mi" }}
+                    limits:
+                      cpu: {{ .envoyGateway.resources.limits.cpu | default "1000m" }}
+                      memory: {{ .envoyGateway.resources.limits.memory | default "1Gi" }}
+
+              # GatewayClass configuration
+              config:
+                envoyGateway:
+                  gateway:
+                    controllerName: gateway.envoyproxy.io/gatewayclass-controller
+
+              # Service configuration (LoadBalancer pour MetalLB)
+              createNamespace: false  # ArgoCD crée le namespace
+
+        # Source 1: PrometheusRules (monitoring)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/envoy-gateway/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+      {{- else }}
+      # Single source: Helm chart uniquement
+      source:
+        repoURL: oci://docker.io/envoyproxy/gateway-helm
+        chart: gateway-helm
+        targetRevision: '{{ .versions.envoyGateway }}'
+        helm:
+          releaseName: envoy-gateway
+          valuesObject:
+            deployment:
+              replicas: {{ .envoyGateway.replicas | default "1" }}
+              envoyGateway:
+                resources:
+                  requests:
+                    cpu: {{ .envoyGateway.resources.requests.cpu | default "100m" }}
+                    memory: {{ .envoyGateway.resources.requests.memory | default "256Mi" }}
+                  limits:
+                    cpu: {{ .envoyGateway.resources.limits.cpu | default "1000m" }}
+                    memory: {{ .envoyGateway.resources.limits.memory | default "1Gi" }}
+            config:
+              envoyGateway:
+                gateway:
+                  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+            createNamespace: false
+      {{- end }}
