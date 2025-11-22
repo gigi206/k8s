@@ -9,9 +9,10 @@ metadata:
     cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
 spec:
   parentRefs:
-  - name: istio-gateway
-    namespace: istio-system
+  - group: gateway.networking.k8s.io
     kind: Gateway
+    name: istio-gateway
+    namespace: istio-system
     sectionName: https
   hostnames:
   - "argocd.gigix"
@@ -21,5 +22,8 @@ spec:
         type: PathPrefix
         value: /
     backendRefs:
-    - name: argocd-server
+    - group: ""
+      kind: Service
+      name: argocd-server
       port: 80
+      weight: 1
