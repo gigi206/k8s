@@ -9,9 +9,10 @@ metadata:
     cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
 spec:
   parentRefs:
-  - name: istio-gateway
-    namespace: istio-system
+  - group: gateway.networking.k8s.io
     kind: Gateway
+    name: istio-gateway
+    namespace: istio-system
     sectionName: https
   hostnames:
   - "prometheus.gigix"
@@ -21,5 +22,8 @@ spec:
         type: PathPrefix
         value: /
     backendRefs:
-    - name: prometheus-stack-kube-prom-prometheus
+    - group: ""
+      kind: Service
+      name: prometheus-stack-kube-prom-prometheus
       port: 9090
+      weight: 1
