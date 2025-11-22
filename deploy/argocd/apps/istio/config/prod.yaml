@@ -37,6 +37,23 @@ istio:
         cpu: "1000m"
         memory: "1Gi"
 
+# Kiali (Service Mesh Observability)
+kiali:
+  enabled: true
+  version: "2.4.0"  # Latest Kiali stable version
+  replicas: 2  # Prod: HA with 2 replicas
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  auth:
+    strategy: "token"  # Prod: token-based authentication
+
 # Sync policy (manual for prod)
 syncPolicy:
   automated:

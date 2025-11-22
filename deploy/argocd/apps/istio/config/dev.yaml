@@ -37,6 +37,23 @@ istio:
         cpu: "500m"
         memory: "512Mi"
 
+# Kiali (Service Mesh Observability)
+kiali:
+  enabled: true
+  version: "2.4.0"  # Latest Kiali stable version
+  replicas: 1  # Dev: single replica
+
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+  auth:
+    strategy: "anonymous"  # Dev: no authentication required
+
 # Sync policy
 syncPolicy:
   automated:
