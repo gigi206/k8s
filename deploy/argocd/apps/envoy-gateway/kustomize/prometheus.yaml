@@ -1,0 +1,90 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: envoy-gateway-prometheus-rules
+  namespace: envoy-gateway-system
+  labels:
+    prometheus: envoy-gateway
+    role: alert-rules
+spec:
+  groups:
+  - name: envoy-gateway.rules
+    interval: 30s
+    rules:
+    # CRITICAL: Component availability
+    - alert: EnvoyGatewayDown
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="envoy-gateway",
+          namespace="envoy-gateway-system"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Envoy Gateway is unavailable
+        description: Envoy Gateway has been down for 5 minutes
+
+    # CRITICAL: Crash looping
+    - alert: EnvoyGatewayCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"envoy-gateway.*",
+          namespace="envoy-gateway-system"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: Envoy Gateway is crash looping
+        description: Envoy Gateway pod {{ $labels.pod }} is restarting frequently
+
+    # HIGH: High memory usage
+    - alert: EnvoyGatewayHighMemory
+      expr: |
+        container_memory_working_set_bytes{
+          pod=~"envoy-gateway.*",
+          namespace="envoy-gateway-system",
+          container="envoy-gateway"
+        } /
+        container_spec_memory_limit_bytes{
+          pod=~"envoy-gateway.*",
+          namespace="envoy-gateway-system",
+          container="envoy-gateway"
+        } > 0.9
+      for: 10m
+      labels:
+        severity: high
+      annotations:
+        summary: Envoy Gateway high memory usage
+        description: "Envoy Gateway pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit"
+
+    # WARNING: High CPU usage
+    - alert: EnvoyGatewayHighCPU
+      expr: |
+        rate(container_cpu_usage_seconds_total{
+          pod=~"envoy-gateway.*",
+          namespace="envoy-gateway-system",
+          container="envoy-gateway"
+        }[5m]) > 0.8
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: Envoy Gateway high CPU usage
+        description: "Envoy Gateway pod {{ $labels.pod }} CPU usage is {{ $value | humanize }} cores"
+
+    # WARNING: Pod not ready
+    - alert: EnvoyGatewayPodNotReady
+      expr: |
+        kube_pod_status_ready{
+          pod=~"envoy-gateway.*",
+          namespace="envoy-gateway-system",
+          condition="true"
+        } == 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: Envoy Gateway pod not ready
+        description: "Envoy Gateway pod {{ $labels.pod }} has been not ready for 10 minutes"
