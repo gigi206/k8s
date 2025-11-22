@@ -1,0 +1,124 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apisix
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "42"  # After istio-gateway (wave 41), before prometheus-stack (wave 75)
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/apisix/config/*.yaml
+
+  template:
+    metadata:
+      name: 'apisix'
+      namespace: argo-cd
+      labels:
+        app: apisix
+        environment: '{{ .environment }}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "42"
+        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: gitops-notifications
+    spec:
+      project: default
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .apisix.namespace }}'
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+        retry:
+          limit: {{ .syncPolicy.retry.limit }}
+          backoff:
+            duration: {{ .syncPolicy.retry.backoff.duration }}
+            factor: 2
+            maxDuration: {{ .syncPolicy.retry.backoff.maxDuration }}
+
+      sources:
+        # Source 0: APISIX Helm Chart
+        - repoURL: {{ .apisix.chart.repo }}
+          chart: {{ .apisix.chart.name }}
+          targetRevision: {{ .apisix.chart.version }}
+          helm:
+            releaseName: apisix
+            valuesObject:
+              # Replica count
+              replicaCount: {{ .apisix.replicaCount }}
+
+              # Resource limits
+              resources:
+                requests:
+                  cpu: {{ .apisix.resources.requests.cpu }}
+                  memory: {{ .apisix.resources.requests.memory }}
+                limits:
+                  cpu: {{ .apisix.resources.limits.cpu }}
+                  memory: {{ .apisix.resources.limits.memory }}
+
+              # Service configuration
+              service:
+                type: {{ .apisix.gateway.type }}
+
+              # Admin API configuration
+              admin:
+                enabled: {{ .apisix.admin.enabled }}
+                type: {{ .apisix.admin.type }}
+                credentials:
+                  admin: {{ .apisix.admin.credentials.admin }}
+                  viewer: {{ .apisix.admin.credentials.viewer }}
+
+              # Embedded ETCD configuration
+              etcd:
+                enabled: {{ .apisix.etcd.enabled }}
+                replicaCount: {{ .apisix.etcd.replicaCount }}
+                persistence:
+                  enabled: {{ .apisix.etcd.persistence.enabled }}
+                  storageClass: {{ .apisix.etcd.persistence.storageClass }}
+                  size: {{ .apisix.etcd.persistence.size }}
+                # Disable pre-upgrade hook that causes issues during initial installation
+                preUpgradeJob:
+                  enabled: false
+
+              # Enable ServiceMonitor for Prometheus
+              serviceMonitor:
+                enabled: {{ .apisix.serviceMonitor.enabled }}
+                interval: {{ .apisix.serviceMonitor.interval }}
+                labels:
+                  release: {{ .features.monitoring.release }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source 1: Prometheus monitoring (ServiceMonitor + PrometheusRules)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/apisix/kustomize
+          kustomize:
+            commonLabels:
+              release: {{ .features.monitoring.release }}
+        {{- end }}
