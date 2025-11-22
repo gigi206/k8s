@@ -155,6 +155,12 @@ spec:
             - name: kubeProxy.enabled
               value: "false"
 
+            # Prometheus Operator: use cert-manager for admission webhooks
+            - name: prometheusOperator.admissionWebhooks.certManager.enabled
+              value: "true"
+            - name: prometheusOperator.admissionWebhooks.certManager.admissionCert.duration
+              value: "8760h"
+
             # Prometheus: replicas and resources
             {{- if .prometheusStack.prometheus.replicas }}
             - name: prometheus.prometheusSpec.replicas
