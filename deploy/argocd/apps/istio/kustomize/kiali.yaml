@@ -1,0 +1,149 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kiali-prometheus-rules
+  namespace: istio-system
+  labels:
+    prometheus: kiali
+    role: alert-rules
+spec:
+  groups:
+  - name: kiali.rules
+    interval: 30s
+    rules:
+    # CRITICAL: Kiali service availability
+    - alert: KialiDown
+      expr: absent(up{job="kiali"}) == 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Kiali service is unavailable
+        description: Kiali has been down for 5 minutes. Service mesh observability is impaired.
+
+    # CRITICAL: Kiali pod not ready
+    - alert: KialiPodDown
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="kiali",
+          namespace="istio-system"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: No Kiali pods are available
+        description: Kiali deployment has no available replicas for 5 minutes.
+
+    # CRITICAL: Kiali pod crash looping
+    - alert: KialiPodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"kiali-.*",
+          namespace="istio-system"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: Kiali pod is crash looping
+        description: Kiali pod {{ $labels.pod }} is restarting frequently, indicating stability issues.
+
+    # HIGH: Kiali HTTP errors
+    - alert: KialiHighErrorRate
+      expr: |
+        (
+          sum(rate(kiali_api_processing_duration_seconds_count{code=~"5.."}[5m]))
+          /
+          sum(rate(kiali_api_processing_duration_seconds_count[5m]))
+        ) > 0.05
+      for: 10m
+      labels:
+        severity: high
+      annotations:
+        summary: Kiali has high HTTP error rate
+        description: Kiali is experiencing >5% HTTP 5xx errors over the last 10 minutes.
+
+    # HIGH: Kiali API latency
+    - alert: KialiHighLatency
+      expr: |
+        histogram_quantile(0.99,
+          sum(rate(kiali_api_processing_duration_seconds_bucket[5m])) by (le)
+        ) > 5
+      for: 10m
+      labels:
+        severity: high
+      annotations:
+        summary: Kiali API has high latency
+        description: Kiali API p99 latency is >5s, indicating performance degradation.
+
+    # WARNING: Kiali high memory usage
+    - alert: KialiHighMemoryUsage
+      expr: |
+        (
+          container_memory_working_set_bytes{
+            pod=~"kiali-.*",
+            namespace="istio-system",
+            container="kiali"
+          }
+          /
+          container_spec_memory_limit_bytes{
+            pod=~"kiali-.*",
+            namespace="istio-system",
+            container="kiali"
+          }
+        ) > 0.8
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: Kiali pod has high memory usage
+        description: Kiali pod {{ $labels.pod }} is using >80% of its memory limit.
+
+    # WARNING: Kiali deployment replica mismatch
+    - alert: KialiReplicaMismatch
+      expr: |
+        kube_deployment_spec_replicas{
+          deployment="kiali",
+          namespace="istio-system"
+        }
+        !=
+        kube_deployment_status_replicas_available{
+          deployment="kiali",
+          namespace="istio-system"
+        }
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: Kiali deployment has replica mismatch
+        description: Kiali desired replicas do not match available replicas for 15 minutes.
+
+    # WARNING: Kiali unable to connect to Istio
+    - alert: KialiIstioConnectionFailure
+      expr: |
+        sum(rate(kiali_api_processing_duration_seconds_count{
+          route=~".*istiod.*",
+          code=~"5.."
+        }[5m])) > 0.1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: Kiali cannot connect to Istiod
+        description: Kiali is experiencing errors connecting to Istiod control plane.
+
+    # WARNING: Kiali Prometheus connection issues
+    - alert: KialiPrometheusConnectionFailure
+      expr: |
+        sum(rate(kiali_api_processing_duration_seconds_count{
+          route=~".*prometheus.*",
+          code=~"5.."
+        }[5m])) > 0.1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: Kiali cannot connect to Prometheus
+        description: Kiali is experiencing errors connecting to Prometheus, affecting metrics visualization.
