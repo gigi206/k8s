@@ -1,0 +1,28 @@
+---
+# Configuration Envoy Gateway - Dev
+environment: dev
+appName: envoy-gateway
+
+versions:
+  envoyGateway: "v1.6.0"
+
+envoyGateway:
+  replicas: 1
+  gatewayClassName: envoy  # GatewayClass name pour Envoy Gateway
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=true
+    - SkipDryRunOnMissingResource=true
+    - RespectIgnoreDifferences=true

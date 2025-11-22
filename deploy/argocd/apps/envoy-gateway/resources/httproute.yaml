@@ -1,0 +1,29 @@
+---
+# Envoy Gateway Test - HTTPRoute Resource
+# Cette ressource de test route le trafic vers le service kubernetes (API server)
+# Pour activer cette HTTPRoute de test:
+#   kubectl apply -f deploy/argocd/apps/envoy-gateway/resources/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: envoy-test-route
+  namespace: default
+  labels:
+    app: envoy-gateway-test
+spec:
+  parentRefs:
+  - name: envoy-test-gateway
+    namespace: default
+
+  hostnames:
+  - "envoy-test.gigix"
+
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: kubernetes
+      port: 443
+      namespace: default
