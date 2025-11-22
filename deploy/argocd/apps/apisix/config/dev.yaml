@@ -1,0 +1,67 @@
+---
+environment: dev
+appName: apisix
+
+apisix:
+  namespace: apisix
+  chart:
+    repo: https://charts.apiseven.com
+    name: apisix
+    version: "2.12.3"
+
+  # Replica count for dev environment
+  replicaCount: 1
+
+  # APISIX Configuration
+  gateway:
+    type: LoadBalancer
+    http:
+      enabled: true
+    tls:
+      enabled: true
+
+  admin:
+    enabled: true
+    type: ClusterIP
+    credentials:
+      admin: edd1c9f034335f136f87ad84b625c8f1  # Default admin key (change in production)
+      viewer: 4054f7cf07e344346cd3f287985e76a2  # Default viewer key
+
+  # Enable Prometheus metrics
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+  # Resource limits for dev
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+  # ETCD configuration (embedded for dev)
+  etcd:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      storageClass: "longhorn"
+      size: "2Gi"
+
+# Sync policy
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+  retry:
+    limit: 5
+    backoff:
+      duration: "10s"
+      factor: 2
+      maxDuration: "5m"
