@@ -26,6 +26,7 @@ spec:
     tls:
       mode: Terminate
       certificateRefs:
-      - name: wildcard-gigix-tls
+      - group: ""
         kind: Secret
+        name: wildcard-gigix-tls
         # Secret in same namespace (istio-system) - wildcard cert for *.gigix
