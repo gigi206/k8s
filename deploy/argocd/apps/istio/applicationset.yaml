@@ -191,8 +191,74 @@ spec:
                   cpu: {{ .istio.ztunnel.resources.limits.cpu }}
                   memory: {{ .istio.ztunnel.resources.limits.memory }}
 
+        {{- if .kiali.enabled }}
+        # Source 5: Kiali Server (Helm chart)
+        - repoURL: https://kiali.org/helm-charts
+          chart: kiali-server
+          targetRevision: {{ .kiali.version }}
+          helm:
+            releaseName: kiali
+            valuesObject:
+              # Deployment configuration
+              deployment:
+                replicas: {{ .kiali.replicas }}
+                resources:
+                  requests:
+                    cpu: {{ .kiali.resources.requests.cpu }}
+                    memory: {{ .kiali.resources.requests.memory }}
+                  limits:
+                    cpu: {{ .kiali.resources.limits.cpu }}
+                    memory: {{ .kiali.resources.limits.memory }}
+
+              # Istio configuration
+              external_services:
+                istio:
+                  root_namespace: {{ .istio.namespace }}
+                  config_map_name: istio
+                  istio_sidecar_injector_config_map_name: istio-sidecar-injector
+                  istio_identity_domain: svc.cluster.local
+                  url_service_version: http://istiod.{{ .istio.namespace }}:15014/version
+
+                # Prometheus integration
+                {{- if .features.monitoring.enabled }}
+                prometheus:
+                  url: http://{{ .features.monitoring.release }}-kube-prom-prometheus.monitoring:9090
+                {{- end }}
+
+                # Grafana integration
+                {{- if .features.monitoring.enabled }}
+                grafana:
+                  enabled: true
+                  url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
+                  in_cluster_url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
+                {{- end }}
+
+                # Tracing (Jaeger) - disabled by default
+                tracing:
+                  enabled: false
+
+              # Authentication strategy
+              auth:
+                strategy: {{ .kiali.auth.strategy }}
+
+              # Server configuration
+              server:
+                port: 20001
+                web_root: /
+
+              # Kiali feature flags
+              kiali_feature_flags:
+                istio_injection_action: true
+                ui_defaults:
+                  graph:
+                    traffic:
+                      grpc: "requests"
+                      http: "requests"
+                      tcp: "sent"
+        {{- end }}
+
         {{- if .features.monitoring.enabled }}
-        # Source 5: PrometheusRules for monitoring Istio (with release label)
+        # Source 6: PrometheusRules for monitoring Istio (with release label)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/kustomize
