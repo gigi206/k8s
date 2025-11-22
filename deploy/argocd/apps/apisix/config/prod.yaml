@@ -1,0 +1,63 @@
+---
+environment: prod
+appName: apisix
+
+apisix:
+  namespace: apisix
+  chart:
+    repo: https://charts.apiseven.com
+    name: apisix
+    version: "2.12.3"
+
+  # APISIX Configuration
+  gateway:
+    type: LoadBalancer
+    http:
+      enabled: true
+    tls:
+      enabled: true
+
+  admin:
+    enabled: true
+    type: ClusterIP
+    credentials:
+      admin: CHANGE_ME_IN_PRODUCTION
+      viewer: CHANGE_ME_IN_PRODUCTION
+
+  # Enable Prometheus metrics
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+  # Resource limits for production
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # ETCD configuration (HA setup)
+  etcd:
+    enabled: true
+    replicaCount: 3
+    persistence:
+      enabled: true
+      storageClass: "longhorn"
+      size: "10Gi"
+
+# Sync policy (manual for production)
+syncPolicy:
+  automated:
+    enabled: false
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+  retry:
+    limit: 5
+    backoff:
+      duration: "10s"
+      factor: 2
+      maxDuration: "5m"

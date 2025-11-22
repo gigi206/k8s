@@ -1,0 +1,243 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: apisix-prometheus-rules
+  namespace: apisix
+  labels:
+    prometheus: apisix
+    role: alert-rules
+spec:
+  groups:
+  - name: apisix.rules
+    interval: 30s
+    rules:
+    # CRITICAL: APISIX availability
+    - alert: ApisixDown
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="apisix",
+          namespace="apisix"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: apisix
+      annotations:
+        summary: APISIX is unavailable
+        description: APISIX has no available replicas in namespace apisix for 5 minutes
+
+    - alert: ApisixPodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"apisix-.*",
+          namespace="apisix",
+          container="apisix"
+        }[15m]) > 0
+      for: 10m
+      labels:
+        severity: critical
+        component: apisix
+      annotations:
+        summary: APISIX pod is crash looping
+        description: "APISIX pod {{ $labels.pod }} is restarting frequently"
+
+    - alert: ApisixReplicasMismatch
+      expr: |
+        kube_deployment_spec_replicas{
+          deployment="apisix",
+          namespace="apisix"
+        } !=
+        kube_deployment_status_replicas_available{
+          deployment="apisix",
+          namespace="apisix"
+        }
+      for: 15m
+      labels:
+        severity: warning
+        component: apisix
+      annotations:
+        summary: APISIX replicas mismatch
+        description: "APISIX has {{ $value }} replica(s) unavailable for 15 minutes"
+
+    # HIGH: APISIX performance and errors
+    - alert: ApisixHighHTTPErrorRate
+      expr: |
+        sum(rate(apisix_http_status{
+          code=~"5.."
+        }[5m])) by (namespace)
+        /
+        sum(rate(apisix_http_status[5m])) by (namespace)
+        > 0.05
+      for: 10m
+      labels:
+        severity: high
+        component: apisix
+      annotations:
+        summary: APISIX high HTTP 5xx error rate
+        description: "APISIX has {{ $value | humanizePercentage }} 5xx error rate (threshold: 5%)"
+
+    - alert: ApisixHighLatency
+      expr: |
+        histogram_quantile(0.99,
+          sum(rate(apisix_http_latency_bucket[5m])) by (le, namespace)
+        ) > 5
+      for: 10m
+      labels:
+        severity: high
+        component: apisix
+      annotations:
+        summary: APISIX high latency detected
+        description: "APISIX p99 latency is {{ $value }}s (threshold: 5s)"
+
+    - alert: ApisixHighRequestRate
+      expr: |
+        sum(rate(apisix_http_requests_total[5m])) by (namespace) > 1000
+      for: 15m
+      labels:
+        severity: warning
+        component: apisix
+      annotations:
+        summary: APISIX experiencing high request rate
+        description: "APISIX is handling {{ $value }} requests/sec"
+
+    # WARNING: Resource saturation
+    - alert: ApisixHighMemoryUsage
+      expr: |
+        container_memory_usage_bytes{
+          pod=~"apisix-.*",
+          namespace="apisix",
+          container="apisix"
+        }
+        /
+        container_spec_memory_limit_bytes{
+          pod=~"apisix-.*",
+          namespace="apisix",
+          container="apisix"
+        }
+        > 0.90
+      for: 10m
+      labels:
+        severity: warning
+        component: apisix
+      annotations:
+        summary: APISIX high memory usage
+        description: "APISIX pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit"
+
+    - alert: ApisixHighCPUUsage
+      expr: |
+        rate(container_cpu_usage_seconds_total{
+          pod=~"apisix-.*",
+          namespace="apisix",
+          container="apisix"
+        }[5m])
+        /
+        container_spec_cpu_quota{
+          pod=~"apisix-.*",
+          namespace="apisix",
+          container="apisix"
+        }
+        * 100000
+        > 0.90
+      for: 10m
+      labels:
+        severity: warning
+        component: apisix
+      annotations:
+        summary: APISIX high CPU usage
+        description: "APISIX pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of CPU limit"
+
+    # CRITICAL: ETCD health
+    - alert: ApisixEtcdDown
+      expr: |
+        kube_statefulset_status_replicas_ready{
+          statefulset="apisix-etcd",
+          namespace="apisix"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+        component: apisix-etcd
+      annotations:
+        summary: APISIX ETCD is unavailable
+        description: APISIX ETCD has no ready replicas for 5 minutes
+
+    - alert: ApisixEtcdReplicasMismatch
+      expr: |
+        kube_statefulset_status_replicas{
+          statefulset="apisix-etcd",
+          namespace="apisix"
+        } !=
+        kube_statefulset_status_replicas_ready{
+          statefulset="apisix-etcd",
+          namespace="apisix"
+        }
+      for: 10m
+      labels:
+        severity: high
+        component: apisix-etcd
+      annotations:
+        summary: APISIX ETCD replicas mismatch
+        description: "APISIX ETCD has {{ $value }} replica(s) not ready"
+
+    - alert: ApisixEtcdPersistentVolumeSpaceLow
+      expr: |
+        kubelet_volume_stats_available_bytes{
+          persistentvolumeclaim=~"data-apisix-etcd-.*",
+          namespace="apisix"
+        }
+        /
+        kubelet_volume_stats_capacity_bytes{
+          persistentvolumeclaim=~"data-apisix-etcd-.*",
+          namespace="apisix"
+        }
+        < 0.15
+      for: 10m
+      labels:
+        severity: warning
+        component: apisix-etcd
+      annotations:
+        summary: APISIX ETCD persistent volume space low
+        description: "APISIX ETCD PVC {{ $labels.persistentvolumeclaim }} has less than 15% space available"
+
+    # WARNING: Admin API monitoring
+    - alert: ApisixAdminServiceDown
+      expr: |
+        kube_service_info{
+          service="apisix-admin",
+          namespace="apisix"
+        } == 0
+      for: 5m
+      labels:
+        severity: warning
+        component: apisix-admin
+      annotations:
+        summary: APISIX Admin API service is down
+        description: APISIX Admin API service is not available
+
+    # MEDIUM: Configuration sync
+    - alert: ApisixConfigSyncErrors
+      expr: |
+        rate(apisix_etcd_modify_indexes{
+          key=~".*error.*"
+        }[5m]) > 0
+      for: 10m
+      labels:
+        severity: medium
+        component: apisix
+      annotations:
+        summary: APISIX configuration sync errors detected
+        description: "APISIX is experiencing configuration sync errors with ETCD"
+
+    - alert: ApisixConnectionsHigh
+      expr: |
+        apisix_nginx_http_current_connections{
+          state="active"
+        } > 5000
+      for: 10m
+      labels:
+        severity: warning
+        component: apisix
+      annotations:
+        summary: APISIX has high number of active connections
+        description: "APISIX has {{ $value }} active connections (threshold: 5000)"
