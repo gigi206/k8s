@@ -124,23 +124,6 @@ spec:
               # ArgoCD Configuration (configs.cm)
               - name: configs.cm.timeout\.reconciliation
                 value: "60s"
-              - name: configs.cm.resource\.customizations
-                value: |
-                  admissionregistration.k8s.io/MutatingWebhookConfiguration:
-                    health.lua: |
-                      hs = {}
-                      hs.status = "Healthy"
-                      hs.message = "Webhook is patched"
-                      if obj.webhooks ~= nil then
-                        for i, webhook in ipairs(obj.webhooks) do
-                          if webhook.clientConfig.caBundle == nil or webhook.clientConfig.caBundle == "" then
-                            hs.status = "Progressing"
-                            hs.message = "Waiting for caBundle injection in webhook " .. webhook.name
-                            return hs
-                          end
-                        end
-                      end
-                      return hs
 
               # ArgoCD params (configs.params) - hardcoded for Gateway API TLS termination
               - name: configs.params.server\.insecure
