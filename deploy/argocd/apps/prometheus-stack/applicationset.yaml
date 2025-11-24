@@ -79,6 +79,10 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        # Source 3: Encrypted secrets (KSOPS) - environment-specific
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/secrets/{{ .environment }}
         {{- if .features.monitoring.enabled }}
         # Source 2: Prometheus health alerts (conditional) - with dynamic release label
         - repoURL: https://github.com/gigi206/k8s
@@ -105,9 +109,13 @@ spec:
             - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]
               value: "ReadWriteOnce"
 
-            # Grafana: admin password
-            - name: grafana.adminPassword
-              value: '{{ .prometheusStack.grafana.adminPassword | default "admin" }}'
+            # Grafana: admin credentials (from encrypted secret via KSOPS)
+            - name: grafana.admin.existingSecret
+              value: grafana-admin-credentials
+            - name: grafana.admin.userKey
+              value: admin-user
+            - name: grafana.admin.passwordKey
+              value: admin-password
 
             # Grafana: persistence (enabled automatiquement si features.storage.enabled)
             - name: grafana.persistence.enabled

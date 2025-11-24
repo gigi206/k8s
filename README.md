@@ -189,6 +189,24 @@ cd argocd && make status
 - **Auto-sync en dev** : Les changements Git sont appliqués automatiquement
 - **Sync manuel en prod** : Contrôle total sur les déploiements
 
+## 🔐 Gestion des secrets (SOPS/KSOPS)
+
+Les secrets sont chiffrés dans Git avec **SOPS** (AGE encryption) et déchiffrés par ArgoCD via **KSOPS**.
+
+```
+sops/                    # Clés privées AGE
+├── age-dev.key          # Clé dev
+└── age-prod.key         # Clé prod
+
+deploy/argocd/
+├── .sops.yaml           # Config SOPS (clés publiques)
+└── apps/<app>/secrets/  # Secrets chiffrés par application
+```
+
+> ⚠️ **Cluster de démo** : Les clés privées dans `sops/` sont stockées en clair dans ce dépôt.
+> C'est acceptable pour un cluster de démonstration. En production, ces clés doivent être
+> stockées de manière sécurisée (gestionnaire de secrets, HSM, CI/CD secrets) et **jamais committées**.
+
 ## 📚 Documentation détaillée
 
 - [argocd/README.md](argocd/README.md) - Documentation technique complète

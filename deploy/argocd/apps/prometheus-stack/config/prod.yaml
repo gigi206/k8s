@@ -33,8 +33,8 @@ prometheusStack:
     enableRemoteWriteReceiver: false
 
   grafana:
-    # Admin password (CHANGE IN PRODUCTION!)
-    adminPassword: "CHANGE_ME_IN_PRODUCTION"
+    # Admin credentials managed via KSOPS encrypted secrets
+    # See: secrets/secret-prod.yaml
 
     # Replicas (prod: 2 for HA)
     replicas: 2
