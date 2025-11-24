@@ -1,0 +1,49 @@
+---
+# PreSync Job that waits for Istio sidecar injector webhook to be ready
+# This prevents the race condition where gateway pods are created before
+# the webhook can inject the proper image (replacing "auto")
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-istio-webhook
+  namespace: istio-system
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 30
+  template:
+    spec:
+      serviceAccountName: default
+      restartPolicy: OnFailure
+      containers:
+      - name: wait-for-webhook
+        image: curlimages/curl:8.11.0
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for Istio sidecar injector webhook to be ready..."
+
+          # Wait for istiod service to be reachable
+          echo "Step 1: Checking istiod service..."
+          until curl -sf http://istiod.istio-system.svc:15014/version > /dev/null 2>&1; do
+            echo "  Waiting for istiod service to respond..."
+            sleep 2
+          done
+          echo "  istiod service is responding!"
+
+          # Wait for webhook endpoint to be ready (port 15017)
+          echo "Step 2: Checking webhook endpoint..."
+          until curl -skf https://istiod.istio-system.svc:15017/ready > /dev/null 2>&1; do
+            echo "  Waiting for webhook endpoint to be ready..."
+            sleep 2
+          done
+          echo "  Webhook endpoint is ready!"
+
+          # Additional grace period to ensure webhook is fully operational
+          echo "Step 3: Grace period for webhook stabilization..."
+          sleep 5
+
+          echo "Istio sidecar injector webhook is ready!"
