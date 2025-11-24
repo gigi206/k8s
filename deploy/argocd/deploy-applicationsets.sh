@@ -265,6 +265,59 @@ echo ""
 validate_prerequisites
 
 # =============================================================================
+# Configuration SOPS/KSOPS pour le chiffrement des secrets
+# =============================================================================
+
+setup_sops_secret() {
+  log_info "Configuration du secret SOPS pour KSOPS..."
+
+  # Chemin vers les clés AGE (relatif au répertoire racine du projet)
+  local project_root="${SCRIPT_DIR}/../.."
+  local sops_dir="${project_root}/sops"
+  local key_file=""
+
+  # Sélectionner la clé selon l'environnement
+  case "$ENVIRONMENT" in
+    dev|local)
+      key_file="${sops_dir}/age-dev.key"
+      ;;
+    prod)
+      key_file="${sops_dir}/age-prod.key"
+      ;;
+    *)
+      key_file="${sops_dir}/age-dev.key"
+      ;;
+  esac
+
+  # Vérifier que le fichier de clé existe
+  if [[ ! -f "$key_file" ]]; then
+    log_warning "Fichier de clé AGE non trouvé: $key_file"
+    log_warning "Les secrets SOPS ne pourront pas être déchiffrés par ArgoCD"
+    log_warning "Pour générer une clé: age-keygen -o $key_file"
+    return 0
+  fi
+
+  # Vérifier si le secret existe déjà
+  if kubectl get secret sops-age-key -n "$ARGOCD_NAMESPACE" &> /dev/null; then
+    log_debug "Secret sops-age-key existe déjà, mise à jour..."
+    kubectl delete secret sops-age-key -n "$ARGOCD_NAMESPACE" --ignore-not-found > /dev/null
+  fi
+
+  # Créer le secret avec la clé AGE
+  if kubectl create secret generic sops-age-key \
+    --namespace="$ARGOCD_NAMESPACE" \
+    --from-file=keys.txt="$key_file" > /dev/null 2>&1; then
+    log_success "Secret sops-age-key créé/mis à jour pour l'environnement $ENVIRONMENT"
+  else
+    log_error "Échec de la création du secret sops-age-key"
+    return 1
+  fi
+}
+
+# Configurer le secret SOPS
+setup_sops_secret
+
+# =============================================================================
 # Liste des ApplicationSets
 # =============================================================================
 

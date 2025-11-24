@@ -34,8 +34,8 @@ prometheusStack:
     enableRemoteWriteReceiver: false
 
   grafana:
-    # Admin password
-    adminPassword: "admin"
+    # Admin credentials managed via KSOPS encrypted secrets
+    # See: secrets/secret-dev.yaml
 
     # Replicas (dev: 1)
     replicas: 1

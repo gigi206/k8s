@@ -16,6 +16,8 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 - **argocd**: For ArgoCD interaction
 - **yamllint**: For YAML style checking
 - **vagrant**: For local cluster creation (dev environment)
+- **age**: For AGE encryption keys (installed via mise)
+- **sops**: For encrypting/decrypting secrets (installed via mise)
 
 ## Key Architecture Concepts
 
@@ -55,7 +57,8 @@ deploy/argocd/apps/<app-name>/
 
 ```
 deploy-applicationsets.sh script
-  → Applies ApplicationSets from hardcoded list in script (lines ~267-278)
+  → Creates sops-age-key secret (from sops/age-{env}.key)
+  → Applies ApplicationSets from hardcoded list in script
   → Uses `yq` to parse configuration (installed via `mise`)
   → Each ApplicationSet uses Git Merge Generator:
       - Reads deploy/argocd/config/config.yaml (global)
@@ -64,6 +67,7 @@ deploy-applicationsets.sh script
   → Go template evaluation (conditions, variables)
   → Generates ArgoCD Application per environment
   → ArgoCD deploys apps via sync waves
+  → KSOPS decrypts secrets from apps/<app>/secrets/*.yaml
   → Patches Ingress resources (if any) with configured ingress class
 ```
 
@@ -389,6 +393,146 @@ templatePatch: |
 **Applications using this pattern**:
 - argocd, metallb, external-dns, cert-manager, ingress-nginx, longhorn (PrometheusRules)
 - cilium-monitoring, prometheus-stack (ServiceMonitors and PrometheusRules)
+
+### Secrets Management with SOPS/KSOPS
+
+**Overview**: Secrets are encrypted in Git using SOPS with AGE encryption. ArgoCD decrypts them at deploy time using KSOPS (Kustomize plugin).
+
+**Architecture**:
+```
+Git Repository                          ArgoCD Repo Server
++------------------------+              +---------------------------+
+| .sops.yaml (pub keys)  |              | KSOPS plugin (init cont.) |
+| apps/<app>/secrets/    |  ──────────> | AGE private key (volume)  |
+|   ├── dev/secret.yaml  |              | SOPS_AGE_KEY_FILE env     |
+|   └── prod/secret.yaml |              +---------------------------+
++------------------------+                         │
+                                                   v
+                                         Decrypted K8s Secret
+```
+
+**Key Files**:
+- `sops/age-dev.key` - AGE private key for dev (used by ArgoCD to decrypt)
+- `sops/age-prod.key` - AGE private key for prod
+- `deploy/argocd/.sops.yaml` - SOPS config with public keys and encryption rules
+
+> **⚠️ Note**: The private keys in `sops/` are stored in plaintext in the repository.
+> This is intentional for this **demo cluster**. In production, private keys should
+> be stored securely (e.g., in a password manager, HSM, or injected via CI/CD secrets)
+> and **never committed to Git**.
+
+**Directory Structure for Secrets**:
+```
+deploy/argocd/apps/<app-name>/
+├── applicationset.yaml
+├── config/
+│   ├── dev.yaml
+│   └── prod.yaml
+├── kustomize/              # Monitoring resources
+└── secrets/                # Encrypted secrets
+    ├── dev/                # Dev environment secrets
+    │   ├── kustomization.yaml
+    │   ├── ksops-generator.yaml
+    │   └── secret.yaml     # Encrypted with dev public key
+    └── prod/               # Prod environment secrets
+        ├── kustomization.yaml
+        ├── ksops-generator.yaml
+        └── secret.yaml     # Encrypted with prod public key
+```
+
+**Adding Secrets to an Application**:
+
+1. **Create secrets directories** (one per environment):
+```bash
+mkdir -p deploy/argocd/apps/<app-name>/secrets/{dev,prod}
+```
+
+2. **Create kustomization.yaml** (in each env directory):
+```yaml
+# deploy/argocd/apps/<app-name>/secrets/dev/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+generators:
+  - ksops-generator.yaml
+```
+
+3. **Create ksops-generator.yaml** (in each env directory):
+```yaml
+# deploy/argocd/apps/<app-name>/secrets/dev/ksops-generator.yaml
+apiVersion: viaduct.ai/v1
+kind: ksops
+metadata:
+  name: <app-name>-secrets
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - ./secret.yaml
+```
+
+4. **Create secret file** (before encryption):
+```yaml
+# deploy/argocd/apps/<app-name>/secrets/dev/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: <app-name>-credentials
+  namespace: <app-namespace>
+type: Opaque
+stringData:
+  username: myuser
+  password: mypassword
+```
+
+5. **Encrypt the secret**:
+```bash
+cd deploy/argocd
+sops encrypt --in-place apps/<app-name>/secrets/dev/secret.yaml
+sops encrypt --in-place apps/<app-name>/secrets/prod/secret.yaml
+```
+
+6. **Add secrets source to ApplicationSet** (with environment-specific path):
+```yaml
+templatePatch: |
+  spec:
+    sources:
+      # Source: Encrypted secrets (KSOPS) - environment-specific
+      - repoURL: https://github.com/gigi206/k8s
+        targetRevision: '{{ .git.revision }}'
+        path: deploy/argocd/apps/<app-name>/secrets/{{ .environment }}
+      # ... other sources
+```
+
+7. **Reference the secret in Helm values** (example for Grafana):
+```yaml
+# Instead of:
+- name: grafana.adminPassword
+  value: 'plaintext-password'
+
+# Use:
+- name: grafana.admin.existingSecret
+  value: grafana-admin-credentials
+- name: grafana.admin.userKey
+  value: admin-user
+- name: grafana.admin.passwordKey
+  value: admin-password
+```
+
+**Managing Secrets Locally**:
+```bash
+# Decrypt a secret for editing
+sops decrypt apps/<app>/secrets/secret-dev.yaml
+
+# Edit in place (opens in $EDITOR)
+sops apps/<app>/secrets/secret-dev.yaml
+
+# Re-encrypt after editing
+sops encrypt --in-place apps/<app>/secrets/secret-dev.yaml
+```
+
+**Applications using SOPS/KSOPS**:
+- prometheus-stack (Grafana admin credentials)
 
 ## Prometheus Monitoring and Alerts
 
@@ -730,7 +874,12 @@ bash deploy-applicationsets.sh -v
 ## File Structure (Current)
 
 ```
+sops/                                       # AGE private keys for SOPS decryption (⚠️ demo only - plaintext in repo)
+├── age-dev.key                             # Dev environment key
+└── age-prod.key                            # Prod environment key
+
 deploy/argocd/
+├── .sops.yaml                              # SOPS config (public keys, encryption rules)
 ├── deploy-applicationsets.sh              # Deployment script (hardcoded list of apps)
 ├── config/
 │   └── config.yaml                        # Global configuration (shared by all apps)
@@ -778,9 +927,14 @@ deploy/argocd/
 │   │   ├── config/
 │   │   │   ├── dev.yaml
 │   │   │   └── prod.yaml
-│   │   └── kustomize/
+│   │   ├── kustomize/
+│   │   │   ├── kustomization.yaml
+│   │   │   └── prometheus.yaml
+│   │   └── secrets/                       # Encrypted secrets (KSOPS)
 │   │       ├── kustomization.yaml
-│   │       └── prometheus.yaml
+│   │       ├── ksops-generator.yaml
+│   │       ├── secret-dev.yaml           # Grafana credentials (encrypted)
+│   │       └── secret-prod.yaml
 │   └── cilium-monitoring/
 │       ├── applicationset.yaml           # Wave 76
 │       ├── config/
