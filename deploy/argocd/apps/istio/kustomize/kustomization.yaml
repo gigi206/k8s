@@ -6,3 +6,4 @@ resources:
   - servicemonitors.yaml
   - kiali.yaml
   - httproute.yaml
+  - podmonitor.yaml
