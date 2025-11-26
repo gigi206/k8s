@@ -13,8 +13,17 @@ spec:
     interval: 30s
     rules:
     # CRITICAL: Kiali service availability
+    # Only fires if Kiali deployment exists but metrics are not being scraped
     - alert: KialiDown
-      expr: absent(up{job="kiali"}) == 1
+      expr: |
+        (
+          kube_deployment_spec_replicas{
+            deployment="kiali",
+            namespace="istio-system"
+          } > 0
+        )
+        and
+        absent(up{job="kiali"}) == 1
       for: 5m
       labels:
         severity: critical
