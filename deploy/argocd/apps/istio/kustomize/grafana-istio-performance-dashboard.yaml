@@ -1121,7 +1121,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "process_virtual_memory_bytes{app=\"istiod\"}",
+              "expr": "process_virtual_memory_bytes{job=\"istiod\"}",
               "format": "time_series",
               "instant": false,
               "intervalFactor": 2,
@@ -1134,7 +1134,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "process_resident_memory_bytes{app=\"istiod\"}",
+              "expr": "process_resident_memory_bytes{job=\"istiod\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Resident Memory",
@@ -1146,7 +1146,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "go_memstats_heap_sys_bytes{app=\"istiod\"}",
+              "expr": "go_memstats_heap_sys_bytes{job=\"istiod\"}",
               "format": "time_series",
               "hide": true,
               "intervalFactor": 2,
@@ -1158,7 +1158,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "go_memstats_heap_alloc_bytes{app=\"istiod\"}",
+              "expr": "go_memstats_heap_alloc_bytes{job=\"istiod\"}",
               "format": "time_series",
               "hide": true,
               "intervalFactor": 2,
@@ -1170,7 +1170,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "go_memstats_alloc_bytes{app=\"istiod\"}",
+              "expr": "go_memstats_alloc_bytes{job=\"istiod\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Alloc",
@@ -1182,7 +1182,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "go_memstats_heap_inuse_bytes{app=\"istiod\"}",
+              "expr": "go_memstats_heap_inuse_bytes{job=\"istiod\"}",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -1195,7 +1195,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "go_memstats_stack_inuse_bytes{app=\"istiod\"}",
+              "expr": "go_memstats_stack_inuse_bytes{job=\"istiod\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Stack in-use",
@@ -1344,7 +1344,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "irate(process_cpu_seconds_total{app=\"istiod\"}[$__rate_interval])",
+              "expr": "irate(process_cpu_seconds_total{job=\"istiod\"}[$__rate_interval])",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 2,
@@ -1442,7 +1442,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "process_open_fds{app=\"istiod\"}",
+              "expr": "process_open_fds{job=\"istiod\"}",
               "format": "time_series",
               "hide": true,
               "instant": false,
@@ -1553,7 +1553,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "go_goroutines{app=\"istiod\"}",
+              "expr": "go_goroutines{job=\"istiod\"}",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "Number of Goroutines",
