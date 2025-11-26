@@ -13,6 +13,8 @@ metadata:
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: istio
+  annotations:
+    grafana_dashboard_folder: "Istio"
 data:
   pilot-dashboard.json: |
     {
