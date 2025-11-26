@@ -1,0 +1,172 @@
+---
+# =============================================================================
+# Traefik Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour alertes Traefik
+# Docs: https://doc.traefik.io/traefik/observability/metrics/prometheus/
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: traefik-prometheus-rules
+  namespace: traefik
+  labels:
+    prometheus: traefik
+    role: alert-rules
+spec:
+  groups:
+  - name: traefik.rules
+    interval: 30s
+    rules:
+    # ==========================================================================
+    # CRITICAL: Component availability
+    # ==========================================================================
+    - alert: TraefikDown
+      annotations:
+        description: |
+          Traefik has not reported any metrics data for the past 5 minutes.
+          The ingress controller is likely down or not functioning properly.
+        summary: '[traefik] Traefik is unavailable'
+      expr: absent(traefik_config_reloads_total) == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: TraefikPodDown
+      annotations:
+        description: |
+          Traefik pod deployment has no available replicas.
+          Ingress traffic routing is unavailable.
+        summary: '[traefik] No Traefik pods running'
+      expr: |
+        kube_deployment_status_replicas_available{
+          deployment="traefik",
+          namespace="traefik"
+        } == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    # ==========================================================================
+    # CRITICAL: Configuration errors
+    # ==========================================================================
+    - alert: TraefikConfigReloadFailure
+      annotations:
+        description: |
+          Traefik configuration reload has failed {{ $value }} times.
+          The last configuration change may contain errors.
+        summary: '[traefik] Config reload failure detected'
+      expr: |
+        increase(traefik_config_reloads_failure_total[5m]) > 0
+      for: 1m
+      labels:
+        severity: critical
+
+    # ==========================================================================
+    # HIGH: Performance and availability issues
+    # ==========================================================================
+    - alert: TraefikHighLatency
+      annotations:
+        description: |
+          Traefik average request duration is {{ $value | printf "%.2f" }}s.
+          Backend services may be slow or overloaded.
+        summary: '[traefik] High request latency detected'
+      expr: |
+        (
+          traefik_service_request_duration_seconds_sum /
+          traefik_service_request_duration_seconds_count
+        ) > 2
+      for: 10m
+      labels:
+        severity: high
+
+    - alert: TraefikTooMany5xx
+      annotations:
+        description: |
+          Traefik is returning {{ $value | printf "%.1f" }}% 5xx errors.
+          Backend services may be failing or misconfigured.
+        summary: '[traefik] High 5xx error rate'
+      expr: |
+        100 * (
+          sum(rate(traefik_service_requests_total{code=~"5.."}[5m]))
+          /
+          sum(rate(traefik_service_requests_total[5m]))
+        ) > 5
+      for: 5m
+      labels:
+        severity: high
+
+    - alert: TraefikTooMany4xx
+      annotations:
+        description: |
+          Traefik is returning {{ $value | printf "%.1f" }}% 4xx errors.
+          This may indicate client-side issues or misconfigurations.
+        summary: '[traefik] High 4xx error rate'
+      expr: |
+        100 * (
+          sum(rate(traefik_service_requests_total{code=~"4.."}[5m]))
+          /
+          sum(rate(traefik_service_requests_total[5m]))
+        ) > 10
+      for: 10m
+      labels:
+        severity: warning
+
+    # ==========================================================================
+    # WARNING: Resource and operational issues
+    # ==========================================================================
+    - alert: TraefikHighConnectionCount
+      annotations:
+        description: |
+          Traefik has {{ $value }} open connections on entrypoint {{ $labels.entrypoint }}.
+          This may indicate high load or potential resource exhaustion.
+        summary: '[traefik] High connection count'
+      expr: |
+        traefik_open_connections > 5000
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: TraefikEntrypointDown
+      annotations:
+        description: |
+          Traefik entrypoint {{ $labels.entrypoint }} has no requests.
+          The entrypoint may be misconfigured or not receiving traffic.
+        summary: '[traefik] Entrypoint appears down'
+      expr: |
+        rate(traefik_entrypoint_requests_total[5m]) == 0
+        and
+        traefik_entrypoint_requests_total > 0
+      for: 15m
+      labels:
+        severity: warning
+
+    - alert: TraefikServiceDown
+      annotations:
+        description: |
+          Traefik service {{ $labels.service }} has no successful requests.
+          The backend service may be unavailable.
+        summary: '[traefik] Backend service appears down'
+      expr: |
+        rate(traefik_service_requests_total{code="200"}[5m]) == 0
+        and
+        increase(traefik_service_requests_total{code=~"5.."}[5m]) > 0
+      for: 10m
+      labels:
+        severity: warning
+
+    - alert: TraefikPodCrashLooping
+      annotations:
+        description: |
+          Traefik pod {{ $labels.pod }} is restarting frequently.
+          Container restart count: {{ $value | printf "%.0f" }} in 15 minutes.
+        summary: '[traefik] Pod is crash looping'
+      expr: |
+        rate(kube_pod_container_status_restarts_total{
+          pod=~"traefik.*",
+          namespace="traefik"
+        }[15m]) * 60 * 15 > 2
+      for: 5m
+      labels:
+        severity: warning

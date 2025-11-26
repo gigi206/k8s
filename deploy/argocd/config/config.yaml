@@ -62,6 +62,7 @@ versions:
   metallb: "0.15.2"
   nginxGatewayFabric: "v1.5.1"
   prometheusStack: "79.5.0"
+  traefik: "37.4.0"
 
 # Feature flags - Activation des composants
 features:
