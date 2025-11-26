@@ -9,7 +9,7 @@ This ApplicationSet deploys **Istio Ambient Mesh** - a sidecar-free service mesh
 - ✅ Reduced resource overhead (shared ztunnel per node vs sidecar per pod)
 - ✅ Simpler operational model
 - ✅ Transparent L4 encryption and authorization
-- ✅ Optional L7 processing via waypoint proxies (not deployed by default)
+- ✅ Optional L7 processing via waypoint proxies for HTTP metrics and advanced routing
 
 **Istio Version**: 1.28.0 (full Ambient Mesh GA support)
 
@@ -191,27 +191,127 @@ kubectl get namespace <namespace> -o jsonpath='{.metadata.labels}'
 
 Pods in labeled namespaces will automatically be added to the mesh (no sidecar injection or restart required).
 
-### L7 Processing (Optional)
+## Waypoint Proxy (L7 Processing)
 
-By default, Ambient Mesh only provides L4 features (mTLS, telemetry, authorization). For L7 features (traffic routing, retries, timeouts), deploy a **waypoint proxy**:
+By default, Ambient Mesh only provides L4 features via **ztunnel** (mTLS, TCP telemetry, L4 authorization). For L7 features, deploy a **waypoint proxy**.
+
+### Why Waypoint?
+
+| Feature | ztunnel (L4) | Waypoint (L7) |
+|---------|--------------|---------------|
+| mTLS encryption | ✅ | ✅ |
+| TCP metrics (`istio_tcp_*`) | ✅ | ✅ |
+| **HTTP metrics** (`istio_requests_total`) | ❌ | ✅ |
+| HTTP routing (path, headers) | ❌ | ✅ |
+| Retries, timeouts, circuit breaking | ❌ | ✅ |
+| L7 authorization policies | ❌ | ✅ |
+| Request tracing | ❌ | ✅ |
+
+### Waypoint Configuration
+
+Waypoints are deployed per-namespace using a Kubernetes Gateway resource with the `istio-waypoint` GatewayClass.
+
+#### Manual Deployment
 
 ```bash
 # Deploy a waypoint proxy for a namespace
 istioctl waypoint apply --namespace <namespace>
 
+# Or create the Gateway manually
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: <namespace>
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+EOF
+
 # Verify
 kubectl get gateway -n <namespace>
+kubectl get deploy -n <namespace> waypoint
 ```
+
+### Configuring Waypoint Replicas
+
+The default number of waypoint replicas is controlled globally via istiod environment variable.
+
+#### Global Default (per environment)
+
+```yaml
+# config/dev.yaml
+istio:
+  pilot:
+    env:
+      PILOT_DEFAULT_WAYPOINT_REPLICAS: "1"  # Dev: single replica
+
+# config/prod.yaml
+istio:
+  pilot:
+    env:
+      PILOT_DEFAULT_WAYPOINT_REPLICAS: "2"  # Prod: HA
+```
+
+#### Per-Waypoint Override
+
+To override replicas for a specific waypoint, use an annotation on the Gateway:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: bookinfo
+  annotations:
+    proxy.istio.io/replicas: "3"  # Override for this waypoint
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+```
+
+### Waypoint Metrics
+
+Waypoint exposes metrics on port 15090 via `/stats/prometheus`. The PodMonitor in `kustomize/podmonitor.yaml` scrapes these metrics.
+
+**Key metrics from waypoint:**
+- `istio_requests_total` - HTTP request count by response code, method, path
+- `istio_request_duration_milliseconds` - Request latency histogram
+- `istio_request_bytes` / `istio_response_bytes` - Request/response sizes
+
+**Reporter label:** Waypoint metrics use `reporter="waypoint"` (vs `reporter="source"` or `reporter="destination"` for sidecars)
 
 ## Monitoring
 
-### ServiceMonitors
+### ServiceMonitors and PodMonitors
 
-This ApplicationSet deploys 3 ServiceMonitors for Prometheus metric collection:
+This ApplicationSet deploys monitors for Prometheus metric collection in `kustomize/podmonitor.yaml`:
 
+#### ServiceMonitors
 - **istiod** (port 15014) - Control plane metrics (pilot, webhooks, config distribution)
 - **istio-ingressgateway** (port 15020) - Gateway metrics (HTTP requests, latency, connections)
-- **ztunnel** (port 15020) - Ambient data plane metrics (L4 traffic, mTLS, HBONE)
+
+#### PodMonitors
+PodMonitors are used for components without a Service (DaemonSets, dynamically created pods):
+
+| Monitor | Selector | Port | Metrics |
+|---------|----------|------|---------|
+| `ztunnel` | `app: ztunnel` | 15020 | L4 traffic, mTLS, HBONE connections |
+| `istio-sidecar` | `security.istio.io/tlsMode` exists | 15090 | Sidecar proxy metrics (if any) |
+| `istio-waypoint` | `gateway.networking.k8s.io/gateway-class-name: istio-waypoint` | 15090 | HTTP metrics (`istio_requests_total`) |
+
+**Note**: The waypoint PodMonitor uses `namespaceSelector.any: true` to scrape waypoints from all namespaces (waypoints are deployed per-namespace)
 
 ### PrometheusRules
 
@@ -244,18 +344,58 @@ This ApplicationSet deploys 18 PrometheusRules for monitoring Istio components:
 
 ### Grafana Dashboards
 
-Istio provides official Grafana dashboards (not auto-deployed by this ApplicationSet):
+This ApplicationSet deploys 6 Grafana dashboards via ConfigMaps in `kustomize/` directory.
 
-- **Istio Control Plane Dashboard**: istiod metrics, pilot performance
-- **Istio Mesh Dashboard**: Service-to-service traffic, success rates
-- **Istio Service Dashboard**: Per-service metrics, latency, errors
-- **Istio Workload Dashboard**: Per-workload metrics
+#### Dashboard Sources
 
-To import dashboards manually:
-```bash
-# Download from https://grafana.com/grafana/dashboards/
-# Search for "Istio" and import the dashboard JSON
+The dashboards are **official Istio dashboards** from the Istio repository, modified to support **Ambient mode waypoint metrics**.
+
+| Dashboard | Source | Modifications |
+|-----------|--------|---------------|
+| Istio Mesh Dashboard | [istio/istio](https://github.com/istio/istio/tree/master/manifests/addons/dashboards) | None (L4 compatible) |
+| Istio Service Dashboard | Official Istio | `reporter=~"destination\|waypoint"` |
+| Istio Workload Dashboard | Official Istio | `reporter=~"source\|waypoint"` |
+| Istio Performance Dashboard | Official Istio | `reporter=~"source\|waypoint"` |
+| Istio Control Plane Dashboard | Official Istio | None |
+| Istio Ztunnel Dashboard | Official Istio | None (ztunnel-specific) |
+
+**Original dashboard sources:**
+- GitHub: https://github.com/istio/istio/tree/master/manifests/addons/dashboards
+- Grafana.com: Search "Istio" at https://grafana.com/grafana/dashboards/
+
+#### Waypoint Modifications
+
+Standard Istio dashboards use `reporter="source"` or `reporter="destination"` in their PromQL queries. These work for sidecar-based deployments but miss waypoint metrics in Ambient mode.
+
+**Modifications made:**
+1. **Queries**: Changed `reporter="source"` → `reporter=~"source|waypoint"` and `reporter="destination"` → `reporter=~"destination|waypoint"`
+2. **Reporter variable**: Added `waypoint` option to the `qrep` (Reporter) dropdown filter
+
+This allows dashboards to display both traditional sidecar metrics AND waypoint metrics.
+
+#### Dashboard Files
+
 ```
+kustomize/
+├── grafana-istio-mesh-dashboard.yaml
+├── grafana-istio-service-dashboard.yaml      # Modified for waypoint
+├── grafana-istio-workload-dashboard.yaml     # Modified for waypoint
+├── grafana-istio-performance-dashboard.yaml  # Modified for waypoint
+├── grafana-istio-control-plane-dashboard.yaml
+└── grafana-istio-ztunnel-dashboard.yaml      # Ztunnel-specific (Ambient)
+```
+
+#### Updating Dashboards
+
+To update dashboards from upstream:
+
+1. Download the latest JSON from [istio/istio](https://github.com/istio/istio/tree/master/manifests/addons/dashboards)
+2. Apply waypoint modifications:
+   - Replace `reporter=\"source\"` with `reporter=~\"source|waypoint\"`
+   - Replace `reporter=\"destination\"` with `reporter=~\"destination|waypoint\"`
+   - Add `waypoint` to the `qrep` variable options
+3. Wrap in ConfigMap YAML with `grafana_dashboard: "1"` label
+4. Commit and push
 
 ## Troubleshooting
 
@@ -393,8 +533,20 @@ istio:
 
 ## References
 
+### Istio Ambient Mesh
 - **Istio Ambient Mesh Docs**: https://istio.io/latest/docs/ambient/
 - **Platform Prerequisites**: https://istio.io/latest/docs/ambient/install/platform-prerequisites/
-- **Cilium Integration**: https://docs.cilium.io/en/latest/network/servicemesh/istio/
 - **ztunnel Architecture**: https://istio.io/latest/blog/2022/introducing-ambient-mesh/
 - **HBONE Protocol**: https://github.com/istio/ztunnel/blob/master/ARCHITECTURE.md
+
+### Waypoint Proxy
+- **Waypoint Overview**: https://istio.io/latest/docs/ambient/usage/waypoint/
+- **Waypoint Configuration**: https://istio.io/latest/docs/reference/config/istio.mesh.v1alpha1/#ProxyConfig
+- **Gateway API for Waypoints**: https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/
+
+### Grafana Dashboards
+- **Official Istio Dashboards**: https://github.com/istio/istio/tree/master/manifests/addons/dashboards
+- **Grafana Dashboard Library**: https://grafana.com/grafana/dashboards/ (search "Istio")
+
+### Cilium Integration
+- **Cilium + Istio**: https://docs.cilium.io/en/latest/network/servicemesh/istio/

@@ -9,6 +9,8 @@ istio:
   # Istiod (Control Plane)
   pilot:
     replicas: 1  # Dev: single replica
+    env:
+      PILOT_DEFAULT_WAYPOINT_REPLICAS: "1"
     resources:
       requests:
         cpu: "100m"
@@ -36,6 +38,10 @@ istio:
       limits:
         cpu: "500m"
         memory: "512Mi"
+
+  # Waypoint Proxy (L7 processing for Ambient mode)
+  # Deploy waypoints manually per-namespace: istioctl waypoint apply -n <namespace>
+  # See README.md for configuration options
 
 # Kiali (Service Mesh Observability)
 kiali:

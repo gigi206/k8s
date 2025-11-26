@@ -37,3 +37,24 @@ spec:
   - path: /stats/prometheus
     targetPort: 15020
     interval: 30s
+---
+# PodMonitor for Waypoint proxies (Istio Ambient L7 Processing)
+# Waypoints enable HTTP metrics (istio_requests_total), retries, timeouts, L7 policies
+# Waypoints are identified by gateway-class-name label
+# Docs: https://istio.io/latest/docs/ambient/usage/waypoint/
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-waypoint
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      gateway.networking.k8s.io/gateway-class-name: istio-waypoint
+  namespaceSelector:
+    # Scrape waypoints from all namespaces (waypoints are deployed per-namespace)
+    any: true
+  podMetricsEndpoints:
+  - path: /stats/prometheus
+    targetPort: 15090
+    interval: 15s
