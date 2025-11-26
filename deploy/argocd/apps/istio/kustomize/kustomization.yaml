@@ -7,3 +7,10 @@ resources:
   - kiali.yaml
   - httproute.yaml
   - podmonitor.yaml
+  # Grafana dashboards (official Istio dashboards)
+  - grafana-istio-mesh-dashboard.yaml
+  - grafana-istio-service-dashboard.yaml
+  - grafana-istio-workload-dashboard.yaml
+  - grafana-istio-performance-dashboard.yaml
+  - grafana-pilot-dashboard.yaml
+  - grafana-ztunnel-dashboard.yaml
