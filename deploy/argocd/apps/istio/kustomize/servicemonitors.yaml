@@ -39,18 +39,3 @@ spec:
   - port: status-port
     interval: 30s
     path: /stats/prometheus
----
-# ServiceMonitor for ztunnel (Ambient Data Plane)
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: ztunnel
-  namespace: istio-system
-spec:
-  selector:
-    matchLabels:
-      app: ztunnel
-  endpoints:
-  - port: ztunnel-stats
-    interval: 30s
-    path: /stats/prometheus

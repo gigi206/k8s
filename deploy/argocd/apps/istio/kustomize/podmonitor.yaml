@@ -20,3 +20,20 @@ spec:
   - path: /stats/prometheus
     targetPort: 15090
     interval: 15s
+---
+# PodMonitor for ztunnel (Istio Ambient Data Plane)
+# Ztunnel is a DaemonSet without a Service, so we need PodMonitor instead of ServiceMonitor
+# Docs: https://istio.io/latest/docs/ambient/usage/ztunnel/
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ztunnel
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: ztunnel
+  podMetricsEndpoints:
+  - path: /stats/prometheus
+    targetPort: 15020
+    interval: 30s
