@@ -1,0 +1,65 @@
+---
+# Configuration Traefik - Dev
+environment: dev
+appName: traefik
+
+# Dashboard configuration
+dashboard:
+  folder: "Traefik"  # Sous-dossier pour les dashboards Traefik
+
+# versions:
+#   traefik: "35.0.1"
+
+traefik:
+  deployment:
+    # Kind: Deployment or DaemonSet
+    kind: "Deployment"
+    # Replicas (dev: 1)
+    replicas: 1
+
+  # Service configuration
+  service:
+    type: "LoadBalancer"
+
+  # IngressClass configuration
+  ingressClass:
+    enabled: true
+    isDefaultClass: false  # nginx-ingress or istio is default
+
+  # Gateway API - GatewayClass
+  gatewayClass:
+    enabled: true
+    name: "traefik"
+
+  # Resources (dev: minimal)
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
+  # Entrypoints
+  ports:
+    web:
+      port: 8000
+      exposedPort: 80
+    websecure:
+      port: 8443
+      exposedPort: 443
+
+  # Dashboard (dev: enabled for debugging)
+  dashboard:
+    enabled: true
+
+  # Logs (dev: more verbose)
+  logs:
+    level: "INFO"
+    accessLogs: true
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
