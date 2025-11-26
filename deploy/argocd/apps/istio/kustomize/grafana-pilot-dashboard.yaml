@@ -135,7 +135,7 @@ data:
                       "type": "prometheus",
                       "uid": "$datasource"
                    },
-                   "expr": "sum by (pod) (go_memstats_stack_inuse_bytes{app=\"istiod\"})",
+                   "expr": "sum by (pod) (go_memstats_stack_inuse_bytes{job=\"istiod\"})",
                    "legendFormat": "Stack ({{pod}})"
                 },
                 {
@@ -143,7 +143,7 @@ data:
                       "type": "prometheus",
                       "uid": "$datasource"
                    },
-                   "expr": "sum by (pod) (go_memstats_heap_inuse_bytes{app=\"istiod\"})",
+                   "expr": "sum by (pod) (go_memstats_heap_inuse_bytes{job=\"istiod\"})",
                    "legendFormat": "Heap (In Use) ({{pod}})"
                 },
                 {
@@ -151,7 +151,7 @@ data:
                       "type": "prometheus",
                       "uid": "$datasource"
                    },
-                   "expr": "sum by (pod) (go_memstats_heap_alloc_bytes{app=\"istiod\"})",
+                   "expr": "sum by (pod) (go_memstats_heap_alloc_bytes{job=\"istiod\"})",
                    "legendFormat": "Heap (Allocated) ({{pod}})"
                 }
              ],
@@ -216,7 +216,7 @@ data:
                       "type": "prometheus",
                       "uid": "$datasource"
                    },
-                   "expr": "sum by (pod) (rate(go_memstats_alloc_bytes_total{app=\"istiod\"}[$__rate_interval]))",
+                   "expr": "sum by (pod) (rate(go_memstats_alloc_bytes_total{job=\"istiod\"}[$__rate_interval]))",
                    "legendFormat": "Bytes ({{pod}})"
                 },
                 {
@@ -224,7 +224,7 @@ data:
                       "type": "prometheus",
                       "uid": "$datasource"
                    },
-                   "expr": "sum by (pod) (rate(go_memstats_mallocs_total{app=\"istiod\"}[$__rate_interval]))",
+                   "expr": "sum by (pod) (rate(go_memstats_mallocs_total{job=\"istiod\"}[$__rate_interval]))",
                    "legendFormat": "Objects ({{pod}})"
                 }
              ],
@@ -316,7 +316,7 @@ data:
                       "type": "prometheus",
                       "uid": "$datasource"
                    },
-                   "expr": "sum by (pod) (go_goroutines{app=\"istiod\"})",
+                   "expr": "sum by (pod) (go_goroutines{job=\"istiod\"})",
                    "legendFormat": "Goroutines ({{pod}})"
                 }
              ],
