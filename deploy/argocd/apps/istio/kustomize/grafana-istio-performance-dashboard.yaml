@@ -13,6 +13,8 @@ metadata:
   labels:
     grafana_dashboard: "1"
     app.kubernetes.io/name: istio
+  annotations:
+    grafana_dashboard_folder: "Istio"
 data:
   istio-performance-dashboard.json: |
     {
@@ -199,7 +201,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "(sum(irate(container_cpu_usage_seconds_total{pod=~\"istio-ingressgateway-.*\",container=\"istio-proxy\"}[$__rate_interval])) / (round(sum(irate(istio_requests_total{source_workload=\"istio-ingressgateway\", reporter=\"source\"}[$__rate_interval])), 0.001)/1000))",
+              "expr": "(sum(irate(container_cpu_usage_seconds_total{pod=~\"istio-ingressgateway-.*\",container=\"istio-proxy\"}[$__rate_interval])) / (round(sum(irate(istio_requests_total{source_workload=\"istio-ingressgateway\", reporter=~\"source|waypoint\"}[$__rate_interval])), 0.001)/1000))",
               "format": "time_series",
               "hide": false,
               "intervalFactor": 1,
@@ -547,7 +549,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(irate(istio_response_bytes_sum{source_workload=\"istio-ingressgateway\", reporter=\"source\"}[$__rate_interval]))",
+              "expr": "sum(irate(istio_response_bytes_sum{source_workload=\"istio-ingressgateway\", reporter=~\"source|waypoint\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "istio-ingressgateway",
@@ -558,7 +560,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(irate(istio_response_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=\"source\"}[$__rate_interval])) + sum(irate(istio_request_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=\"source\"}[$__rate_interval]))",
+              "expr": "sum(irate(istio_response_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=~\"source|waypoint\"}[$__rate_interval])) + sum(irate(istio_request_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=~\"source|waypoint\"}[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 1,
               "legendFormat": "istio-proxy",
