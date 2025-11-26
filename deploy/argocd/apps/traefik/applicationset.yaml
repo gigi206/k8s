@@ -1,0 +1,208 @@
+---
+# =============================================================================
+# Traefik ApplicationSet - Wave 40 (Ingress Controller)
+# =============================================================================
+# Deploie Traefik comme Ingress Controller / API Gateway
+# Docs: https://doc.traefik.io/traefik/
+# Chart: https://github.com/traefik/traefik-helm-chart
+# =============================================================================
+# APPLICATION NON DEPLOYEE PAR DEFAUT
+# Pour deployer manuellement:
+#   kubectl apply -f deploy/argocd/apps/traefik/applicationset.yaml
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: traefik
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par defaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config specifique a l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/traefik/config/*.yaml
+
+  template:
+    metadata:
+      name: traefik
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "40"
+    spec:
+      project: default
+
+      sources:
+        # Source 1: Helm chart traefik
+        - repoURL: https://traefik.github.io/charts
+          targetRevision: '{{ .versions.traefik }}'
+          chart: traefik
+          helm:
+            parameters:
+              # Deployment kind
+              - name: deployment.kind
+                value: '{{ .traefik.deployment.kind | default "Deployment" }}'
+
+              # Replicas
+              - name: deployment.replicas
+                value: '{{ .traefik.deployment.replicas | default 1 }}'
+
+              # Service type
+              - name: service.type
+                value: '{{ .traefik.service.type | default "LoadBalancer" }}'
+
+              # IngressClass
+              - name: ingressClass.enabled
+                value: '{{ .traefik.ingressClass.enabled | default "true" }}'
+              - name: ingressClass.isDefaultClass
+                value: '{{ .traefik.ingressClass.isDefaultClass | default "false" }}'
+
+              # Gateway API - GatewayClass
+              - name: gatewayClass.enabled
+                value: '{{ .traefik.gatewayClass.enabled | default "true" }}'
+              - name: gatewayClass.name
+                value: '{{ .traefik.gatewayClass.name | default "traefik" }}'
+
+              # Prometheus metrics
+              - name: metrics.prometheus.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: metrics.prometheus.serviceMonitor.enabled
+                value: '{{ .features.monitoring.enabled }}'
+              - name: metrics.prometheus.serviceMonitor.additionalLabels.release
+                value: '{{ .features.monitoring.release }}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: traefik
+
+      syncPolicy:
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source 2: Prometheus monitoring + Grafana dashboard (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+        # Source 1: Helm chart with dynamic parameters
+        - repoURL: https://traefik.github.io/charts
+          targetRevision: '{{ .versions.traefik }}'
+          chart: traefik
+          helm:
+            parameters:
+            # Base parameters
+            - name: deployment.kind
+              value: '{{ .traefik.deployment.kind | default "Deployment" }}'
+            - name: service.type
+              value: '{{ .traefik.service.type | default "LoadBalancer" }}'
+
+            # IngressClass
+            - name: ingressClass.enabled
+              value: '{{ .traefik.ingressClass.enabled | default "true" }}'
+            - name: ingressClass.isDefaultClass
+              value: '{{ .traefik.ingressClass.isDefaultClass | default "false" }}'
+
+            # Gateway API - GatewayClass
+            - name: gatewayClass.enabled
+              value: '{{ .traefik.gatewayClass.enabled | default "true" }}'
+            - name: gatewayClass.name
+              value: '{{ .traefik.gatewayClass.name | default "traefik" }}'
+
+            # Prometheus metrics
+            - name: metrics.prometheus.enabled
+              value: '{{ .features.monitoring.enabled }}'
+            - name: metrics.prometheus.serviceMonitor.enabled
+              value: '{{ .features.monitoring.enabled }}'
+            - name: metrics.prometheus.serviceMonitor.additionalLabels.release
+              value: '{{ .features.monitoring.release }}'
+
+            # Replicas
+            {{- if .traefik.deployment.replicas }}
+            - name: deployment.replicas
+              value: "{{ .traefik.deployment.replicas }}"
+            {{- end }}
+
+            # Resources
+            {{- if .traefik.resources }}
+            - name: resources.requests.cpu
+              value: '{{ .traefik.resources.requests.cpu }}'
+            - name: resources.requests.memory
+              value: '{{ .traefik.resources.requests.memory }}'
+            - name: resources.limits.cpu
+              value: '{{ .traefik.resources.limits.cpu }}'
+            - name: resources.limits.memory
+              value: '{{ .traefik.resources.limits.memory }}'
+            {{- end }}
+
+            # Entrypoints
+            {{- if .traefik.ports }}
+            {{- if .traefik.ports.web }}
+            - name: ports.web.port
+              value: "{{ .traefik.ports.web.port | default 8000 }}"
+            - name: ports.web.exposedPort
+              value: "{{ .traefik.ports.web.exposedPort | default 80 }}"
+            {{- end }}
+            {{- if .traefik.ports.websecure }}
+            - name: ports.websecure.port
+              value: "{{ .traefik.ports.websecure.port | default 8443 }}"
+            - name: ports.websecure.exposedPort
+              value: "{{ .traefik.ports.websecure.exposedPort | default 443 }}"
+            {{- end }}
+            {{- end }}
+
+            # Dashboard
+            {{- if .traefik.dashboard }}
+            - name: ingressRoute.dashboard.enabled
+              value: "{{ .traefik.dashboard.enabled | default false }}"
+            {{- end }}
+
+            # Logs
+            {{- if .traefik.logs }}
+            - name: logs.general.level
+              value: '{{ .traefik.logs.level | default "ERROR" }}'
+            - name: logs.access.enabled
+              value: "{{ .traefik.logs.accessLogs | default false }}"
+            {{- end }}
