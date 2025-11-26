@@ -34,9 +34,9 @@ spec:
           done
           echo "  istiod service is responding!"
 
-          # Wait for webhook endpoint to be ready (port 15017)
+          # Wait for webhook endpoint to be ready (port 443)
           echo "Step 2: Checking webhook endpoint..."
-          until curl -skf https://istiod.istio-system.svc:15017/ready > /dev/null 2>&1; do
+          until curl -skf https://istiod.istio-system.svc:443/ready > /dev/null 2>&1; do
             echo "  Waiting for webhook endpoint to be ready..."
             sleep 2
           done
