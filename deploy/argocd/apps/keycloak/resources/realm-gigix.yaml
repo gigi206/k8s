@@ -1,0 +1,221 @@
+---
+# =============================================================================
+# KeycloakRealmImport - Realm "gigix" pour applications infrastructure
+# =============================================================================
+# Ce CRD importe un realm complet avec:
+# - Clients OIDC (ArgoCD, Grafana)
+# - Groupes (admins, developers, readonly)
+# - Roles realm
+# - Client scope pour mapper les groupes dans les tokens
+# - Utilisateur admin initial
+# =============================================================================
+
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: gigix-realm
+  namespace: keycloak
+spec:
+  keycloakCRName: keycloak
+  realm:
+    # ===================
+    # Realm Configuration
+    # ===================
+    id: gigix
+    realm: gigix
+    displayName: "Gigix Infrastructure"
+    enabled: true
+
+    # Token lifespans
+    accessTokenLifespan: 300           # 5 minutes
+    ssoSessionIdleTimeout: 1800        # 30 minutes
+    ssoSessionMaxLifespan: 36000       # 10 heures
+    accessCodeLifespan: 60             # 1 minute
+    accessCodeLifespanUserAction: 300  # 5 minutes
+
+    # ===================
+    # Realm Roles
+    # ===================
+    roles:
+      realm:
+        - name: admin
+          description: "Administrateur complet de l'infrastructure"
+          composite: false
+        - name: developer
+          description: "Developpeur avec acces lecture/ecriture limite"
+          composite: false
+        - name: readonly
+          description: "Acces en lecture seule"
+          composite: false
+
+    # ===================
+    # Groups
+    # ===================
+    groups:
+      - name: admins
+        path: /admins
+        realmRoles:
+          - admin
+        attributes:
+          description:
+            - "Groupe des administrateurs infrastructure"
+      - name: developers
+        path: /developers
+        realmRoles:
+          - developer
+        attributes:
+          description:
+            - "Groupe des developpeurs"
+      - name: readonly
+        path: /readonly
+        realmRoles:
+          - readonly
+        attributes:
+          description:
+            - "Groupe lecture seule"
+
+    # ===================
+    # Client Scopes
+    # ===================
+    clientScopes:
+      # Scope pour inclure les groupes dans les tokens
+      - name: groups
+        protocol: openid-connect
+        description: "Scope pour inclure les groupes utilisateur dans le token"
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+        protocolMappers:
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-group-membership-mapper
+            consentRequired: false
+            config:
+              full.path: "false"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "groups"
+              userinfo.token.claim: "true"
+
+    # ===================
+    # Default Client Scopes
+    # ===================
+    defaultDefaultClientScopes:
+      - profile
+      - email
+      - roles
+      - web-origins
+      - acr
+    defaultOptionalClientScopes:
+      - offline_access
+      - address
+      - phone
+      - microprofile-jwt
+      - groups
+
+    # ===================
+    # OIDC Clients
+    # ===================
+    clients:
+      # -----------------
+      # ArgoCD Client
+      # -----------------
+      - clientId: argocd
+        name: ArgoCD
+        description: "Client OIDC pour ArgoCD GitOps"
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: "$(env:ARGOCD_CLIENT_SECRET)"
+        redirectUris:
+          - "https://argocd.gigix/auth/callback"
+          - "http://localhost:8085/auth/callback"
+        webOrigins:
+          - "https://argocd.gigix"
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        publicClient: false
+        protocol: openid-connect
+        fullScopeAllowed: true
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - groups
+        optionalClientScopes:
+          - offline_access
+        attributes:
+          pkce.code.challenge.method: "S256"
+          post.logout.redirect.uris: "https://argocd.gigix/*"
+          backchannel.logout.session.required: "true"
+          backchannel.logout.revoke.offline.tokens: "false"
+
+      # -----------------
+      # Grafana Client
+      # -----------------
+      - clientId: grafana
+        name: Grafana
+        description: "Client OIDC pour Grafana monitoring"
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: "$(env:GRAFANA_CLIENT_SECRET)"
+        redirectUris:
+          - "https://grafana.gigix/login/generic_oauth"
+        webOrigins:
+          - "https://grafana.gigix"
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        publicClient: false
+        protocol: openid-connect
+        fullScopeAllowed: true
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - groups
+        optionalClientScopes:
+          - offline_access
+        attributes:
+          post.logout.redirect.uris: "https://grafana.gigix/login"
+          backchannel.logout.session.required: "true"
+          backchannel.logout.revoke.offline.tokens: "false"
+
+    # ===================
+    # Users
+    # ===================
+    users:
+      - username: admin
+        enabled: true
+        email: admin@gigix
+        emailVerified: true
+        firstName: Admin
+        lastName: Infrastructure
+        credentials:
+          - type: password
+            value: "$(env:ADMIN_PASSWORD)"
+            temporary: true
+        groups:
+          - /admins
+        realmRoles:
+          - admin
+
+  # ===================
+  # Secret Placeholders
+  # ===================
+  # References aux secrets K8s pour les valeurs sensibles
+  placeholders:
+    ARGOCD_CLIENT_SECRET:
+      secret:
+        name: keycloak-oidc-clients
+        key: argocd-client-secret
+    GRAFANA_CLIENT_SECRET:
+      secret:
+        name: keycloak-oidc-clients
+        key: grafana-client-secret
+    ADMIN_PASSWORD:
+      secret:
+        name: keycloak-oidc-clients
+        key: admin-password

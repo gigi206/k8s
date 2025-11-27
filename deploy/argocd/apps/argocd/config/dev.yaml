@@ -15,6 +15,42 @@ argocd:
     params:
       "server.insecure": "true"  # Run server without TLS (TLS terminated by Gateway API)
 
+    # ===================
+    # OIDC Configuration (Keycloak)
+    # ===================
+    cm:
+      url: "https://argocd.gigix"
+      oidc.config: |
+        name: Keycloak
+        issuer: https://keycloak.gigix/realms/gigix
+        clientID: argocd
+        clientSecret: $oidc.keycloak.clientSecret
+        requestedScopes:
+          - openid
+          - profile
+          - email
+          - groups
+        enablePKCEAuthentication: true
+
+    # ===================
+    # RBAC Configuration
+    # ===================
+    rbac:
+      policy.default: role:readonly
+      policy.csv: |
+        # Groupe admins -> role:admin (acces complet)
+        g, admins, role:admin
+        # Groupe developers -> role:developer (sync apps)
+        p, role:developer, applications, get, */*, allow
+        p, role:developer, applications, sync, */*, allow
+        p, role:developer, applications, action/*, */*, allow
+        p, role:developer, logs, get, */*, allow
+        p, role:developer, exec, create, */*, allow
+        g, developers, role:developer
+        # Groupe readonly -> role:readonly (lecture seule, defaut)
+        g, readonly, role:readonly
+      scopes: "[groups]"
+
   server:
     ingress:
       enabled: false  # Disabled - using Gateway API HTTPRoute instead
