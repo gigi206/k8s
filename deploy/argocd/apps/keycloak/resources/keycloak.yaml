@@ -41,8 +41,8 @@ spec:
 
   # Bootstrap admin credentials (from SOPS secret)
   bootstrapAdmin:
-    secret:
-      name: keycloak-admin-credentials
+    user:
+      secret: keycloak-admin-credentials
 
   # Proxy configuration (pour Istio/Ingress)
   proxy:

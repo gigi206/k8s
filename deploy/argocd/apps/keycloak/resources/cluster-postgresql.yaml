@@ -17,6 +17,7 @@ spec:
 
   # Reference au ClusterImageCatalog pour PostgreSQL 18
   imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
     kind: ClusterImageCatalog
     name: postgresql
     major: 18
