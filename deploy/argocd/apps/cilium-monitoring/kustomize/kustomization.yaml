@@ -7,5 +7,3 @@ resources:
   - cilium-podmonitors.yaml
   - dashboards.yaml
   - prometheus.yaml
-  - hubble-httproute.yaml
-  - hubble-referencegrant.yaml

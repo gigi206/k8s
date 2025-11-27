@@ -6,6 +6,4 @@ resources:
   - prometheus.yaml
   - grafana-dashboard.yaml
   - grafana-dashboard-application.yaml
-  - httproute.yaml
-  - referencegrant.yaml
 

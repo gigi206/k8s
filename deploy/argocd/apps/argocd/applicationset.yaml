@@ -73,8 +73,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute (Gateway API) - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/httproute
+        {{- end }}
         {{- if .features.monitoring.enabled }}
-        # Source 2: Prometheus monitoring + Grafana dashboards (conditional)
+        # Source: Prometheus monitoring + Grafana dashboards (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/kustomize
@@ -85,7 +91,7 @@ spec:
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
-        # Source 1: Helm chart with dynamic parameters
+        # Source: Helm chart with dynamic parameters
         - repoURL: https://argoproj.github.io/argo-helm
           targetRevision: '{{ .versions.argocd }}'
           chart: argo-cd
