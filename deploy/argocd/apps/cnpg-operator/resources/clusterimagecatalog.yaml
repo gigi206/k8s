@@ -1,0 +1,16 @@
+---
+# =============================================================================
+# ClusterImageCatalog - Images PostgreSQL approuvees
+# =============================================================================
+# Catalogue cluster-wide des images PostgreSQL disponibles
+# Les clusters peuvent referencer ce catalogue via imageCatalogRef
+# =============================================================================
+
+apiVersion: postgresql.cnpg.io/v1
+kind: ClusterImageCatalog
+metadata:
+  name: postgresql
+spec:
+  images:
+    - major: 18
+      image: ghcr.io/cloudnative-pg/postgresql:18.1

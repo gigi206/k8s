@@ -1,0 +1,31 @@
+---
+# Configuration CloudNativePG Operator - Dev
+environment: dev
+appName: cnpg-operator
+
+# Dashboard configuration
+dashboard:
+  folder: "CloudNativePG"
+
+cnpgOperator:
+  # Single replica for dev
+  replicaCount: 1
+
+  # Cluster-wide mode (manages all namespaces)
+  config:
+    clusterWide: true
+
+  # Minimal resources for dev
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

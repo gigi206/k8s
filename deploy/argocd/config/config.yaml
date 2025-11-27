@@ -51,6 +51,7 @@ git:
 versions:
   argocd: "9.1.3"
   certManager: "v1.19.1"
+  cnpgOperator: "0.26.1"
   csiSnapshotter: "v8.4.0"
   envoyGateway: "v1.6.0"
   externalDns: "1.19.0"

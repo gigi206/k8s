@@ -1,0 +1,31 @@
+---
+# Configuration CloudNativePG Operator - Prod
+environment: prod
+appName: cnpg-operator
+
+# Dashboard configuration
+dashboard:
+  folder: "CloudNativePG"
+
+cnpgOperator:
+  # HA replicas for production
+  replicaCount: 2
+
+  # Cluster-wide mode (manages all namespaces)
+  config:
+    clusterWide: true
+
+  # Production resources
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true
