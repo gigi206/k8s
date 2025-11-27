@@ -135,8 +135,7 @@ spec:
                     cpu: {{ .istio.pilot.resources.limits.cpu }}
                     memory: {{ .istio.pilot.resources.limits.memory }}
                 env:
-                  - name: PILOT_DEFAULT_WAYPOINT_REPLICAS
-                    value: "{{ .istio.pilot.env.PILOT_DEFAULT_WAYPOINT_REPLICAS }}"
+                  PILOT_DEFAULT_WAYPOINT_REPLICAS: "{{ .istio.pilot.env.PILOT_DEFAULT_WAYPOINT_REPLICAS }}"
 
               # Metrics and monitoring
               telemetry:
