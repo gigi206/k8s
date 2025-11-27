@@ -271,13 +271,3 @@ spec:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
         {{- end }}
-
-        {{- if .istio.waypoint.enabled }}
-        # Source 7: Waypoint proxies for L7 processing in Ambient mode
-        # Waypoints enable HTTP metrics, retries, timeouts, and L7 policies
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: {{ .git.revision }}
-          path: deploy/argocd/apps/istio/waypoint
-          directory:
-            include: "*.yaml"
-        {{- end }}
