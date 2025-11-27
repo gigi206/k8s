@@ -262,8 +262,15 @@ spec:
                       tcp: "sent"
         {{- end }}
 
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute (Gateway API) - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/httproute
+        {{- end }}
+
         {{- if .features.monitoring.enabled }}
-        # Source 6: PrometheusRules for monitoring Istio (with release label)
+        # Source: PrometheusRules for monitoring Istio (with release label)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/kustomize

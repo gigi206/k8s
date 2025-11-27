@@ -86,8 +86,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute (Gateway API) - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/httproute
+        {{- end }}
         {{- if .features.monitoring.enabled }}
-        # Source 3: Prometheus monitoring + Grafana dashboard (conditional)
+        # Source: Prometheus monitoring + Grafana dashboard (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/longhorn/kustomize
@@ -95,11 +101,10 @@ spec:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
-            
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
-        # Source 1: Longhorn Helm Chart
+        # Source: Longhorn Helm Chart
         - repoURL: https://charts.longhorn.io
           targetRevision: '{{ .versions.longhorn }}'
           chart: longhorn

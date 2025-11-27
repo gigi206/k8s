@@ -101,8 +101,15 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
 
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute (Gateway API) - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/httproute
+        {{- end }}
+
         {{- if .features.monitoring.enabled }}
-        # Source 5: Prometheus monitoring (conditional)
+        # Source: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize

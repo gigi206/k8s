@@ -79,12 +79,18 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 3: Encrypted secrets (KSOPS) - environment-specific
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute (Gateway API) - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/httproute
+        {{- end }}
+        # Source: Encrypted secrets (KSOPS) - environment-specific
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/secrets/{{ .environment }}
         {{- if .features.monitoring.enabled }}
-        # Source 2: Prometheus health alerts (conditional) - with dynamic release label
+        # Source: Prometheus health alerts (conditional) - with dynamic release label
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/kustomize
@@ -92,7 +98,7 @@ spec:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
         {{- end }}
-        # Source 1: Helm chart with dynamic parameters
+        # Source: Helm chart with dynamic parameters
         - repoURL: https://prometheus-community.github.io/helm-charts
           targetRevision: '{{ .versions.prometheusStack }}'
           chart: kube-prometheus-stack
