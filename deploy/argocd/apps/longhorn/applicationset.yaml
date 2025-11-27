@@ -131,6 +131,9 @@ spec:
                 {{- if and .longhorn.defaultSettings (hasKey .longhorn.defaultSettings "backupTarget") }}
                 backupTarget: {{ .longhorn.defaultSettings.backupTarget | quote }}
                 {{- end }}
+                {{- if and .longhorn.defaultSettings (hasKey .longhorn.defaultSettings "storageMinimalAvailablePercentage") }}
+                storageMinimalAvailablePercentage: {{ .longhorn.defaultSettings.storageMinimalAvailablePercentage | quote }}
+                {{- end }}
               {{- end }}
               {{- if .longhorn.persistence }}
               persistence:
