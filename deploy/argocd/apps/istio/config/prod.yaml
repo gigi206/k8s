@@ -39,10 +39,6 @@ istio:
         cpu: "1000m"
         memory: "1Gi"
 
-  # Waypoint Proxy (L7 processing for Ambient mode)
-  # Deploy waypoints manually per-namespace: istioctl waypoint apply -n <namespace>
-  # See README.md for configuration options
-
 # Kiali (Service Mesh Observability)
 kiali:
   enabled: true
