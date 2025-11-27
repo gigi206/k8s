@@ -1,0 +1,115 @@
+---
+# =============================================================================
+# Keycloak ApplicationSet - Wave 80 (Identity & Access Management)
+# =============================================================================
+# Deploie l'operateur Keycloak officiel et une instance Keycloak
+# avec PostgreSQL gere par CloudNativePG
+# Docs: https://www.keycloak.org/operator/installation
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: keycloak
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "80"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par defaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config specifique a l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/keycloak/config/*.yaml
+
+  template:
+    metadata:
+      name: keycloak
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "80"
+    spec:
+      project: default
+
+      sources:
+        # Source 1: Keycloak Operator (CRDs + Deployment) - repo officiel
+        - repoURL: https://github.com/keycloak/keycloak-k8s-resources
+          targetRevision: '{{ .versions.keycloakOperator }}'
+          path: kubernetes
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: keycloak
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 1: Keycloak Operator (CRDs + Deployment) - repo officiel
+        - repoURL: https://github.com/keycloak/keycloak-k8s-resources
+          targetRevision: '{{ .versions.keycloakOperator }}'
+          path: kubernetes
+
+        # Source 2: PostgreSQL Cluster (CNPG)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "cluster-postgresql.yaml"
+
+        # Source 3: Keycloak CR instance
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "keycloak.yaml"
+
+        # Source 4: Secrets (KSOPS) - environment specific
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source 5: Prometheus monitoring (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}

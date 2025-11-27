@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# PostgreSQL Cluster pour Keycloak - CloudNativePG
+# =============================================================================
+# Cluster PostgreSQL gere par l'operateur CNPG
+# Utilise le ClusterImageCatalog pour PostgreSQL 18
+# =============================================================================
+
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  namespace: keycloak
+spec:
+  # Nombre d'instances (1 pour dev, 3 pour prod HA)
+  instances: 1
+
+  # Reference au ClusterImageCatalog pour PostgreSQL 18
+  imageCatalogRef:
+    kind: ClusterImageCatalog
+    name: postgresql
+    major: 18
+
+  # Configuration du stockage
+  storage:
+    size: 1Gi
+    storageClass: longhorn
+
+  # Bootstrap: creation de la base de donnees keycloak
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+      secret:
+        name: keycloak-db-credentials
+      encoding: UTF8
+      localeCollate: fr_FR.UTF-8
+      localeCType: fr_FR.UTF-8
+
+  # Configuration PostgreSQL optimisee pour Keycloak
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+      effective_cache_size: "512MB"
+      work_mem: "4MB"
+      maintenance_work_mem: "64MB"
+
+  # Monitoring
+  monitoring:
+    enablePodMonitor: true
+    podMonitorMetricRelabelings:
+      - sourceLabels: [cluster]
+        targetLabel: cnpg_cluster
+
+  # Resources (ajuster selon environnement)
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
