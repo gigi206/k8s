@@ -1,0 +1,24 @@
+---
+# Configuration Keycloak - Prod
+environment: prod
+appName: keycloak
+
+# Dashboard configuration
+dashboard:
+  folder: "Keycloak"
+
+keycloak:
+  # HA instances for production
+  instances: 3
+  hostname: "keycloak.gigix"
+
+  # PostgreSQL cluster settings (HA)
+  database:
+    instances: 3
+    storageSize: "20Gi"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true
