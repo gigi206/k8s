@@ -161,3 +161,26 @@ spec:
           annotations:
             summary: "Keycloak database storage running low"
             description: "PostgreSQL storage for keycloak-db is below 20% available."
+
+---
+# =============================================================================
+# PodMonitor pour le cluster PostgreSQL CNPG
+# =============================================================================
+# Note: le label 'release' est injecte via Kustomize commonLabels
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: keycloak-db
+  namespace: keycloak
+  labels:
+    cnpg.io/cluster: keycloak-db
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: keycloak-db
+  podMetricsEndpoints:
+    - port: metrics
+      metricRelabelings:
+        - sourceLabels: [cluster]
+          targetLabel: cnpg_cluster
