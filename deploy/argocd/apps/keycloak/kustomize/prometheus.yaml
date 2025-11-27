@@ -1,0 +1,163 @@
+---
+# =============================================================================
+# Keycloak - Prometheus Rules
+# =============================================================================
+# Alertes pour Keycloak et son cluster PostgreSQL
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keycloak-prometheus-rules
+  namespace: keycloak
+  labels:
+    prometheus: keycloak
+    role: alert-rules
+spec:
+  groups:
+    # =========================================================================
+    # Keycloak Application Rules
+    # =========================================================================
+    - name: keycloak.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Keycloak pods are down
+        - alert: KeycloakDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="keycloak",
+              namespace="keycloak"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Keycloak is down"
+            description: "All Keycloak pods are unavailable for 5 minutes."
+
+        # HIGH: Keycloak pod not ready
+        - alert: KeycloakPodNotReady
+          expr: |
+            kube_pod_status_ready{
+              pod=~"keycloak-.*",
+              namespace="keycloak",
+              condition="true"
+            } == 0
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "Keycloak pod not ready"
+            description: "Keycloak pod {{ $labels.pod }} is not ready for 5 minutes."
+
+        # HIGH: Keycloak pod restarting
+        - alert: KeycloakPodRestarting
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"keycloak-.*",
+              namespace="keycloak"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "Keycloak pod is restarting"
+            description: "Keycloak pod {{ $labels.pod }} has been restarting."
+
+        # WARNING: Keycloak high memory usage
+        - alert: KeycloakHighMemoryUsage
+          expr: |
+            container_memory_usage_bytes{
+              pod=~"keycloak-.*",
+              namespace="keycloak",
+              container="keycloak"
+            } / container_spec_memory_limit_bytes{
+              pod=~"keycloak-.*",
+              namespace="keycloak",
+              container="keycloak"
+            } > 0.85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Keycloak high memory usage"
+            description: "Keycloak pod {{ $labels.pod }} memory usage is above 85%."
+
+    # =========================================================================
+    # Keycloak Operator Rules
+    # =========================================================================
+    - name: keycloak-operator.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Keycloak operator is down
+        - alert: KeycloakOperatorDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="keycloak-operator",
+              namespace="keycloak"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Keycloak Operator is down"
+            description: "Keycloak Operator is unavailable. Keycloak instances cannot be reconciled."
+
+        # HIGH: Keycloak operator pod restarting
+        - alert: KeycloakOperatorPodRestarting
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"keycloak-operator-.*",
+              namespace="keycloak"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "Keycloak Operator pod is restarting"
+            description: "Keycloak Operator pod {{ $labels.pod }} has been restarting."
+
+    # =========================================================================
+    # PostgreSQL Database Rules (via CNPG)
+    # =========================================================================
+    - name: keycloak-database.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Keycloak database cluster is down
+        - alert: KeycloakDatabaseDown
+          expr: |
+            cnpg_collector_up{cluster="keycloak-db"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Keycloak database is down"
+            description: "PostgreSQL cluster keycloak-db is unavailable."
+
+        # HIGH: Keycloak database high replication lag
+        - alert: KeycloakDatabaseHighReplicationLag
+          expr: |
+            cnpg_pg_replication_lag{cluster="keycloak-db"} > 30
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "Keycloak database high replication lag"
+            description: "PostgreSQL replica for keycloak-db has {{ $value }}s replication lag."
+
+        # WARNING: Keycloak database storage running low
+        - alert: KeycloakDatabaseStorageLow
+          expr: |
+            kubelet_volume_stats_available_bytes{
+              persistentvolumeclaim=~"keycloak-db-.*",
+              namespace="keycloak"
+            } / kubelet_volume_stats_capacity_bytes{
+              persistentvolumeclaim=~"keycloak-db-.*",
+              namespace="keycloak"
+            } < 0.2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Keycloak database storage running low"
+            description: "PostgreSQL storage for keycloak-db is below 20% available."

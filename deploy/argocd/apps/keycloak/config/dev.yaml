@@ -1,0 +1,24 @@
+---
+# Configuration Keycloak - Dev
+environment: dev
+appName: keycloak
+
+# Dashboard configuration
+dashboard:
+  folder: "Keycloak"
+
+keycloak:
+  # Single instance for dev
+  instances: 1
+  hostname: "keycloak.gigix"
+
+  # PostgreSQL cluster settings
+  database:
+    instances: 1
+    storageSize: "5Gi"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
