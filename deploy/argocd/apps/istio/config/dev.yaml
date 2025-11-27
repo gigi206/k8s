@@ -42,6 +42,8 @@ istio:
   # Waypoint Proxy (L7 processing for Ambient mode)
   # Deploy waypoints manually per-namespace: istioctl waypoint apply -n <namespace>
   # See README.md for configuration options
+  waypoint:
+    enabled: true  # Enable waypoint proxies for L7 processing
 
 # Kiali (Service Mesh Observability)
 kiali:
