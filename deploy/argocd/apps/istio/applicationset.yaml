@@ -112,6 +112,9 @@ spec:
               # Use ambient profile for ambient mesh mode
               profile: ambient
 
+              # Environment variables at root level (required by istiod chart)
+              env: {}
+
               # Mesh configuration
               meshConfig:
                 # Enable Kubernetes Ingress controller
