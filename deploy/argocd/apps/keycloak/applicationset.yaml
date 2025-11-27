@@ -96,20 +96,27 @@ spec:
           directory:
             include: "keycloak.yaml"
 
-        # Source 4: Secrets (KSOPS) - environment specific
+        # Source 4: KeycloakRealmImport - Realm gigix (OIDC clients, groups, users)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "realm-gigix.yaml"
+
+        # Source 5: Secrets (KSOPS) - environment specific
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
 
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source: HTTPRoute (Gateway API) - conditional
+        # Source 6: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/httproute
         {{- end }}
 
         {{- if .features.monitoring.enabled }}
-        # Source: Prometheus monitoring (conditional)
+        # Source 7: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize

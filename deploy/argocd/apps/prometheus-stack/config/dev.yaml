@@ -37,6 +37,25 @@ prometheusStack:
     # Admin credentials managed via KSOPS encrypted secrets
     # See: secrets/secret-dev.yaml
 
+    # ===================
+    # OIDC Configuration (Keycloak)
+    # ===================
+    oidc:
+      enabled: true
+      name: "Keycloak"
+      allowSignUp: true
+      autoLogin: false
+      clientId: "grafana"
+      scopes: "openid email profile groups"
+      authUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/auth"
+      tokenUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/token"
+      apiUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/userinfo"
+      signoutRedirectUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/logout?post_logout_redirect_uri=https%3A%2F%2Fgrafana.gigix%2Flogin"
+      # Mapping des groupes Keycloak vers les roles Grafana
+      # admins -> Admin, developers -> Editor, autres -> Viewer
+      roleAttributePath: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'developers') && 'Editor' || 'Viewer'"
+      allowAssignGrafanaAdmin: true
+
     # Replicas (dev: 1)
     replicas: 1
 
