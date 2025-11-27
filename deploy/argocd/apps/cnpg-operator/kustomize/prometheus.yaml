@@ -1,0 +1,167 @@
+---
+# =============================================================================
+# CloudNativePG Operator - Prometheus Rules
+# =============================================================================
+# Alertes pour l'operateur CNPG et les clusters PostgreSQL geres
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cnpg-operator-prometheus-rules
+  namespace: cnpg-system
+  labels:
+    prometheus: cnpg-operator
+    role: alert-rules
+spec:
+  groups:
+    # =========================================================================
+    # Operator Health Rules
+    # =========================================================================
+    - name: cnpg-operator.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Operator is down
+        - alert: CNPGOperatorDown
+          expr: |
+            absent(up{job=~".*cnpg.*"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CloudNativePG Operator is down"
+            description: "The CloudNativePG operator has been unavailable for 5 minutes. PostgreSQL clusters cannot be managed."
+
+        # CRITICAL: Operator pod not ready
+        - alert: CNPGOperatorPodNotReady
+          expr: |
+            kube_pod_status_ready{
+              pod=~"cnpg-cloudnative-pg.*",
+              namespace="cnpg-system",
+              condition="true"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CloudNativePG Operator pod not ready"
+            description: "CloudNativePG operator pod {{ $labels.pod }} is not ready for 5 minutes."
+
+        # HIGH: Operator pod restarting
+        - alert: CNPGOperatorPodRestarting
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"cnpg-cloudnative-pg.*",
+              namespace="cnpg-system"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "CloudNativePG Operator pod is restarting"
+            description: "CloudNativePG operator pod {{ $labels.pod }} has been restarting."
+
+    # =========================================================================
+    # PostgreSQL Cluster Health Rules (for managed clusters)
+    # =========================================================================
+    - name: cnpg-cluster.rules
+      interval: 30s
+      rules:
+        # CRITICAL: PostgreSQL instance is fenced
+        - alert: CNPGInstanceFenced
+          expr: |
+            cnpg_collector_fencing_on == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL instance is fenced"
+            description: "PostgreSQL instance {{ $labels.pod }} in cluster {{ $labels.cluster }} is fenced and not accepting connections."
+
+        # CRITICAL: No nodes available for HA
+        - alert: CNPGNoHighAvailability
+          expr: |
+            cnpg_collector_nodes_used == 1
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "PostgreSQL cluster has no HA"
+            description: "All instances of cluster {{ $labels.cluster }} are on a single node. High availability is not guaranteed."
+
+        # HIGH: Replication lag is high
+        - alert: CNPGHighReplicationLag
+          expr: |
+            cnpg_pg_replication_lag > 30
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "High PostgreSQL replication lag"
+            description: "PostgreSQL replica {{ $labels.pod }} in cluster {{ $labels.cluster }} has {{ $value }}s replication lag."
+
+        # CRITICAL: Replication lag is critical
+        - alert: CNPGCriticalReplicationLag
+          expr: |
+            cnpg_pg_replication_lag > 120
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Critical PostgreSQL replication lag"
+            description: "PostgreSQL replica {{ $labels.pod }} in cluster {{ $labels.cluster }} has {{ $value }}s replication lag. Data loss risk!"
+
+        # WARNING: No streaming replicas
+        - alert: CNPGNoStreamingReplicas
+          expr: |
+            cnpg_pg_replication_streaming_replicas == 0 and cnpg_pg_replication_in_recovery == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL primary has no streaming replicas"
+            description: "PostgreSQL primary {{ $labels.pod }} in cluster {{ $labels.cluster }} has no connected streaming replicas."
+
+        # HIGH: WAL archive is failing
+        - alert: CNPGWALArchiveFailing
+          expr: |
+            increase(cnpg_pg_stat_archiver_failed_count[10m]) > 0
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "PostgreSQL WAL archiving is failing"
+            description: "WAL archiving for cluster {{ $labels.cluster }} is failing. Backup point-in-time recovery may be affected."
+
+        # WARNING: WAL segments accumulating
+        - alert: CNPGWALAccumulating
+          expr: |
+            cnpg_collector_pg_wal{value="count"} > 100
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL WAL segments accumulating"
+            description: "Cluster {{ $labels.cluster }} has {{ $value }} WAL segments. Check archiving or disk space."
+
+        # CRITICAL: Manual switchover required
+        - alert: CNPGManualSwitchoverRequired
+          expr: |
+            cnpg_collector_manual_switchover_required == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Manual switchover required"
+            description: "Cluster {{ $labels.cluster }} requires manual switchover intervention."
+
+        # HIGH: Collection errors
+        - alert: CNPGCollectionErrors
+          expr: |
+            cnpg_collector_last_collection_error == 1
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "CNPG metrics collection errors"
+            description: "Metrics collection for cluster {{ $labels.cluster }} pod {{ $labels.pod }} is failing."

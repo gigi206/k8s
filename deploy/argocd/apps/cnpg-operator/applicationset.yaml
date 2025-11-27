@@ -1,0 +1,144 @@
+---
+# =============================================================================
+# CloudNativePG Operator ApplicationSet - Wave 65 (PostgreSQL Operator)
+# =============================================================================
+# Deploie l'operateur CloudNativePG pour gerer les clusters PostgreSQL
+# Docs: https://cloudnative-pg.io/
+# Chart: https://github.com/cloudnative-pg/charts
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cnpg-operator
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "65"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par defaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config specifique a l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/cnpg-operator/config/*.yaml
+
+  template:
+    metadata:
+      name: cnpg-operator
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "65"
+    spec:
+      project: default
+
+      sources:
+        # Source 1: CloudNativePG Helm Chart
+        - repoURL: https://cloudnative-pg.github.io/charts
+          targetRevision: '{{ .versions.cnpgOperator }}'
+          chart: cloudnative-pg
+          helm:
+            releaseName: cnpg
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: cnpg-system
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source 2: Prometheus monitoring (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cnpg-operator/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+        # Source 1: CloudNativePG Helm Chart
+        - repoURL: https://cloudnative-pg.github.io/charts
+          targetRevision: '{{ .versions.cnpgOperator }}'
+          chart: cloudnative-pg
+          helm:
+            releaseName: cnpg
+            values: |
+              replicaCount: {{ .cnpgOperator.replicaCount }}
+              {{- if .cnpgOperator.resources }}
+              resources:
+                {{- if .cnpgOperator.resources.requests }}
+                requests:
+                  {{- if .cnpgOperator.resources.requests.cpu }}
+                  cpu: {{ .cnpgOperator.resources.requests.cpu | quote }}
+                  {{- end }}
+                  {{- if .cnpgOperator.resources.requests.memory }}
+                  memory: {{ .cnpgOperator.resources.requests.memory | quote }}
+                  {{- end }}
+                {{- end }}
+                {{- if .cnpgOperator.resources.limits }}
+                limits:
+                  {{- if .cnpgOperator.resources.limits.cpu }}
+                  cpu: {{ .cnpgOperator.resources.limits.cpu | quote }}
+                  {{- end }}
+                  {{- if .cnpgOperator.resources.limits.memory }}
+                  memory: {{ .cnpgOperator.resources.limits.memory | quote }}
+                  {{- end }}
+                {{- end }}
+              {{- end }}
+              {{- if .features.monitoring.enabled }}
+              monitoring:
+                podMonitorEnabled: true
+                podMonitorAdditionalLabels:
+                  release: '{{ .features.monitoring.release }}'
+                grafanaDashboard:
+                  create: true
+                  labels:
+                    grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+                  annotations:
+                    "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+              {{- end }}
+              {{- if .cnpgOperator.config }}
+              config:
+                {{- if hasKey .cnpgOperator.config "clusterWide" }}
+                clusterWide: {{ .cnpgOperator.config.clusterWide }}
+                {{- end }}
+              {{- end }}
+        # Source 3: Additional resources (ClusterImageCatalog, etc.)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cnpg-operator/resources
