@@ -112,7 +112,7 @@ spec:
               # Use ambient profile for ambient mesh mode
               profile: ambient
 
-              # Environment variables at root level (required by istiod chart)
+              # Workaround: env must be defined as map (chart bug - template fails if env is nil)
               env: {}
 
               # Mesh configuration
