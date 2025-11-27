@@ -44,7 +44,11 @@ spec:
     user:
       secret: keycloak-admin-credentials
 
-  # Proxy configuration (pour Istio/Ingress)
+  # Disable auto-created Ingress (using HTTPRoute instead)
+  ingress:
+    enabled: false
+
+  # Proxy configuration (pour Istio/Gateway)
   proxy:
     headers: xforwarded
 
