@@ -335,3 +335,39 @@ spec:
                   auth.anonymous:
                     enabled: true
                     org_role: Viewer
+                  {{- if .prometheusStack.grafana.oidc }}
+                  {{- if .prometheusStack.grafana.oidc.enabled }}
+                  # OIDC/OAuth2 configuration (Keycloak)
+                  auth.generic_oauth:
+                    enabled: true
+                    name: '{{ .prometheusStack.grafana.oidc.name }}'
+                    allow_sign_up: {{ .prometheusStack.grafana.oidc.allowSignUp }}
+                    auto_login: {{ .prometheusStack.grafana.oidc.autoLogin | default false }}
+                    client_id: '{{ .prometheusStack.grafana.oidc.clientId }}'
+                    client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+                    scopes: '{{ .prometheusStack.grafana.oidc.scopes }}'
+                    auth_url: '{{ .prometheusStack.grafana.oidc.authUrl }}'
+                    token_url: '{{ .prometheusStack.grafana.oidc.tokenUrl }}'
+                    api_url: '{{ .prometheusStack.grafana.oidc.apiUrl }}'
+                    role_attribute_path: '{{ .prometheusStack.grafana.oidc.roleAttributePath }}'
+                    allow_assign_grafana_admin: {{ .prometheusStack.grafana.oidc.allowAssignGrafanaAdmin | default false }}
+                    signout_redirect_url: '{{ .prometheusStack.grafana.oidc.signoutRedirectUrl }}'
+                  {{- end }}
+                  {{- end }}
+                {{- if .prometheusStack.grafana.oidc }}
+                {{- if .prometheusStack.grafana.oidc.enabled }}
+                # Environment variable for OIDC client secret from K8s Secret
+                envFromSecrets:
+                  - name: grafana-oidc-credentials
+                    optional: false
+                extraEnvFrom:
+                  - secretRef:
+                      name: grafana-oidc-credentials
+                env:
+                  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+                    valueFrom:
+                      secretKeyRef:
+                        name: grafana-oidc-credentials
+                        key: client-secret
+                {{- end }}
+                {{- end }}

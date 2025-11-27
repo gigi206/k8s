@@ -7,15 +7,15 @@
 
 creation_rules:
   # Dev environment secrets (in secrets/dev/ directories)
-  - path_regex: apps/.*/secrets/dev/secret\.yaml$
+  - path_regex: apps/.*/secrets/dev/secret.*\.yaml$
     age: age1are2lwem3jtdp3z06xgj5ljvg2xn0rs6yn29x643v3phzkml7clqunt3s2
 
   # Prod environment secrets (in secrets/prod/ directories)
-  - path_regex: apps/.*/secrets/prod/secret\.yaml$
+  - path_regex: apps/.*/secrets/prod/secret.*\.yaml$
     age: age1na7yj6ktcusnpwed94fzst2acl9qguznktc3dwvhf3wap8u2g4ysg5t9qt
 
   # Shared secrets at root level (encrypted with both keys)
-  - path_regex: apps/.*/secrets/secret\.yaml$
+  - path_regex: apps/.*/secrets/secret.*\.yaml$
     age: >-
       age1are2lwem3jtdp3z06xgj5ljvg2xn0rs6yn29x643v3phzkml7clqunt3s2,
       age1na7yj6ktcusnpwed94fzst2acl9qguznktc3dwvhf3wap8u2g4ysg5t9qt

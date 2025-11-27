@@ -91,6 +91,10 @@ spec:
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
+        # Source: OIDC Secrets (KSOPS) - environment specific
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/secrets/{{ .environment }}
         # Source: Helm chart with dynamic parameters
         - repoURL: https://argoproj.github.io/argo-helm
           targetRevision: '{{ .versions.argocd }}'
@@ -271,6 +275,18 @@ spec:
               configs:
                 cm:
                   kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+                  {{- if .argocd.configs.cm }}
+                  url: '{{ .argocd.configs.cm.url }}'
+                  oidc.config: |
+                    {{ .argocd.configs.cm.oidc.config | nindent 20 }}
+                  {{- end }}
+                {{- if .argocd.configs.rbac }}
+                rbac:
+                  policy.default: '{{ .argocd.configs.rbac.policy.default }}'
+                  scopes: '{{ .argocd.configs.rbac.scopes }}'
+                  policy.csv: |
+                    {{ .argocd.configs.rbac.policy.csv | nindent 20 }}
+                {{- end }}
 
               repoServer:
                 # Init container to install KSOPS and SOPS binaries
