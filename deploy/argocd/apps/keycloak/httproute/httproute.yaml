@@ -2,7 +2,7 @@
 # =============================================================================
 # HTTPRoute pour Keycloak via Istio Gateway
 # =============================================================================
-# Deploye quand features.ingress.enabled: false (Gateway API mode)
+# Deploye quand features.gatewayAPI.httpRoute.enabled: true
 # =============================================================================
 
 apiVersion: gateway.networking.k8s.io/v1

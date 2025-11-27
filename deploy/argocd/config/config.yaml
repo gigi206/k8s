@@ -85,6 +85,10 @@ features:
     class: "istio"  # Used by deploy-applicationsets.sh to patch Ingress resources if needed
                     # For Istio, we use Gateway API, but some legacy charts might still create Ingress
 
+  gatewayAPI:
+    httpRoute:
+      enabled: true  # Enable HTTPRoute resources (Gateway API)
+
   storage:
     enabled: true
     class: "longhorn"
