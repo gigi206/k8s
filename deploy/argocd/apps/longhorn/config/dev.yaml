@@ -22,6 +22,7 @@ longhorn:
   defaultSettings:
     defaultReplicaCount: "1"
     defaultDataPath: "/var/lib/longhorn"
+    storageMinimalAvailablePercentage: "10"
   persistence:
     defaultClass: "true"
     defaultClassReplicaCount: "1"
