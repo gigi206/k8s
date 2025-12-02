@@ -335,8 +335,7 @@ spec:
                   auth.anonymous:
                     enabled: true
                     org_role: Viewer
-                  {{- if .prometheusStack.grafana.oidc }}
-                  {{- if .prometheusStack.grafana.oidc.enabled }}
+                  {{- if and .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
                   # OIDC/OAuth2 configuration (Keycloak)
                   auth.generic_oauth:
                     enabled: true
@@ -344,7 +343,7 @@ spec:
                     allow_sign_up: {{ .prometheusStack.grafana.oidc.allowSignUp }}
                     auto_login: {{ .prometheusStack.grafana.oidc.autoLogin | default false }}
                     client_id: "{{ .prometheusStack.grafana.oidc.clientId }}"
-                    client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+                    client_secret: $__file{/etc/secrets/oidc/client-secret}
                     scopes: "{{ .prometheusStack.grafana.oidc.scopes }}"
                     auth_url: "{{ .prometheusStack.grafana.oidc.authUrl }}"
                     token_url: "{{ .prometheusStack.grafana.oidc.tokenUrl }}"
@@ -353,14 +352,11 @@ spec:
                     allow_assign_grafana_admin: {{ .prometheusStack.grafana.oidc.allowAssignGrafanaAdmin | default false }}
                     signout_redirect_url: "{{ .prometheusStack.grafana.oidc.signoutRedirectUrl }}"
                   {{- end }}
-                  {{- end }}
-                {{- if .prometheusStack.grafana.oidc }}
-                {{- if .prometheusStack.grafana.oidc.enabled }}
-                # Environment variable for OIDC client secret from K8s Secret
-                envValueFrom:
-                  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
-                    secretKeyRef:
-                      name: grafana-oidc-credentials
-                      key: client-secret
-                {{- end }}
+                {{- if and .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
+                # Mount OIDC client secret as file (more secure than env var)
+                extraSecretMounts:
+                  - name: oidc-client-secret
+                    secretName: grafana-oidc-credentials
+                    mountPath: /etc/secrets/oidc
+                    readOnly: true
                 {{- end }}
