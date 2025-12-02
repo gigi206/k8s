@@ -278,14 +278,14 @@ spec:
                   {{- if .argocd.configs.cm }}
                   url: '{{ .argocd.configs.cm.url }}'
                   oidc.config: |
-                    {{ .argocd.configs.cm.oidc.config | nindent 20 }}
+                    {{ index .argocd.configs.cm "oidc.config" | nindent 20 }}
                   {{- end }}
                 {{- if .argocd.configs.rbac }}
                 rbac:
-                  policy.default: '{{ .argocd.configs.rbac.policy.default }}'
+                  policy.default: '{{ index .argocd.configs.rbac "policy.default" }}'
                   scopes: '{{ .argocd.configs.rbac.scopes }}'
                   policy.csv: |
-                    {{ .argocd.configs.rbac.policy.csv | nindent 20 }}
+                    {{ index .argocd.configs.rbac "policy.csv" | nindent 20 }}
                 {{- end }}
 
               repoServer:
