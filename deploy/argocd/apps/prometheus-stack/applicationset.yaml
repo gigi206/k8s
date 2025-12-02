@@ -323,8 +323,17 @@ spec:
 
             # Grafana: grafana.ini configuration (via valuesObject pour structure imbriquée)
             # Note: Grafana 12+ a supprimé Legacy Alerting, seul unified_alerting est disponible
+            {{- $oidcEnabled := and .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
             valuesObject:
               grafana:
+                {{- if $oidcEnabled }}
+                # Mount OIDC client secret as file (more secure than env var)
+                extraSecretMounts:
+                  - name: oidc-client-secret
+                    secretName: grafana-oidc-credentials
+                    mountPath: /etc/secrets/oidc
+                    readOnly: true
+                {{- end }}
                 grafana.ini:
                   analytics:
                     check_for_updates: {{ .prometheusStack.grafana.grafanaIni.analytics.check_for_updates | default false }}
@@ -335,7 +344,7 @@ spec:
                   auth.anonymous:
                     enabled: true
                     org_role: Viewer
-                  {{- if and .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
+                  {{- if $oidcEnabled }}
                   # OIDC/OAuth2 configuration (Keycloak)
                   auth.generic_oauth:
                     enabled: true
@@ -352,11 +361,3 @@ spec:
                     allow_assign_grafana_admin: {{ .prometheusStack.grafana.oidc.allowAssignGrafanaAdmin | default false }}
                     signout_redirect_url: "{{ .prometheusStack.grafana.oidc.signoutRedirectUrl }}"
                   {{- end }}
-                {{- if and .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
-                # Mount OIDC client secret as file (more secure than env var)
-                extraSecretMounts:
-                  - name: oidc-client-secret
-                    secretName: grafana-oidc-credentials
-                    mountPath: /etc/secrets/oidc
-                    readOnly: true
-                {{- end }}
