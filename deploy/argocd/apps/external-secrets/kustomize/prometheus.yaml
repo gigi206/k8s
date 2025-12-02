@@ -1,0 +1,79 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: external-secrets-prometheus-rules
+  namespace: external-secrets
+  labels:
+    prometheus: external-secrets
+    role: alert-rules
+spec:
+  groups:
+    - name: external-secrets.rules
+      interval: 30s
+      rules:
+        # CRITICAL: External Secrets Operator down
+        - alert: ExternalSecretsOperatorDown
+          expr: |
+            absent(up{job=~".*external-secrets.*"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "External Secrets Operator is down"
+            description: "External Secrets Operator has been unavailable for 5 minutes. Secret synchronization is not working."
+
+        # CRITICAL: ExternalSecret sync failing
+        - alert: ExternalSecretSyncFailed
+          expr: |
+            externalsecret_status_condition{condition="Ready", status="False"} == 1
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ExternalSecret {{ $labels.name }} sync failed"
+            description: "ExternalSecret {{ $labels.name }} in namespace {{ $labels.namespace }} has been failing to sync for 10 minutes."
+
+        # HIGH: SecretStore not ready
+        - alert: SecretStoreNotReady
+          expr: |
+            secretstore_status_condition{condition="Ready", status="False"} == 1
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "SecretStore {{ $labels.name }} not ready"
+            description: "SecretStore {{ $labels.name }} in namespace {{ $labels.namespace }} is not ready. ExternalSecrets depending on it will fail."
+
+        # HIGH: ClusterSecretStore not ready
+        - alert: ClusterSecretStoreNotReady
+          expr: |
+            clustersecretstore_status_condition{condition="Ready", status="False"} == 1
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "ClusterSecretStore {{ $labels.name }} not ready"
+            description: "ClusterSecretStore {{ $labels.name }} is not ready. ExternalSecrets depending on it will fail."
+
+        # WARNING: External Secrets pod restarting
+        - alert: ExternalSecretsPodRestarting
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace="external-secrets"}[15m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "External Secrets pod {{ $labels.pod }} is restarting"
+            description: "Pod {{ $labels.pod }} in namespace external-secrets has been restarting frequently."
+
+        # WARNING: High sync latency
+        - alert: ExternalSecretHighSyncLatency
+          expr: |
+            histogram_quantile(0.99, rate(externalsecret_sync_calls_total_bucket[5m])) > 30
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High ExternalSecret sync latency"
+            description: "ExternalSecret sync operations are taking longer than 30 seconds (p99)."

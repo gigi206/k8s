@@ -1,0 +1,45 @@
+---
+# Configuration External-Secrets - Dev
+environment: dev
+appName: external-secrets
+
+externalSecrets:
+  # Controller replicas (dev: 1)
+  replicas: 1
+
+  # Controller resources (dev: minimal)
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "256Mi"
+
+  # Webhook configuration
+  webhook:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
+
+  # Cert Controller configuration
+  certController:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

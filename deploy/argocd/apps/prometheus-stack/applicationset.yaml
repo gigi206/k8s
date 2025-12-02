@@ -85,7 +85,13 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/httproute
         {{- end }}
-        # Source: Encrypted secrets (KSOPS) - environment-specific
+        # Source: KeycloakRealmImport + ExternalSecret (OIDC autonome)
+        # - keycloak-client.yaml: déploie le client OIDC Grafana dans Keycloak (ns: keycloak)
+        # - external-secret.yaml: synchronise le secret OIDC vers monitoring namespace
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+        # Source: Encrypted secrets (KSOPS) - Grafana admin credentials only
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/secrets/{{ .environment }}

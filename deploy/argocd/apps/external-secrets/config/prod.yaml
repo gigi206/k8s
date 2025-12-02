@@ -1,0 +1,45 @@
+---
+# Configuration External-Secrets - Prod
+environment: prod
+appName: external-secrets
+
+externalSecrets:
+  # Controller replicas (prod: HA)
+  replicas: 2
+
+  # Controller resources (prod: production-grade)
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "512Mi"
+
+  # Webhook configuration
+  webhook:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "25m"
+        memory: "64Mi"
+      limits:
+        cpu: "100m"
+        memory: "256Mi"
+
+  # Cert Controller configuration
+  certController:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "25m"
+        memory: "64Mi"
+      limits:
+        cpu: "100m"
+        memory: "256Mi"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false
