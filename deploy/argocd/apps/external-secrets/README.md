@@ -10,24 +10,24 @@ External Secrets Operator (ESO) synchronizes secrets from external secret manage
 ┌─────────────────────────────────────────────────────────────────────┐
 │ keycloak namespace (source of truth)                                │
 │                                                                     │
-│  argocd-oidc-client-secret ◄─────────────────────────────────────┐ │
-│  grafana-oidc-client-secret ◄──────────────────────────────────┐ │ │
-└───────────────────────────────────────────────────────────────│─│─┘
-                                                                │ │
-┌──────────────────────────────────────────────────────────────│─│─┐
-│ ClusterSecretStore "keycloak-oidc-secrets"                   │ │ │
-│ (reads secrets from keycloak namespace)                      │ │ │
-└──────────────────────────────────────────────────────────────│─│─┘
-                                                                │ │
-    ┌───────────────────────────────────────────────────────────┘ │
-    │                                                             │
-    ▼                                                             ▼
-┌─────────────────────────────┐  ┌─────────────────────────────────┐
-│ argo-cd namespace           │  │ monitoring namespace            │
-│                             │  │                                 │
-│ ExternalSecret              │  │ ExternalSecret                  │
-│ → argocd-secret             │  │ → grafana-oidc-credentials      │
-└─────────────────────────────┘  └─────────────────────────────────┘
+│  argocd-oidc-client-secret ◄─────────────────────────────────────┐  │
+│  grafana-oidc-client-secret ◄──────────────────────────────────┐ │  │
+└────────────────────────────────────────────────────────────────│─│──┘
+                                                                 │ │
+┌────────────────────────────────────────────────────────────────│─│─┐
+│ ClusterSecretStore "keycloak-oidc-secrets"                     │ │ │
+│ (reads secrets from keycloak namespace)                        │ │ │
+└────────────────────────────────────────────────────────────────│─│─┘
+                                                                 │ │
+    ┌────────────────────────────────────────────────────────────┘ │
+    │                                                              │
+    ▼                                                              ▼
+┌─────────────────────────────┐   ┌─────────────────────────────────┐
+│ argo-cd namespace           │   │ monitoring namespace            │
+│                             │   │                                 │
+│ ExternalSecret              │   │ ExternalSecret                  │
+│ → argocd-secret             │   │ → grafana-oidc-credentials      │
+└─────────────────────────────┘   └─────────────────────────────────┘
 ```
 
 ## Components
