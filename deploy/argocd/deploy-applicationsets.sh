@@ -326,14 +326,17 @@ APPLICATIONSETS=(
   "apps/kube-vip/applicationset.yaml"                   # Wave 15
   "apps/gateway-api-controller/applicationset.yaml"     # Wave 15
   "apps/cert-manager/applicationset.yaml"               # Wave 20
+  "apps/external-secrets/applicationset.yaml"           # Wave 25
   "apps/external-dns/applicationset.yaml"               # Wave 30
   "apps/istio/applicationset.yaml"                      # Wave 40
   "apps/istio-gateway/applicationset.yaml"              # Wave 41
   "apps/argocd/applicationset.yaml"                     # Wave 50
   "apps/csi-external-snapshotter/applicationset.yaml"   # Wave 55
   "apps/longhorn/applicationset.yaml"                   # Wave 60
+  "apps/cnpg-operator/applicationset.yaml"              # Wave 65
   "apps/prometheus-stack/applicationset.yaml"           # Wave 75
   "apps/cilium-monitoring/applicationset.yaml"          # Wave 76
+  "apps/keycloak/applicationset.yaml"                   # Wave 80
 )
 
 # Vérifier que tous les fichiers existent

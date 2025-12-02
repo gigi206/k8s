@@ -149,4 +149,4 @@ spec:
     ADMIN_PASSWORD:
       secret:
         name: keycloak-admin-credentials
-        key: admin-password
+        key: password
