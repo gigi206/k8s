@@ -1,0 +1,158 @@
+---
+# =============================================================================
+# External-Secrets ApplicationSet - Wave 25 (Secret Management)
+# =============================================================================
+# Déploie External Secrets Operator pour synchroniser les secrets entre namespaces
+# Docs: https://external-secrets.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: external-secrets
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "25"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/external-secrets/config/*.yaml
+
+  template:
+    metadata:
+      name: external-secrets
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "25"
+    spec:
+      project: default
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: external-secrets
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.monitoring.enabled }}
+        # Source: Prometheus monitoring (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/external-secrets/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}
+        # Source: Helm chart
+        - repoURL: https://charts.external-secrets.io
+          targetRevision: '{{ .versions.externalSecrets }}'
+          chart: external-secrets
+          helm:
+            parameters:
+            # CRDs installation
+            - name: installCRDs
+              value: "true"
+
+            # ServiceAccount for accessing secrets across namespaces
+            - name: serviceAccount.create
+              value: "true"
+            - name: serviceAccount.name
+              value: "external-secrets"
+
+            # Prometheus metrics
+            - name: metrics.service.enabled
+              value: '{{ .features.monitoring.enabled }}'
+            {{- if .features.monitoring.enabled }}
+            - name: serviceMonitor.enabled
+              value: "true"
+            - name: serviceMonitor.additionalLabels.release
+              value: '{{ .features.monitoring.release }}'
+            {{- end }}
+
+            # Controller replicas and resources
+            {{- if .externalSecrets.replicas }}
+            - name: replicaCount
+              value: "{{ .externalSecrets.replicas }}"
+            {{- end }}
+            {{- if .externalSecrets.resources }}
+            - name: resources.requests.cpu
+              value: '{{ .externalSecrets.resources.requests.cpu }}'
+            - name: resources.requests.memory
+              value: '{{ .externalSecrets.resources.requests.memory }}'
+            - name: resources.limits.cpu
+              value: '{{ .externalSecrets.resources.limits.cpu }}'
+            - name: resources.limits.memory
+              value: '{{ .externalSecrets.resources.limits.memory }}'
+            {{- end }}
+
+            # Webhook configuration
+            {{- if .externalSecrets.webhook }}
+            {{- if .externalSecrets.webhook.replicas }}
+            - name: webhook.replicaCount
+              value: "{{ .externalSecrets.webhook.replicas }}"
+            {{- end }}
+            {{- if .externalSecrets.webhook.resources }}
+            - name: webhook.resources.requests.cpu
+              value: '{{ .externalSecrets.webhook.resources.requests.cpu }}'
+            - name: webhook.resources.requests.memory
+              value: '{{ .externalSecrets.webhook.resources.requests.memory }}'
+            - name: webhook.resources.limits.cpu
+              value: '{{ .externalSecrets.webhook.resources.limits.cpu }}'
+            - name: webhook.resources.limits.memory
+              value: '{{ .externalSecrets.webhook.resources.limits.memory }}'
+            {{- end }}
+            {{- end }}
+
+            # Cert Controller configuration
+            {{- if .externalSecrets.certController }}
+            {{- if .externalSecrets.certController.replicas }}
+            - name: certController.replicaCount
+              value: "{{ .externalSecrets.certController.replicas }}"
+            {{- end }}
+            {{- if .externalSecrets.certController.resources }}
+            - name: certController.resources.requests.cpu
+              value: '{{ .externalSecrets.certController.resources.requests.cpu }}'
+            - name: certController.resources.requests.memory
+              value: '{{ .externalSecrets.certController.resources.requests.memory }}'
+            - name: certController.resources.limits.cpu
+              value: '{{ .externalSecrets.certController.resources.limits.cpu }}'
+            - name: certController.resources.limits.memory
+              value: '{{ .externalSecrets.certController.resources.limits.memory }}'
+            {{- end }}
+            {{- end }}
