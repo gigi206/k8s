@@ -91,10 +91,12 @@ spec:
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
-        # Source: OIDC Secrets (KSOPS) - environment specific
+        # Source: KeycloakRealmImport + ExternalSecret (OIDC autonome)
+        # - keycloak-client.yaml: déploie le client OIDC dans Keycloak (ns: keycloak)
+        # - external-secret.yaml: synchronise le secret vers argo-cd namespace
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/argocd/secrets/{{ .environment }}
+          path: deploy/argocd/apps/argocd/resources
         # Source: Helm chart with dynamic parameters
         - repoURL: https://argoproj.github.io/argo-helm
           targetRevision: '{{ .versions.argocd }}'
@@ -287,6 +289,9 @@ spec:
                   policy.csv: |
                     {{ index .argocd.configs.rbac "policy.csv" | nindent 20 }}
                 {{- end }}
+                # Disable secret creation - ExternalSecret creates argocd-secret
+                secret:
+                  createSecret: false
 
               repoServer:
                 # Init container to install KSOPS and SOPS binaries

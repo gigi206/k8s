@@ -55,6 +55,7 @@ versions:
   csiSnapshotter: "v8.4.0"
   envoyGateway: "v1.6.0"
   externalDns: "1.19.0"
+  externalSecrets: "1.1.0"
   external-dns-coredns: "1.45.0"
   external-dns-etcd: "1.1.4"
   gatewayApiController: "v1.4.0"

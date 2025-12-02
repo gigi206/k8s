@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# KeycloakRealmImport - Client OIDC ArgoCD
+# =============================================================================
+# Deploie le client OIDC ArgoCD dans le realm "gigix"
+# Ce fichier rend ArgoCD autonome pour sa configuration OIDC
+# =============================================================================
+
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakRealmImport
+metadata:
+  name: argocd-oidc-client
+  namespace: keycloak
+spec:
+  keycloakCRName: keycloak
+  realm:
+    # Target le realm existant
+    realm: gigix
+
+    # ===================
+    # Client OIDC ArgoCD
+    # ===================
+    clients:
+      - clientId: argocd
+        name: ArgoCD
+        description: "Client OIDC pour ArgoCD GitOps"
+        enabled: true
+        clientAuthenticatorType: client-secret
+        secret: "$(env:ARGOCD_CLIENT_SECRET)"
+        redirectUris:
+          - "https://argocd.gigix/auth/callback"
+          - "http://localhost:8085/auth/callback"
+        webOrigins:
+          - "https://argocd.gigix"
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        publicClient: false
+        protocol: openid-connect
+        fullScopeAllowed: true
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - groups
+        optionalClientScopes:
+          - offline_access
+        attributes:
+          pkce.code.challenge.method: "S256"
+          post.logout.redirect.uris: "https://argocd.gigix/*"
+          backchannel.logout.session.required: "true"
+          backchannel.logout.revoke.offline.tokens: "false"
+
+  # ===================
+  # Secret Placeholder
+  # ===================
+  # Reference au secret dans le namespace keycloak
+  placeholders:
+    ARGOCD_CLIENT_SECRET:
+      secret:
+        name: argocd-oidc-client-secret
+        key: client-secret
