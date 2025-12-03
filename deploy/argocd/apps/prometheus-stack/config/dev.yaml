@@ -44,7 +44,7 @@ prometheusStack:
       enabled: true
       name: "Keycloak"
       allowSignUp: true
-      autoLogin: false
+      autoLogin: true
       clientId: "grafana"
       scopes: "openid email profile groups"
       authUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/auth"
