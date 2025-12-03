@@ -36,6 +36,7 @@ syncPolicy:
     - ServerSideApply=true
     - PruneLast=true
     - SkipDryRunOnMissingResource=true
+    - RespectIgnoreDifferences=true
 
 # Paramètres communs partagés
 common:
