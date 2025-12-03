@@ -11,6 +11,29 @@ dashboard:
 #   argocd: "9.0.5"
 
 argocd:
+  configs:
+    params:
+      "server.insecure": "false"
+
+    # ===================
+    # RBAC Configuration
+    # ===================
+    rbac:
+      policy.default: role:readonly
+      policy.csv: |
+        # Groupe admins -> role:admin (acces complet)
+        g, admins, role:admin
+        # Groupe developers -> role:developer (sync apps)
+        p, role:developer, applications, get, */*, allow
+        p, role:developer, applications, sync, */*, allow
+        p, role:developer, applications, action/*, */*, allow
+        p, role:developer, logs, get, */*, allow
+        p, role:developer, exec, create, */*, allow
+        g, developers, role:developer
+        # Groupe readonly -> role:readonly (lecture seule, defaut)
+        g, readonly, role:readonly
+      scopes: "[groups]"
+
   server:
     ingress:
       enabled: true
@@ -66,24 +89,9 @@ argocd:
   redis:
     ha: true
 
-  # Dex/SSO (optional - configure OIDC here)
+  # Dex disabled - using native OIDC with Keycloak
   dex:
     enabled: false
-    # enabled: true
-    # config: |
-    #   connectors:
-    #   - type: oidc
-    #     id: keycloak
-    #     name: Keycloak
-    #     config:
-    #       issuer: https://keycloak.example.com/realms/master
-    #       clientID: argocd
-    #       clientSecret: $dex.keycloak.clientSecret
-    #       requestedScopes:
-    #       - openid
-    #       - profile
-    #       - email
-    #       - groups
 
   # ApplicationSet controller
   applicationSet:
