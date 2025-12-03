@@ -97,13 +97,14 @@ Applications deploy in order via `argocd.argoproj.io/sync-wave` annotations:
 3. **kube-vip** - VIP for Kubernetes API (192.168.121.200)
 4. **cert-manager** - Certificate management (self-signed issuer in dev)
 5. **external-dns** - DNS automation with CoreDNS
-6. **istio** - Service Mesh (Ambient mode)
-7. **istio-gateway** - Ingress Gateway
-8. **argocd** - GitOps controller (self-managed)
-9. **csi-external-snapshotter** - Snapshot CRDs for Longhorn
-10. **longhorn** - Distributed block storage
-11. **prometheus-stack** - Prometheus, Grafana, Alertmanager
-12. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
+6. **keycloak** - Identity and Access Management (OIDC provider)
+7. **istio** - Service Mesh (Ambient mode) + Kiali
+8. **istio-gateway** - Ingress Gateway
+9. **argocd** - GitOps controller (self-managed, OIDC auth)
+10. **csi-external-snapshotter** - Snapshot CRDs for Longhorn
+11. **longhorn** - Distributed block storage
+12. **prometheus-stack** - Prometheus, Grafana (OIDC auth), Alertmanager
+13. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
 
 ## Common Development Commands
 
@@ -533,6 +534,222 @@ sops encrypt --in-place apps/<app>/secrets/secret-dev.yaml
 
 **Applications using SOPS/KSOPS**:
 - prometheus-stack (Grafana admin credentials)
+- keycloak (OIDC client secrets for ArgoCD, Grafana, Kiali)
+
+## OIDC Authentication with Keycloak
+
+### Overview
+
+Applications are secured with OIDC authentication via Keycloak. The authentication flow uses:
+- **Keycloak** as the Identity Provider (realm: `gigix`)
+- **Automatic client creation** via Kubernetes Jobs (PostSync hooks)
+- **Cross-namespace secret syncing** via ExternalSecrets + ClusterSecretStore
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Keycloak (namespace: keycloak)               │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐     │
+│  │ argocd-oidc-    │  │ grafana-oidc-   │  │ kiali-oidc-     │     │
+│  │ client-secret   │  │ client-secret   │  │ client-secret   │     │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘     │
+└───────────┼─────────────────────┼─────────────────────┼─────────────┘
+            │ ClusterSecretStore  │                     │
+            │ (keycloak-oidc-     │                     │
+            │  secrets)           │                     │
+            ▼                     ▼                     ▼
+┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐
+│   argo-cd ns      │ │   monitoring ns   │ │  istio-system ns  │
+│ ┌───────────────┐ │ │ ┌───────────────┐ │ │ ┌───────────────┐ │
+│ │ argocd-secret │ │ │ │grafana-oidc-  │ │ │ │    kiali      │ │
+│ │ (ExternalSec) │ │ │ │credentials    │ │ │ │ (ExternalSec) │ │
+│ └───────────────┘ │ │ └───────────────┘ │ │ └───────────────┘ │
+└───────────────────┘ └───────────────────┘ └───────────────────┘
+```
+
+### Applications with OIDC Authentication
+
+| Application | Client ID | Auth Strategy | Notes |
+|-------------|-----------|---------------|-------|
+| ArgoCD | `argocd` | OIDC | Dex connector |
+| Grafana | `grafana` | OAuth2 | Auto-login enabled, anonymous disabled |
+| Kiali | `kiali` | OpenID | Service mesh UI |
+
+### Adding OIDC Authentication to a New Application
+
+1. **Create SOPS-encrypted client secret** in `keycloak/secrets/dev/`:
+```bash
+# Create secret file
+cat > /tmp/secret-myapp-client.yaml << 'EOF'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: myapp-oidc-client-secret
+  namespace: keycloak
+type: Opaque
+stringData:
+  client-secret: my-random-secret-value
+EOF
+
+# Copy and encrypt
+cp /tmp/secret-myapp-client.yaml deploy/argocd/apps/keycloak/secrets/dev/secret-myapp-client.yaml
+cd deploy/argocd && sops encrypt -i apps/keycloak/secrets/dev/secret-myapp-client.yaml
+```
+
+2. **Add to ksops-generator.yaml**:
+```yaml
+# apps/keycloak/secrets/dev/ksops-generator.yaml
+files:
+  - ./secret.yaml
+  - ./secret-argocd-client.yaml
+  - ./secret-grafana-client.yaml
+  - ./secret-kiali-client.yaml
+  - ./secret-myapp-client.yaml  # Add this
+```
+
+3. **Create Keycloak client Job** in `myapp/resources/keycloak-client.yaml`:
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: myapp-keycloak-client
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-client
+          image: curlimages/curl:8.5.0
+          env:
+            - name: KEYCLOAK_URL
+              value: "https://keycloak.gigix"
+            - name: REALM
+              value: "gigix"
+            - name: CLIENT_ID
+              value: "myapp"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: password
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: myapp-oidc-client-secret
+                  key: client-secret
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Script to create/update Keycloak client via Admin API
+              # See existing examples in argocd/prometheus-stack/istio
+```
+
+4. **Create ExternalSecret** to sync secret to target namespace:
+```yaml
+# apps/myapp/resources/external-secret-oidc.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: myapp-oidc-external
+  namespace: myapp-namespace
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: keycloak-oidc-secrets
+  target:
+    name: myapp-oidc-credentials
+    creationPolicy: Owner
+  data:
+    - secretKey: client-secret
+      remoteRef:
+        key: myapp-oidc-client-secret
+        property: client-secret
+```
+
+5. **Configure application** with OIDC settings in `config/dev.yaml`
+
+### ClusterSecretStore for Cross-Namespace Secrets
+
+The `keycloak-oidc-secrets` ClusterSecretStore allows any namespace to read secrets from the `keycloak` namespace:
+
+```yaml
+# apps/keycloak/resources/cluster-secret-store.yaml
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: keycloak-oidc-secrets
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: keycloak
+      server:
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+          namespace: kube-system
+      auth:
+        serviceAccount:
+          name: external-secrets
+          namespace: external-secrets
+```
+
+### Kiali-Specific: Grafana Integration with Mounted Secrets
+
+The kiali-server Helm chart requires secrets to be mounted via `deployment.custom_secrets` (the `secret:` syntax alone doesn't work):
+
+```yaml
+# In ApplicationSet templatePatch
+deployment:
+  custom_secrets:
+    - name: kiali-grafana-username
+      mount: /kiali-override-secrets/grafana-username
+    - name: kiali-grafana-password
+      mount: /kiali-override-secrets/grafana-password
+
+external_services:
+  grafana:
+    auth:
+      type: basic
+      username: secret:kiali-grafana-username:value.txt
+      password: secret:kiali-grafana-password:value.txt
+```
+
+**Important**: The secrets must have a key named `value.txt`. Use ExternalSecrets to create them:
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kiali-grafana-password
+  namespace: istio-system
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: grafana-secrets
+  target:
+    name: kiali-grafana-password
+  data:
+    - secretKey: value.txt  # Must be value.txt!
+      remoteRef:
+        key: grafana-admin-credentials
+        property: admin-password
+```
+
+See: https://kiali.io/docs/faq/installation/
 
 ## Prometheus Monitoring and Alerts
 
