@@ -71,11 +71,11 @@ spec:
 
       syncPolicy:
         retry:
-          limit: 3
+          limit: 10
           backoff:
-            duration: 5s
+            duration: 10s
             factor: 2
-            maxDuration: 3m
+            maxDuration: 10m
 
   templatePatch: |
     spec:

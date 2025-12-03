@@ -58,14 +58,26 @@ spec:
 
       syncPolicy:
         retry:
-          limit: 5
+          limit: 10
           backoff:
-            duration: 5s
+            duration: 10s
             factor: 2
-            maxDuration: 5m
+            maxDuration: 10m
 
   templatePatch: |
     spec:
+      # Ignore fields managed by controllers (CNPG, Prometheus Operator)
+      ignoreDifferences:
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+            - manager
+          jqPathExpressions:
+            - .spec
+        - group: monitoring.coreos.com
+          kind: PodMonitor
+          jqPathExpressions:
+            - .spec.podMetricsEndpoints
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
