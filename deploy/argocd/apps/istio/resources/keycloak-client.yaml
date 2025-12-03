@@ -1,0 +1,171 @@
+---
+# =============================================================================
+# Job - Create/Update OIDC Client in Keycloak for Kiali
+# =============================================================================
+# Uses Keycloak Admin REST API to create the Kiali OIDC client
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kiali-keycloak-client
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-client
+          image: curlimages/curl:8.5.0
+          env:
+            - name: KEYCLOAK_URL
+              value: "https://keycloak.gigix"
+            - name: REALM
+              value: "gigix"
+            - name: CLIENT_ID
+              value: "kiali"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: password
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kiali-oidc-client-secret
+                  key: client-secret
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "=== Kiali Keycloak Client Setup ==="
+              echo "Keycloak URL: $KEYCLOAK_URL"
+              echo "Realm: $REALM"
+              echo "Client ID: $CLIENT_ID"
+
+              # Wait for Keycloak to be ready
+              echo "Waiting for Keycloak..."
+              for i in $(seq 1 30); do
+                if curl -sk "$KEYCLOAK_URL/realms/$REALM/.well-known/openid-configuration" > /dev/null 2>&1; then
+                  echo "Keycloak is ready"
+                  break
+                fi
+                echo "Attempt $i/30 - Keycloak not ready, waiting..."
+                sleep 5
+              done
+
+              # Get admin token from master realm
+              echo "Getting admin token..."
+              TOKEN=$(curl -sk -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli" \
+                -d "username=$KEYCLOAK_ADMIN" \
+                -d "password=$KEYCLOAK_ADMIN_PASSWORD" | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+
+              if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+                echo "ERROR: Failed to get admin token"
+                exit 1
+              fi
+              echo "Admin token obtained successfully"
+
+              # Check if client exists
+              echo "Checking if client '$CLIENT_ID' exists..."
+              EXISTING=$(curl -sk -X GET "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$CLIENT_ID" \
+                -H "Authorization: Bearer $TOKEN")
+
+              # Client JSON configuration
+              CLIENT_JSON=$(cat <<EOF
+              {
+                "clientId": "$CLIENT_ID",
+                "name": "Kiali",
+                "description": "Client OIDC pour Kiali Service Mesh UI",
+                "enabled": true,
+                "clientAuthenticatorType": "client-secret",
+                "secret": "$CLIENT_SECRET",
+                "redirectUris": [
+                  "https://kiali.gigix/kiali/*",
+                  "https://kiali.gigix/*",
+                  "http://localhost:20001/*"
+                ],
+                "webOrigins": ["https://kiali.gigix"],
+                "standardFlowEnabled": true,
+                "implicitFlowEnabled": false,
+                "directAccessGrantsEnabled": false,
+                "serviceAccountsEnabled": false,
+                "publicClient": false,
+                "protocol": "openid-connect",
+                "fullScopeAllowed": true,
+                "defaultClientScopes": ["openid", "profile", "email", "groups"],
+                "optionalClientScopes": ["offline_access"],
+                "attributes": {
+                  "post.logout.redirect.uris": "https://kiali.gigix/*"
+                }
+              }
+              EOF
+              )
+
+              if echo "$EXISTING" | grep -q '"id"'; then
+                # Client exists - update it
+                CLIENT_UUID=$(echo "$EXISTING" | sed 's/\[{"id":"\([^"]*\)".*/\1/')
+                echo "Client exists (UUID: $CLIENT_UUID), updating..."
+
+                RESPONSE=$(curl -sk -w "\n%{http_code}" -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_UUID" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$CLIENT_JSON")
+
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+                if [ "$HTTP_CODE" = "204" ]; then
+                  echo "Client updated successfully"
+                else
+                  echo "ERROR: Failed to update client (HTTP $HTTP_CODE)"
+                  echo "$RESPONSE"
+                  exit 1
+                fi
+              else
+                # Client doesn't exist - create it
+                echo "Client doesn't exist, creating..."
+
+                RESPONSE=$(curl -sk -w "\n%{http_code}" -X POST "$KEYCLOAK_URL/admin/realms/$REALM/clients" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$CLIENT_JSON")
+
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+                if [ "$HTTP_CODE" = "201" ]; then
+                  echo "Client created successfully"
+                  CLIENT_UUID=$(curl -sk -X GET "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$CLIENT_ID" \
+                    -H "Authorization: Bearer $TOKEN" | sed 's/\[{"id":"\([^"]*\)".*/\1/')
+                else
+                  echo "ERROR: Failed to create client (HTTP $HTTP_CODE)"
+                  echo "$RESPONSE"
+                  exit 1
+                fi
+              fi
+
+              # Assign 'groups' scope to the client
+              echo "Assigning 'groups' scope to client..."
+              GROUPS_SCOPE_ID=$(curl -sk -X GET "$KEYCLOAK_URL/admin/realms/$REALM/client-scopes" \
+                -H "Authorization: Bearer $TOKEN" | sed -n 's/.*"id":"\([^"]*\)","name":"groups".*/\1/p')
+
+              if [ -n "$GROUPS_SCOPE_ID" ]; then
+                curl -sk -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_UUID/default-client-scopes/$GROUPS_SCOPE_ID" \
+                  -H "Authorization: Bearer $TOKEN"
+                echo "Groups scope assigned successfully"
+              else
+                echo "WARNING: 'groups' scope not found in realm"
+              fi
+
+              echo "=== Kiali Keycloak Client Setup Complete ==="

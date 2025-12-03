@@ -243,8 +243,8 @@ spec:
                 {{- if .features.monitoring.enabled }}
                 grafana:
                   enabled: true
-                  url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
-                  in_cluster_url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
+                  external_url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
+                  internal_url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
                   auth:
                     type: basic
                     username: secret:kiali-grafana-username:value.txt
@@ -258,11 +258,28 @@ spec:
               # Authentication strategy
               auth:
                 strategy: {{ .kiali.auth.strategy }}
+                {{- if eq .kiali.auth.strategy "openid" }}
+                openid:
+                  client_id: {{ .kiali.auth.openid.clientId }}
+                  issuer_uri: {{ .kiali.auth.openid.issuerUri }}
+                  scopes:
+                  {{- range .kiali.auth.openid.scopes }}
+                    - {{ . }}
+                  {{- end }}
+                  username_claim: {{ .kiali.auth.openid.usernameClaim }}
+                  disable_rbac: {{ .kiali.auth.openid.disableRbac }}
+                  insecure_skip_verify_tls: {{ .kiali.auth.openid.insecureSkipVerifyTls }}
+                {{- end }}
 
               # Server configuration
               server:
                 port: 20001
                 web_root: /
+                # External URL configuration for OIDC redirects
+                # See: https://github.com/kiali/kiali/issues/3111
+                web_fqdn: kiali.{{ .common.domain }}
+                web_port: "443"
+                web_schema: https
 
               # Kiali feature flags
               kiali_feature_flags:
