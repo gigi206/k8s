@@ -53,8 +53,22 @@ kiali:
       cpu: "200m"
       memory: "256Mi"
 
+  # ===================
+  # OIDC Configuration (Keycloak)
+  # ===================
   auth:
-    strategy: "anonymous"  # Dev: no authentication required
+    strategy: "openid"
+    openid:
+      clientId: "kiali"
+      issuerUri: "https://keycloak.gigix/realms/gigix"
+      scopes:
+        - "openid"
+        - "email"
+        - "profile"
+        - "groups"
+      usernameClaim: "preferred_username"
+      disableRbac: true  # Dev: disable RBAC, all users have full access
+      insecureSkipVerifyTls: true  # Dev: skip TLS verification (self-signed cert)
 
 # Sync policy
 syncPolicy:
