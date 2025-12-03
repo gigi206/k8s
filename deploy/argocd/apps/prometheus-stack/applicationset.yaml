@@ -355,11 +355,8 @@ spec:
                     check_for_updates: {{ .prometheusStack.grafana.grafanaIni.analytics.check_for_updates | default false }}
                   unified_alerting:
                     enabled: {{ .prometheusStack.grafana.grafanaIni.unified_alerting.enabled | default true }}
-                  # Anonymous access for internal cluster services (Kiali)
-                  # Only allows Viewer role - read-only access to dashboards
                   auth.anonymous:
-                    enabled: true
-                    org_role: Viewer
+                    enabled: false
                   {{- if $oidcEnabled }}
                   # OIDC/OAuth2 configuration (Keycloak)
                   auth.generic_oauth:
