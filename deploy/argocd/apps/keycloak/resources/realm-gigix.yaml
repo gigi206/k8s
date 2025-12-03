@@ -82,6 +82,141 @@ spec:
     # Client Scopes
     # ===================
     clientScopes:
+      # Standard OIDC scopes
+      - name: openid
+        protocol: openid-connect
+        description: "OpenID Connect scope"
+        attributes:
+          include.in.token.scope: "true"
+
+      - name: profile
+        protocol: openid-connect
+        description: "OpenID Connect profile scope"
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: "${profileScopeConsentText}"
+        protocolMappers:
+          - name: username
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: "username"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "preferred_username"
+              jsonType.label: "String"
+          - name: full name
+            protocol: openid-connect
+            protocolMapper: oidc-full-name-mapper
+            consentRequired: false
+            config:
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: family name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: "lastName"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "family_name"
+              jsonType.label: "String"
+          - name: given name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: "firstName"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "given_name"
+              jsonType.label: "String"
+
+      - name: email
+        protocol: openid-connect
+        description: "OpenID Connect email scope"
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "true"
+          consent.screen.text: "${emailScopeConsentText}"
+        protocolMappers:
+          - name: email
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: "email"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "email"
+              jsonType.label: "String"
+          - name: email verified
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            consentRequired: false
+            config:
+              userinfo.token.claim: "true"
+              user.attribute: "emailVerified"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "email_verified"
+              jsonType.label: "boolean"
+
+      - name: roles
+        protocol: openid-connect
+        description: "OpenID Connect roles scope"
+        attributes:
+          include.in.token.scope: "false"
+        protocolMappers:
+          - name: realm roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            consentRequired: false
+            config:
+              user.attribute: "foo"
+              access.token.claim: "true"
+              claim.name: "realm_access.roles"
+              jsonType.label: "String"
+              multivalued: "true"
+          - name: audience resolve
+            protocol: openid-connect
+            protocolMapper: oidc-audience-resolve-mapper
+            consentRequired: false
+
+      - name: web-origins
+        protocol: openid-connect
+        description: "OpenID Connect web origins scope"
+        attributes:
+          include.in.token.scope: "false"
+        protocolMappers:
+          - name: allowed web origins
+            protocol: openid-connect
+            protocolMapper: oidc-allowed-origins-mapper
+            consentRequired: false
+
+      - name: acr
+        protocol: openid-connect
+        description: "OpenID Connect ACR scope"
+        attributes:
+          include.in.token.scope: "false"
+        protocolMappers:
+          - name: acr loa level
+            protocol: openid-connect
+            protocolMapper: oidc-acr-mapper
+            consentRequired: false
+            config:
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+
       # Scope pour inclure les groupes dans les tokens
       - name: groups
         protocol: openid-connect
@@ -105,17 +240,18 @@ spec:
     # Default Client Scopes
     # ===================
     defaultDefaultClientScopes:
+      - openid  # Required for OIDC
       - profile
       - email
       - roles
       - web-origins
       - acr
+      - groups  # Include groups in all clients by default
     defaultOptionalClientScopes:
       - offline_access
       - address
       - phone
       - microprofile-jwt
-      - groups
 
     # ===================
     # NOTE: Les clients OIDC sont deployés par chaque app (voir note en-tête)
