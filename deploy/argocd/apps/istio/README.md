@@ -129,6 +129,20 @@ This ApplicationSet deploys 4 Istio components via separate Helm charts:
 - **Deployment**: DaemonSet (one per node)
 - **Protocol**: HBONE (HTTP-Based Overlay Network Environment)
 
+#### 5. **Kiali** (Service Mesh Observability)
+- **Chart**: `https://kiali.org/helm-charts/kiali-server`
+- **Purpose**: Service mesh visualization, traffic analysis, and configuration validation
+- **Namespace**: `istio-system`
+- **Accès**: https://kiali.gigix
+- **Authentication**: OIDC via Keycloak (auto-login)
+
+**Fonctionnalités Kiali**:
+- Visualisation de la topologie du mesh
+- Analyse du trafic en temps réel
+- Validation de la configuration Istio
+- Gestion des VirtualServices, DestinationRules, etc.
+- Intégration Prometheus et Grafana
+
 ### Ambient Mesh Traffic Flow
 
 ```
@@ -396,6 +410,73 @@ To update dashboards from upstream:
    - Add `waypoint` to the `qrep` variable options
 3. Wrap in ConfigMap YAML with `grafana_dashboard: "1"` label
 4. Commit and push
+
+## Kiali - Service Mesh Observability
+
+### Accès
+
+**URL**: https://kiali.gigix
+
+**Authentification OIDC (Keycloak)**:
+
+L'accès web utilise l'authentification OIDC:
+1. Naviguer vers https://kiali.gigix
+2. Redirection automatique vers Keycloak
+3. S'authentifier avec votre compte Keycloak
+4. Retour automatique vers Kiali
+
+**Configuration**:
+```yaml
+# config/dev.yaml
+kiali:
+  auth:
+    strategy: "openid"
+    openid:
+      clientId: "kiali"
+      issuerUri: "https://keycloak.gigix/realms/gigix"
+      scopes: ["openid", "email", "profile", "groups"]
+      usernameClaim: "preferred_username"
+      disableRbac: true  # Dev: tous les utilisateurs ont accès complet
+```
+
+### Intégration Grafana
+
+Kiali s'intègre avec Grafana pour afficher les dashboards directement depuis l'interface:
+
+**Architecture**:
+```
+Kiali Pod                              Grafana Pod
++-----------------------+              +------------------+
+| Mounted Secrets:      |    HTTP      |                  |
+| - grafana-username    |------------->| Basic Auth       |
+| - grafana-password    |              | (admin/password) |
++-----------------------+              +------------------+
+```
+
+Les credentials Grafana sont synchronisés via ExternalSecrets:
+- `kiali-grafana-username` → mounted at `/kiali-override-secrets/grafana-username/value.txt`
+- `kiali-grafana-password` → mounted at `/kiali-override-secrets/grafana-password/value.txt`
+
+### Dépannage Kiali
+
+**OIDC redirect vers mauvais port**:
+Si la redirection OIDC utilise le port 20001 au lieu de 443:
+```yaml
+server:
+  web_fqdn: kiali.gigix
+  web_port: "443"
+  web_schema: https
+```
+
+**Grafana non accessible depuis Kiali**:
+1. Vérifier les ExternalSecrets:
+   ```bash
+   kubectl get externalsecret -n istio-system | grep grafana
+   ```
+2. Vérifier les secrets montés:
+   ```bash
+   kubectl exec -n istio-system deployment/kiali -- ls -la /kiali-override-secrets/
+   ```
 
 ## Troubleshooting
 
