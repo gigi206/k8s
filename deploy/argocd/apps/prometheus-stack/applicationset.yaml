@@ -349,6 +349,8 @@ spec:
                     readOnly: true
                 {{- end }}
                 grafana.ini:
+                  server:
+                    root_url: https://grafana.{{ .common.domain }}
                   analytics:
                     check_for_updates: {{ .prometheusStack.grafana.grafanaIni.analytics.check_for_updates | default false }}
                   unified_alerting:
@@ -374,4 +376,7 @@ spec:
                     role_attribute_path: "{{ .prometheusStack.grafana.oidc.roleAttributePath }}"
                     allow_assign_grafana_admin: {{ .prometheusStack.grafana.oidc.allowAssignGrafanaAdmin | default false }}
                     signout_redirect_url: "{{ .prometheusStack.grafana.oidc.signoutRedirectUrl }}"
+                    {{- if .prometheusStack.grafana.oidc.tlsSkipVerify }}
+                    tls_skip_verify_insecure: {{ .prometheusStack.grafana.oidc.tlsSkipVerify }}
+                    {{- end }}
                   {{- end }}

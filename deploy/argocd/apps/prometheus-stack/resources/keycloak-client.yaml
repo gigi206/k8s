@@ -110,7 +110,6 @@ spec:
                 "defaultClientScopes": ["openid", "profile", "email", "groups"],
                 "optionalClientScopes": ["offline_access"],
                 "attributes": {
-                  "pkce.code.challenge.method": "S256",
                   "post.logout.redirect.uris": "https://grafana.gigix/*"
                 }
               }
