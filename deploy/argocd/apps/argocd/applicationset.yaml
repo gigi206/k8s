@@ -145,9 +145,13 @@ spec:
               - name: configs.cm.timeout\.reconciliation
                 value: "60s"
 
-              # ArgoCD params (configs.params) - hardcoded for Gateway API TLS termination
-              - name: configs.params.server\.insecure
-                value: "true"
+              # ArgoCD params (configs.params) - from environment config
+              {{- if .argocd.configs.params }}
+              {{- range $key, $value := .argocd.configs.params }}
+              - name: configs.params.{{ $key | replace "." "\\." }}
+                value: "{{ $value }}"
+              {{- end }}
+              {{- end }}
 
             # Server configuration
               {{- if .argocd.server.replicas }}
@@ -285,11 +289,21 @@ spec:
               configs:
                 cm:
                   kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
-                  {{- if .argocd.configs.cm }}
-                  url: '{{ .argocd.configs.cm.url }}'
-                  oidc.config: |
-                    {{ index .argocd.configs.cm "oidc.config" | nindent 20 }}
+                  url: 'https://argocd.{{ .common.domain }}'
+                  {{- if index .argocd.configs.cm "oidc.tls.insecure.skip.verify" }}
+                  oidc.tls.insecure.skip.verify: '{{ index .argocd.configs.cm "oidc.tls.insecure.skip.verify" }}'
                   {{- end }}
+                  oidc.config: |
+                    name: Keycloak
+                    issuer: https://keycloak.{{ .common.domain }}/realms/gigix
+                    clientID: argocd
+                    clientSecret: $oidc.keycloak.clientSecret
+                    requestedScopes:
+                      - openid
+                      - profile
+                      - email
+                      - groups
+                    enablePKCEAuthentication: true
                 {{- if .argocd.configs.rbac }}
                 rbac:
                   policy.default: '{{ index .argocd.configs.rbac "policy.default" }}'

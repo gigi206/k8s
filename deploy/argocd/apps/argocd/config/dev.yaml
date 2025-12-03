@@ -19,18 +19,7 @@ argocd:
     # OIDC Configuration (Keycloak)
     # ===================
     cm:
-      url: "https://argocd.gigix"
-      oidc.config: |
-        name: Keycloak
-        issuer: https://keycloak.gigix/realms/gigix
-        clientID: argocd
-        clientSecret: $oidc.keycloak.clientSecret
-        requestedScopes:
-          - openid
-          - profile
-          - email
-          - groups
-        enablePKCEAuthentication: true
+      "oidc.tls.insecure.skip.verify": "true"  # Skip TLS verification (self-signed cert in dev)
 
     # ===================
     # RBAC Configuration
