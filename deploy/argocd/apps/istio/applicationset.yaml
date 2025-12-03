@@ -230,12 +230,16 @@ spec:
                   url: http://{{ .features.monitoring.release }}-kube-prom-prometheus.monitoring:9090
                 {{- end }}
 
-                # Grafana integration
+                # Grafana integration (with basic auth)
                 {{- if .features.monitoring.enabled }}
                 grafana:
                   enabled: true
                   url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
                   in_cluster_url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
+                  auth:
+                    type: basic
+                    username: secret:istio-system:kiali-grafana-credentials:username
+                    password: secret:istio-system:kiali-grafana-credentials:password
                 {{- end }}
 
                 # Tracing (Jaeger) - disabled by default
