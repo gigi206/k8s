@@ -50,7 +50,7 @@ prometheusStack:
       authUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/auth"
       tokenUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/token"
       apiUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/userinfo"
-      signoutRedirectUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/logout?post_logout_redirect_uri=https%3A%2F%2Fgrafana.gigix%2Flogin"
+      signoutRedirectUrl: "https://keycloak.gigix/realms/gigix/protocol/openid-connect/logout?id_token_hint=${id_token}&post_logout_redirect_uri=https%3A%2F%2Fgrafana.gigix%2Flogin"
       # Mapping des groupes Keycloak vers les roles Grafana
       # admins -> Admin, developers -> Editor, autres -> Viewer
       roleAttributePath: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'developers') && 'Editor' || 'Viewer'"
