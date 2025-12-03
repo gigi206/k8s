@@ -34,9 +34,10 @@ Kube-Prometheus-Stack est une collection complète d'outils de monitoring pour K
 - Sidecar pour découverte automatique des dashboards
 - Multi-datasource support
 - Alerting UI
+- **OIDC Authentication** (Keycloak) avec auto-login
 
 **Accès**: https://grafana.gigix
-**Credentials**: admin / (récupéré via secret)
+**Authentification**: OIDC via Keycloak (auto-login activé)
 
 ### Alertmanager
 
@@ -148,18 +149,32 @@ prometheusStack:
 
 **URL**: https://grafana.gigix
 
-**Admin Password**:
+**Authentification OIDC (Keycloak)**:
+
+L'accès web utilise l'authentification OIDC avec auto-login:
+1. Naviguer vers https://grafana.gigix
+2. Redirection automatique vers Keycloak
+3. S'authentifier avec votre compte Keycloak
+4. Retour automatique vers Grafana
+
+**Rôles Grafana** (basés sur les groupes Keycloak):
+| Groupe Keycloak | Rôle Grafana |
+|-----------------|--------------|
+| `admins` | Admin (accès complet) |
+| `developers` | Editor (dashboards, alertes) |
+| Autres | Viewer (lecture seule) |
+
+**Logout**: Déconnexion complète via Keycloak (SSO)
+
+**Admin local** (fallback):
 ```bash
-# Récupérer le password
+# Récupérer le password admin local
 kubectl get secret -n monitoring prometheus-stack-grafana \
   -o jsonpath='{.data.admin-password}' | base64 -d && echo
 ```
 
-**Login**: admin / <password>
-
-**Changer le password** (via UI):
-1. Profile → Change Password
-2. Ou via ConfigMap `grafana.ini`
+**Note**: Le compte admin local est géré via KSOPS (secrets chiffrés).
+Utiliser l'authentification OIDC pour l'accès normal.
 
 ### Prometheus
 
@@ -398,7 +413,15 @@ topk(10, count by (__name__)({__name__=~".+"}))
 
 **Symptôme**: Cannot login to Grafana
 
-**Vérifications**:
+**Avec OIDC (Keycloak)**:
+1. Vérifier que Keycloak est accessible: https://keycloak.gigix
+2. Vérifier le client "grafana" dans Keycloak
+3. Vérifier les logs Grafana:
+   ```bash
+   kubectl logs -n monitoring deployment/prometheus-stack-grafana | grep -i oidc
+   ```
+
+**Avec admin local** (fallback):
 ```bash
 # Get password
 kubectl get secret -n monitoring prometheus-stack-grafana \
