@@ -214,6 +214,15 @@ spec:
                   limits:
                     cpu: {{ .kiali.resources.limits.cpu }}
                     memory: {{ .kiali.resources.limits.memory }}
+                {{- if .features.monitoring.enabled }}
+                # Mount Grafana credentials for kiali-server helm chart
+                # See: https://kiali.io/docs/faq/installation/
+                custom_secrets:
+                  - name: kiali-grafana-username
+                    mount: /kiali-override-secrets/grafana-username
+                  - name: kiali-grafana-password
+                    mount: /kiali-override-secrets/grafana-password
+                {{- end }}
 
               # Istio configuration
               external_services:
@@ -230,7 +239,7 @@ spec:
                   url: http://{{ .features.monitoring.release }}-kube-prom-prometheus.monitoring:9090
                 {{- end }}
 
-                # Grafana integration (with basic auth)
+                # Grafana integration (with basic auth via mounted secrets)
                 {{- if .features.monitoring.enabled }}
                 grafana:
                   enabled: true
@@ -238,8 +247,8 @@ spec:
                   in_cluster_url: http://{{ .features.monitoring.release }}-grafana.monitoring:80
                   auth:
                     type: basic
-                    username: secret:istio-system:kiali-grafana-credentials:username
-                    password: secret:istio-system:kiali-grafana-credentials:password
+                    username: secret:kiali-grafana-username:value.txt
+                    password: secret:kiali-grafana-password:value.txt
                 {{- end }}
 
                 # Tracing (Jaeger) - disabled by default
