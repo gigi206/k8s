@@ -92,6 +92,11 @@ spec:
           directory:
             include: "*.yaml"
 
+        # Source: Encrypted secrets (KSOPS)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/secrets/{{ .environment }}
+
         # Source 1: Istio Base (CRDs)
         - repoURL: https://istio-release.storage.googleapis.com/charts
           chart: base
