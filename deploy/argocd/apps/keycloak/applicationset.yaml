@@ -108,12 +108,12 @@ spec:
           directory:
             include: "keycloak.yaml"
 
-        # Source 4: KeycloakRealmImport - Realm gigix (base: groups, roles, scopes, admin)
+        # Source 4: KeycloakRealmImport - Realm k8s (base: groups, roles, scopes, admin)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/resources
           directory:
-            include: "realm-gigix.yaml"
+            include: "realm-k8s.yaml"
 
         # Source 5: ClusterSecretStore (pour ExternalSecrets cross-namespace)
         - repoURL: https://github.com/gigi206/k8s

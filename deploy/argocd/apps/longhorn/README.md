@@ -48,7 +48,7 @@ systemctl enable --now iscsid.service
 ### Ingress UI
 
 L'interface Longhorn est accessible via ingress:
-- **Hostname**: `longhorn.{{ .common.domain }}` (ex: `longhorn.gigix`)
+- **Hostname**: `longhorn.{{ .common.domain }}` (ex: `longhorn.k8s.lan`)
 - **TLS**: Automatique avec cert-manager
 - **ClusterIssuer**: Configuré via `common.clusterIssuer`
 

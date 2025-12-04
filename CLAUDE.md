@@ -332,7 +332,7 @@ kind: Ingress
 spec:
   ingressClassName: istio  # ✅ Hardcoded or use Kustomize replacements
   rules:
-  - host: myapp.gigix  # ✅ Hardcoded
+  - host: myapp.k8s.lan  # ✅ Hardcoded
 ```
 
 ### ServiceMonitors and PrometheusRules with Kustomize
@@ -541,7 +541,7 @@ sops encrypt --in-place apps/<app>/secrets/secret-dev.yaml
 ### Overview
 
 Applications are secured with OIDC authentication via Keycloak. The authentication flow uses:
-- **Keycloak** as the Identity Provider (realm: `gigix`)
+- **Keycloak** as the Identity Provider (realm: k8s`)
 - **Automatic client creation** via Kubernetes Jobs (PostSync hooks)
 - **Cross-namespace secret syncing** via ExternalSecrets + ClusterSecretStore
 
@@ -629,9 +629,9 @@ spec:
           image: curlimages/curl:8.5.0
           env:
             - name: KEYCLOAK_URL
-              value: "https://keycloak.gigix"
+              value: "https://keycloak.k8s.lan"
             - name: REALM
-              value: "gigix"
+              value: "k8s"
             - name: CLIENT_ID
               value: "myapp"
             - name: KEYCLOAK_ADMIN
@@ -977,7 +977,7 @@ kubectl scale deployment <app-name> --replicas=0 -n <namespace>
 
 ### ArgoCD UI Access
 
-ArgoCD is accessible via ingress at https://argocd.gigix in dev environment.
+ArgoCD is accessible via ingress at https://argocd.k8s.lan in dev environment.
 
 Alternatively, use port-forward:
 ```bash

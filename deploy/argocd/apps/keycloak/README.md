@@ -4,9 +4,9 @@ Keycloak est deploye via l'operateur Keycloak officiel avec une base PostgreSQL 
 
 ## Architecture OIDC
 
-### Realm gigix
+### Realm k8s
 
-Le realm `gigix` est configure via le CR `KeycloakRealmImport` et contient:
+Le realm `k8s` est configure via le CR `KeycloakRealmImport` et contient:
 
 - **Roles**: `admin`, `developer`, `readonly`
 - **Groupes**: `admins`, `developers`, `readonly` (avec mapping vers les roles)
@@ -86,13 +86,13 @@ files:
 
 | Service | URL |
 |---------|-----|
-| Keycloak Console | https://keycloak.gigix |
-| Realm gigix | https://keycloak.gigix/realms/gigix |
-| OIDC Discovery | https://keycloak.gigix/realms/gigix/.well-known/openid-configuration |
+| Keycloak Console | https://keycloak.k8s.lan |
+| Realm k8s | https://keycloak.k8s.lan/realms/k8s |
+| OIDC Discovery | https://keycloak.k8s.lan/realms/k8s/.well-known/openid-configuration |
 
 ## Applications integrees
 
 | Application | Client ID | Callback URL |
 |-------------|-----------|--------------|
-| ArgoCD | `argocd` | https://argocd.gigix/auth/callback |
-| Grafana | `grafana` | https://grafana.gigix/login/generic_oauth |
+| ArgoCD | `argocd` | https://argocd.k8s.lan/auth/callback |
+| Grafana | `grafana` | https://grafana.k8s.lan/login/generic_oauth |

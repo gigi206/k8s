@@ -106,7 +106,7 @@ spec:
                 # OIDC Provider (Keycloak)
                 provider: oidc
                 provider-display-name: "Keycloak"
-                oidc-issuer-url: "https://keycloak.{{ .common.domain }}/realms/gigix"
+                oidc-issuer-url: "https://keycloak.{{ .common.domain }}/realms/k8s"
 
                 # Redirect URL (OAuth2 Proxy's callback)
                 redirect-url: "https://oauth2.{{ .common.domain }}/oauth2/callback"
@@ -118,6 +118,13 @@ spec:
                 cookie-domain: ".{{ .common.domain }}"
                 cookie-expire: "168h"
                 cookie-refresh: "1h"
+                cookie-samesite: "none"
+                cookie-secure: "true"
+                cookie-csrf-per-request: "false"
+                cookie-csrf-expire: "5m"
+
+                # Whitelist domains for redirects
+                whitelist-domain: ".{{ .common.domain }}"
 
                 # Email/user settings
                 email-domain: "*"

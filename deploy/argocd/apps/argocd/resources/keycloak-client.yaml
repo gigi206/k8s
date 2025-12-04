@@ -25,9 +25,9 @@ spec:
           image: curlimages/curl:8.5.0
           env:
             - name: KEYCLOAK_URL
-              value: "https://keycloak.gigix"
+              value: "https://keycloak.k8s.lan"
             - name: REALM
-              value: "gigix"
+              value: "k8s"
             - name: CLIENT_ID
               value: "argocd"
             - name: KEYCLOAK_ADMIN
@@ -96,10 +96,10 @@ spec:
                 "clientAuthenticatorType": "client-secret",
                 "secret": "$CLIENT_SECRET",
                 "redirectUris": [
-                  "https://argocd.gigix/auth/callback",
+                  "https://argocd.k8s.lan/auth/callback",
                   "http://localhost:8085/auth/callback"
                 ],
-                "webOrigins": ["https://argocd.gigix"],
+                "webOrigins": ["https://argocd.k8s.lan"],
                 "standardFlowEnabled": true,
                 "implicitFlowEnabled": false,
                 "directAccessGrantsEnabled": false,
@@ -111,7 +111,7 @@ spec:
                 "optionalClientScopes": ["offline_access"],
                 "attributes": {
                   "pkce.code.challenge.method": "S256",
-                  "post.logout.redirect.uris": "https://argocd.gigix/*",
+                  "post.logout.redirect.uris": "https://argocd.k8s.lan/*",
                   "backchannel.logout.session.required": "true",
                   "backchannel.logout.revoke.offline.tokens": "false"
                 }

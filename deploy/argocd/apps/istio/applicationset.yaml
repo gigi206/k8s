@@ -140,9 +140,13 @@ spec:
                         - x-auth-request-user
                         - x-auth-request-email
                         - x-auth-request-access-token
+                      headersToDownstreamOnAllow:
+                        - set-cookie
                       includeRequestHeadersInCheck:
                         - authorization
                         - cookie
+                      includeAdditionalHeadersInCheck:
+                        X-Auth-Request-Redirect: '%REQ(x-forwarded-proto)%://%REQ(:authority)%%REQ(:path)%'
                       pathPrefix: /oauth2/auth
                 {{- end }}
 

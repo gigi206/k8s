@@ -24,9 +24,9 @@ spec:
           image: curlimages/curl:8.5.0
           env:
             - name: KEYCLOAK_URL
-              value: "https://keycloak.gigix"
+              value: "https://keycloak.k8s.lan"
             - name: REALM
-              value: "gigix"
+              value: "k8s"
             - name: CLIENT_ID
               value: "oauth2-proxy"
             - name: KEYCLOAK_ADMIN
@@ -81,13 +81,13 @@ spec:
                 "clientAuthenticatorType": "client-secret",
                 "secret": "${CLIENT_SECRET}",
                 "redirectUris": [
-                  "https://oauth2.gigix/oauth2/callback"
+                  "https://oauth2.k8s.lan/oauth2/callback"
                 ],
                 "webOrigins": [
-                  "https://prometheus.gigix",
-                  "https://alertmanager.gigix",
-                  "https://hubble.gigix",
-                  "https://longhorn.gigix"
+                  "https://prometheus.k8s.lan",
+                  "https://alertmanager.k8s.lan",
+                  "https://hubble.k8s.lan",
+                  "https://longhorn.k8s.lan"
                 ],
                 "publicClient": false,
                 "protocol": "openid-connect",
@@ -97,7 +97,7 @@ spec:
                 "serviceAccountsEnabled": false,
                 "attributes": {
                   "pkce.code.challenge.method": "S256",
-                  "post.logout.redirect.uris": "https://prometheus.gigix/*##https://alertmanager.gigix/*##https://hubble.gigix/*##https://longhorn.gigix/*"
+                  "post.logout.redirect.uris": "https://prometheus.k8s.lan/*##https://alertmanager.k8s.lan/*##https://hubble.k8s.lan/*##https://longhorn.k8s.lan/*"
                 },
                 "defaultClientScopes": [
                   "openid",

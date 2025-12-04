@@ -241,13 +241,13 @@ spec:
         #   enabled: true
         #   # className: cilium
         #   hosts:
-        #     - hubble.gigix
+        #     - hubble.k8s.lan
         #   annotations:
         #     cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
         #   tls:
         #   - secretName: hubble-ui-tls
         #     hosts:
-        #     - hubble.gigix
+        #     - hubble.k8s.lan
 
     # Prometheus Metrics
     # ==================

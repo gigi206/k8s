@@ -75,7 +75,7 @@ echo "disable:
 - rke2-ingress-nginx
 write-kubeconfig-mode: "0644"
 tls-san:
-- k8s-api.gigix
+- k8s-api.k8s.lan
 - 192.168.121.200
 # debug:true
 etcd-expose-metrics: true" \
