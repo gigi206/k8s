@@ -269,7 +269,7 @@ spec:
         lastName: Infrastructure
         credentials:
           - type: password
-            value: "$(env:ADMIN_PASSWORD)"
+            value: "${ADMIN_PASSWORD}"
             temporary: false
         groups:
           - /admins
