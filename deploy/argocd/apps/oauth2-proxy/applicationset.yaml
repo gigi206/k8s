@@ -1,0 +1,170 @@
+---
+# =============================================================================
+# OAuth2 Proxy ApplicationSet - Wave 79 (Authentication)
+# =============================================================================
+# Déploie OAuth2 Proxy pour l'authentification OIDC avec Keycloak
+# Utilisé en mode ext_authz avec Istio (auth seulement, pas de proxy du trafic)
+# Docs: https://oauth2-proxy.github.io/oauth2-proxy/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: oauth2-proxy
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "79"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/oauth2-proxy/config/*.yaml
+
+  template:
+    metadata:
+      name: oauth2-proxy
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "79"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://oauth2-proxy.github.io/manifests
+        targetRevision: '{{ .versions.oauth2Proxy }}'
+        chart: oauth2-proxy
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: oauth2-proxy
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 1: Namespace, Keycloak client job, AuthorizationPolicies
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/resources
+        # Source 2: Encrypted secrets (KSOPS)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/secrets/{{ .environment }}
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source 3: HTTPRoute (Gateway API)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/httproute
+        {{- end }}
+        # Source 4: Helm chart
+        - repoURL: https://oauth2-proxy.github.io/manifests
+          targetRevision: '{{ .versions.oauth2Proxy }}'
+          chart: oauth2-proxy
+          helm:
+            valuesObject:
+              # Replica count
+              replicaCount: {{ .oauth2Proxy.replicas | default 1 }}
+
+              # Configuration for ext_authz mode
+              config:
+                # Use existing secret containing client-id, client-secret, cookie-secret
+                existingSecret: oauth2-proxy-secrets
+                cookieName: "_oauth2_proxy"
+
+              extraArgs:
+                # OIDC Provider (Keycloak)
+                provider: oidc
+                provider-display-name: "Keycloak"
+                oidc-issuer-url: "https://keycloak.{{ .common.domain }}/realms/gigix"
+
+                # Redirect URL (OAuth2 Proxy's callback)
+                redirect-url: "https://oauth2.{{ .common.domain }}/oauth2/callback"
+
+                # PKCE (Proof Key for Code Exchange) - required by Keycloak
+                code-challenge-method: S256
+
+                # Cookie settings
+                cookie-domain: ".{{ .common.domain }}"
+                cookie-expire: "168h"
+                cookie-refresh: "1h"
+
+                # Email/user settings
+                email-domain: "*"
+
+                # Skip provider verification for self-signed certs (dev)
+                {{- if .oauth2Proxy.oidc.skipProviderVerify }}
+                skip-provider-button: true
+                insecure-oidc-skip-issuer-verification: true
+                ssl-insecure-skip-verify: true
+                {{- end }}
+
+                # Upstream for health checks only (not used in ext_authz mode)
+                upstream: "static://200"
+
+                # Enable auth response headers
+                set-xauthrequest: true
+                set-authorization-header: true
+                pass-access-token: true
+                pass-authorization-header: true
+
+                # Reverse proxy mode (for ext_authz)
+                reverse-proxy: true
+
+              # Service for ext_authz
+              service:
+                type: ClusterIP
+                portNumber: 4180
+
+              # Ingress disabled (we use HTTPRoute)
+              ingress:
+                enabled: false
+
+              {{- if .features.monitoring.enabled }}
+              # Prometheus metrics
+              metrics:
+                enabled: true
+                servicemonitor:
+                  enabled: true
+                  labels:
+                    release: "{{ .features.monitoring.release }}"
+              {{- end }}
+
+              # Resources
+              resources:
+                requests:
+                  cpu: {{ .oauth2Proxy.resources.requests.cpu | default "50m" }}
+                  memory: {{ .oauth2Proxy.resources.requests.memory | default "64Mi" }}
+                limits:
+                  cpu: {{ .oauth2Proxy.resources.limits.cpu | default "100m" }}
+                  memory: {{ .oauth2Proxy.resources.limits.memory | default "128Mi" }}

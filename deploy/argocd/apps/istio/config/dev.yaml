@@ -39,6 +39,13 @@ istio:
         cpu: "500m"
         memory: "512Mi"
 
+  # External Authorization Provider (OAuth2 Proxy)
+  extensionProviders:
+    oauth2Proxy:
+      enabled: true
+      service: "oauth2-proxy.oauth2-proxy.svc.cluster.local"
+      port: 4180
+
 # Kiali (Service Mesh Observability)
 kiali:
   enabled: true
