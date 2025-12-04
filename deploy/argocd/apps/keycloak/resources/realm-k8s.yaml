@@ -270,7 +270,7 @@ spec:
         credentials:
           - type: password
             value: "$(env:ADMIN_PASSWORD)"
-            temporary: true
+            temporary: false
         groups:
           - /admins
         realmRoles:
