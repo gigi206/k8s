@@ -38,7 +38,7 @@ metadata:
 spec:
   ingressClassName: istio
   rules:
-  - host: hubble.gigix
+  - host: hubble.k8s.lan
     http:
       paths:
       - backend:
@@ -50,7 +50,7 @@ spec:
         pathType: Prefix
   tls:
   - hosts:
-    - hubble.gigix
+    - hubble.k8s.lan
     secretName: hubble-ui-tls  # ⚠️ Secret dans kube-system
 ```
 
@@ -78,11 +78,11 @@ longhorn-system   longhorn-cert-tls       True    longhorn-cert-tls
 monitoring        alertmanager-cert-tls   True    alertmanager-cert-tls
 monitoring        grafana-cert-tls        True    grafana-cert-tls
 monitoring        prometheus-cert-tls     True    prometheus-cert-tls
-istio-system      wildcard-gigix          True    wildcard-gigix-tls
+istio-system      wildcard-k8s-local          True    wildcard-k8s-local-tls
 
 # Istio Ingress Gateway dans istio-system ne peut lire que:
 $ kubectl get secret -n istio-system | grep tls
-wildcard-gigix-tls    kubernetes.io/tls    3      10m
+wildcard-k8s-local-tls    kubernetes.io/tls    3      10m
 # ⚠️ Les secrets hubble-ui-tls, grafana-cert-tls, etc. sont inaccessibles
 ```
 
@@ -114,10 +114,10 @@ Dans la nouvelle configuration:
 
 ### Option 1: Utiliser le Wildcard Certificate (Recommandé Simple)
 
-**Avantage**: Un seul certificat pour tous les sous-domaines `*.gigix`
+**Avantage**: Un seul certificat pour tous les sous-domaines `*.k8s.lan`
 **Inconvénient**: Tous les services partagent le même certificat
 
-Le certificat wildcard `wildcard-gigix-tls` existe déjà dans `istio-system`.
+Le certificat wildcard `wildcard-k8s-local-tls` existe déjà dans `istio-system`.
 
 **Modification requise**: Supprimer les sections `tls` des Ingress pour ne plus créer de certificats individuels.
 
@@ -134,10 +134,10 @@ spec:
   ingressClassName: istio
   tls:
   - hosts:
-    - hubble.gigix
+    - hubble.k8s.lan
     secretName: hubble-ui-tls  # Créé dans kube-system (inaccessible)
   rules:
-  - host: hubble.gigix
+  - host: hubble.k8s.lan
     # ...
 ```
 
@@ -153,7 +153,7 @@ spec:
   ingressClassName: istio
   # ⚠️ Pas de section tls (utilise le wildcard du Gateway)
   rules:
-  - host: hubble.gigix
+  - host: hubble.k8s.lan
     # ...
 ```
 
@@ -176,7 +176,7 @@ spec:
     - "*"
     tls:
       mode: SIMPLE
-      credentialName: wildcard-gigix-tls  # ✅ Accessible dans istio-system
+      credentialName: wildcard-k8s-local-tls  # ✅ Accessible dans istio-system
 ```
 
 ### Option 2: Synchroniser les Secrets avec Kubernetes Reflector
@@ -205,7 +205,7 @@ spec:
     name: selfsigned-cluster-issuer
     kind: ClusterIssuer
   dnsNames:
-    - hubble.gigix
+    - hubble.k8s.lan
   secretTemplate:
     annotations:
       # Reflector copie automatiquement vers istio-system
@@ -250,7 +250,7 @@ metadata:
 spec:
   ingressClassName: istio
   rules:
-  - host: hubble.gigix
+  - host: hubble.k8s.lan
     http:
       paths:
       - backend:
@@ -262,7 +262,7 @@ spec:
         pathType: Prefix
   tls:
   - hosts:
-    - hubble.gigix
+    - hubble.k8s.lan
     secretName: hubble-ui-tls
 ```
 
@@ -280,7 +280,7 @@ spec:
     namespace: istio-system
     kind: Gateway
   hostnames:
-  - "hubble.gigix"
+  - "hubble.k8s.lan"
   rules:
   - matches:
     - path:
@@ -341,7 +341,7 @@ Pas recommandé sauf pour des environnements multi-tenant avec isolation stricte
 1. **Court terme**: Utiliser le wildcard certificate (Option 1)
    - Simple à implémenter
    - Aucune dépendance supplémentaire
-   - Adapté pour un environnement dev avec domaine unique (gigix)
+   - Adapté pour un environnement dev avec domaine unique (k8s.lan)
 
 2. **Moyen terme**: Migrer vers Gateway API (Option 4)
    - Recommandé par Istio pour Ambient mode

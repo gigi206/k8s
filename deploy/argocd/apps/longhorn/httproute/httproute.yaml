@@ -15,7 +15,7 @@ spec:
     namespace: istio-system
     sectionName: https
   hostnames:
-  - "longhorn.gigix"
+  - "longhorn.k8s.lan"
   rules:
   - matches:
     - path:

@@ -18,7 +18,7 @@ spec:
     namespace: istio-system
     sectionName: https
   hostnames:
-  - "keycloak.gigix"
+  - "keycloak.k8s.lan"
   rules:
   - matches:
     - path:

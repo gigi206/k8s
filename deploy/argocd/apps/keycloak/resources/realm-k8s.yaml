@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# KeycloakRealmImport - Realm "gigix" (Base)
+# KeycloakRealmImport - Realm "k8s" (Base)
 # =============================================================================
 # Ce CRD importe le realm de base avec:
 # - Groupes (admins, developers, readonly)
@@ -17,7 +17,7 @@
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakRealmImport
 metadata:
-  name: gigix-realm
+  name: k8s-realm
   namespace: keycloak
 spec:
   keycloakCRName: keycloak
@@ -25,9 +25,9 @@ spec:
     # ===================
     # Realm Configuration
     # ===================
-    id: gigix
-    realm: gigix
-    displayName: "Gigix Infrastructure"
+    id: k8s
+    realm: k8s
+    displayName: "K8s Infrastructure"
     enabled: true
 
     # Token lifespans
@@ -263,7 +263,7 @@ spec:
     users:
       - username: admin
         enabled: true
-        email: admin@gigix
+        email: admin@k8s.lan
         emailVerified: true
         firstName: Admin
         lastName: Infrastructure

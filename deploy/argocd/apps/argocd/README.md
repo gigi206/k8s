@@ -79,7 +79,7 @@ argocd:
   server:
     ingress:
       enabled: true
-      # hostname: argocd.gigix (géré par ApplicationSet)
+      # hostname: argocd.k8s.lan (géré par ApplicationSet)
     replicas: 1
     resources:
       requests: {cpu: 100m, memory: 128Mi}
@@ -152,7 +152,7 @@ syncPolicy:
 **Dev**:
 ```bash
 # URL (avec ingress-nginx + external-dns)
-https://argocd.gigix
+https://argocd.k8s.lan
 
 # Ou port-forward
 kubectl port-forward -n argo-cd svc/argocd-server 8080:443
@@ -162,7 +162,7 @@ kubectl port-forward -n argo-cd svc/argocd-server 8080:443
 **Prod**:
 ```bash
 # URL (avec ingress-nginx + external-dns)
-https://argocd.gigix  # ou votre domaine prod
+https://argocd.k8s.lan  # ou votre domaine prod
 
 # Accepter le certificat self-signed en dev
 # En prod, utiliser Let's Encrypt via cert-manager
@@ -202,7 +202,7 @@ brew install argocd
 **Login**:
 ```bash
 # Via ingress
-argocd login argocd.gigix --grpc-web
+argocd login argocd.k8s.lan --grpc-web
 
 # Via port-forward
 argocd login localhost:8080 --insecure
@@ -384,7 +384,7 @@ argocd repo get https://github.com/user/repo
 
 ### ArgoCD UI inaccessible
 
-**Symptôme**: Cannot access https://argocd.gigix
+**Symptôme**: Cannot access https://argocd.k8s.lan
 
 **Vérifications**:
 ```bash

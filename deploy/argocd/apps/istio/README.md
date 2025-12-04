@@ -133,7 +133,7 @@ This ApplicationSet deploys 4 Istio components via separate Helm charts:
 - **Chart**: `https://kiali.org/helm-charts/kiali-server`
 - **Purpose**: Service mesh visualization, traffic analysis, and configuration validation
 - **Namespace**: `istio-system`
-- **Accès**: https://kiali.gigix
+- **Accès**: https://kiali.k8s.lan
 - **Authentication**: OIDC via Keycloak (auto-login)
 
 **Fonctionnalités Kiali**:
@@ -415,12 +415,12 @@ To update dashboards from upstream:
 
 ### Accès
 
-**URL**: https://kiali.gigix
+**URL**: https://kiali.k8s.lan
 
 **Authentification OIDC (Keycloak)**:
 
 L'accès web utilise l'authentification OIDC:
-1. Naviguer vers https://kiali.gigix
+1. Naviguer vers https://kiali.k8s.lan
 2. Redirection automatique vers Keycloak
 3. S'authentifier avec votre compte Keycloak
 4. Retour automatique vers Kiali
@@ -433,7 +433,7 @@ kiali:
     strategy: "openid"
     openid:
       clientId: "kiali"
-      issuerUri: "https://keycloak.gigix/realms/gigix"
+      issuerUri: "https://keycloak.k8s.lan/realms/k8s"
       scopes: ["openid", "email", "profile", "groups"]
       usernameClaim: "preferred_username"
       disableRbac: true  # Dev: tous les utilisateurs ont accès complet
@@ -463,7 +463,7 @@ Les credentials Grafana sont synchronisés via ExternalSecrets:
 Si la redirection OIDC utilise le port 20001 au lieu de 443:
 ```yaml
 server:
-  web_fqdn: kiali.gigix
+  web_fqdn: kiali.k8s.lan
   web_port: "443"
   web_schema: https
 ```

@@ -299,7 +299,7 @@ Status code distribution:
 ### emissary-ingress
 #### emissary-ingress 1
 ```shell
-hey -n 100000 -c 1 http://quote.gigix/
+hey -n 100000 -c 1 http://quote.k8s.lan/
 
 Summary:
   Total:	16.0155 secs
@@ -348,7 +348,7 @@ Status code distribution:
 
 #### emissary-ingress 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	3.9867 secs
@@ -397,7 +397,7 @@ Status code distribution:
 
 #### emissary-ingress 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	1.9334 secs
@@ -446,7 +446,7 @@ Status code distribution:
 
 #### emissary-ingress 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	18.3205 secs
@@ -495,7 +495,7 @@ Status code distribution:
 
 #### emissary-ingress 10000
 ```shell
-hey -n 1000000 -c 10000 http://quote.gigix/
+hey -n 1000000 -c 10000 http://quote.k8s.lan/
 
 Summary:
   Total:	73.3784 secs
@@ -542,16 +542,16 @@ Status code distribution:
   [503]	386934 responses
 
 Error distribution:
-  [717]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [20546]	Get "http://quote.gigix/": dial tcp 192.168.121.252:80: connect: cannot assign requested address
-  [7]	Get "http://quote.gigix/": dial tcp 192.168.121.252:80: connect: connection refused
+  [717]	Get "http://quote.k8s.lan/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  [20546]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.252:80: connect: cannot assign requested address
+  [7]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.252:80: connect: connection refused
 ```
 
 
 ### Traefik
 #### Traefik 1
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	269.8063 secs
@@ -601,7 +601,7 @@ Status code distribution:
 
 #### Traefik 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	4.2376 secs
@@ -650,7 +650,7 @@ Status code distribution:
 
 #### Traefik 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	1.9610 secs
@@ -699,7 +699,7 @@ Status code distribution:
 
 #### Traefik 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	269.8063 secs
@@ -753,7 +753,7 @@ Not tested because Treafik crash at 1000 connections.
 ## Nginx
 #### Nginx 1
 ```shell
-hey -n 100000 -c 1 http://quote.gigix/
+hey -n 100000 -c 1 http://quote.k8s.lan/
 
 Summary:
   Total:	13.2884 secs
@@ -802,7 +802,7 @@ Status code distribution:
 
 #### Nginx 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	4.3331 secs
@@ -851,7 +851,7 @@ Status code distribution:
 
 #### Nginx 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	2.2562 secs
@@ -900,7 +900,7 @@ Status code distribution:
 
 #### Nginx 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	22.6452 secs
@@ -948,7 +948,7 @@ Status code distribution:
 
 #### Nginx 10000
 ```shell
-hey -n 1000000 -c 10000 http://quote.gigix/
+hey -n 1000000 -c 10000 http://quote.k8s.lan/
 
 Summary:
   Total:	128.6002 secs
@@ -996,17 +996,17 @@ Status code distribution:
   [504]	2 responses
 
 Error distribution:
-  [5412]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [90839]	Get "http://quote.gigix/": dial tcp 192.168.121.13:80: connect: connection refused
-  [10]	Get "http://quote.gigix/": dial tcp 192.168.121.13:80: connect: connection reset by peer
-  [3366]	Get "http://quote.gigix/": dial tcp 192.168.121.13:80: i/o timeout (Client.Timeout exceeded while awaiting headers)
-  [2]	Get "http://quote.gigix/": read tcp 192.168.121.1:32776->192.168.121.13:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:32782->192.168.121.13:80: read: connection reset by peer
-  [3]	Get "http://quote.gigix/": read tcp 192.168.121.1:32798->192.168.121.13:80: read: connection reset by peer
-  [2]	Get "http://quote.gigix/": read tcp 192.168.121.1:32802->192.168.121.13:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:32810->192.168.121.13:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:32812->192.168.121.13:80: read: connection reset by peer
-  [3]	Get "http://quote.gigix/": read tcp 192.168.121.1:32814->192.168.121.13:80: read: connection reset by peer
+  [5412]	Get "http://quote.k8s.lan/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  [90839]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.13:80: connect: connection refused
+  [10]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.13:80: connect: connection reset by peer
+  [3366]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.13:80: i/o timeout (Client.Timeout exceeded while awaiting headers)
+  [2]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:32776->192.168.121.13:80: read: connection reset by peer
+  [1]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:32782->192.168.121.13:80: read: connection reset by peer
+  [3]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:32798->192.168.121.13:80: read: connection reset by peer
+  [2]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:32802->192.168.121.13:80: read: connection reset by peer
+  [1]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:32810->192.168.121.13:80: read: connection reset by peer
+  [1]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:32812->192.168.121.13:80: read: connection reset by peer
+  [3]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:32814->192.168.121.13:80: read: connection reset by peer
 ...
 ...
 ...
@@ -1015,7 +1015,7 @@ Error distribution:
 ### Kong
 #### Kong 1
 ```shell
-hey -n 100000 -c 1 http://quote.gigix/
+hey -n 100000 -c 1 http://quote.k8s.lan/
 
 Summary:
   Total:	12.3610 secs
@@ -1064,7 +1064,7 @@ Status code distribution:
 
 #### Kong 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	3.0788 secs
@@ -1113,7 +1113,7 @@ Status code distribution:
 
 #### Kong 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	2.4720 secs
@@ -1162,7 +1162,7 @@ Status code distribution:
 
 #### Kong 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	35.9126 secs
@@ -1211,7 +1211,7 @@ Status code distribution:
 
 #### Kong 10000
 ```shell
-hey -n 1000000 -c 10000 http://quote.gigix/
+hey -n 1000000 -c 10000 http://quote.k8s.lan/
 
 Summary:
   Total:	252.0948 secs
@@ -1258,11 +1258,11 @@ Status code distribution:
   [502]	23190 responses
 
 Error distribution:
-  [8626]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [363415]	Get "http://quote.gigix/": dial tcp 192.168.121.226:80: connect: connection refused
-  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:40612->192.168.121.226:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:40626->192.168.121.226:80: read: connection reset by peer
-  [1]	Get "http://quote.gigix/": read tcp 192.168.121.1:40640->192.168.121.226:80: read: connection reset by peer
+  [8626]	Get "http://quote.k8s.lan/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  [363415]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.226:80: connect: connection refused
+  [1]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:40612->192.168.121.226:80: read: connection reset by peer
+  [1]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:40626->192.168.121.226:80: read: connection reset by peer
+  [1]	Get "http://quote.k8s.lan/": read tcp 192.168.121.1:40640->192.168.121.226:80: read: connection reset by peer
 ...
 ...
 ...
@@ -1272,7 +1272,7 @@ Error distribution:
 ### Apisix
 #### Apisix 1
 ```shell
-hey -n 100000 -c 1 http://quote.gigix/
+hey -n 100000 -c 1 http://quote.k8s.lan/
 
 Summary:
   Total:	10.8846 secs
@@ -1321,7 +1321,7 @@ Status code distribution:
 
 #### Apisix 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	3.0559 secs
@@ -1370,7 +1370,7 @@ Status code distribution:
 
 #### Apisix 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	1.5193 secs
@@ -1419,7 +1419,7 @@ Status code distribution:
 
 #### Apisix 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	14.2449 secs
@@ -1468,7 +1468,7 @@ Status code distribution:
 
 #### Apisix 10000
 ```shell
-hey -n 1000000 -c 10000 http://quote.gigix/
+hey -n 1000000 -c 10000 http://quote.k8s.lan/
 
 Summary:
   Total:	17.5555 secs
@@ -1517,7 +1517,7 @@ Status code distribution:
 ### HAProxyTech
 #### HAProxyTech 1
 ```shell
-hey -n 100000 -c 1 http://quote.gigix/
+hey -n 100000 -c 1 http://quote.k8s.lan/
 
 Summary:
   Total:	9.6031 secs
@@ -1566,7 +1566,7 @@ Status code distribution:
 
 #### HAProxyTech 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	2.9077 secs
@@ -1614,7 +1614,7 @@ Status code distribution:
 
 #### HAProxyTech 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	1.3188 secs
@@ -1662,7 +1662,7 @@ Status code distribution:
 
 #### HAProxyTech 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	11.8738 secs
@@ -1710,7 +1710,7 @@ Status code distribution:
 
 #### HAProxyTech 10000
 ```
-hey -n 1000000 -c 10000 http://quote.gigix/
+hey -n 1000000 -c 10000 http://quote.k8s.lan/
 
 Summary:
   Total:	18.4248 secs
@@ -1760,7 +1760,7 @@ Status code distribution:
 ### ISTIO (NO MESH)
 #### ISTIO (NO MESH) 1
 ```shell
-hey -n 100000 -c 1 http://quote.gigix/
+hey -n 100000 -c 1 http://quote.k8s.lan/
 
 Summary:
   Total:	24.7540 secs
@@ -1809,7 +1809,7 @@ Status code distribution:
 
 #### ISTIO (NO MESH) 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	5.3822 secs
@@ -1857,7 +1857,7 @@ Status code distribution:
 
 #### ISTIO (NO MESH) 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	3.6010 secs
@@ -1906,7 +1906,7 @@ Status code distribution:
 
 #### ISTIO (NO MESH) 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	24.5196 secs
@@ -1955,7 +1955,7 @@ Status code distribution:
 
 #### ISTIO (NO MESH) 10000
 ```
-hey -n 1000000 -c 10000 http://quote.gigix/
+hey -n 1000000 -c 10000 http://quote.k8s.lan/
 
 Summary:
   Total:	90.4657 secs
@@ -2001,16 +2001,16 @@ Status code distribution:
   [200]	988576 responses
 
 Error distribution:
-  [533]	Get "http://quote.gigix/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-  [10880]	Get "http://quote.gigix/": dial tcp 192.168.121.236:80: connect: cannot assign requested address
-  [11]	Get "http://quote.gigix/": dial tcp 192.168.121.236:80: connect: connection refused
+  [533]	Get "http://quote.k8s.lan/": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  [10880]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.236:80: connect: cannot assign requested address
+  [11]	Get "http://quote.k8s.lan/": dial tcp 192.168.121.236:80: connect: connection refused
 ```
 
 
 ### ISTIO (MESHED)
 #### ISTIO (MESHED) 1
 ```shell
-hey -n 100000 -c 1 http://quote.gigix/
+hey -n 100000 -c 1 http://quote.k8s.lan/
 
 Summary:
   Total:	50.6407 secs
@@ -2059,7 +2059,7 @@ Status code distribution:
 
 #### ISTIO (MESHED) 10
 ```shell
-hey -n 100000 -c 10 http://quote.gigix/
+hey -n 100000 -c 10 http://quote.k8s.lan/
 
 Summary:
   Total:	11.1002 secs
@@ -2108,7 +2108,7 @@ Status code distribution:
 
 #### ISTIO (MESHED) 100
 ```shell
-hey -n 100000 -c 100 http://quote.gigix/
+hey -n 100000 -c 100 http://quote.k8s.lan/
 
 Summary:
   Total:	7.5935 secs
@@ -2157,7 +2157,7 @@ Status code distribution:
 
 #### ISTIO (MESHED) 1000
 ```shell
-hey -n 1000000 -c 1000 http://quote.gigix/
+hey -n 1000000 -c 1000 http://quote.k8s.lan/
 
 Summary:
   Total:	81.5566 secs
@@ -2206,7 +2206,7 @@ Status code distribution:
 
 #### ISTIO (MESHED) 10000
 ```shell
-hey -n 1000000 -c 10000 http://quote.gigix/
+hey -n 1000000 -c 10000 http://quote.k8s.lan/
 
 Summary:
   Total:	92.1222 secs

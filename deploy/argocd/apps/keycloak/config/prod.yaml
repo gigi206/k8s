@@ -10,7 +10,7 @@ dashboard:
 keycloak:
   # HA instances for production
   instances: 3
-  hostname: "keycloak.gigix"
+  hostname: "keycloak.k8s.lan"
 
   # PostgreSQL cluster settings (HA)
   database:

@@ -62,10 +62,10 @@ certManager:
   # ClusterIssuers
   clusterIssuers:
     staging:
-      email: "dev@gigix"
+      email: "dev@k8s.lan"
       server: "https://acme-staging-v02.api.letsencrypt.org/directory"
     prod:
-      email: "dev@gigix"
+      email: "dev@k8s.lan"
       server: "https://acme-v02.api.letsencrypt.org/directory"
 
 syncPolicy:

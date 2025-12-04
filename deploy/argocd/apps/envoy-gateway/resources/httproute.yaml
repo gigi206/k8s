@@ -16,7 +16,7 @@ spec:
     namespace: default
 
   hostnames:
-  - "envoy-test.gigix"
+  - "envoy-test.k8s.lan"
 
   rules:
   - matches:

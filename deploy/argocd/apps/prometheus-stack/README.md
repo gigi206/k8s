@@ -22,7 +22,7 @@ Kube-Prometheus-Stack est une collection complète d'outils de monitoring pour K
 - Remote write/read support
 - Federation support
 
-**Accès**: https://prometheus.gigix
+**Accès**: https://prometheus.k8s.lan
 
 ### Grafana
 
@@ -36,7 +36,7 @@ Kube-Prometheus-Stack est une collection complète d'outils de monitoring pour K
 - Alerting UI
 - **OIDC Authentication** (Keycloak) avec auto-login
 
-**Accès**: https://grafana.gigix
+**Accès**: https://grafana.k8s.lan
 **Authentification**: OIDC via Keycloak (auto-login activé)
 
 ### Alertmanager
@@ -48,7 +48,7 @@ Kube-Prometheus-Stack est une collection complète d'outils de monitoring pour K
 - Routing vers receivers (Slack, Email, PagerDuty, etc.)
 - High Availability avec clustering
 
-**Accès**: https://alertmanager.gigix (prod uniquement)
+**Accès**: https://alertmanager.k8s.lan (prod uniquement)
 
 ### Exporters
 
@@ -90,7 +90,7 @@ prometheusStack:
       limits: {cpu: 500m, memory: 1Gi}
     ingress:
       enabled: true
-      hostname: "prometheus.gigix"
+      hostname: "prometheus.k8s.lan"
 
   grafana:
     replicas: 1
@@ -101,7 +101,7 @@ prometheusStack:
       limits: {cpu: 200m, memory: 256Mi}
     ingress:
       enabled: true
-      hostname: "grafana.gigix"
+      hostname: "grafana.k8s.lan"
 
   alertmanager:
     enabled: false  # Disabled en dev
@@ -120,7 +120,7 @@ prometheusStack:
       limits: {cpu: 1000m, memory: 2Gi}
     ingress:
       enabled: true
-      hostname: "prometheus.gigix"
+      hostname: "prometheus.k8s.lan"
 
   grafana:
     replicas: 2  # HA
@@ -133,26 +133,26 @@ prometheusStack:
       limits: {cpu: 500m, memory: 512Mi}
     ingress:
       enabled: true
-      hostname: "grafana.gigix"
+      hostname: "grafana.k8s.lan"
 
   alertmanager:
     enabled: true
     replicas: 3  # HA avec clustering
     ingress:
       enabled: true
-      hostname: "alertmanager.gigix"
+      hostname: "alertmanager.k8s.lan"
 ```
 
 ## Accès
 
 ### Grafana
 
-**URL**: https://grafana.gigix
+**URL**: https://grafana.k8s.lan
 
 **Authentification OIDC (Keycloak)**:
 
 L'accès web utilise l'authentification OIDC avec auto-login:
-1. Naviguer vers https://grafana.gigix
+1. Naviguer vers https://grafana.k8s.lan
 2. Redirection automatique vers Keycloak
 3. S'authentifier avec votre compte Keycloak
 4. Retour automatique vers Grafana
@@ -178,7 +178,7 @@ Utiliser l'authentification OIDC pour l'accès normal.
 
 ### Prometheus
 
-**URL**: https://prometheus.gigix
+**URL**: https://prometheus.k8s.lan
 
 **Query examples**:
 ```promql
@@ -197,7 +197,7 @@ node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpo
 
 ### Alertmanager (Prod)
 
-**URL**: https://alertmanager.gigix
+**URL**: https://alertmanager.k8s.lan
 
 **Silencing alerts**:
 1. Aller dans "Silences"
@@ -414,7 +414,7 @@ topk(10, count by (__name__)({__name__=~".+"}))
 **Symptôme**: Cannot login to Grafana
 
 **Avec OIDC (Keycloak)**:
-1. Vérifier que Keycloak est accessible: https://keycloak.gigix
+1. Vérifier que Keycloak est accessible: https://keycloak.k8s.lan
 2. Vérifier le client "grafana" dans Keycloak
 3. Vérifier les logs Grafana:
    ```bash

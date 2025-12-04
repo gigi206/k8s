@@ -35,7 +35,7 @@ spec:
 
   # Hostname configuration
   hostname:
-    hostname: keycloak.gigix
+    hostname: keycloak.k8s.lan
     strict: false
     strictBackchannel: false
 
@@ -82,7 +82,7 @@ spec:
   issuerRef:
     name: selfsigned-cluster-issuer
     kind: ClusterIssuer
-  commonName: keycloak.gigix
+  commonName: keycloak.k8s.lan
   dnsNames:
-    - keycloak.gigix
+    - keycloak.k8s.lan
     - keycloak.keycloak.svc.cluster.local
