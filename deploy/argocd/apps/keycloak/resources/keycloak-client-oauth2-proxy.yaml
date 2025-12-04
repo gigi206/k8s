@@ -1,0 +1,149 @@
+---
+# =============================================================================
+# Keycloak Client Creation Job for OAuth2 Proxy
+# =============================================================================
+# Creates the oauth2-proxy OIDC client in Keycloak realm
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oauth2-proxy-keycloak-client
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-client
+          image: curlimages/curl:8.5.0
+          env:
+            - name: KEYCLOAK_URL
+              value: "https://keycloak.gigix"
+            - name: REALM
+              value: "gigix"
+            - name: CLIENT_ID
+              value: "oauth2-proxy"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: password
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-oidc-client-secret
+                  key: client-secret
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "=== Creating OAuth2 Proxy client in Keycloak ==="
+
+              # Get admin token
+              echo "Getting admin token..."
+              TOKEN=$(curl -sk -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "username=${KEYCLOAK_ADMIN}" \
+                -d "password=${KEYCLOAK_ADMIN_PASSWORD}" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+              if [ -z "$TOKEN" ]; then
+                echo "ERROR: Failed to get admin token"
+                exit 1
+              fi
+              echo "Got admin token"
+
+              # Check if client exists
+              echo "Checking if client exists..."
+              CLIENT_EXISTS=$(curl -sk -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}")
+
+              # Client payload - OAuth2 Proxy needs specific redirect URIs
+              CLIENT_PAYLOAD=$(cat <<EOF
+              {
+                "clientId": "${CLIENT_ID}",
+                "name": "OAuth2 Proxy",
+                "description": "OAuth2 Proxy for protecting apps (Prometheus, Alertmanager, Hubble, Longhorn)",
+                "enabled": true,
+                "clientAuthenticatorType": "client-secret",
+                "secret": "${CLIENT_SECRET}",
+                "redirectUris": [
+                  "https://oauth2.gigix/oauth2/callback"
+                ],
+                "webOrigins": [
+                  "https://prometheus.gigix",
+                  "https://alertmanager.gigix",
+                  "https://hubble.gigix",
+                  "https://longhorn.gigix"
+                ],
+                "publicClient": false,
+                "protocol": "openid-connect",
+                "standardFlowEnabled": true,
+                "implicitFlowEnabled": false,
+                "directAccessGrantsEnabled": false,
+                "serviceAccountsEnabled": false,
+                "attributes": {
+                  "pkce.code.challenge.method": "S256",
+                  "post.logout.redirect.uris": "https://prometheus.gigix/*##https://alertmanager.gigix/*##https://hubble.gigix/*##https://longhorn.gigix/*"
+                },
+                "defaultClientScopes": [
+                  "openid",
+                  "profile",
+                  "email",
+                  "groups"
+                ]
+              }
+              EOF
+              )
+
+              # Create or update client
+              EXISTING_CLIENT=$(curl -sk \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}")
+
+              if echo "$EXISTING_CLIENT" | grep -q "\"id\""; then
+                # Client exists, get ID and update
+                CLIENT_UUID=$(echo "$EXISTING_CLIENT" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+                echo "Client exists with ID: ${CLIENT_UUID}, updating..."
+
+                RESPONSE=$(curl -sk -o /dev/null -w "%{http_code}" -X PUT \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d "${CLIENT_PAYLOAD}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}")
+
+                if [ "$RESPONSE" = "204" ]; then
+                  echo "Client updated successfully"
+                else
+                  echo "WARNING: Update returned status ${RESPONSE}"
+                fi
+              else
+                # Client doesn't exist, create it
+                echo "Creating new client..."
+                RESPONSE=$(curl -sk -o /dev/null -w "%{http_code}" -X POST \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d "${CLIENT_PAYLOAD}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients")
+
+                if [ "$RESPONSE" = "201" ]; then
+                  echo "Client created successfully"
+                else
+                  echo "WARNING: Create returned status ${RESPONSE}"
+                fi
+              fi
+
+              echo "=== Done ==="
