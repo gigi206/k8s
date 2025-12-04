@@ -100,11 +100,13 @@ spec:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
         # Source: KeycloakRealmImport + ExternalSecret (OIDC autonome)
-        # - keycloak-client.yaml: déploie le client OIDC dans Keycloak (ns: keycloak)
-        # - external-secret.yaml: synchronise le secret vers argo-cd namespace
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
+        # Source: Encrypted secrets (KSOPS)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/secrets/{{ .environment }}
         # Source: Helm chart with dynamic parameters
         - repoURL: https://argoproj.github.io/argo-helm
           targetRevision: '{{ .versions.argocd }}'

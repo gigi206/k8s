@@ -99,7 +99,7 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/resources
-        # Source: Encrypted secrets (KSOPS) - Grafana admin credentials only
+        # Source: Encrypted secrets (KSOPS) - Grafana admin + OIDC credentials
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/secrets/{{ .environment }}
