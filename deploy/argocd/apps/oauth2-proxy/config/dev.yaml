@@ -1,0 +1,40 @@
+---
+# Configuration OAuth2 Proxy - Dev
+environment: dev
+appName: oauth2-proxy
+
+oauth2Proxy:
+  # Replicas
+  replicas: 1
+
+  # OIDC Configuration (Keycloak)
+  oidc:
+    clientId: "oauth2-proxy"
+    # Skip SSL verification for self-signed certs in dev
+    skipProviderVerify: true
+
+  # Resources (dev: minimal)
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+  # Apps to protect via ext_authz
+  protectedApps:
+    - host: "prometheus.gigix"
+      name: "Prometheus"
+    - host: "alertmanager.gigix"
+      name: "Alertmanager"
+    - host: "hubble.gigix"
+      name: "Hubble UI"
+    - host: "longhorn.gigix"
+      name: "Longhorn UI"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

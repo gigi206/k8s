@@ -1,0 +1,28 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: istio-gateway
+    namespace: istio-system
+    sectionName: https
+  hostnames:
+  - "oauth2.gigix"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - group: ""
+      kind: Service
+      name: oauth2-proxy
+      port: 4180
+      weight: 1

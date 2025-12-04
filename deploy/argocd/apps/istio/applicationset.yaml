@@ -124,6 +124,28 @@ spec:
                 ingressService: istio-ingressgateway
                 ingressSelector: ingressgateway
 
+                # External authorization providers
+                {{- if and .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
+                extensionProviders:
+                  - name: oauth2-proxy
+                    envoyExtAuthzHttp:
+                      service: {{ .istio.extensionProviders.oauth2Proxy.service }}
+                      port: {{ .istio.extensionProviders.oauth2Proxy.port }}
+                      headersToDownstreamOnDeny:
+                        - content-type
+                        - set-cookie
+                      headersToUpstreamOnAllow:
+                        - authorization
+                        - path
+                        - x-auth-request-user
+                        - x-auth-request-email
+                        - x-auth-request-access-token
+                      includeRequestHeadersInCheck:
+                        - authorization
+                        - cookie
+                      pathPrefix: /oauth2/auth
+                {{- end }}
+
               global:
                 istioNamespace: {{ .istio.namespace }}
 

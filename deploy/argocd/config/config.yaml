@@ -67,6 +67,7 @@ versions:
   nginxGatewayFabric: "v1.5.1"
   prometheusStack: "79.5.0"
   traefik: "37.4.0"
+  oauth2Proxy: "9.0.0"
 
 # Feature flags - Activation des composants
 features:
