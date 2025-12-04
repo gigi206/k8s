@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# OAuth2 Proxy ApplicationSet - Wave 79 (Authentication)
+# OAuth2 Proxy ApplicationSet - Wave 81 (Authentication)
 # =============================================================================
 # Déploie OAuth2 Proxy pour l'authentification OIDC avec Keycloak
 # Utilisé en mode ext_authz avec Istio (auth seulement, pas de proxy du trafic)
@@ -13,7 +13,7 @@ metadata:
   name: oauth2-proxy
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "79"
+    argocd.argoproj.io/sync-wave: "81"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -39,7 +39,7 @@ spec:
       name: oauth2-proxy
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "79"
+        argocd.argoproj.io/sync-wave: "81"
     spec:
       project: default
 
