@@ -10,7 +10,7 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 curl -sfL https://get.rke2.io | sh -
 test -d /etc/sysconfig && CONFIG_PATH="/etc/sysconfig/rke2-server" || CONFIG_PATH="/etc/default/rke2-server"
 mkdir -p /etc/rancher/rke2
-echo "tls-san: [k8s-management.gigix]" >>/etc/rancher/rke2/config.yaml
+echo "tls-san: [k8s-management.k8s.lan]" >>/etc/rancher/rke2/config.yaml
 systemctl enable --now rke2-server.service
 crictl config --set runtime-endpoint=unix:///run/k3s/containerd/containerd.sock
 
@@ -42,4 +42,4 @@ kubectl krew install ns
 
 cp /etc/rancher/rke2/rke2.yaml /vagrant/kube-management.config
 sed -i "s@127.0.0.1@$(ip a show dev eth0 | egrep -w inet | awk '{ print $2 }' | awk -F'/' '{ print $1 }')@g" /vagrant/kube-management.config
-# sed -i "s@127.0.0.1@k8s-management.gigix@g" /vagrant/kube-management.config
+# sed -i "s@127.0.0.1@k8s-management.k8s.lan@g" /vagrant/kube-management.config

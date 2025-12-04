@@ -143,10 +143,10 @@ GATEWAY_IP=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/ow
 echo "Gateway IP: $GATEWAY_IP"
 
 # Tester la route HTTP
-curl -H "Host: envoy-test.gigix" http://$GATEWAY_IP
+curl -H "Host: envoy-test.k8s.lan" http://$GATEWAY_IP
 
 # Tester la route HTTPS (si certificat configuré)
-curl -k -H "Host: envoy-test.gigix" https://$GATEWAY_IP
+curl -k -H "Host: envoy-test.k8s.lan" https://$GATEWAY_IP
 ```
 
 ### 4. Vérifier les métriques Prometheus

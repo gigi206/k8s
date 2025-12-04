@@ -187,14 +187,14 @@ make dev  # ou make prod selon l'environnement
 - **kube-proxy replacement**: ✅ Activé
 - **L2 announcements**: ✅ (LoadBalancer IPs)
 - **IP Pool**: 192.168.121.200-250
-- **Hubble UI**: ✅ (hubble.gigix)
+- **Hubble UI**: ✅ (hubble.k8s.lan)
 - **Monitoring**: ✅ (Prometheus/Grafana ready)
 
 ## 🌐 Accès aux Services
 
 ### API Kubernetes
 - **IP LB**: 192.168.121.200
-- **Hostname**: k8s-api.gigix
+- **Hostname**: k8s-api.k8s.lan
 - **Port**: 443
 
 ### ArgoCD UI (si déployé manuellement)
@@ -204,7 +204,7 @@ make dev  # ou make prod selon l'environnement
 - **Password**: `kubectl -n argo-cd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
 
 ### Hubble UI
-- **Hostname**: hubble.gigix
+- **Hostname**: hubble.k8s.lan
 - **Type**: HTTPS avec cert auto-signé
 
 ## 🔍 Troubleshooting
@@ -256,7 +256,7 @@ kubectl -n kube-system exec -it ds/cilium -- cilium connectivity test
 - **LoadBalancer Pool**: .200-.250
 
 ### DNS
-- **Domaine**: gigix
+- **Domaine**: k8s.lan
 - **External-DNS**: Configuré pour PowerDNS
 - **CoreDNS**: Par défaut RKE2
 

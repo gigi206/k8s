@@ -10,7 +10,7 @@ dashboard:
 keycloak:
   # Single instance for dev
   instances: 1
-  hostname: "keycloak.gigix"
+  hostname: "keycloak.k8s.lan"
 
   # PostgreSQL cluster settings
   database:

@@ -83,7 +83,7 @@ externalDns:
 externalDns:
   provider: "coredns"
   domainFilters:
-    - "gigix"  # Votre domaine local
+    - "k8s.lan"  # Votre domaine local
   txtOwnerId: "external-dns-dev"
   sources:
     - "service"
@@ -201,21 +201,21 @@ echo "nameserver $COREDNS_IP" | sudo tee -a /etc/resolv.conf
 ```bash
 # Configurer pour le domaine spécifique
 sudo resolvectl dns eth0 $COREDNS_IP
-sudo resolvectl domain eth0 ~gigix
+sudo resolvectl domain eth0 ~k8s.lan
 ```
 
 ### Option 3: Via dnsmasq
 
 ```bash
 # Ajouter dans /etc/dnsmasq.conf
-server=/gigix/$COREDNS_IP
+server=/k8s.lan/$COREDNS_IP
 ```
 
 ### Option 4: Via NetworkManager
 
 ```bash
 # Fichier /etc/NetworkManager/dnsmasq.d/external-dns.conf
-server=/gigix/$COREDNS_IP
+server=/k8s.lan/$COREDNS_IP
 ```
 
 ## Vérification
@@ -257,8 +257,8 @@ dig app.example.com +short
 COREDNS_IP=$(kubectl get svc -n external-dns coredns-coredns -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
 # Tester directement contre CoreDNS
-nslookup app.gigix $COREDNS_IP
-dig @$COREDNS_IP app.gigix +short
+nslookup app.k8s.lan $COREDNS_IP
+dig @$COREDNS_IP app.k8s.lan +short
 
 # Vérifier les enregistrements dans etcd
 kubectl exec -n external-dns deployment/external-dns-etcd -- \
@@ -327,7 +327,7 @@ kubectl logs -n external-dns deployment/coredns-coredns | grep etcd
 
 ### Résolution DNS échoue (Mode CoreDNS)
 
-**Problème**: `nslookup app.gigix` échoue
+**Problème**: `nslookup app.k8s.lan` échoue
 
 **Vérifications:**
 ```bash
@@ -342,7 +342,7 @@ cat /etc/resolv.conf | grep nameserver
 
 # Tester directement CoreDNS
 COREDNS_IP=$(kubectl get svc -n external-dns coredns-coredns -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-nslookup app.gigix $COREDNS_IP
+nslookup app.k8s.lan $COREDNS_IP
 ```
 
 ### Conflit d'ownership
@@ -471,7 +471,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: httpbin.gigix  # DNS créé automatiquement
+  - host: httpbin.k8s.lan  # DNS créé automatiquement
     http:
       paths:
       - path: /
@@ -489,7 +489,7 @@ Après déploiement:
 sleep 20
 
 # Tester (avec DNS client configuré)
-curl http://httpbin.gigix/get
+curl http://httpbin.k8s.lan/get
 ```
 
 ## Docs

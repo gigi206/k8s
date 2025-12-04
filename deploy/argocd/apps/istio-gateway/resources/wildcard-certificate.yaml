@@ -2,13 +2,13 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: wildcard-gigix
+  name: wildcard-k8s-local
   namespace: istio-system
 spec:
-  secretName: wildcard-gigix-tls
+  secretName: wildcard-k8s-local-tls
   issuerRef:
     name: selfsigned-cluster-issuer
     kind: ClusterIssuer
   dnsNames:
-  - "*.gigix"
-  - "gigix"
+  - "*.k8s.lan"
+  - "k8s.lan"

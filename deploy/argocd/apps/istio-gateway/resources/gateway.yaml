@@ -17,7 +17,7 @@ spec:
 
   # HTTPS listener
   - name: https
-    hostname: "*.gigix"
+    hostname: "*.k8s.lan"
     protocol: HTTPS
     port: 443
     allowedRoutes:
@@ -28,5 +28,5 @@ spec:
       certificateRefs:
       - group: ""
         kind: Secret
-        name: wildcard-gigix-tls
-        # Secret in same namespace (istio-system) - wildcard cert for *.gigix
+        name: wildcard-k8s-local-tls
+        # Secret in same namespace (istio-system) - wildcard cert for *.k8s.lan

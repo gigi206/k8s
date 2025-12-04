@@ -67,7 +67,7 @@ kiali:
     strategy: "openid"
     openid:
       clientId: "kiali"
-      issuerUri: "https://keycloak.gigix/realms/gigix"
+      issuerUri: "https://keycloak.k8s.lan/realms/k8s"
       scopes:
         - "openid"
         - "email"

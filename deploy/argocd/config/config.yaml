@@ -40,7 +40,7 @@ syncPolicy:
 
 # Paramètres communs partagés
 common:
-  domain: "gigix"
+  domain: "k8s.lan"
   certEmail: "admin@example.com"
   clusterIssuer: "selfsigned-cluster-issuer"
 

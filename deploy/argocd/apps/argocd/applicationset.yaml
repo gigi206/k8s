@@ -295,7 +295,7 @@ spec:
                   {{- end }}
                   oidc.config: |
                     name: Keycloak
-                    issuer: https://keycloak.{{ .common.domain }}/realms/gigix
+                    issuer: https://keycloak.{{ .common.domain }}/realms/k8s
                     clientID: argocd
                     clientSecret: $oidc.keycloak.clientSecret
                     requestedScopes:

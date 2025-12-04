@@ -25,7 +25,7 @@ spec:
   - name: https
     protocol: HTTPS
     port: 443
-    hostname: "*.gigix"
+    hostname: "*.k8s.lan"
     allowedRoutes:
       namespaces:
         from: All
@@ -33,5 +33,5 @@ spec:
       mode: Terminate
       certificateRefs:
       - kind: Secret
-        name: wildcard-gigix-tls
+        name: wildcard-k8s-local-tls
         namespace: istio-system  # Réutilise le certificat wildcard existant

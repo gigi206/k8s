@@ -35,7 +35,7 @@ cni:
 - cilium
 write-kubeconfig-mode: "0644"
 tls-san:
-- k8s-api.gigix
+- k8s-api.k8s.lan
 - 192.168.121.200
 # debug:true
 kube-controller-manager-arg:
@@ -55,7 +55,7 @@ etcd-expose-metrics: true
 # etcd-s3: true
 # etcd-s3-bucket: minio
 # etcd-s3-region: us-north-9
-# etcd-s3-endpoint: minio.gigix
+# etcd-s3-endpoint: minio.k8s.lan
 # etcd-s3-access-key: **************************
 # etcd-s3-secret-key: **************************" \
 >>/etc/rancher/rke2/config.yaml

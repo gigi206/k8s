@@ -25,9 +25,9 @@ spec:
           image: curlimages/curl:8.5.0
           env:
             - name: KEYCLOAK_URL
-              value: "https://keycloak.gigix"
+              value: "https://keycloak.k8s.lan"
             - name: REALM
-              value: "gigix"
+              value: "k8s"
             - name: CLIENT_ID
               value: "grafana"
             - name: KEYCLOAK_ADMIN
@@ -96,10 +96,10 @@ spec:
                 "clientAuthenticatorType": "client-secret",
                 "secret": "$CLIENT_SECRET",
                 "redirectUris": [
-                  "https://grafana.gigix/login/generic_oauth",
+                  "https://grafana.k8s.lan/login/generic_oauth",
                   "http://localhost:3000/login/generic_oauth"
                 ],
-                "webOrigins": ["https://grafana.gigix"],
+                "webOrigins": ["https://grafana.k8s.lan"],
                 "standardFlowEnabled": true,
                 "implicitFlowEnabled": false,
                 "directAccessGrantsEnabled": false,
@@ -110,7 +110,7 @@ spec:
                 "defaultClientScopes": ["openid", "profile", "email", "groups"],
                 "optionalClientScopes": ["offline_access"],
                 "attributes": {
-                  "post.logout.redirect.uris": "https://grafana.gigix/*"
+                  "post.logout.redirect.uris": "https://grafana.k8s.lan/*"
                 }
               }
               EOF

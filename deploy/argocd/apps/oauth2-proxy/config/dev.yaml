@@ -24,13 +24,13 @@ oauth2Proxy:
 
   # Apps to protect via ext_authz
   protectedApps:
-    - host: "prometheus.gigix"
+    - host: "prometheus.k8s.lan"
       name: "Prometheus"
-    - host: "alertmanager.gigix"
+    - host: "alertmanager.k8s.lan"
       name: "Alertmanager"
-    - host: "hubble.gigix"
+    - host: "hubble.k8s.lan"
       name: "Hubble UI"
-    - host: "longhorn.gigix"
+    - host: "longhorn.k8s.lan"
       name: "Longhorn UI"
 
 syncPolicy:

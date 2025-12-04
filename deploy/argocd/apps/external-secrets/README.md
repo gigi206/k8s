@@ -111,7 +111,7 @@ To add OIDC support for a new application:
    spec:
      keycloakCRName: keycloak
      realm:
-       realm: gigix
+       realm: k8s
        clients:
          - clientId: myapp
            secret: "$(env:MYAPP_CLIENT_SECRET)"

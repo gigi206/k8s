@@ -153,7 +153,7 @@ parameters:
 ### Snapshot Manuel (Longhorn UI)
 
 **Via Longhorn UI**:
-1. Accéder à Longhorn UI: https://longhorn.gigix
+1. Accéder à Longhorn UI: https://longhorn.k8s.lan
 2. Aller dans "Volume"
 3. Sélectionner le volume
 4. Cliquer "Take Snapshot"
