@@ -337,6 +337,7 @@ APPLICATIONSETS=(
   "apps/prometheus-stack/applicationset.yaml"           # Wave 75
   "apps/cilium-monitoring/applicationset.yaml"          # Wave 76
   "apps/keycloak/applicationset.yaml"                   # Wave 80
+  "apps/oauth2-proxy/applicationset.yaml"               # Wave 81
 )
 
 # Vérifier que tous les fichiers existent
