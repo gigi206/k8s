@@ -70,6 +70,12 @@ spec:
             - .spec.data[].remoteRef.conversionStrategy
             - .spec.data[].remoteRef.decodingStrategy
             - .spec.data[].remoteRef.metadataPolicy
+        # Ignore Job spec.selector (auto-generated and immutable)
+        - group: batch
+          kind: Job
+          jqPathExpressions:
+            - .spec.selector
+            - .spec.template.metadata
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
