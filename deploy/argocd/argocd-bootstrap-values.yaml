@@ -1,0 +1,53 @@
+# =============================================================================
+# ArgoCD Bootstrap Values - KSOPS Configuration
+# =============================================================================
+# Ces valeurs sont utilisées pour l'installation initiale d'ArgoCD avec KSOPS.
+# Une fois ArgoCD self-managed, l'ApplicationSet prend le relais avec une
+# configuration plus complète.
+# =============================================================================
+
+# Enable Kustomize alpha plugins for KSOPS
+configs:
+  cm:
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+
+# Repo Server configuration for KSOPS
+repoServer:
+  # Init container to install KSOPS binary
+  initContainers:
+    - name: install-ksops
+      image: viaductoss/ksops:v4.3.2
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          echo "Installing KSOPS..."
+          cp /usr/local/bin/ksops /custom-tools/ksops
+          echo "Installation complete"
+      volumeMounts:
+        - name: custom-tools
+          mountPath: /custom-tools
+
+  # Volumes for KSOPS tools and AGE key
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: sops-age-key
+      secret:
+        secretName: sops-age-key
+
+  # Volume mounts for repo-server container
+  volumeMounts:
+    - name: custom-tools
+      mountPath: /usr/local/bin/ksops
+      subPath: ksops
+    - name: sops-age-key
+      mountPath: /home/argocd/.config/sops/age
+
+  # Environment variables for SOPS AGE decryption
+  env:
+    - name: SOPS_AGE_KEY_FILE
+      value: /home/argocd/.config/sops/age/keys.txt
+    - name: XDG_CONFIG_HOME
+      value: /home/argocd/.config
