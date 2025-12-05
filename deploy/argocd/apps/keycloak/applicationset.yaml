@@ -137,20 +137,27 @@ spec:
           directory:
             include: "external-secrets-oidc-clients.yaml"
 
-        # Source 7: Secrets (KSOPS) - environment specific
+        # Source 7: OAuth2-Proxy Keycloak client job
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "keycloak-client-oauth2-proxy.yaml"
+
+        # Source 8: Secrets (KSOPS) - environment specific
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
 
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 8: HTTPRoute (Gateway API) - conditional
+        # Source 9: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/httproute
         {{- end }}
 
         {{- if .features.monitoring.enabled }}
-        # Source 9: Prometheus monitoring (conditional)
+        # Source 10: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize
