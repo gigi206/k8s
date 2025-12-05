@@ -142,10 +142,19 @@ spec:
                 cookieName: "_oauth2_proxy"
 
               extraArgs:
-                # OIDC Provider (Keycloak) - use internal cluster URL
+                # OIDC Provider (Keycloak)
                 provider: oidc
                 provider-display-name: "Keycloak"
+                # Internal URL for OIDC discovery and token validation (server-to-server)
                 oidc-issuer-url: "http://keycloak-service.keycloak.svc.cluster.local:8080/realms/k8s"
+                # External URL for browser redirects (user-facing)
+                login-url: "https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/auth"
+                # Internal URL for token exchange (server-to-server)
+                redeem-url: "http://keycloak-service.keycloak.svc.cluster.local:8080/realms/k8s/protocol/openid-connect/token"
+                # Internal URL for user info (server-to-server)
+                profile-url: "http://keycloak-service.keycloak.svc.cluster.local:8080/realms/k8s/protocol/openid-connect/userinfo"
+                # Internal URL for JWKS validation (server-to-server)
+                oidc-jwks-url: "http://keycloak-service.keycloak.svc.cluster.local:8080/realms/k8s/protocol/openid-connect/certs"
 
                 # Redirect URL (OAuth2 Proxy's callback)
                 redirect-url: "https://oauth2.{{ .common.domain }}/oauth2/callback"
