@@ -267,7 +267,7 @@ argocd-install-dev:
 	helm template argocd argo/argo-cd \
 		--namespace $(ARGOCD_NAMESPACE) \
 		--kube-version $$K8S_VERSION \
-		-f $(ARGOCD_DIR)/argocd-bootstrap-values.yaml | kubectl apply -f - && \
+		-f $(ARGOCD_DIR)/argocd-bootstrap-values.yaml | kubectl apply --server-side -f - && \
 	echo "   Attente du démarrage d'ArgoCD..." && \
 	kubectl wait --for=condition=available deployment -l app.kubernetes.io/name=argocd-server -n $(ARGOCD_NAMESPACE) --timeout=10m && \
 	echo "" && \
