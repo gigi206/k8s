@@ -1,0 +1,88 @@
+---
+# =============================================================================
+# Keycloak Instance - CR Keycloak Operator
+# =============================================================================
+# Instance Keycloak geree par l'operateur officiel
+# Connectee au cluster PostgreSQL CNPG
+# =============================================================================
+
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  # Nombre d'instances (1 pour dev, 3 pour prod HA)
+  instances: 1
+
+  # Configuration de la base de donnees PostgreSQL
+  db:
+    vendor: postgres
+    host: keycloak-db-rw
+    port: 5432
+    database: keycloak
+    usernameSecret:
+      name: keycloak-db-credentials
+      key: username
+    passwordSecret:
+      name: keycloak-db-credentials
+      key: password
+
+  # Configuration HTTP/HTTPS
+  http:
+    tlsSecret: keycloak-tls-cert
+    httpEnabled: true
+
+  # Hostname configuration
+  hostname:
+    hostname: keycloak.k8s.lan
+    strict: false
+    strictBackchannel: false
+
+  # Bootstrap admin credentials (from SOPS secret)
+  bootstrapAdmin:
+    user:
+      secret: keycloak-admin-credentials
+
+  # Disable auto-created Ingress (using HTTPRoute instead)
+  ingress:
+    enabled: false
+
+  # Proxy configuration (pour Istio/Gateway)
+  proxy:
+    headers: xforwarded
+
+  # Features additionnelles
+  features:
+    enabled:
+      - docker
+      - token-exchange
+
+  # Resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+---
+# =============================================================================
+# Certificate pour Keycloak TLS
+# =============================================================================
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: keycloak-tls-cert
+  namespace: keycloak
+spec:
+  secretName: keycloak-tls-cert
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+  commonName: keycloak.k8s.lan
+  dnsNames:
+    - keycloak.k8s.lan
+    - keycloak.keycloak.svc.cluster.local
