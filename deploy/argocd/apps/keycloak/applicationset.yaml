@@ -122,20 +122,27 @@ spec:
           directory:
             include: "cluster-secret-store.yaml"
 
-        # Source 6: Secrets (KSOPS) - environment specific
+        # Source 6: ExternalSecrets for OIDC clients (reverse sync from app namespaces)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "external-secrets-oidc-clients.yaml"
+
+        # Source 7: Secrets (KSOPS) - environment specific
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
 
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 7: HTTPRoute (Gateway API) - conditional
+        # Source 8: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/httproute
         {{- end }}
 
         {{- if .features.monitoring.enabled }}
-        # Source 8: Prometheus monitoring (conditional)
+        # Source 9: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize
