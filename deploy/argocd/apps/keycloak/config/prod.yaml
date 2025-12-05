@@ -10,7 +10,7 @@ dashboard:
 keycloak:
   # HA instances for production
   instances: 3
-  hostname: "keycloak.k8s.lan"
+  # hostname construit dynamiquement via {{ .common.domain }} dans ApplicationSet
 
   # PostgreSQL cluster settings (HA)
   database:

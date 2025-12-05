@@ -21,6 +21,8 @@ spec:
         - name: create-client
           image: curlimages/curl:8.5.0
           env:
+            - name: DOMAIN
+              value: "k8s.lan"  # Patched via Kustomize from common.domain
             - name: KEYCLOAK_URL
               value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
             - name: REALM
@@ -93,10 +95,10 @@ spec:
                 "clientAuthenticatorType": "client-secret",
                 "secret": "$CLIENT_SECRET",
                 "redirectUris": [
-                  "https://argocd.k8s.lan/auth/callback",
+                  "https://argocd.${DOMAIN}/auth/callback",
                   "http://localhost:8085/auth/callback"
                 ],
-                "webOrigins": ["https://argocd.k8s.lan"],
+                "webOrigins": ["https://argocd.${DOMAIN}"],
                 "standardFlowEnabled": true,
                 "implicitFlowEnabled": false,
                 "directAccessGrantsEnabled": false,
@@ -108,7 +110,7 @@ spec:
                 "optionalClientScopes": ["offline_access"],
                 "attributes": {
                   "pkce.code.challenge.method": "S256",
-                  "post.logout.redirect.uris": "https://argocd.k8s.lan/*",
+                  "post.logout.redirect.uris": "https://argocd.${DOMAIN}/*",
                   "backchannel.logout.session.required": "true",
                   "backchannel.logout.revoke.offline.tokens": "false"
                 }

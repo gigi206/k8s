@@ -20,6 +20,8 @@ spec:
         - name: create-client
           image: curlimages/curl:8.5.0
           env:
+            - name: DOMAIN
+              value: "k8s.lan"  # Patched via Kustomize from common.domain
             - name: KEYCLOAK_URL
               value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
             - name: REALM
@@ -78,13 +80,13 @@ spec:
                 "clientAuthenticatorType": "client-secret",
                 "secret": "${CLIENT_SECRET}",
                 "redirectUris": [
-                  "https://oauth2.k8s.lan/oauth2/callback"
+                  "https://oauth2.${DOMAIN}/oauth2/callback"
                 ],
                 "webOrigins": [
-                  "https://prometheus.k8s.lan",
-                  "https://alertmanager.k8s.lan",
-                  "https://hubble.k8s.lan",
-                  "https://longhorn.k8s.lan"
+                  "https://prometheus.${DOMAIN}",
+                  "https://alertmanager.${DOMAIN}",
+                  "https://hubble.${DOMAIN}",
+                  "https://longhorn.${DOMAIN}"
                 ],
                 "publicClient": false,
                 "protocol": "openid-connect",
@@ -94,7 +96,7 @@ spec:
                 "serviceAccountsEnabled": false,
                 "attributes": {
                   "pkce.code.challenge.method": "S256",
-                  "post.logout.redirect.uris": "https://prometheus.k8s.lan/*##https://alertmanager.k8s.lan/*##https://hubble.k8s.lan/*##https://longhorn.k8s.lan/*"
+                  "post.logout.redirect.uris": "https://prometheus.${DOMAIN}/*##https://alertmanager.${DOMAIN}/*##https://hubble.${DOMAIN}/*##https://longhorn.${DOMAIN}/*"
                 },
                 "defaultClientScopes": [
                   "openid",

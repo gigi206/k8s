@@ -85,12 +85,19 @@ spec:
             - .spec.template
 
       sources:
-        # Source 0: Base resources (Namespace, IngressClass)
+        # Source 0: Base resources (Namespace, IngressClass, Keycloak client Job)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/resources
-          directory:
-            include: "*.yaml"
+          kustomize:
+            patches:
+              - target:
+                  kind: Job
+                  name: kiali-keycloak-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
 
         # Source: Encrypted secrets (KSOPS)
         - repoURL: https://github.com/gigi206/k8s
@@ -287,12 +294,13 @@ spec:
                   enabled: false
 
               # Authentication strategy
+              # issuer_uri construit dynamiquement avec common.domain
               auth:
                 strategy: {{ .kiali.auth.strategy }}
                 {{- if eq .kiali.auth.strategy "openid" }}
                 openid:
                   client_id: {{ .kiali.auth.openid.clientId }}
-                  issuer_uri: {{ .kiali.auth.openid.issuerUri }}
+                  issuer_uri: https://keycloak.{{ .common.domain }}/realms/{{ .kiali.auth.openid.realm }}
                   scopes:
                   {{- range .kiali.auth.openid.scopes }}
                     - {{ . }}
@@ -328,6 +336,15 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: kiali
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: kiali.{{ .common.domain }}
         {{- end }}
 
         {{- if .features.monitoring.enabled }}

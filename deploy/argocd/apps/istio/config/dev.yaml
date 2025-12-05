@@ -63,11 +63,13 @@ kiali:
   # ===================
   # OIDC Configuration (Keycloak)
   # ===================
+  # Note: issuer_uri est construit dynamiquement dans l'ApplicationSet
+  # en utilisant common.domain et le realm ci-dessous
   auth:
     strategy: "openid"
     openid:
       clientId: "kiali"
-      issuerUri: "https://keycloak.k8s.lan/realms/k8s"
+      realm: "k8s"  # Keycloak realm - issuer_uri construit via {{ .common.domain }}
       scopes:
         - "openid"
         - "email"
