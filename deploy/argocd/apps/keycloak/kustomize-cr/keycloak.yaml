@@ -39,6 +39,13 @@ spec:
     strict: false
     strictBackchannel: false
 
+  # Force HTTPS in frontend URLs (behind TLS-terminating proxy)
+  additionalOptions:
+    - name: hostname-strict-https
+      value: "true"
+    - name: hostname-url
+      value: "https://keycloak.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+
   # Bootstrap admin credentials (from SOPS secret)
   bootstrapAdmin:
     user:
