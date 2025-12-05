@@ -20,6 +20,8 @@ spec:
         - name: create-client
           image: curlimages/curl:8.5.0
           env:
+            - name: DOMAIN
+              value: "k8s.lan"  # Patched via Kustomize from common.domain
             - name: KEYCLOAK_URL
               value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
             - name: REALM
@@ -92,11 +94,11 @@ spec:
                 "clientAuthenticatorType": "client-secret",
                 "secret": "$CLIENT_SECRET",
                 "redirectUris": [
-                  "https://kiali.k8s.lan/kiali/*",
-                  "https://kiali.k8s.lan/*",
+                  "https://kiali.${DOMAIN}/kiali/*",
+                  "https://kiali.${DOMAIN}/*",
                   "http://localhost:20001/*"
                 ],
-                "webOrigins": ["https://kiali.k8s.lan"],
+                "webOrigins": ["https://kiali.${DOMAIN}"],
                 "standardFlowEnabled": true,
                 "implicitFlowEnabled": false,
                 "directAccessGrantsEnabled": false,
@@ -107,7 +109,7 @@ spec:
                 "defaultClientScopes": ["openid", "profile", "email", "groups"],
                 "optionalClientScopes": ["offline_access"],
                 "attributes": {
-                  "post.logout.redirect.uris": "https://kiali.k8s.lan/*"
+                  "post.logout.redirect.uris": "https://kiali.${DOMAIN}/*"
                 }
               }
               EOF

@@ -78,8 +78,24 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio-gateway/resources
-          directory:
-            include: "*.yaml"
+          kustomize:
+            patches:
+              - target:
+                  kind: Gateway
+                  name: istio-gateway
+                patch: |
+                  - op: replace
+                    path: /spec/listeners/1/hostname
+                    value: '*.{{ .common.domain }}'
+              - target:
+                  kind: Certificate
+                  name: wildcard-k8s-local
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames
+                    value:
+                      - '*.{{ .common.domain }}'
+                      - '{{ .common.domain }}'
 
         # Source 1: Istio Ingress Gateway Helm Chart
         - repoURL: https://istio-release.storage.googleapis.com/charts

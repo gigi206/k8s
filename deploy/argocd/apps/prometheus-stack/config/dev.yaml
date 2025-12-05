@@ -40,17 +40,16 @@ prometheusStack:
     # ===================
     # OIDC Configuration (Keycloak)
     # ===================
+    # Note: Les URLs OIDC sont construites dynamiquement dans l'ApplicationSet
+    # en utilisant common.domain et le realm ci-dessous
     oidc:
       enabled: true
       name: "Keycloak"
+      realm: "k8s"  # Keycloak realm name - URLs construites via {{ .common.domain }}
       allowSignUp: true
       autoLogin: true
       clientId: "grafana"
       scopes: "openid email profile groups"
-      authUrl: "https://keycloak.k8s.lan/realms/k8s/protocol/openid-connect/auth"
-      tokenUrl: "https://keycloak.k8s.lan/realms/k8s/protocol/openid-connect/token"
-      apiUrl: "https://keycloak.k8s.lan/realms/k8s/protocol/openid-connect/userinfo"
-      signoutRedirectUrl: "https://keycloak.k8s.lan/realms/k8s/protocol/openid-connect/logout?id_token_hint=${id_token}&post_logout_redirect_uri=https%3A%2F%2Fgrafana.k8s.lan%2Flogin"
       # Mapping des groupes Keycloak vers les roles Grafana
       # admins -> Admin, developers -> Editor, autres -> Viewer
       roleAttributePath: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'developers') && 'Editor' || 'Viewer'"

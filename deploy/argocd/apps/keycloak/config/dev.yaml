@@ -10,7 +10,7 @@ dashboard:
 keycloak:
   # Single instance for dev
   instances: 1
-  hostname: "keycloak.k8s.lan"
+  # hostname construit dynamiquement via {{ .common.domain }} dans ApplicationSet
 
   # PostgreSQL cluster settings
   database:

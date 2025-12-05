@@ -23,14 +23,16 @@ oauth2Proxy:
       memory: "128Mi"
 
   # Apps to protect via ext_authz
+  # Note: Les hosts complets sont construits dans les AuthorizationPolicies
+  # via les patches kustomize avec {{ .common.domain }}
   protectedApps:
-    - host: "prometheus.k8s.lan"
+    - subdomain: "prometheus"
       name: "Prometheus"
-    - host: "alertmanager.k8s.lan"
+    - subdomain: "alertmanager"
       name: "Alertmanager"
-    - host: "hubble.k8s.lan"
+    - subdomain: "hubble"
       name: "Hubble UI"
-    - host: "longhorn.k8s.lan"
+    - subdomain: "longhorn"
       name: "Longhorn UI"
 
 syncPolicy:

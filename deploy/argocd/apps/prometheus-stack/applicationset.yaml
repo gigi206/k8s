@@ -92,13 +92,45 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: grafana
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: grafana.{{ .common.domain }}
+              - target:
+                  kind: HTTPRoute
+                  name: prometheus
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: prometheus.{{ .common.domain }}
+              - target:
+                  kind: HTTPRoute
+                  name: alertmanager
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: alertmanager.{{ .common.domain }}
         {{- end }}
-        # Source: KeycloakRealmImport + ExternalSecret (OIDC autonome)
+        # Source: ExternalSecret + Keycloak client Job (OIDC autonome)
         # - keycloak-client.yaml: déploie le client OIDC Grafana dans Keycloak (ns: keycloak)
         # - external-secret.yaml: synchronise le secret OIDC vers monitoring namespace
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/resources
+          kustomize:
+            patches:
+              - target:
+                  kind: Job
+                  name: grafana-keycloak-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
         # Source: Encrypted secrets (KSOPS) - Grafana admin + OIDC credentials
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -359,6 +391,7 @@ spec:
                     enabled: false
                   {{- if $oidcEnabled }}
                   # OIDC/OAuth2 configuration (Keycloak)
+                  # URLs construites dynamiquement avec common.domain
                   auth.generic_oauth:
                     enabled: true
                     name: "{{ .prometheusStack.grafana.oidc.name }}"
@@ -367,12 +400,12 @@ spec:
                     client_id: "{{ .prometheusStack.grafana.oidc.clientId }}"
                     client_secret: $__file{/etc/secrets/oidc/client-secret}
                     scopes: "{{ .prometheusStack.grafana.oidc.scopes }}"
-                    auth_url: "{{ .prometheusStack.grafana.oidc.authUrl }}"
-                    token_url: "{{ .prometheusStack.grafana.oidc.tokenUrl }}"
-                    api_url: "{{ .prometheusStack.grafana.oidc.apiUrl }}"
+                    auth_url: "https://keycloak.{{ .common.domain }}/realms/{{ .prometheusStack.grafana.oidc.realm }}/protocol/openid-connect/auth"
+                    token_url: "https://keycloak.{{ .common.domain }}/realms/{{ .prometheusStack.grafana.oidc.realm }}/protocol/openid-connect/token"
+                    api_url: "https://keycloak.{{ .common.domain }}/realms/{{ .prometheusStack.grafana.oidc.realm }}/protocol/openid-connect/userinfo"
                     role_attribute_path: "{{ .prometheusStack.grafana.oidc.roleAttributePath }}"
                     allow_assign_grafana_admin: {{ .prometheusStack.grafana.oidc.allowAssignGrafanaAdmin | default false }}
-                    signout_redirect_url: "{{ .prometheusStack.grafana.oidc.signoutRedirectUrl }}"
+                    signout_redirect_url: "https://keycloak.{{ .common.domain }}/realms/{{ .prometheusStack.grafana.oidc.realm }}/protocol/openid-connect/logout?id_token_hint=${id_token}&post_logout_redirect_uri=https%3A%2F%2Fgrafana.{{ .common.domain }}%2Flogin"
                     {{- if .prometheusStack.grafana.oidc.tlsSkipVerify }}
                     tls_skip_verify_insecure: {{ .prometheusStack.grafana.oidc.tlsSkipVerify }}
                     {{- end }}
