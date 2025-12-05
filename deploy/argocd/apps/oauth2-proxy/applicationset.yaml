@@ -103,10 +103,10 @@ spec:
                 cookieName: "_oauth2_proxy"
 
               extraArgs:
-                # OIDC Provider (Keycloak)
+                # OIDC Provider (Keycloak) - use internal cluster URL
                 provider: oidc
                 provider-display-name: "Keycloak"
-                oidc-issuer-url: "https://keycloak.{{ .common.domain }}/realms/k8s"
+                oidc-issuer-url: "http://keycloak-service.keycloak.svc.cluster.local:8080/realms/k8s"
 
                 # Redirect URL (OAuth2 Proxy's callback)
                 redirect-url: "https://oauth2.{{ .common.domain }}/oauth2/callback"
