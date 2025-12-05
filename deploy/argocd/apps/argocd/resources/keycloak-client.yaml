@@ -22,7 +22,7 @@ spec:
           image: curlimages/curl:8.5.0
           env:
             - name: KEYCLOAK_URL
-              value: "https://keycloak.k8s.lan"
+              value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
             - name: REALM
               value: "k8s"
             - name: CLIENT_ID
