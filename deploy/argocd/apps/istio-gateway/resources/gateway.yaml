@@ -29,4 +29,4 @@ spec:
       - group: ""
         kind: Secret
         name: wildcard-k8s-local-tls
-        # Secret in same namespace (istio-system) - wildcard cert for *.k8s.lan
+        # Secret in same namespace (istio-system) - wildcard cert for *.common.domain
