@@ -122,6 +122,9 @@ spec:
                   - op: replace
                     path: /spec/hostname/hostname
                     value: keycloak.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/additionalOptions/1/value
+                    value: https://keycloak.{{ .common.domain }}
               - target:
                   kind: Certificate
                   name: keycloak-tls-cert
