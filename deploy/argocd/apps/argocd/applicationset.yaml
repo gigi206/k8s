@@ -76,6 +76,13 @@ spec:
           jqPathExpressions:
             - .spec.selector
             - .spec.template.metadata
+        # Ignore CRDs metadata.annotations (too large for client-side apply)
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          managedFieldsManagers:
+            - kubectl-client-side-apply
+          jqPathExpressions:
+            - .metadata.annotations
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
