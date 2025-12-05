@@ -281,6 +281,12 @@ spec:
               {{- end }}
               {{- end }}
 
+            # Skip CRD installation - CRDs are already installed and too large for client-side apply migration
+              - name: crds.install
+                value: "false"
+              - name: crds.keep
+                value: "true"
+
             # Dex (OIDC/SSO) - disabled by default
               - name: dex.enabled
                 value: "false"
