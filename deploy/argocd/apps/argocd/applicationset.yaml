@@ -121,7 +121,8 @@ spec:
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
-        # Source: ExternalSecret + Keycloak client Job (OIDC autonome)
+        {{- if .features.sso.enabled }}
+        # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
@@ -134,6 +135,7 @@ spec:
                   - op: replace
                     path: /spec/template/spec/containers/0/env/0/value
                     value: {{ .common.domain }}
+        {{- end }}
         # Source: Encrypted secrets (KSOPS)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -323,6 +325,7 @@ spec:
                 cm:
                   kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
                   url: 'https://argocd.{{ .common.domain }}'
+                  {{- if .features.sso.enabled }}
                   {{- if index .argocd.configs.cm "oidc.tls.insecure.skip.verify" }}
                   oidc.tls.insecure.skip.verify: '{{ index .argocd.configs.cm "oidc.tls.insecure.skip.verify" }}'
                   {{- end }}
@@ -337,6 +340,7 @@ spec:
                       - email
                       - groups
                     enablePKCEAuthentication: true
+                  {{- end }}
                 {{- if .argocd.configs.rbac }}
                 rbac:
                   policy.default: '{{ index .argocd.configs.rbac "policy.default" }}'
