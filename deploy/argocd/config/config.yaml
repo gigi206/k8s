@@ -106,3 +106,13 @@ features:
       label: "1"  # Label value for grafana_dashboard (enables auto-import)
       baseFolder: "/tmp/dashboards"  # Base folder for dashboard organization
       folderAnnotation: "grafana_dashboard_folder"  # Annotation name for dashboard folder path
+
+  # SSO (Single Sign-On) - Keycloak + OAuth2-Proxy
+  # When disabled:
+  #   - Keycloak and OAuth2-Proxy are NOT deployed
+  #   - ArgoCD uses local admin authentication
+  #   - Grafana uses local admin (admin/password from secrets)
+  #   - Kiali uses anonymous authentication
+  #   - Prometheus/Alertmanager/Hubble/Longhorn are accessible without auth
+  sso:
+    enabled: true
