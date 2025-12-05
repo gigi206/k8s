@@ -263,7 +263,7 @@ spec:
     users:
       - username: admin
         enabled: true
-        email: admin@k8s.lan
+        email: admin@PLACEHOLDER.example.com  # Patched via Kustomize from common.domain
         emailVerified: true
         firstName: Admin
         lastName: Infrastructure

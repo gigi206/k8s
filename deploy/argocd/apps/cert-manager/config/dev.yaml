@@ -62,10 +62,10 @@ certManager:
   # ClusterIssuers
   clusterIssuers:
     staging:
-      email: "dev@k8s.lan"
+      email: "dev@PLACEHOLDER.example.com"  # TODO: Update with valid email
       server: "https://acme-staging-v02.api.letsencrypt.org/directory"
     prod:
-      email: "dev@k8s.lan"
+      email: "dev@PLACEHOLDER.example.com"  # TODO: Update with valid email
       server: "https://acme-v02.api.letsencrypt.org/directory"
 
 syncPolicy:
