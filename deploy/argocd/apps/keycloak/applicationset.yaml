@@ -109,12 +109,29 @@ spec:
           directory:
             include: "cluster-postgresql.yaml"
 
-        # Source 3: Keycloak CR instance
+        # Source 3: Keycloak CR instance (with domain patches)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "keycloak.yaml"
+          path: deploy/argocd/apps/keycloak/kustomize-cr
+          kustomize:
+            patches:
+              - target:
+                  kind: Keycloak
+                  name: keycloak
+                patch: |
+                  - op: replace
+                    path: /spec/hostname/hostname
+                    value: keycloak.{{ .common.domain }}
+              - target:
+                  kind: Certificate
+                  name: keycloak-tls-cert
+                patch: |
+                  - op: replace
+                    path: /spec/commonName
+                    value: keycloak.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/dnsNames/0
+                    value: keycloak.{{ .common.domain }}
 
         # Source 4: KeycloakRealmImport - Realm k8s (base: groups, roles, scopes, admin)
         - repoURL: https://github.com/gigi206/k8s
@@ -140,9 +157,16 @@ spec:
         # Source 7: OAuth2-Proxy Keycloak client job
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "keycloak-client-oauth2-proxy.yaml"
+          path: deploy/argocd/apps/keycloak/kustomize-oauth2-proxy-job
+          kustomize:
+            patches:
+              - target:
+                  kind: Job
+                  name: oauth2-proxy-keycloak-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
 
         # Source 8: Secrets (KSOPS) - environment specific
         - repoURL: https://github.com/gigi206/k8s
@@ -154,6 +178,15 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: keycloak
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: keycloak.{{ .common.domain }}
         {{- end }}
 
         {{- if .features.monitoring.enabled }}

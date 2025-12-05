@@ -87,6 +87,15 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium-monitoring/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: hubble-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: hubble.{{ .common.domain }}
         {{- end }}
         # Source: Kustomize monitoring resources
         - repoURL: https://github.com/gigi206/k8s

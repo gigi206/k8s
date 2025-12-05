@@ -73,10 +73,40 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 1: Namespace, Keycloak client job, AuthorizationPolicies
+        # Source 1: Namespace, AuthorizationPolicies (with domain patches)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/resources
+          kustomize:
+            patches:
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-prometheus
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: prometheus.{{ .common.domain }}
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-alertmanager
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: alertmanager.{{ .common.domain }}
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-hubble
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: hubble.{{ .common.domain }}
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-longhorn
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: longhorn.{{ .common.domain }}
         # Source 2: Encrypted secrets (KSOPS)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -86,6 +116,15 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: oauth2-proxy
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: oauth2.{{ .common.domain }}
         {{- end }}
         # Source 4: Helm chart
         - repoURL: https://oauth2-proxy.github.io/manifests

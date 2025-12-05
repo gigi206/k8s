@@ -91,6 +91,15 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/longhorn/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: longhorn-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: longhorn.{{ .common.domain }}
         {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source: Prometheus monitoring + Grafana dashboard (conditional)
