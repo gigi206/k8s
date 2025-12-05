@@ -22,7 +22,7 @@ spec:
           image: curlimages/curl:8.5.0
           env:
             - name: DOMAIN
-              value: "k8s.lan"  # Patched via Kustomize from common.domain
+              value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
             - name: KEYCLOAK_URL
               value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
             - name: REALM

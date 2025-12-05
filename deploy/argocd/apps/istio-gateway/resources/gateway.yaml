@@ -17,7 +17,7 @@ spec:
 
   # HTTPS listener
   - name: https
-    hostname: "*.k8s.lan"
+    hostname: "*.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
     protocol: HTTPS
     port: 443
     allowedRoutes:
