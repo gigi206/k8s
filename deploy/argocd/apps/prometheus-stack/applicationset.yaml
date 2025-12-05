@@ -116,7 +116,8 @@ spec:
                     path: /spec/hostnames/0
                     value: alertmanager.{{ .common.domain }}
         {{- end }}
-        # Source: ExternalSecret + Keycloak client Job (OIDC autonome)
+        {{- if .features.sso.enabled }}
+        # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
         # - keycloak-client.yaml: déploie le client OIDC Grafana dans Keycloak (ns: keycloak)
         # - external-secret.yaml: synchronise le secret OIDC vers monitoring namespace
         - repoURL: https://github.com/gigi206/k8s
@@ -131,6 +132,7 @@ spec:
                   - op: replace
                     path: /spec/template/spec/containers/0/env/0/value
                     value: {{ .common.domain }}
+        {{- end }}
         # Source: Encrypted secrets (KSOPS) - Grafana admin + OIDC credentials
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -369,7 +371,8 @@ spec:
 
             # Grafana: grafana.ini configuration (via valuesObject pour structure imbriquée)
             # Note: Grafana 12+ a supprimé Legacy Alerting, seul unified_alerting est disponible
-            {{- $oidcEnabled := and .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
+            # OIDC is enabled only if both SSO feature flag AND per-app oidc.enabled are true
+            {{- $oidcEnabled := and .features.sso.enabled .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
             valuesObject:
               grafana:
                 {{- if $oidcEnabled }}
