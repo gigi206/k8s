@@ -66,7 +66,7 @@ spec:
 
   templatePatch: |
     spec:
-      # Ignore fields managed by controllers (CNPG, Prometheus Operator)
+      # Ignore fields managed by controllers (CNPG, Prometheus Operator, External Secrets)
       ignoreDifferences:
         - group: postgresql.cnpg.io
           kind: Cluster
@@ -78,6 +78,10 @@ spec:
           kind: PodMonitor
           jqPathExpressions:
             - .spec.podMetricsEndpoints
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .status
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
