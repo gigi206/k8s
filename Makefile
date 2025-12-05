@@ -243,7 +243,7 @@ argocd-install-dev:
 	@echo "$(BLUE)🎯 Installation ArgoCD + Infrastructure (ApplicationSets)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo ""
-	@echo "$(GREEN)📦 Étape 1/4: Récupération du kubeconfig...$(NC)"
+	@echo "$(GREEN)📦 Étape 1/5: Récupération du kubeconfig...$(NC)"
 	@mkdir -p $(KUBE_DIR)
 	@cd $(VAGRANT_DIR) && \
 		MASTER_IP=$$(K8S_ENV=dev vagrant ssh k8s-dev-m1 -c 'hostname -I | cut -d" " -f1' 2>/dev/null | tr -d '\r\n') && \
@@ -251,18 +251,27 @@ argocd-install-dev:
 		sed "s/127.0.0.1/$$MASTER_IP/g" > .kube/config-dev
 	@export KUBECONFIG=$(KUBECONFIG_DEV) && \
 	echo "" && \
-	echo "$(GREEN)📚 Étape 2/4: Ajout du repo Helm ArgoCD...$(NC)" && \
+	echo "$(GREEN)📚 Étape 2/5: Ajout du repo Helm ArgoCD...$(NC)" && \
 	helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true && \
 	helm repo update >/dev/null 2>&1 && \
 	echo "" && \
-	echo "$(GREEN)⚙️  Étape 3/4: Installation ArgoCD via Helm...$(NC)" && \
+	echo "$(GREEN)🔐 Étape 3/5: Création du namespace et secret SOPS...$(NC)" && \
 	kubectl create namespace $(ARGOCD_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f - && \
+	kubectl create secret generic sops-age-key \
+		--namespace $(ARGOCD_NAMESPACE) \
+		--from-file=keys.txt=$(CURDIR)/sops/age-dev.key \
+		--dry-run=client -o yaml | kubectl apply -f - && \
+	echo "" && \
+	echo "$(GREEN)⚙️  Étape 4/5: Installation ArgoCD via Helm (avec KSOPS)...$(NC)" && \
 	K8S_VERSION=$$(kubectl version -o json | jq -r '.serverVersion.gitVersion' | sed 's/^v//; s/+.*//' ) && \
-	helm template argocd argo/argo-cd --namespace $(ARGOCD_NAMESPACE) --kube-version $$K8S_VERSION | kubectl apply -f - && \
+	helm template argocd argo/argo-cd \
+		--namespace $(ARGOCD_NAMESPACE) \
+		--kube-version $$K8S_VERSION \
+		-f $(ARGOCD_DIR)/argocd-bootstrap-values.yaml | kubectl apply -f - && \
 	echo "   Attente du démarrage d'ArgoCD..." && \
 	kubectl wait --for=condition=available deployment -l app.kubernetes.io/name=argocd-server -n $(ARGOCD_NAMESPACE) --timeout=10m && \
 	echo "" && \
-	echo "$(GREEN)🚀 Étape 4/4: Déploiement des ApplicationSets...$(NC)" && \
+	echo "$(GREEN)🚀 Étape 5/5: Déploiement des ApplicationSets...$(NC)" && \
 	cd $(ARGOCD_DIR) && bash deploy-applicationsets.sh
 
 dev-full: vagrant-dev-up argocd-install-dev
