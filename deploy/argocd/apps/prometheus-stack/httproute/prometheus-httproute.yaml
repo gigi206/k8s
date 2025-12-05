@@ -15,7 +15,7 @@ spec:
     namespace: istio-system
     sectionName: https
   hostnames:
-  - "prometheus.k8s.lan"
+  - "prometheus.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
   rules:
   - matches:
     - path:

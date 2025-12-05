@@ -14,7 +14,7 @@ spec:
     namespace: istio-system
     sectionName: https
   hostnames:
-  - "oauth2.k8s.lan"
+  - "oauth2.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
   rules:
   - matches:
     - path:

@@ -15,7 +15,7 @@ spec:
     namespace: istio-system
     sectionName: https
   hostnames:
-  - "hubble.k8s.lan"
+  - "hubble.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
   rules:
   - matches:
     - path:
