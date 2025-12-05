@@ -10,5 +10,5 @@ spec:
     name: selfsigned-cluster-issuer
     kind: ClusterIssuer
   dnsNames:
-  - "*.k8s.lan"
-  - "k8s.lan"
+  - "*.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+  - "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain

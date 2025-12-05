@@ -25,7 +25,7 @@ spec:
   - name: https
     protocol: HTTPS
     port: 443
-    hostname: "*.k8s.lan"
+    hostname: "*.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
     allowedRoutes:
       namespaces:
         from: All

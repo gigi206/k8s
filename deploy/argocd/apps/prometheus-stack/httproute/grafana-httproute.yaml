@@ -15,7 +15,7 @@ spec:
     namespace: istio-system
     sectionName: https
   hostnames:
-  - "grafana.k8s.lan"
+  - "grafana.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
   rules:
   - matches:
     - path:
