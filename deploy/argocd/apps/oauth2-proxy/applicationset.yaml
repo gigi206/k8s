@@ -212,6 +212,24 @@ spec:
                     release: "{{ .features.monitoring.release }}"
               {{- end }}
 
+              {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+              # Init container to wait for Keycloak OIDC discovery endpoint
+              # Only when using local Keycloak as SSO provider
+              initContainers:
+                - name: wait-for-keycloak
+                  image: curlimages/curl:8.5.0
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      echo "Waiting for Keycloak OIDC discovery endpoint..."
+                      until curl -sf http://keycloak-service.keycloak.svc.cluster.local:8080/realms/k8s/.well-known/openid-configuration > /dev/null 2>&1; do
+                        echo "Keycloak not ready yet, waiting 5s..."
+                        sleep 5
+                      done
+                      echo "Keycloak OIDC discovery endpoint is available!"
+              {{- end }}
+
               # Resources
               resources:
                 requests:
