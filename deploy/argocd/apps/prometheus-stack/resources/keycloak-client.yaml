@@ -19,12 +19,14 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: create-client
-          image: curlimages/curl:8.5.0
+          image: curlimages/curl:8.17.0
           env:
             - name: DOMAIN
               value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
             - name: KEYCLOAK_URL
               value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
+            - name: KEYCLOAK_HEALTH_URL
+              value: "https://keycloak-service.keycloak.svc.cluster.local:9000"
             - name: REALM
               value: "k8s"
             - name: CLIENT_ID
@@ -56,12 +58,12 @@ spec:
 
               # Wait for Keycloak to be ready
               echo "Waiting for Keycloak..."
-              for i in $(seq 1 30); do
-                if curl -sk "$KEYCLOAK_URL/realms/$REALM/.well-known/openid-configuration" > /dev/null 2>&1; then
+              for i in $(seq 1 60); do
+                if curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_HEALTH_URL}/health/ready" | grep -q "200"; then
                   echo "Keycloak is ready"
                   break
                 fi
-                echo "Attempt $i/30 - Keycloak not ready, waiting..."
+                echo "Attempt $i/60 - Keycloak not ready, waiting..."
                 sleep 5
               done
 
