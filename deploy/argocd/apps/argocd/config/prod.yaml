@@ -7,10 +7,8 @@ appName: argocd
 dashboard:
   folder: "ArgoCD"  # Subfolder under baseFolder for ArgoCD dashboards
 
-# versions:
-#   argocd: "9.0.5"
-
 argocd:
+  version: "9.1.6"
   configs:
     params:
       "server.insecure": "false"

@@ -7,10 +7,8 @@ appName: cert-manager
 dashboard:
   folder: "Cert-Manager"  # Sous-dossier pour les dashboards Cert-Manager
 
-# versions:
-#   certManager: "v1.19.1"
-
 certManager:
+  version: "v1.19.1"
   # Gateway API support (v1.15+)
   gatewayAPI:
     enabled: true

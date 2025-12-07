@@ -142,7 +142,7 @@ spec:
           path: deploy/argocd/apps/argocd/secrets/{{ .environment }}
         # Source: Helm chart with dynamic parameters
         - repoURL: https://argoproj.github.io/argo-helm
-          targetRevision: '{{ .versions.argocd }}'
+          targetRevision: '{{ .argocd.version }}'
           chart: argo-cd
           helm:
             parameters:

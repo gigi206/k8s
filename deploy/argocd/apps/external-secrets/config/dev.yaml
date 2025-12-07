@@ -4,6 +4,7 @@ environment: dev
 appName: external-secrets
 
 externalSecrets:
+  version: "1.1.1"
   # Controller replicas (dev: 1)
   replicas: 1
 

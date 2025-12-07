@@ -192,8 +192,8 @@ Le Merge Generator fusionnera automatiquement `config.yaml` avec le fichier `app
 Pour modifier un paramètre :
 
 1. Éditer le fichier de configuration approprié :
-   - **Paramètres communs** (domain, versions) → `config/config.yaml`
-   - **Paramètres spécifiques** à une app → `apps/{app}/config/dev.yaml` ou `apps/{app}/config/prod.yaml`
+   - **Paramètres communs** (domain, feature flags) → `config/config.yaml`
+   - **Paramètres spécifiques** à une app (incluant la version) → `apps/{app}/config/dev.yaml` ou `apps/{app}/config/prod.yaml`
 2. Commit et push vers Git
 3. ArgoCD synchronise automatiquement
 
@@ -453,8 +453,9 @@ Avec `environment: dev` dans `config/config.yaml` :
 environment: dev
 common:
   domain: "example.local"
-versions:
-  metallb: "0.14.9"
+features:
+  metallb:
+    enabled: true
 ```
 
 ```yaml
@@ -463,6 +464,7 @@ environment: dev
 appName: metallb
 
 metallb:
+  version: "0.15.3"  # Version du chart Helm (gérée par Renovate)
   ipAddressPool:
     - name: default
       addresses:
@@ -474,14 +476,18 @@ metallb:
 environment: dev
 common:
   domain: "example.local"
-versions:
-  metallb: "0.14.9"
+features:
+  metallb:
+    enabled: true
 metallb:
+  version: "0.15.3"
   ipAddressPool:
     - name: default
       addresses:
         - 192.168.1.220-192.168.1.250
 ```
+
+**Note** : Les versions des charts Helm sont désormais définies dans chaque fichier de configuration d'application (`apps/{app}/config/*.yaml`), ce qui permet à Renovate de les mettre à jour automatiquement.
 
 Le Merge Generator ne fusionnera que les fichiers ayant la même valeur de `environment`.
 

@@ -49,7 +49,7 @@ spec:
       sources:
         # Source 1: CloudNativePG Helm Chart
         - repoURL: https://cloudnative-pg.github.io/charts
-          targetRevision: '{{ .versions.cnpgOperator }}'
+          targetRevision: '{{ .cnpgOperator.version }}'
           chart: cloudnative-pg
           helm:
             releaseName: cnpg
@@ -93,7 +93,7 @@ spec:
         {{- end }}
         # Source 1: CloudNativePG Helm Chart
         - repoURL: https://cloudnative-pg.github.io/charts
-          targetRevision: '{{ .versions.cnpgOperator }}'
+          targetRevision: '{{ .cnpgOperator.version }}'
           chart: cloudnative-pg
           helm:
             releaseName: cnpg

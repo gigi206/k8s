@@ -49,7 +49,7 @@ spec:
       sources:
         # Source 1: Keycloak Operator (CRDs + Deployment) - repo officiel
         - repoURL: https://github.com/keycloak/keycloak-k8s-resources
-          targetRevision: '{{ .versions.keycloakOperator }}'
+          targetRevision: '{{ .keycloak.operatorVersion }}'
           path: kubernetes
 
       destination:
@@ -99,7 +99,7 @@ spec:
       sources:
         # Source 1: Keycloak Operator (CRDs + Deployment) - repo officiel
         - repoURL: https://github.com/keycloak/keycloak-k8s-resources
-          targetRevision: '{{ .versions.keycloakOperator }}'
+          targetRevision: '{{ .keycloak.operatorVersion }}'
           path: kubernetes
 
         # Source 2: PostgreSQL Cluster (CNPG)

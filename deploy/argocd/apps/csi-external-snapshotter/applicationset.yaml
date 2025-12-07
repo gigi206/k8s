@@ -50,7 +50,7 @@ spec:
 
       source:
         repoURL: https://github.com/kubernetes-csi/external-snapshotter/
-        targetRevision: '{{ .versions.csiSnapshotter }}'
+        targetRevision: '{{ .csiSnapshotter.version }}'
         path: client/config/crd
 
       destination:
@@ -81,7 +81,7 @@ spec:
       sources:
         # Source 1: CSI Snapshot CRDs (external repo)
         - repoURL: https://github.com/kubernetes-csi/external-snapshotter/
-          targetRevision: '{{ .versions.csiSnapshotter }}'
+          targetRevision: '{{ .csiSnapshotter.version }}'
           path: client/config/crd
 
         # Source 2: PrometheusRules (avec label release)
