@@ -7,10 +7,8 @@ appName: traefik
 dashboard:
   folder: "Traefik"  # Sous-dossier pour les dashboards Traefik
 
-# versions:
-#   traefik: "35.0.1"
-
 traefik:
+  version: "37.4.0"
   deployment:
     # Kind: Deployment or DaemonSet
     kind: "Deployment"

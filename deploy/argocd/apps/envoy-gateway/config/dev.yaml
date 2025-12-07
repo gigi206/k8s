@@ -3,10 +3,8 @@
 environment: dev
 appName: envoy-gateway
 
-versions:
-  envoyGateway: "v1.6.0"
-
 envoyGateway:
+  version: "v1.6.1"
   replicas: 1
   gatewayClassName: envoy  # GatewayClass name pour Envoy Gateway
   resources:

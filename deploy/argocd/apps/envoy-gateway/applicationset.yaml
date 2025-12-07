@@ -81,7 +81,7 @@ spec:
         # Source 0: Envoy Gateway Helm Chart (OCI)
         - repoURL: oci://docker.io/envoyproxy/gateway-helm
           chart: gateway-helm
-          targetRevision: '{{ .versions.envoyGateway }}'
+          targetRevision: '{{ .envoyGateway.version }}'
           helm:
             releaseName: envoy-gateway
             valuesObject:
@@ -118,7 +118,7 @@ spec:
       source:
         repoURL: oci://docker.io/envoyproxy/gateway-helm
         chart: gateway-helm
-        targetRevision: '{{ .versions.envoyGateway }}'
+        targetRevision: '{{ .envoyGateway.version }}'
         helm:
           releaseName: envoy-gateway
           valuesObject:

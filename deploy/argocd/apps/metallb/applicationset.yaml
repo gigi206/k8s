@@ -51,7 +51,7 @@ spec:
       sources:
         # Source 1: Chart Helm MetalLB
         - repoURL: https://metallb.github.io/metallb
-          targetRevision: '{{ .versions.metallb }}'
+          targetRevision: '{{ .metallb.version }}'
           chart: metallb
           helm:
             parameters:
@@ -91,7 +91,7 @@ spec:
       sources:
         # Source 1: Chart Helm MetalLB
         - repoURL: https://metallb.github.io/metallb
-          targetRevision: '{{ .versions.metallb }}'
+          targetRevision: '{{ .metallb.version }}'
           chart: metallb
           helm:
             parameters:

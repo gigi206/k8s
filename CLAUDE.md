@@ -32,12 +32,44 @@ This project uses ArgoCD ApplicationSets to declaratively manage applications:
 
 ### Configuration Hierarchy
 
-1. **Global Config**: `deploy/argocd/config/config.yaml` (shared defaults, common variables)
-2. **App-Specific Config**: `deploy/argocd/apps/<app-name>/config/dev.yaml` or `prod.yaml`
+1. **Global Config**: `deploy/argocd/config/config.yaml` (shared defaults, feature flags, common variables)
+2. **App-Specific Config**: `deploy/argocd/apps/<app-name>/config/dev.yaml` or `prod.yaml` (app settings + **chart version**)
 3. **ApplicationSet**: `deploy/argocd/apps/<app-name>/applicationset.yaml` (templates the Application)
 4. **Resources**: `deploy/argocd/apps/<app-name>/resources/` (K8s manifests, values files, etc.)
 
 The Merge Generator combines global config + app config, then ApplicationSet uses Go templates to generate the final Application.
+
+### Version Management
+
+**IMPORTANT**: Each application manages its own Helm chart version in its config files. This enables Renovate/Dependabot to automatically update versions.
+
+**Version location**: `apps/<app-name>/config/dev.yaml` and `prod.yaml`
+
+**Example**:
+```yaml
+# apps/metallb/config/dev.yaml
+environment: dev
+appName: metallb
+
+metallb:
+  version: "0.15.3"  # Helm chart version - Renovate will update this
+  ipAddressPool:
+    - name: default
+      addresses:
+        - 192.168.121.220-192.168.121.250
+```
+
+**ApplicationSet reference**: `{{ .metallb.version }}` (not `{{ .versions.metallb }}`)
+
+**Apps with multiple charts** (e.g., external-dns with coredns and etcd):
+```yaml
+# apps/external-dns/config/dev.yaml
+externalDns:
+  versions:
+    chart: "1.19.0"    # main external-dns chart
+    coredns: "1.45.0"  # coredns chart
+    etcd: "1.1.4"      # etcd chart
+```
 
 ### Directory Structure per Application
 

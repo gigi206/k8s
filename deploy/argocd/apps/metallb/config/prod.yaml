@@ -3,11 +3,8 @@
 environment: prod
 appName: metallb
 
-
-# versions:
-#   metallb: "0.15.2"
-
 metallb:
+  version: "0.15.3"
   ipAddressPool:
     - name: default
       addresses:
