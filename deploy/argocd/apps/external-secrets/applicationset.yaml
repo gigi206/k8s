@@ -81,7 +81,7 @@ spec:
         {{- end }}
         # Source: Helm chart
         - repoURL: https://charts.external-secrets.io
-          targetRevision: '{{ .versions.externalSecrets }}'
+          targetRevision: '{{ .externalSecrets.version }}'
           chart: external-secrets
           helm:
             parameters:

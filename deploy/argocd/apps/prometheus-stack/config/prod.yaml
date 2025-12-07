@@ -3,10 +3,8 @@
 environment: prod
 appName: prometheus-stack
 
-# versions:
-#   prometheusStack: "79.0.0"
-
 prometheusStack:
+  version: "80.0.0"
   prometheus:
     # Retention and storage
     retention: "7d"

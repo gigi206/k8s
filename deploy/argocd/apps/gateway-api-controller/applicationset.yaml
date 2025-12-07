@@ -47,7 +47,7 @@ spec:
 
       source:
         repoURL: 'https://github.com/kubernetes-sigs/gateway-api/'
-        targetRevision: '{{ .versions.gatewayApiController }}'
+        targetRevision: '{{ .gatewayApiController.version }}'
         path: '{{ .gatewayApiController.crdPath | default "config/crd/experimental" }}'
 
       destination:
@@ -77,7 +77,7 @@ spec:
       sources:
         # Source 1: Gateway API CRDs
         - repoURL: 'https://github.com/kubernetes-sigs/gateway-api/'
-          targetRevision: '{{ .versions.gatewayApiController }}'
+          targetRevision: '{{ .gatewayApiController.version }}'
           path: '{{ .gatewayApiController.crdPath | default "config/crd/experimental" }}'
         {{- if .features.monitoring.enabled }}
         # Source 2: Prometheus monitoring (conditional)

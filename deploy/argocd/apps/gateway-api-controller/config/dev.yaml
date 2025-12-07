@@ -4,6 +4,7 @@ environment: dev
 appName: gateway-api-controller
 
 gatewayApiController:
+  version: "v1.4.1"
   # CRD path (experimental pour avoir Gateway API v1)
   crdPath: "config/crd/experimental"
 

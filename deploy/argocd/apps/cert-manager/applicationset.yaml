@@ -51,7 +51,7 @@ spec:
       sources:
         # Source 1: Chart Helm Cert-Manager
         - repoURL: https://charts.jetstack.io
-          targetRevision: '{{ .versions.certManager }}'
+          targetRevision: '{{ .certManager.version }}'
           chart: cert-manager
           helm:
             parameters:
@@ -109,7 +109,7 @@ spec:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
         - repoURL: https://charts.jetstack.io
-          targetRevision: '{{ .versions.certManager }}'
+          targetRevision: '{{ .certManager.version }}'
           chart: cert-manager
           helm:
             parameters:

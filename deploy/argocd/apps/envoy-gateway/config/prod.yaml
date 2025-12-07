@@ -3,10 +3,8 @@
 environment: prod
 appName: envoy-gateway
 
-versions:
-  envoyGateway: "v1.6.0"
-
 envoyGateway:
+  version: "v1.6.1"
   replicas: 3  # HA en production
   gatewayClassName: envoy
   resources:

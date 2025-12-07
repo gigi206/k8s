@@ -49,13 +49,13 @@ spec:
 
       source:
         repoURL: https://github.com/nginxinc/nginx-gateway-fabric
-        targetRevision: '{{ .versions.nginxGatewayFabric }}'
+        targetRevision: '{{ .nginxGatewayFabric.version }}'
         path: charts/nginx-gateway-fabric
         helm:
           parameters:
-            # Nombre de réplicas
-            - name: nginxGateway.replicaCount
-              value: '{{ .nginxGatewayFabric.replicas | default "1" }}'
+            # Nombre de réplicas (renamed in v2.0.0: replicaCount -> replicas)
+            - name: nginxGateway.replicas
+              value: '{{ .nginxGatewayFabric.replicas | default 1 }}'
 
             # Service type (LoadBalancer pour MetalLB)
             - name: nginxGateway.service.type
@@ -91,13 +91,13 @@ spec:
       {{- end }}
       source:
         repoURL: https://github.com/nginxinc/nginx-gateway-fabric
-        targetRevision: '{{ .versions.nginxGatewayFabric }}'
+        targetRevision: '{{ .nginxGatewayFabric.version }}'
         path: charts/nginx-gateway-fabric
         helm:
           parameters:
-            # Nombre de réplicas
-            - name: nginxGateway.replicaCount
-              value: '{{ .nginxGatewayFabric.replicas | default "1" }}'
+            # Nombre de réplicas (renamed in v2.0.0: replicaCount -> replicas)
+            - name: nginxGateway.replicas
+              value: '{{ .nginxGatewayFabric.replicas | default 1 }}'
 
             # Service type
             - name: nginxGateway.service.type

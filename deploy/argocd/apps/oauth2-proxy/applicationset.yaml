@@ -45,7 +45,7 @@ spec:
 
       source:
         repoURL: https://oauth2-proxy.github.io/manifests
-        targetRevision: '{{ .versions.oauth2Proxy }}'
+        targetRevision: '{{ .oauth2Proxy.version }}'
         chart: oauth2-proxy
 
       destination:
@@ -128,7 +128,7 @@ spec:
         {{- end }}
         # Source 4: Helm chart
         - repoURL: https://oauth2-proxy.github.io/manifests
-          targetRevision: '{{ .versions.oauth2Proxy }}'
+          targetRevision: '{{ .oauth2Proxy.version }}'
           chart: oauth2-proxy
           helm:
             valuesObject:

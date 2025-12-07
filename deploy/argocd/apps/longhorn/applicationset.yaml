@@ -51,7 +51,7 @@ spec:
       sources:
         # Source 1: Longhorn Helm Chart
         - repoURL: https://charts.longhorn.io
-          targetRevision: '{{ .versions.longhorn }}'
+          targetRevision: '{{ .longhorn.version }}'
           chart: longhorn
           helm:
             valueFiles:
@@ -115,7 +115,7 @@ spec:
         {{- end }}
         # Source: Longhorn Helm Chart
         - repoURL: https://charts.longhorn.io
-          targetRevision: '{{ .versions.longhorn }}'
+          targetRevision: '{{ .longhorn.version }}'
           chart: longhorn
           helm:
             valueFiles:
