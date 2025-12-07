@@ -4,7 +4,7 @@ appName: istio
 
 istio:
   namespace: istio-system
-  version: "1.28.0"  # Latest Istio 1.28.x with improved ambient mesh support
+  version: "1.28.1"  # Latest Istio 1.28.x with improved ambient mesh support
 
   # Istiod (Control Plane)
   pilot:
@@ -49,7 +49,7 @@ istio:
 # Kiali (Service Mesh Observability)
 kiali:
   enabled: true
-  version: "2.4.0"  # Latest Kiali stable version
+  version: "2.19.0"  # Latest Kiali stable version
   replicas: 1  # Dev: single replica
 
   resources:
