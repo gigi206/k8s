@@ -318,27 +318,346 @@ setup_sops_secret() {
 setup_sops_secret
 
 # =============================================================================
-# Liste des ApplicationSets
+# Lecture des feature flags depuis config.yaml
 # =============================================================================
 
-APPLICATIONSETS=(
-  "apps/metallb/applicationset.yaml"                    # Wave 10
-  "apps/kube-vip/applicationset.yaml"                   # Wave 15
-  "apps/gateway-api-controller/applicationset.yaml"     # Wave 15
-  "apps/cert-manager/applicationset.yaml"               # Wave 20
-  "apps/external-secrets/applicationset.yaml"           # Wave 25
-  "apps/external-dns/applicationset.yaml"               # Wave 30
-  "apps/istio/applicationset.yaml"                      # Wave 40
-  "apps/istio-gateway/applicationset.yaml"              # Wave 41
-  "apps/argocd/applicationset.yaml"                     # Wave 50
-  "apps/csi-external-snapshotter/applicationset.yaml"   # Wave 55
-  "apps/longhorn/applicationset.yaml"                   # Wave 60
-  "apps/cnpg-operator/applicationset.yaml"              # Wave 65
-  "apps/prometheus-stack/applicationset.yaml"           # Wave 75
-  "apps/cilium-monitoring/applicationset.yaml"          # Wave 76
-  "apps/keycloak/applicationset.yaml"                   # Wave 80
-  "apps/oauth2-proxy/applicationset.yaml"               # Wave 81
-)
+CONFIG_FILE="${SCRIPT_DIR}/config/config.yaml"
+
+get_feature() {
+  local path="$1"
+  local default="${2:-false}"
+  local value
+  value=$(yq -r "$path // \"$default\"" "$CONFIG_FILE" 2>/dev/null)
+  # Normaliser les valeurs booléennes
+  case "$value" in
+    true|True|TRUE|yes|Yes|YES|1) echo "true" ;;
+    false|False|FALSE|no|No|NO|0|null|"") echo "$default" ;;
+    *) echo "$value" ;;
+  esac
+}
+
+log_info "Lecture des feature flags depuis config.yaml..."
+
+# Lecture des feature flags
+FEAT_METALLB=$(get_feature '.features.metallb.enabled' 'true')
+FEAT_KUBEVIP=$(get_feature '.features.kubeVip.enabled' 'true')
+FEAT_GATEWAY_API=$(get_feature '.features.gatewayAPI.enabled' 'true')
+FEAT_GATEWAY_CONTROLLER=$(get_feature '.features.gatewayAPI.controller.provider' 'istio')
+FEAT_CERT_MANAGER=$(get_feature '.features.certManager.enabled' 'true')
+FEAT_EXTERNAL_SECRETS=$(get_feature '.features.externalSecrets.enabled' 'true')
+FEAT_EXTERNAL_DNS=$(get_feature '.features.externalDns.enabled' 'true')
+FEAT_SERVICE_MESH=$(get_feature '.features.serviceMesh.enabled' 'true')
+FEAT_SERVICE_MESH_PROVIDER=$(get_feature '.features.serviceMesh.provider' 'istio')
+FEAT_STORAGE=$(get_feature '.features.storage.enabled' 'true')
+FEAT_STORAGE_PROVIDER=$(get_feature '.features.storage.provider' 'longhorn')
+FEAT_CSI_SNAPSHOTTER=$(get_feature '.features.storage.csiSnapshotter' 'true')
+FEAT_DATABASE_OPERATOR=$(get_feature '.features.databaseOperator.enabled' 'true')
+FEAT_DATABASE_PROVIDER=$(get_feature '.features.databaseOperator.provider' 'cnpg')
+FEAT_MONITORING=$(get_feature '.features.monitoring.enabled' 'true')
+FEAT_CILIUM_MONITORING=$(get_feature '.features.cilium.monitoring.enabled' 'true')
+FEAT_SSO=$(get_feature '.features.sso.enabled' 'true')
+FEAT_SSO_PROVIDER=$(get_feature '.features.sso.provider' 'keycloak')
+FEAT_OAUTH2_PROXY=$(get_feature '.features.oauth2Proxy.enabled' 'true')
+
+log_debug "Feature flags lus:"
+log_debug "  metallb: $FEAT_METALLB"
+log_debug "  kubeVip: $FEAT_KUBEVIP"
+log_debug "  gatewayAPI: $FEAT_GATEWAY_API (controller: $FEAT_GATEWAY_CONTROLLER)"
+log_debug "  certManager: $FEAT_CERT_MANAGER"
+log_debug "  externalSecrets: $FEAT_EXTERNAL_SECRETS"
+log_debug "  externalDns: $FEAT_EXTERNAL_DNS"
+log_debug "  serviceMesh: $FEAT_SERVICE_MESH ($FEAT_SERVICE_MESH_PROVIDER)"
+log_debug "  storage: $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
+log_debug "  csiSnapshotter: $FEAT_CSI_SNAPSHOTTER"
+log_debug "  databaseOperator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
+log_debug "  monitoring: $FEAT_MONITORING"
+log_debug "  cilium.monitoring: $FEAT_CILIUM_MONITORING"
+log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
+log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
+
+# =============================================================================
+# Résolution automatique des dépendances
+# =============================================================================
+# Cette fonction active automatiquement les features requises par d'autres features
+# Exemple: Keycloak active automatiquement databaseOperator, externalSecrets, certManager
+
+resolve_dependencies() {
+  local changes_made=true
+  local iteration=0
+  local max_iterations=5  # Éviter les boucles infinies
+
+  log_info "Résolution des dépendances..."
+
+  while [[ "$changes_made" == "true" ]] && [[ $iteration -lt $max_iterations ]]; do
+    changes_made=false
+    iteration=$((iteration + 1))
+
+    # =========================================================================
+    # Keycloak → databaseOperator + externalSecrets + certManager
+    # =========================================================================
+    if [[ "$FEAT_SSO" == "true" ]] && [[ "$FEAT_SSO_PROVIDER" == "keycloak" ]]; then
+      if [[ "$FEAT_DATABASE_OPERATOR" != "true" ]]; then
+        log_info "  → Activation de databaseOperator (requis par Keycloak)"
+        FEAT_DATABASE_OPERATOR="true"
+        FEAT_DATABASE_PROVIDER="${FEAT_DATABASE_PROVIDER:-cnpg}"
+        changes_made=true
+      fi
+      if [[ "$FEAT_EXTERNAL_SECRETS" != "true" ]]; then
+        log_info "  → Activation de externalSecrets (requis par Keycloak)"
+        FEAT_EXTERNAL_SECRETS="true"
+        changes_made=true
+      fi
+      if [[ "$FEAT_CERT_MANAGER" != "true" ]]; then
+        log_info "  → Activation de certManager (requis par Keycloak)"
+        FEAT_CERT_MANAGER="true"
+        changes_made=true
+      fi
+    fi
+
+    # =========================================================================
+    # istio-gateway → serviceMesh (Istio)
+    # =========================================================================
+    if [[ "$FEAT_GATEWAY_CONTROLLER" == "istio" ]]; then
+      if [[ "$FEAT_SERVICE_MESH" != "true" ]]; then
+        log_info "  → Activation de serviceMesh (requis par istio-gateway)"
+        FEAT_SERVICE_MESH="true"
+        FEAT_SERVICE_MESH_PROVIDER="istio"
+        changes_made=true
+      elif [[ "$FEAT_SERVICE_MESH_PROVIDER" != "istio" ]]; then
+        log_warning "  → Changement serviceMesh.provider vers 'istio' (requis par istio-gateway)"
+        FEAT_SERVICE_MESH_PROVIDER="istio"
+        changes_made=true
+      fi
+    fi
+
+    # =========================================================================
+    # oauth2-proxy (ext_authz mode) → serviceMesh (Istio)
+    # =========================================================================
+    # Note: OAuth2-Proxy peut fonctionner sans Istio (mode standalone),
+    # mais pour ext_authz, Istio est requis
+    if [[ "$FEAT_OAUTH2_PROXY" == "true" ]]; then
+      if [[ "$FEAT_SERVICE_MESH" != "true" ]] || [[ "$FEAT_SERVICE_MESH_PROVIDER" != "istio" ]]; then
+        log_warning "  ⚠ OAuth2-Proxy: mode ext_authz nécessite Istio. Mode standalone utilisé."
+      fi
+    fi
+
+    # =========================================================================
+    # cilium-monitoring → monitoring
+    # =========================================================================
+    if [[ "$FEAT_CILIUM_MONITORING" == "true" ]]; then
+      if [[ "$FEAT_MONITORING" != "true" ]]; then
+        log_info "  → Activation de monitoring (requis par cilium-monitoring)"
+        FEAT_MONITORING="true"
+        changes_made=true
+      fi
+    fi
+
+    # =========================================================================
+    # longhorn → csiSnapshotter (recommandé)
+    # =========================================================================
+    if [[ "$FEAT_STORAGE" == "true" ]] && [[ "$FEAT_STORAGE_PROVIDER" == "longhorn" ]]; then
+      if [[ "$FEAT_CSI_SNAPSHOTTER" != "true" ]]; then
+        log_info "  → Activation de csiSnapshotter (recommandé pour Longhorn)"
+        FEAT_CSI_SNAPSHOTTER="true"
+        changes_made=true
+      fi
+    fi
+
+    # =========================================================================
+    # gatewayAPI CRDs → requis si un controller Gateway API est configuré
+    # =========================================================================
+    if [[ "$FEAT_GATEWAY_CONTROLLER" == "istio" ]] || \
+       [[ "$FEAT_GATEWAY_CONTROLLER" == "nginx-gateway-fabric" ]] || \
+       [[ "$FEAT_GATEWAY_CONTROLLER" == "envoy-gateway" ]] || \
+       [[ "$FEAT_GATEWAY_CONTROLLER" == "apisix" ]] || \
+       [[ "$FEAT_GATEWAY_CONTROLLER" == "traefik" ]]; then
+      if [[ "$FEAT_GATEWAY_API" != "true" ]]; then
+        log_info "  → Activation de gatewayAPI (requis par $FEAT_GATEWAY_CONTROLLER)"
+        FEAT_GATEWAY_API="true"
+        changes_made=true
+      fi
+    fi
+
+  done
+
+  if [[ $iteration -ge $max_iterations ]]; then
+    log_warning "Résolution des dépendances: nombre max d'itérations atteint"
+  fi
+
+  log_success "Dépendances résolues (${iteration} itération(s))"
+}
+
+# =============================================================================
+# Validation finale des dépendances (erreurs critiques)
+# =============================================================================
+# Vérifie les incohérences qui ne peuvent pas être résolues automatiquement
+
+validate_dependencies() {
+  local errors=0
+
+  # Vérifier les conflits de providers
+  if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" != "istio" ]]; then
+    if [[ "$FEAT_GATEWAY_CONTROLLER" == "istio" ]]; then
+      log_error "Conflit: gatewayAPI.controller.provider=istio mais serviceMesh.provider=$FEAT_SERVICE_MESH_PROVIDER"
+      errors=$((errors + 1))
+    fi
+  fi
+
+  # Vérifier que le provider de database operator est supporté
+  if [[ "$FEAT_DATABASE_OPERATOR" == "true" ]]; then
+    case "$FEAT_DATABASE_PROVIDER" in
+      cnpg) ;;  # OK
+      *)
+        log_error "Database provider '$FEAT_DATABASE_PROVIDER' non supporté (seul 'cnpg' est disponible)"
+        errors=$((errors + 1))
+        ;;
+    esac
+  fi
+
+  # Vérifier que le storage provider est supporté
+  if [[ "$FEAT_STORAGE" == "true" ]]; then
+    case "$FEAT_STORAGE_PROVIDER" in
+      longhorn) ;;  # OK
+      *)
+        log_error "Storage provider '$FEAT_STORAGE_PROVIDER' non supporté (seul 'longhorn' est disponible)"
+        errors=$((errors + 1))
+        ;;
+    esac
+  fi
+
+  # Vérifier que le gateway controller est supporté
+  case "$FEAT_GATEWAY_CONTROLLER" in
+    istio|nginx-gateway-fabric|envoy-gateway|apisix|traefik|nginx|"") ;;  # OK
+    *)
+      log_error "Gateway controller '$FEAT_GATEWAY_CONTROLLER' non supporté"
+      errors=$((errors + 1))
+      ;;
+  esac
+
+  if [[ $errors -gt 0 ]]; then
+    log_error "$errors erreur(s) de configuration détectée(s)"
+    exit 1
+  fi
+
+  log_success "Validation des dépendances OK"
+}
+
+# Appeler dans cet ordre
+resolve_dependencies
+validate_dependencies
+
+# =============================================================================
+# Construction dynamique de la liste des ApplicationSets
+# =============================================================================
+
+log_info "Construction de la liste des ApplicationSets..."
+
+APPLICATIONSETS=()
+
+# Wave 10: Load Balancer
+[[ "$FEAT_METALLB" == "true" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
+
+# Wave 15: API HA + Gateway API CRDs
+[[ "$FEAT_KUBEVIP" == "true" ]] && APPLICATIONSETS+=("apps/kube-vip/applicationset.yaml")
+[[ "$FEAT_GATEWAY_API" == "true" ]] && APPLICATIONSETS+=("apps/gateway-api-controller/applicationset.yaml")
+
+# Wave 20: Certificates
+[[ "$FEAT_CERT_MANAGER" == "true" ]] && APPLICATIONSETS+=("apps/cert-manager/applicationset.yaml")
+
+# Wave 25: Secrets Management
+[[ "$FEAT_EXTERNAL_SECRETS" == "true" ]] && APPLICATIONSETS+=("apps/external-secrets/applicationset.yaml")
+
+# Wave 30: DNS
+[[ "$FEAT_EXTERNAL_DNS" == "true" ]] && APPLICATIONSETS+=("apps/external-dns/applicationset.yaml")
+
+# Wave 40-42: Service Mesh + Gateway Controller
+if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" == "istio" ]]; then
+  APPLICATIONSETS+=("apps/istio/applicationset.yaml")
+fi
+
+# Gateway Controller (basé sur gatewayAPI.controller.provider)
+if [[ -n "$FEAT_GATEWAY_CONTROLLER" ]]; then
+  case "$FEAT_GATEWAY_CONTROLLER" in
+    istio)
+      # istio-gateway nécessite le service mesh Istio
+      if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" == "istio" ]]; then
+        APPLICATIONSETS+=("apps/istio-gateway/applicationset.yaml")
+      else
+        log_warning "gatewayAPI.controller.provider=istio nécessite serviceMesh.enabled=true"
+      fi
+      ;;
+    nginx-gateway-fabric)
+      APPLICATIONSETS+=("apps/nginx-gateway-fabric/applicationset.yaml")
+      ;;
+    envoy-gateway)
+      APPLICATIONSETS+=("apps/envoy-gateway/applicationset.yaml")
+      ;;
+    apisix)
+      APPLICATIONSETS+=("apps/apisix/applicationset.yaml")
+      ;;
+    traefik)
+      APPLICATIONSETS+=("apps/traefik/applicationset.yaml")
+      ;;
+    nginx)
+      # Legacy Ingress NGINX (pas Gateway API natif)
+      APPLICATIONSETS+=("apps/ingress-nginx/applicationset.yaml")
+      ;;
+  esac
+fi
+
+# Wave 50: GitOps Controller (toujours déployé)
+APPLICATIONSETS+=("apps/argocd/applicationset.yaml")
+
+# Wave 55-60: Storage
+if [[ "$FEAT_STORAGE" == "true" ]]; then
+  [[ "$FEAT_CSI_SNAPSHOTTER" == "true" ]] && APPLICATIONSETS+=("apps/csi-external-snapshotter/applicationset.yaml")
+
+  case "$FEAT_STORAGE_PROVIDER" in
+    longhorn)
+      APPLICATIONSETS+=("apps/longhorn/applicationset.yaml")
+      ;;
+  esac
+fi
+
+# Wave 65: Database Operator
+if [[ "$FEAT_DATABASE_OPERATOR" == "true" ]]; then
+  case "$FEAT_DATABASE_PROVIDER" in
+    cnpg)
+      APPLICATIONSETS+=("apps/cnpg-operator/applicationset.yaml")
+      ;;
+  esac
+fi
+
+# Wave 75-76: Monitoring
+if [[ "$FEAT_MONITORING" == "true" ]]; then
+  APPLICATIONSETS+=("apps/prometheus-stack/applicationset.yaml")
+fi
+
+# Cilium monitoring (séparé car CNI spécifique)
+if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]]; then
+  APPLICATIONSETS+=("apps/cilium-monitoring/applicationset.yaml")
+fi
+
+# Wave 80-81: SSO + OAuth2-Proxy
+if [[ "$FEAT_SSO" == "true" ]]; then
+  case "$FEAT_SSO_PROVIDER" in
+    keycloak)
+      APPLICATIONSETS+=("apps/keycloak/applicationset.yaml")
+      ;;
+    external)
+      log_info "SSO avec IdP externe - Keycloak non déployé"
+      ;;
+  esac
+fi
+
+# OAuth2-Proxy (indépendant du SSO - peut utiliser IdP externe)
+[[ "$FEAT_OAUTH2_PROXY" == "true" ]] && APPLICATIONSETS+=("apps/oauth2-proxy/applicationset.yaml")
+
+# Afficher la liste finale
+log_info "ApplicationSets à déployer (${#APPLICATIONSETS[@]}):"
+for appset in "${APPLICATIONSETS[@]}"; do
+  log_debug "  - $appset"
+done
 
 # Vérifier que tous les fichiers existent
 log_info "Vérification des fichiers ApplicationSets..."
@@ -680,6 +999,27 @@ else
   echo "  export KUBECONFIG=${SCRIPT_DIR}/../../vagrant/.kube/config-${ENVIRONMENT}"
 fi
 echo "  kubectl get nodes"
+echo ""
+
+# =============================================================================
+# Résumé de la configuration déployée
+# =============================================================================
+
+echo ""
+echo -e "${GREEN}🔧 Configuration déployée:${RESET}"
+echo "  MetalLB:           $FEAT_METALLB"
+echo "  Kube-VIP:          $FEAT_KUBEVIP"
+echo "  Gateway API:       $FEAT_GATEWAY_API (controller: $FEAT_GATEWAY_CONTROLLER)"
+echo "  Cert-Manager:      $FEAT_CERT_MANAGER"
+echo "  External-Secrets:  $FEAT_EXTERNAL_SECRETS"
+echo "  External-DNS:      $FEAT_EXTERNAL_DNS"
+echo "  Service Mesh:      $FEAT_SERVICE_MESH ($FEAT_SERVICE_MESH_PROVIDER)"
+echo "  Storage:           $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
+echo "  Database Operator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
+echo "  Monitoring:        $FEAT_MONITORING"
+echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
+echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
+echo "  OAuth2-Proxy:      $FEAT_OAUTH2_PROXY"
 echo ""
 
 log_success "Déploiement terminé! 🎉"
