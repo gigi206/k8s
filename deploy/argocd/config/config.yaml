@@ -70,35 +70,74 @@ versions:
   oauth2Proxy: "9.0.0"
 
 # Feature flags - Activation des composants
-features:
-  metallb:
-    enabled: true
+# =============================================================================
+# Ces flags contrôlent le déploiement dynamique des ApplicationSets.
+# Le script deploy-applicationsets.sh lit ces valeurs et construit
+# automatiquement la liste des applications à déployer.
+#
+# Dépendances automatiques (résolues par le script):
+#   - sso.provider=keycloak → active databaseOperator, externalSecrets, certManager
+#   - gatewayAPI.controller.provider=istio → active serviceMesh (istio), gatewayAPI
+#   - cilium.monitoring.enabled → active monitoring
+#   - storage.provider=longhorn → active csiSnapshotter (recommandé)
+# =============================================================================
 
+features:
+  # === Infrastructure Core ===
+  metallb:
+    enabled: true  # Wave 10: LoadBalancer Layer 2
+
+  kubeVip:
+    enabled: true  # Wave 15: VIP pour API Kubernetes HA
+
+  # === Certificates ===
   certManager:
-    enabled: true
+    enabled: true  # Wave 20: Gestion des certificats TLS
     issuerType: "letsencrypt-staging"
     # issuerType: "letsencrypt-prod"
 
+  # === Secrets Management ===
+  externalSecrets:
+    enabled: true  # Wave 25: External Secrets Operator
+
+  # === DNS ===
   externalDns:
-    enabled: true
-    # provider: "coredns"  # ou: aws, google, azure, etc.
+    enabled: true  # Wave 30: Automation DNS
+    # provider: "coredns"  # ou: aws, google, azure, cloudflare, etc.
 
-  ingress:
-    enabled: false  # Disabled - using Gateway API HTTPRoute instead
-    class: "istio"  # Used by deploy-applicationsets.sh to patch Ingress resources if needed
-                    # For Istio, we use Gateway API, but some legacy charts might still create Ingress
+  # === Service Mesh ===
+  serviceMesh:
+    enabled: true      # Wave 40: Service Mesh (control plane + data plane)
+    provider: "istio"  # istio, linkerd (futur)
 
+  # === Gateway API ===
   gatewayAPI:
+    enabled: true  # Wave 15: Gateway API CRDs (gateway-api-controller)
     httpRoute:
-      enabled: true  # Enable HTTPRoute resources (Gateway API)
+      enabled: true  # Utilise HTTPRoute dans les ApplicationSets
+    controller:
+      provider: "istio"  # Wave 41: istio, nginx-gateway-fabric, envoy-gateway, apisix, traefik, nginx
 
+  # === Legacy Ingress (déprécié) ===
+  ingress:
+    enabled: false  # Support Ingress legacy (patch des ressources)
+    class: "istio"  # Classe dérivée de gatewayAPI.controller.provider si non spécifiée
+
+  # === Storage ===
   storage:
-    enabled: true
-    class: "longhorn"
-    csiSnapshotter: true  # CSI External Snapshotter (requis pour Longhorn)
+    enabled: true        # Wave 60: Stockage distribué
+    provider: "longhorn" # Provider selection: longhorn (seul provider actuellement supporté)
+    class: "longhorn"    # Kubernetes StorageClass name (used by workloads for PVCs)
+    csiSnapshotter: true # Wave 55: CSI External Snapshotter (requis pour snapshots)
 
+  # === Database Operator ===
+  databaseOperator:
+    enabled: true    # Wave 65: Opérateur PostgreSQL
+    provider: "cnpg" # cnpg (CloudNativePG)
+
+  # === Monitoring ===
   monitoring:
-    enabled: true
+    enabled: true  # Wave 75: Prometheus + Grafana
     prometheus: true
     grafana: true
     release: "prometheus-stack"  # Release name for ServiceMonitor discovery
@@ -107,12 +146,26 @@ features:
       baseFolder: "/tmp/dashboards"  # Base folder for dashboard organization
       folderAnnotation: "grafana_dashboard_folder"  # Annotation name for dashboard folder path
 
-  # SSO (Single Sign-On) - Keycloak + OAuth2-Proxy
+  # === Cilium Monitoring ===
+  cilium:
+    monitoring:
+      enabled: true  # Wave 76: ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
+
+  # === SSO / Authentication ===
+  # sso.provider=keycloak déploie Keycloak local
+  # sso.provider=external utilise un IdP externe (Okta, Auth0, Azure AD, etc.)
   # When disabled:
-  #   - Keycloak and OAuth2-Proxy are NOT deployed
+  #   - Keycloak is NOT deployed
   #   - ArgoCD uses local admin authentication
   #   - Grafana uses local admin (admin/password from secrets)
   #   - Kiali uses anonymous authentication
   #   - Prometheus/Alertmanager/Hubble/Longhorn are accessible without auth
   sso:
     enabled: true
+    provider: "keycloak"  # Wave 80: keycloak ou external (IdP externe)
+
+  # === OAuth2 Proxy ===
+  # Indépendant du SSO - peut être utilisé avec Keycloak local OU IdP externe
+  # Utilisé en mode ext_authz avec Istio (auth seulement, pas de proxy du trafic)
+  oauth2Proxy:
+    enabled: true  # Wave 81: OAuth2 Proxy pour authentification OIDC

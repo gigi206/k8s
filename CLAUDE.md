@@ -58,7 +58,9 @@ deploy/argocd/apps/<app-name>/
 ```
 deploy-applicationsets.sh script
   → Creates sops-age-key secret (from sops/age-{env}.key)
-  → Applies ApplicationSets from hardcoded list in script
+  → Reads feature flags from config/config.yaml
+  → Resolves dependencies automatically (e.g., Keycloak → CNPG + External-Secrets)
+  → Builds dynamic ApplicationSet list based on enabled features
   → Uses `yq` to parse configuration (installed via `mise`)
   → Each ApplicationSet uses Git Merge Generator:
       - Reads deploy/argocd/config/config.yaml (global)
@@ -71,7 +73,7 @@ deploy-applicationsets.sh script
   → Patches Ingress resources (if any) with configured ingress class
 ```
 
-ApplicationSets are explicitly listed in the script, not auto-discovered. This allows selective deployment.
+ApplicationSets are dynamically selected based on feature flags in `config.yaml`. The script automatically resolves dependencies between components.
 
 ### Sync Wave Strategy
 
@@ -90,21 +92,164 @@ Applications deploy in order via `argocd.argoproj.io/sync-wave` annotations:
 
 **Note**: Prometheus-Stack is in Wave 75 (not 70) to give Longhorn time to fully initialize the StorageClass before Prometheus tries to create PVCs. Cilium-Monitoring is in Wave 76 to ensure Prometheus CRDs are available.
 
+### Feature Flags and Dynamic Deployment
+
+The `deploy-applicationsets.sh` script dynamically selects which ApplicationSets to deploy based on feature flags in `config/config.yaml`. This allows flexible infrastructure configurations.
+
+#### Feature Flags Structure
+
+```yaml
+# deploy/argocd/config/config.yaml
+features:
+  # Infrastructure Core
+  metallb:
+    enabled: true           # Wave 10: LoadBalancer Layer 2
+  kubeVip:
+    enabled: true           # Wave 15: VIP for Kubernetes API HA
+
+  # Certificates & Secrets
+  certManager:
+    enabled: true           # Wave 20: TLS certificate management
+  externalSecrets:
+    enabled: true           # Wave 25: External Secrets Operator
+
+  # DNS
+  externalDns:
+    enabled: true           # Wave 30: DNS automation
+
+  # Service Mesh
+  serviceMesh:
+    enabled: true           # Wave 40: Service Mesh control plane
+    provider: "istio"       # istio, linkerd (future)
+
+  # Gateway API
+  gatewayAPI:
+    enabled: true           # Wave 15: Gateway API CRDs
+    httpRoute:
+      enabled: true         # Enable HTTPRoute resources
+    controller:
+      provider: "istio"     # Wave 41: istio, nginx-gateway-fabric, envoy-gateway, apisix, traefik, nginx
+
+  # Storage
+  storage:
+    enabled: true           # Wave 60: Distributed storage
+    provider: "longhorn"    # longhorn
+    csiSnapshotter: true    # Wave 55: CSI snapshots
+
+  # Database Operator
+  databaseOperator:
+    enabled: true           # Wave 65: PostgreSQL operator
+    provider: "cnpg"        # cnpg (CloudNativePG)
+
+  # Monitoring
+  monitoring:
+    enabled: true           # Wave 75: Prometheus + Grafana
+  cilium:
+    monitoring:
+      enabled: true         # Wave 76: Cilium/Hubble metrics
+
+  # SSO / Authentication
+  sso:
+    enabled: true           # Wave 80: Identity Provider
+    provider: "keycloak"    # keycloak or external (external IdP)
+  oauth2Proxy:
+    enabled: true           # Wave 81: OAuth2 Proxy for OIDC
+```
+
+#### Automatic Dependency Resolution
+
+The script automatically enables dependencies when required:
+
+| Feature Enabled | Automatically Enables |
+|-----------------|----------------------|
+| `sso.provider=keycloak` | `databaseOperator`, `externalSecrets`, `certManager` |
+| `gatewayAPI.controller.provider=istio` | `serviceMesh` (istio), `gatewayAPI` |
+| `gatewayAPI.controller.provider=nginx-gateway-fabric/envoy-gateway/apisix/traefik` | `gatewayAPI` |
+| `cilium.monitoring.enabled` | `monitoring` |
+| `storage.provider=longhorn` | `storage.csiSnapshotter` (recommended) |
+
+**Example**: If you set `sso.enabled=true` with `sso.provider=keycloak` but `databaseOperator.enabled=false`, the script will automatically enable `databaseOperator`, `externalSecrets`, and `certManager` because Keycloak requires them.
+
+#### Feature Flag to ApplicationSet Mapping
+
+| Feature Flag | ApplicationSet | Wave |
+|-------------|----------------|------|
+| `metallb.enabled` | metallb | 10 |
+| `kubeVip.enabled` | kube-vip | 15 |
+| `gatewayAPI.enabled` | gateway-api-controller | 15 |
+| `certManager.enabled` | cert-manager | 20 |
+| `externalSecrets.enabled` | external-secrets | 25 |
+| `externalDns.enabled` | external-dns | 30 |
+| `serviceMesh.enabled` + `provider=istio` | istio | 40 |
+| `gatewayAPI.controller.provider=istio` | istio-gateway | 41 |
+| `gatewayAPI.controller.provider=nginx-gateway-fabric` | nginx-gateway-fabric | 41 |
+| *(always)* | argocd | 50 |
+| `storage.csiSnapshotter` | csi-external-snapshotter | 55 |
+| `storage.enabled` + `provider=longhorn` | longhorn | 60 |
+| `databaseOperator.enabled` + `provider=cnpg` | cnpg-operator | 65 |
+| `monitoring.enabled` | prometheus-stack | 75 |
+| `cilium.monitoring.enabled` | cilium-monitoring | 76 |
+| `sso.enabled` + `provider=keycloak` | keycloak | 80 |
+| `oauth2Proxy.enabled` | oauth2-proxy | 81 |
+
+#### Example Configurations
+
+**Minimal Configuration** (8 apps - no SSO, basic ingress):
+```yaml
+features:
+  metallb: { enabled: true }
+  kubeVip: { enabled: false }
+  gatewayAPI: { enabled: true, controller: { provider: nginx } }
+  certManager: { enabled: true }
+  externalSecrets: { enabled: false }
+  externalDns: { enabled: false }
+  serviceMesh: { enabled: false }
+  storage: { enabled: true, provider: longhorn, csiSnapshotter: true }
+  monitoring: { enabled: true }
+  cilium: { monitoring: { enabled: false } }
+  databaseOperator: { enabled: false }
+  sso: { enabled: false }
+  oauth2Proxy: { enabled: false }
+```
+
+**Full Configuration** (16 apps - all features):
+```yaml
+features:
+  metallb: { enabled: true }
+  kubeVip: { enabled: true }
+  gatewayAPI: { enabled: true, httpRoute: { enabled: true }, controller: { provider: istio } }
+  certManager: { enabled: true }
+  externalSecrets: { enabled: true }
+  externalDns: { enabled: true }
+  serviceMesh: { enabled: true, provider: istio }
+  storage: { enabled: true, provider: longhorn, csiSnapshotter: true }
+  monitoring: { enabled: true }
+  cilium: { monitoring: { enabled: true } }
+  databaseOperator: { enabled: true, provider: cnpg }
+  sso: { enabled: true, provider: keycloak }
+  oauth2Proxy: { enabled: true }
+```
+
 ## Current Applications (Dev Environment)
 
+With full configuration (all features enabled), 16 applications are deployed:
+
 1. **metallb** - Layer 2 LoadBalancer (192.168.121.220-250)
-2. **gateway-api-controller** - Gateway API CRDs
-3. **kube-vip** - VIP for Kubernetes API (192.168.121.200)
+2. **kube-vip** - VIP for Kubernetes API (192.168.121.200)
+3. **gateway-api-controller** - Gateway API CRDs
 4. **cert-manager** - Certificate management (self-signed issuer in dev)
-5. **external-dns** - DNS automation with CoreDNS
-6. **keycloak** - Identity and Access Management (OIDC provider)
+5. **external-secrets** - External Secrets Operator
+6. **external-dns** - DNS automation with CoreDNS
 7. **istio** - Service Mesh (Ambient mode) + Kiali
 8. **istio-gateway** - Ingress Gateway
 9. **argocd** - GitOps controller (self-managed, OIDC auth)
 10. **csi-external-snapshotter** - Snapshot CRDs for Longhorn
 11. **longhorn** - Distributed block storage
-12. **prometheus-stack** - Prometheus, Grafana (OIDC auth), Alertmanager
-13. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
+12. **cnpg-operator** - CloudNativePG PostgreSQL operator
+13. **prometheus-stack** - Prometheus, Grafana (OIDC auth), Alertmanager
+14. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
+15. **keycloak** - Identity and Access Management (OIDC provider)
+16. **oauth2-proxy** - OAuth2 Proxy for ext_authz authentication
 
 ## Common Development Commands
 
@@ -128,9 +273,16 @@ Deployment is automatically done by `make argocd-install-dev`, but you can do it
 cd deploy/argocd
 bash deploy-applicationsets.sh
 
-# The script deploys ApplicationSets from a hardcoded list (lines ~267-278)
-# Each ApplicationSet then generates ArgoCD Applications
+# The script reads feature flags from config/config.yaml and dynamically
+# builds the list of ApplicationSets to deploy. Use -v for verbose output.
+bash deploy-applicationsets.sh -v
 ```
+
+The script automatically:
+1. Reads feature flags from `config/config.yaml`
+2. Resolves dependencies (e.g., Keycloak → CNPG + External-Secrets + Cert-Manager)
+3. Builds the ApplicationSet list based on enabled features
+4. Deploys only the required ApplicationSets
 
 ### Deploy/Update Applications
 
