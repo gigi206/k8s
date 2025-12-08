@@ -71,6 +71,41 @@ externalDns:
     etcd: "1.1.4"      # etcd chart
 ```
 
+### Automated Version Updates with Renovate
+
+This project uses [Renovate](https://docs.renovatebot.com/) to automatically create PRs for dependency updates. The configuration is in `renovate.json` at the repository root.
+
+**How it works**:
+- Renovate uses custom regex managers to detect versions in `apps/<app>/config/*.yaml`
+- Each app's version is mapped to its corresponding Helm repository or GitHub releases
+- PRs are created automatically when new versions are available
+
+**Supported datasources**:
+| App Type | Datasource | Example |
+|----------|------------|---------|
+| Helm charts | `helm` | metallb, argocd, prometheus-stack |
+| GitHub releases | `github-releases` | gateway-api, csi-snapshotter, nginx-gateway-fabric |
+| OCI registries | `helm` (OCI) | envoy-gateway |
+
+**Schedule**: Updates are checked weekly (Monday before 6am) to avoid disruption.
+
+**Automerge**: Patch updates are automatically merged for ArgoCD apps to reduce maintenance burden.
+
+**Adding a new app to Renovate**:
+1. Add version to the app's config file: `<appName>.version: "X.X.X"`
+2. Add a new `customManagers` entry in `renovate.json`:
+```json
+{
+  "customType": "regex",
+  "description": "My App Helm chart",
+  "fileMatch": ["^deploy/argocd/apps/my-app/config/.*\\.yaml$"],
+  "matchStrings": ["myApp:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+  "depNameTemplate": "my-app",
+  "datasourceTemplate": "helm",
+  "registryUrlTemplate": "https://charts.example.com"
+}
+```
+
 ### Directory Structure per Application
 
 ```
