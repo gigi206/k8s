@@ -215,7 +215,7 @@ spec:
               {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
               # Init container to wait for Keycloak OIDC discovery endpoint
               # Only when using local Keycloak as SSO provider
-              initContainers:
+              extraInitContainers:
                 - name: wait-for-keycloak
                   image: curlimages/curl:8.5.0
                   command:
