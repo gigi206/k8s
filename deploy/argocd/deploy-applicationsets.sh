@@ -358,6 +358,9 @@ FEAT_CILIUM_MONITORING=$(get_feature '.features.cilium.monitoring.enabled' 'true
 FEAT_SSO=$(get_feature '.features.sso.enabled' 'true')
 FEAT_SSO_PROVIDER=$(get_feature '.features.sso.provider' 'keycloak')
 FEAT_OAUTH2_PROXY=$(get_feature '.features.oauth2Proxy.enabled' 'true')
+FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
+FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
+FEAT_TRACING_WAYPOINTS=$(get_feature '.features.tracing.waypoints.enabled' 'false')
 
 log_debug "Feature flags lus:"
 log_debug "  metallb: $FEAT_METALLB"
@@ -374,6 +377,7 @@ log_debug "  monitoring: $FEAT_MONITORING"
 log_debug "  cilium.monitoring: $FEAT_CILIUM_MONITORING"
 log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
+log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
 
 # =============================================================================
 # Résolution automatique des dépendances
@@ -473,6 +477,29 @@ resolve_dependencies() {
        [[ "$FEAT_GATEWAY_CONTROLLER" == "traefik" ]]; then
       if [[ "$FEAT_GATEWAY_API" != "true" ]]; then
         log_info "  → Activation de gatewayAPI (requis par $FEAT_GATEWAY_CONTROLLER)"
+        FEAT_GATEWAY_API="true"
+        changes_made=true
+      fi
+    fi
+
+    # =========================================================================
+    # tracing waypoints → serviceMesh (Istio) + gatewayAPI
+    # =========================================================================
+    # Waypoint proxies require Istio Ambient mode for L7 tracing
+    if [[ "$FEAT_TRACING" == "true" ]] && [[ "$FEAT_TRACING_WAYPOINTS" == "true" ]]; then
+      if [[ "$FEAT_SERVICE_MESH" != "true" ]]; then
+        log_info "  → Activation de serviceMesh (requis par tracing waypoints)"
+        FEAT_SERVICE_MESH="true"
+        FEAT_SERVICE_MESH_PROVIDER="istio"
+        changes_made=true
+      elif [[ "$FEAT_SERVICE_MESH_PROVIDER" != "istio" ]]; then
+        log_warning "  → Changement serviceMesh.provider vers 'istio' (requis par tracing waypoints)"
+        FEAT_SERVICE_MESH_PROVIDER="istio"
+        changes_made=true
+      fi
+      # Waypoints use Gateway API
+      if [[ "$FEAT_GATEWAY_API" != "true" ]]; then
+        log_info "  → Activation de gatewayAPI (requis par tracing waypoints)"
         FEAT_GATEWAY_API="true"
         changes_made=true
       fi
@@ -636,6 +663,15 @@ fi
 # Cilium monitoring (séparé car CNI spécifique)
 if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]]; then
   APPLICATIONSETS+=("apps/cilium-monitoring/applicationset.yaml")
+fi
+
+# Wave 77: Distributed Tracing
+if [[ "$FEAT_TRACING" == "true" ]]; then
+  case "$FEAT_TRACING_PROVIDER" in
+    jaeger)
+      APPLICATIONSETS+=("apps/jaeger/applicationset.yaml")
+      ;;
+  esac
 fi
 
 # Wave 80-81: SSO + OAuth2-Proxy
@@ -1018,6 +1054,7 @@ echo "  Storage:           $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
 echo "  Database Operator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 echo "  Monitoring:        $FEAT_MONITORING"
 echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
+echo "  Tracing:           $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
 echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 echo "  OAuth2-Proxy:      $FEAT_OAUTH2_PROXY"
 echo ""

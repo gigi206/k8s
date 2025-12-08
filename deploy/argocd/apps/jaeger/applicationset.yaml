@@ -1,0 +1,199 @@
+---
+# =============================================================================
+# Jaeger ApplicationSet - Wave 77 (Distributed Tracing)
+# =============================================================================
+# Deploys Jaeger for distributed tracing with Istio Ambient mode.
+# Includes Waypoint proxies for L7 tracing in selected namespaces.
+# Docs: https://www.jaegertracing.io/docs/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: jaeger
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "77"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/jaeger/config/*.yaml
+
+  template:
+    metadata:
+      name: jaeger
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "77"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://jaegertracing.github.io/helm-charts
+        targetRevision: '{{ .jaeger.version }}'
+        chart: jaeger
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .jaeger.namespace }}'
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      ignoreDifferences:
+        # Ignore default values added by the API for HTTPRoute
+        - group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          jqPathExpressions:
+            - .spec.rules[].backendRefs[]
+            - .spec.parentRefs[]
+      sources:
+        # Source 0: Namespace
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/resources
+          directory:
+            include: "namespace.yaml"
+
+        # Source 1: Jaeger Helm Chart
+        - repoURL: https://jaegertracing.github.io/helm-charts
+          targetRevision: '{{ .jaeger.version }}'
+          chart: jaeger
+          helm:
+            releaseName: jaeger
+            valuesObject:
+              # Deployment mode
+              {{- if .jaeger.allInOne.enabled }}
+              # All-in-one mode (dev/test)
+              provisionDataStore:
+                cassandra: false
+                elasticsearch: false
+
+              allInOne:
+                enabled: true
+                replicas: {{ .jaeger.allInOne.replicas }}
+                resources:
+                  requests:
+                    cpu: {{ .jaeger.allInOne.resources.requests.cpu }}
+                    memory: {{ .jaeger.allInOne.resources.requests.memory }}
+                  limits:
+                    cpu: {{ .jaeger.allInOne.resources.limits.cpu }}
+                    memory: {{ .jaeger.allInOne.resources.limits.memory }}
+
+              collector:
+                enabled: false
+              query:
+                enabled: false
+              agent:
+                enabled: false
+
+              storage:
+                type: badger
+                badger:
+                  ephemeral: {{ .jaeger.storage.badger.ephemeral }}
+                  persistence:
+                    enabled: {{ not .jaeger.storage.badger.ephemeral }}
+                    {{- if not .jaeger.storage.badger.ephemeral }}
+                    storageClassName: {{ .features.storage.class }}
+                    size: {{ .jaeger.storage.badger.size }}
+                    {{- end }}
+              {{- else }}
+              # Production mode with separate components
+              allInOne:
+                enabled: false
+
+              collector:
+                enabled: true
+                replicas: {{ .jaeger.collector.replicas }}
+                resources:
+                  requests:
+                    cpu: {{ .jaeger.collector.resources.requests.cpu }}
+                    memory: {{ .jaeger.collector.resources.requests.memory }}
+                  limits:
+                    cpu: {{ .jaeger.collector.resources.limits.cpu }}
+                    memory: {{ .jaeger.collector.resources.limits.memory }}
+
+              query:
+                enabled: true
+                replicas: {{ .jaeger.query.replicas }}
+                resources:
+                  requests:
+                    cpu: {{ .jaeger.query.resources.requests.cpu }}
+                    memory: {{ .jaeger.query.resources.requests.memory }}
+                  limits:
+                    cpu: {{ .jaeger.query.resources.limits.cpu }}
+                    memory: {{ .jaeger.query.resources.limits.memory }}
+
+              agent:
+                enabled: false  # Not needed with Istio
+              {{- end }}
+
+        {{- if and .features.tracing.waypoints.enabled .features.serviceMesh.enabled }}
+        # Source 2: Waypoint proxies for L7 tracing
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/resources
+          directory:
+            include: "waypoints.yaml"
+        {{- end }}
+
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source 3: HTTPRoute for Jaeger UI
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: jaeger
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: jaeger.{{ .common.domain }}
+        {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source 4: PrometheusRules for Jaeger monitoring
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}

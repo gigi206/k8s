@@ -413,3 +413,26 @@ spec:
                     tls_skip_verify_insecure: {{ .prometheusStack.grafana.oidc.tlsSkipVerify }}
                     {{- end }}
                   {{- end }}
+                {{- if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
+                # Jaeger datasource for distributed tracing
+                additionalDataSources:
+                  - name: Jaeger
+                    type: jaeger
+                    uid: jaeger
+                    url: http://jaeger-query.jaeger.svc.cluster.local:16686
+                    access: proxy
+                    isDefault: false
+                    jsonData:
+                      tracesToLogsV2:
+                        datasourceUid: loki
+                        spanStartTimeShift: '-1h'
+                        spanEndTimeShift: '1h'
+                        filterByTraceID: true
+                        filterBySpanID: true
+                      tracesToMetrics:
+                        datasourceUid: prometheus
+                        spanStartTimeShift: '-1h'
+                        spanEndTimeShift: '1h'
+                      nodeGraph:
+                        enabled: true
+                {{- end }}

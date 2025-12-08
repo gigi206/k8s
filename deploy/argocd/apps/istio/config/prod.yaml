@@ -39,6 +39,18 @@ istio:
         cpu: "1000m"
         memory: "1Gi"
 
+  # Extension Providers (OAuth2-Proxy)
+  extensionProviders:
+    oauth2Proxy:
+      enabled: true
+      service: "oauth2-proxy.oauth2-proxy.svc.cluster.local"
+      port: 4180
+
+  # Distributed Tracing (Jaeger)
+  tracing:
+    sampling: 1  # 1% sampling in prod (production-appropriate)
+    zipkinAddress: "jaeger-collector.jaeger.svc.cluster.local:9411"
+
 # Kiali (Service Mesh Observability)
 kiali:
   enabled: true

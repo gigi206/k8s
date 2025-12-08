@@ -130,6 +130,17 @@ features:
     monitoring:
       enabled: true  # Wave 76: ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
 
+  # === Distributed Tracing ===
+  tracing:
+    enabled: true      # Wave 77: Jaeger distributed tracing
+    provider: "jaeger" # jaeger (seul provider actuellement supporté)
+    waypoints:
+      enabled: true    # Deploy Istio Waypoint proxies for L7 tracing
+      namespaces:      # Namespaces to enable L7 tracing via Waypoints
+        - monitoring
+        - keycloak
+        - oauth2-proxy
+
   # === SSO / Authentication ===
   # sso.provider=keycloak déploie Keycloak local
   # sso.provider=external utilise un IdP externe (Okta, Auth0, Azure AD, etc.)
