@@ -113,7 +113,8 @@ spec:
                 ports:
                   # Port 15020 est le port de status par défaut pour Istio ambient mesh
                   # (contrairement à 15021 utilisé dans sidecar mode)
-                  - name: status-port
+                  # Note: Le nom doit suivre le format <protocol>[-suffix] pour Kiali (KIA0601)
+                  - name: http-status
                     port: 15020
                     targetPort: 15020
                   - name: http2
