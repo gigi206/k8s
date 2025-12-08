@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# Jaeger Configuration - Dev Environment
+# =============================================================================
+# All-in-one deployment with Badger storage for development.
+# Lightweight, single-pod deployment suitable for testing.
+# =============================================================================
+
+environment: dev
+appName: jaeger
+
+jaeger:
+  namespace: jaeger
+  version: "3.4.1"  # Helm chart version - Renovate will update this
+
+  # All-in-one mode (collector + query + agent in single pod)
+  allInOne:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Storage configuration
+  storage:
+    type: badger  # Embedded storage (good for dev)
+    badger:
+      ephemeral: false  # Persist data
+      size: "5Gi"
+
+  # Disabled in all-in-one mode
+  collector:
+    enabled: false
+    replicas: 1
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  query:
+    enabled: false
+    replicas: 1
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
+# Sync policy for dev (auto-sync enabled)
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

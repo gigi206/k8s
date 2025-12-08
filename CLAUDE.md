@@ -156,8 +156,11 @@ Applications deploy in order via `argocd.argoproj.io/sync-wave` annotations:
 - **Wave 60**: Longhorn (distributed storage)
 - **Wave 75**: Prometheus-Stack (monitoring) - higher wave to ensure Longhorn StorageClass is ready
 - **Wave 76**: Cilium-Monitoring (ServiceMonitors for Cilium/Hubble) - after prometheus-stack
+- **Wave 77**: Jaeger (distributed tracing) + Waypoint proxies - after monitoring for trace visualization
+- **Wave 80**: Keycloak (SSO/Identity Provider)
+- **Wave 81**: OAuth2-Proxy (ext_authz authentication)
 
-**Note**: Prometheus-Stack is in Wave 75 (not 70) to give Longhorn time to fully initialize the StorageClass before Prometheus tries to create PVCs. Cilium-Monitoring is in Wave 76 to ensure Prometheus CRDs are available.
+**Note**: Prometheus-Stack is in Wave 75 (not 70) to give Longhorn time to fully initialize the StorageClass before Prometheus tries to create PVCs. Cilium-Monitoring is in Wave 76 to ensure Prometheus CRDs are available. Jaeger is in Wave 77 to ensure monitoring is ready for trace visualization in Kiali/Grafana.
 
 ### Feature Flags and Dynamic Deployment
 
@@ -215,6 +218,17 @@ features:
     monitoring:
       enabled: true         # Wave 76: Cilium/Hubble metrics
 
+  # Distributed Tracing
+  tracing:
+    enabled: true           # Wave 77: Jaeger distributed tracing
+    provider: "jaeger"      # jaeger (only supported provider)
+    waypoints:
+      enabled: true         # Deploy Istio Waypoint proxies for L7 tracing
+      namespaces:           # Namespaces to enable L7 tracing via Waypoints
+        - monitoring
+        - keycloak
+        - oauth2-proxy
+
   # SSO / Authentication
   sso:
     enabled: true           # Wave 80: Identity Provider
@@ -234,6 +248,7 @@ The script automatically enables dependencies when required:
 | `gatewayAPI.controller.provider=nginx-gateway-fabric/envoy-gateway/apisix/traefik` | `gatewayAPI` |
 | `cilium.monitoring.enabled` | `monitoring` |
 | `storage.provider=longhorn` | `storage.csiSnapshotter` (recommended) |
+| `tracing.waypoints.enabled` | `serviceMesh` (istio), `gatewayAPI` |
 
 **Example**: If you set `sso.enabled=true` with `sso.provider=keycloak` but `databaseOperator.enabled=false`, the script will automatically enable `databaseOperator`, `externalSecrets`, and `certManager` because Keycloak requires them.
 
@@ -256,6 +271,7 @@ The script automatically enables dependencies when required:
 | `databaseOperator.enabled` + `provider=cnpg` | cnpg-operator | 65 |
 | `monitoring.enabled` | prometheus-stack | 75 |
 | `cilium.monitoring.enabled` | cilium-monitoring | 76 |
+| `tracing.enabled` + `provider=jaeger` | jaeger | 77 |
 | `sso.enabled` + `provider=keycloak` | keycloak | 80 |
 | `oauth2Proxy.enabled` | oauth2-proxy | 81 |
 
@@ -274,12 +290,13 @@ features:
   storage: { enabled: true, provider: longhorn, csiSnapshotter: true }
   monitoring: { enabled: true }
   cilium: { monitoring: { enabled: false } }
+  tracing: { enabled: false }
   databaseOperator: { enabled: false }
   sso: { enabled: false }
   oauth2Proxy: { enabled: false }
 ```
 
-**Full Configuration** (16 apps - all features):
+**Full Configuration** (17 apps - all features):
 ```yaml
 features:
   metallb: { enabled: true }
@@ -292,6 +309,7 @@ features:
   storage: { enabled: true, provider: longhorn, csiSnapshotter: true }
   monitoring: { enabled: true }
   cilium: { monitoring: { enabled: true } }
+  tracing: { enabled: true, provider: jaeger, waypoints: { enabled: true } }
   databaseOperator: { enabled: true, provider: cnpg }
   sso: { enabled: true, provider: keycloak }
   oauth2Proxy: { enabled: true }
@@ -299,7 +317,7 @@ features:
 
 ## Current Applications (Dev Environment)
 
-With full configuration (all features enabled), 16 applications are deployed:
+With full configuration (all features enabled), 17 applications are deployed:
 
 1. **metallb** - Layer 2 LoadBalancer (192.168.121.220-250)
 2. **kube-vip** - VIP for Kubernetes API (192.168.121.200)
@@ -315,8 +333,9 @@ With full configuration (all features enabled), 16 applications are deployed:
 12. **cnpg-operator** - CloudNativePG PostgreSQL operator
 13. **prometheus-stack** - Prometheus, Grafana (OIDC auth), Alertmanager
 14. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
-15. **keycloak** - Identity and Access Management (OIDC provider)
-16. **oauth2-proxy** - OAuth2 Proxy for ext_authz authentication
+15. **jaeger** - Distributed tracing (all-in-one mode in dev) + Waypoint proxies
+16. **keycloak** - Identity and Access Management (OIDC provider)
+17. **oauth2-proxy** - OAuth2 Proxy for ext_authz authentication
 
 ## Common Development Commands
 
@@ -1157,6 +1176,7 @@ Use these severity levels consistently:
 | csi-external-snapshotter | 3 | ✅ Complete |
 | prometheus-stack | 57+ | ✅ Complete |
 | gateway-api-controller | 2 | ✅ Complete |
+| jaeger | 9 | ✅ Complete |
 
 **Target**: Maintain >90% application coverage
 
@@ -1371,15 +1391,28 @@ deploy/argocd/
 │   │       ├── ksops-generator.yaml
 │   │       ├── secret-dev.yaml           # Grafana credentials (encrypted)
 │   │       └── secret-prod.yaml
-│   └── cilium-monitoring/
-│       ├── applicationset.yaml           # Wave 76
+│   ├── cilium-monitoring/
+│   │   ├── applicationset.yaml           # Wave 76
+│   │   ├── config/
+│   │   │   ├── dev.yaml
+│   │   │   └── prod.yaml
+│   │   ├── kustomize/
+│   │   │   ├── kustomization.yaml
+│   │   │   └── servicemonitors.yaml
+│   │   └── README.md
+│   └── jaeger/
+│       ├── applicationset.yaml           # Wave 77
 │       ├── config/
-│       │   ├── dev.yaml
-│       │   └── prod.yaml
-│       ├── kustomize/
-│       │   ├── kustomization.yaml
-│       │   └── servicemonitors.yaml
-│       └── README.md
+│       │   ├── dev.yaml                  # All-in-one mode, Badger storage
+│       │   └── prod.yaml                 # Collector+Query, Elasticsearch
+│       ├── resources/
+│       │   ├── namespace.yaml
+│       │   └── waypoints.yaml            # Istio Waypoint Gateway for L7 tracing
+│       ├── httproute/
+│       │   └── httproute.yaml
+│       └── kustomize/
+│           ├── kustomization.yaml
+│           └── prometheus.yaml           # Jaeger alerts
 └── deploy-applicationsets.sh              # Deployment automation script
 mise.toml                                  # Tool version management (yq)
 ```

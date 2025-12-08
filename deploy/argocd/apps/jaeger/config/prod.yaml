@@ -1,0 +1,64 @@
+---
+# =============================================================================
+# Jaeger Configuration - Prod Environment
+# =============================================================================
+# Production deployment with separate collector and query services.
+# Requires external storage (Elasticsearch or Cassandra).
+# =============================================================================
+
+environment: prod
+appName: jaeger
+
+jaeger:
+  namespace: jaeger
+  version: "3.4.1"  # Helm chart version - Renovate will update this
+
+  # Disable all-in-one for production
+  allInOne:
+    enabled: false
+    replicas: 1
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Storage configuration
+  storage:
+    type: badger  # Use elasticsearch for large-scale production
+    badger:
+      ephemeral: false
+      size: "20Gi"
+
+  # Collector configuration (receives spans)
+  collector:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+  # Query configuration (UI and API)
+  query:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+# Sync policy for prod (manual sync)
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false

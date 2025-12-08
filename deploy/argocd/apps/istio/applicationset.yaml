@@ -145,6 +145,46 @@ spec:
                 ingressService: istio-ingressgateway
                 ingressSelector: ingressgateway
 
+                {{- if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
+                # Distributed tracing configuration
+                enableTracing: true
+                defaultProviders:
+                  tracing:
+                    - zipkin
+                extensionProviders:
+                  - name: zipkin
+                    zipkin:
+                      service: {{ .istio.tracing.zipkinAddress | replace ":9411" "" }}
+                      port: 9411
+                {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
+                  - name: oauth2-proxy
+                    envoyExtAuthzHttp:
+                      service: {{ .istio.extensionProviders.oauth2Proxy.service }}
+                      port: {{ .istio.extensionProviders.oauth2Proxy.port }}
+                      headersToDownstreamOnDeny:
+                        - content-type
+                        - set-cookie
+                      headersToUpstreamOnAllow:
+                        - authorization
+                        - path
+                        - x-auth-request-user
+                        - x-auth-request-email
+                        - x-auth-request-access-token
+                      headersToDownstreamOnAllow:
+                        - set-cookie
+                      includeRequestHeadersInCheck:
+                        - authorization
+                        - cookie
+                      includeAdditionalHeadersInCheck:
+                        X-Auth-Request-Redirect: '%REQ(x-forwarded-proto)%://%REQ(:authority)%%REQ(:path)%'
+                      pathPrefix: /oauth2/auth
+                {{- end }}
+                defaultConfig:
+                  tracing:
+                    sampling: {{ .istio.tracing.sampling }}
+                    zipkin:
+                      address: {{ .istio.tracing.zipkinAddress }}
+                {{- else }}
                 # External authorization providers (only when SSO is enabled)
                 {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
                 extensionProviders:
@@ -169,6 +209,7 @@ spec:
                       includeAdditionalHeadersInCheck:
                         X-Auth-Request-Redirect: '%REQ(x-forwarded-proto)%://%REQ(:authority)%%REQ(:path)%'
                       pathPrefix: /oauth2/auth
+                {{- end }}
                 {{- end }}
 
               global:
@@ -301,9 +342,17 @@ spec:
                     password: secret:kiali-grafana-password:value.txt
                 {{- end }}
 
-                # Tracing (Jaeger) - disabled by default
+                # Tracing (Jaeger) integration
+                {{- if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
+                tracing:
+                  enabled: true
+                  in_cluster_url: http://jaeger-query.jaeger.svc.cluster.local:16686
+                  url: https://jaeger.{{ .common.domain }}
+                  use_grpc: false
+                {{- else }}
                 tracing:
                   enabled: false
+                {{- end }}
 
               # Authentication strategy
               # When SSO disabled, force anonymous; otherwise use configured strategy

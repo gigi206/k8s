@@ -1,0 +1,61 @@
+---
+# =============================================================================
+# Istio Waypoint Proxies for L7 Tracing
+# =============================================================================
+# Waypoint proxies enable L7 features (HTTP metrics, tracing, retries) in
+# Istio Ambient mode. Without waypoints, only L4 features are available.
+#
+# Each namespace that needs L7 tracing should:
+# 1. Be labeled with istio.io/dataplane-mode=ambient
+# 2. Have a Waypoint Gateway deployed
+#
+# The Waypoint will intercept traffic and generate spans for Jaeger.
+# =============================================================================
+
+# Waypoint for monitoring namespace (Prometheus, Grafana, Alertmanager)
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: monitoring
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+
+# Waypoint for keycloak namespace (Identity Provider)
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: keycloak
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+
+# Waypoint for oauth2-proxy namespace (Authentication proxy)
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: oauth2-proxy
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE

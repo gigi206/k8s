@@ -1,0 +1,158 @@
+---
+# =============================================================================
+# Jaeger PrometheusRules - Monitoring Alerts
+# =============================================================================
+# Alerts for Jaeger distributed tracing health and performance.
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: jaeger-prometheus-rules
+  namespace: jaeger
+  labels:
+    prometheus: jaeger
+    role: alert-rules
+spec:
+  groups:
+    - name: jaeger.rules
+      interval: 30s
+      rules:
+        # =======================================================================
+        # Availability Alerts
+        # =======================================================================
+
+        # CRITICAL: Jaeger all-in-one is down
+        - alert: JaegerAllInOneDown
+          expr: |
+            absent(up{job="jaeger-all-in-one"}) == 1
+            or
+            up{job="jaeger-all-in-one"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Jaeger all-in-one is down"
+            description: "Jaeger all-in-one pod has been unavailable for 5 minutes. Distributed tracing is not operational."
+
+        # CRITICAL: Jaeger collector is down (production)
+        - alert: JaegerCollectorDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="jaeger-collector",
+              namespace="jaeger"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Jaeger Collector is down"
+            description: "Jaeger Collector has no available replicas for 5 minutes. New traces cannot be collected."
+
+        # CRITICAL: Jaeger query is down (production)
+        - alert: JaegerQueryDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="jaeger-query",
+              namespace="jaeger"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Jaeger Query is down"
+            description: "Jaeger Query has no available replicas for 5 minutes. Trace UI is unavailable."
+
+        # =======================================================================
+        # Pod Health Alerts
+        # =======================================================================
+
+        # CRITICAL: Pod crash looping
+        - alert: JaegerPodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"jaeger.*",
+              namespace="jaeger"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Jaeger pod is crash looping"
+            description: "Jaeger pod {{ $labels.pod }} has been restarting frequently for 10 minutes."
+
+        # WARNING: Pod not ready
+        - alert: JaegerPodNotReady
+          expr: |
+            kube_pod_status_ready{
+              pod=~"jaeger.*",
+              namespace="jaeger",
+              condition="true"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Jaeger pod is not ready"
+            description: "Jaeger pod {{ $labels.pod }} has not been ready for 10 minutes."
+
+        # =======================================================================
+        # Performance Alerts
+        # =======================================================================
+
+        # WARNING: High span drop rate
+        - alert: JaegerSpansDropped
+          expr: |
+            rate(jaeger_collector_spans_dropped_total[5m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Jaeger is dropping spans"
+            description: "Jaeger collector is dropping spans. This may indicate capacity issues or storage problems."
+
+        # WARNING: High collector queue length
+        - alert: JaegerCollectorQueueLength
+          expr: |
+            jaeger_collector_queue_length > 1000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Jaeger collector queue is growing"
+            description: "Jaeger collector queue length is {{ $value }}. This may indicate processing bottlenecks."
+
+        # =======================================================================
+        # Storage Alerts
+        # =======================================================================
+
+        # WARNING: Storage errors
+        - alert: JaegerStorageErrors
+          expr: |
+            rate(jaeger_badger_write_errors_total[5m]) > 0
+            or
+            rate(jaeger_storage_write_errors_total[5m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Jaeger storage write errors"
+            description: "Jaeger is experiencing storage write errors. Traces may be lost."
+
+        # =======================================================================
+        # Waypoint Proxy Alerts
+        # =======================================================================
+
+        # WARNING: Waypoint proxy not ready
+        - alert: IstioWaypointNotReady
+          expr: |
+            kube_pod_status_ready{
+              pod=~"waypoint.*",
+              condition="true"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Istio Waypoint proxy is not ready"
+            description: "Waypoint proxy {{ $labels.pod }} in namespace {{ $labels.namespace }} is not ready. L7 tracing may be affected."
