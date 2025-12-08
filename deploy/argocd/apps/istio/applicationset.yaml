@@ -231,6 +231,9 @@ spec:
           helm:
             releaseName: ztunnel
             valuesObject:
+              # Use distroless variant to match other Istio components
+              variant: distroless
+
               global:
                 istioNamespace: {{ .istio.namespace }}
 
