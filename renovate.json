@@ -1,0 +1,236 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":separateMajorReleases"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "prHourlyLimit": 5,
+  "prConcurrentLimit": 10,
+  "timezone": "Europe/Paris",
+  "schedule": ["before 6am on monday"],
+  "packageRules": [
+    {
+      "description": "Group all patch updates together",
+      "matchUpdateTypes": ["patch"],
+      "groupName": "patch updates"
+    },
+    {
+      "description": "ArgoCD apps - automerge patch updates",
+      "matchFileNames": ["deploy/argocd/apps/**"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "MetalLB Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/metallb/config/.*\\.yaml$"],
+      "matchStrings": ["metallb:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "metallb",
+      "packageNameTemplate": "metallb",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://metallb.github.io/metallb"
+    },
+    {
+      "customType": "regex",
+      "description": "ArgoCD Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/argocd/config/.*\\.yaml$"],
+      "matchStrings": ["argocd:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "argo-cd",
+      "packageNameTemplate": "argo-cd",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://argoproj.github.io/argo-helm"
+    },
+    {
+      "customType": "regex",
+      "description": "Cert-Manager Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/cert-manager/config/.*\\.yaml$"],
+      "matchStrings": ["certManager:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "cert-manager",
+      "packageNameTemplate": "cert-manager",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.jetstack.io"
+    },
+    {
+      "customType": "regex",
+      "description": "External-Secrets Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/external-secrets/config/.*\\.yaml$"],
+      "matchStrings": ["externalSecrets:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "external-secrets",
+      "packageNameTemplate": "external-secrets",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.external-secrets.io"
+    },
+    {
+      "customType": "regex",
+      "description": "External-DNS Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/external-dns/config/.*\\.yaml$"],
+      "matchStrings": ["externalDns:\\s*\\n\\s*versions:\\s*\\n\\s*chart:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "external-dns",
+      "packageNameTemplate": "external-dns",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://kubernetes-sigs.github.io/external-dns"
+    },
+    {
+      "customType": "regex",
+      "description": "CoreDNS Helm chart (for External-DNS)",
+      "fileMatch": ["^deploy/argocd/apps/external-dns/config/.*\\.yaml$"],
+      "matchStrings": ["coredns:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "coredns",
+      "packageNameTemplate": "coredns",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://coredns.github.io/helm"
+    },
+    {
+      "customType": "regex",
+      "description": "Etcd Helm chart (for External-DNS)",
+      "fileMatch": ["^deploy/argocd/apps/external-dns/config/.*\\.yaml$"],
+      "matchStrings": ["etcd:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "etcd",
+      "packageNameTemplate": "etcd",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://groundhog2k.github.io/helm-charts"
+    },
+    {
+      "customType": "regex",
+      "description": "Ingress-NGINX Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/ingress-nginx/config/.*\\.yaml$"],
+      "matchStrings": ["ingressNginx:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "ingress-nginx",
+      "packageNameTemplate": "ingress-nginx",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://kubernetes.github.io/ingress-nginx"
+    },
+    {
+      "customType": "regex",
+      "description": "Longhorn Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/longhorn/config/.*\\.yaml$"],
+      "matchStrings": ["longhorn:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "longhorn",
+      "packageNameTemplate": "longhorn",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.longhorn.io"
+    },
+    {
+      "customType": "regex",
+      "description": "Prometheus-Stack Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/prometheus-stack/config/.*\\.yaml$"],
+      "matchStrings": ["prometheusStack:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "kube-prometheus-stack",
+      "packageNameTemplate": "kube-prometheus-stack",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://prometheus-community.github.io/helm-charts"
+    },
+    {
+      "customType": "regex",
+      "description": "OAuth2-Proxy Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/oauth2-proxy/config/.*\\.yaml$"],
+      "matchStrings": ["oauth2Proxy:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "oauth2-proxy",
+      "packageNameTemplate": "oauth2-proxy",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://oauth2-proxy.github.io/manifests"
+    },
+    {
+      "customType": "regex",
+      "description": "Traefik Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/traefik/config/.*\\.yaml$"],
+      "matchStrings": ["traefik:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "traefik",
+      "packageNameTemplate": "traefik",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://traefik.github.io/charts"
+    },
+    {
+      "customType": "regex",
+      "description": "CloudNativePG Operator Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/cnpg-operator/config/.*\\.yaml$"],
+      "matchStrings": ["cnpgOperator:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "cloudnative-pg",
+      "packageNameTemplate": "cloudnative-pg",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://cloudnative-pg.github.io/charts"
+    },
+    {
+      "customType": "regex",
+      "description": "Istio Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/istio/config/.*\\.yaml$"],
+      "matchStrings": ["istio:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "base",
+      "packageNameTemplate": "base",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://istio-release.storage.googleapis.com/charts"
+    },
+    {
+      "customType": "regex",
+      "description": "Kiali Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/istio/config/.*\\.yaml$"],
+      "matchStrings": ["kiali:\\s*\\n\\s*enabled:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "kiali-server",
+      "packageNameTemplate": "kiali-server",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://kiali.org/helm-charts"
+    },
+    {
+      "customType": "regex",
+      "description": "Envoy Gateway Helm chart (OCI)",
+      "fileMatch": ["^deploy/argocd/apps/envoy-gateway/config/.*\\.yaml$"],
+      "matchStrings": ["envoyGateway:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "envoyproxy/gateway-helm",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "APISIX Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/apisix/config/.*\\.yaml$"],
+      "matchStrings": ["chart:\\s*\\n\\s*repo:[^\\n]*\\n\\s*name:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "apisix",
+      "packageNameTemplate": "apisix",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.apiseven.com"
+    },
+    {
+      "customType": "regex",
+      "description": "Gateway API CRDs (GitHub releases)",
+      "fileMatch": ["^deploy/argocd/apps/gateway-api-controller/config/.*\\.yaml$"],
+      "matchStrings": ["gatewayApiController:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "kubernetes-sigs/gateway-api",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "CSI External Snapshotter (GitHub releases)",
+      "fileMatch": ["^deploy/argocd/apps/csi-external-snapshotter/config/.*\\.yaml$"],
+      "matchStrings": ["csiSnapshotter:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "kubernetes-csi/external-snapshotter",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "NGINX Gateway Fabric (GitHub releases)",
+      "fileMatch": ["^deploy/argocd/apps/nginx-gateway-fabric/config/.*\\.yaml$"],
+      "matchStrings": ["nginxGatewayFabric:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "nginxinc/nginx-gateway-fabric",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Keycloak Operator (GitHub releases)",
+      "fileMatch": ["^deploy/argocd/apps/keycloak/config/.*\\.yaml$"],
+      "matchStrings": ["keycloak:\\s*\\n\\s*operatorVersion:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "keycloak/keycloak",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Kube-VIP (GitHub releases)",
+      "fileMatch": ["^deploy/argocd/apps/kube-vip/config/.*\\.yaml$"],
+      "matchStrings": ["kubeVip:\\s*\\n(?:\\s*#[^\\n]*\\n)*\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "kube-vip/kube-vip",
+      "datasourceTemplate": "github-releases"
+    }
+  ]
+}
