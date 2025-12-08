@@ -132,7 +132,7 @@ features:
 
   # === Distributed Tracing ===
   tracing:
-    enabled: true      # Wave 77: Jaeger distributed tracing
+    enabled: false     # Wave 77: Jaeger distributed tracing
     provider: "jaeger" # jaeger (seul provider actuellement supporté)
     waypoints:
       enabled: true    # Deploy Istio Waypoint proxies for L7 tracing
