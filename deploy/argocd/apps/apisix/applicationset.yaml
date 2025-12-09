@@ -37,7 +37,6 @@ spec:
         environment: '{{ .environment }}'
       annotations:
         argocd.argoproj.io/sync-wave: "42"
-        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: gitops-notifications
     spec:
       project: default
       destination:
