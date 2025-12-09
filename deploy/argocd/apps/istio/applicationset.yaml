@@ -378,8 +378,14 @@ spec:
                     password: secret:kiali-grafana-password:value.txt
                 {{- end }}
 
-                # Tracing (Jaeger) integration
-                {{- if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
+                # Tracing integration (Tempo or Jaeger)
+                {{- if and .features.tracing.enabled (eq .features.tracing.provider "tempo") }}
+                tracing:
+                  enabled: true
+                  provider: tempo
+                  in_cluster_url: http://tempo.tempo.svc.cluster.local:3100
+                  use_grpc: false
+                {{- else if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
                 tracing:
                   enabled: true
                   in_cluster_url: http://jaeger-query.jaeger.svc.cluster.local:16686
