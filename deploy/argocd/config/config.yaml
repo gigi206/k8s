@@ -142,11 +142,7 @@ features:
     enabled: true      # Wave 77: Distributed tracing
     provider: "tempo"  # tempo (recommandé, corrélation Loki) ou jaeger
     waypoints:
-      enabled: true    # Deploy Istio Waypoint proxies for L7 tracing
-      namespaces:      # Namespaces to enable L7 tracing via Waypoints
-        - monitoring
-        - keycloak
-        - oauth2-proxy
+      enabled: false   # Waypoints désactivés (requiert istio.io/dataplane-mode=ambient sur les namespaces cibles)
 
   # === SSO / Authentication ===
   # sso.provider=keycloak déploie Keycloak local
