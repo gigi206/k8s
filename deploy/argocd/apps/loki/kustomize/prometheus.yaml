@@ -1,0 +1,111 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: loki-rules
+  namespace: loki
+  labels:
+    prometheus: loki
+    role: alert-rules
+spec:
+  groups:
+    - name: loki.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Loki indisponible
+        - alert: LokiDown
+          expr: absent(up{job=~"loki.*"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Loki is down"
+            description: "Loki has been unavailable for more than 5 minutes"
+
+        # CRITICAL: Loki pod not ready
+        - alert: LokiPodNotReady
+          expr: |
+            kube_pod_status_ready{
+              pod=~"loki.*",
+              namespace="loki",
+              condition="true"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Loki pod not ready"
+            description: "Loki pod {{ $labels.pod }} has been not ready for more than 5 minutes"
+
+        # HIGH: Loki request latency
+        - alert: LokiHighRequestLatency
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(loki_request_duration_seconds_bucket{route=~".*"}[5m])) by (le, route)
+            ) > 5
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "Loki high request latency"
+            description: "Loki route {{ $labels.route }} p99 latency is above 5 seconds"
+
+        # HIGH: Loki ingester errors
+        - alert: LokiIngesterErrors
+          expr: |
+            sum(rate(loki_ingester_chunks_flushed_total{status="fail"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: "Loki ingester flush errors"
+            description: "Loki ingester is failing to flush chunks"
+
+        # WARNING: Loki disk almost full
+        - alert: LokiDiskAlmostFull
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*loki.*"}
+              / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~".*loki.*"}
+            ) * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki disk almost full"
+            description: "Loki PVC {{ $labels.persistentvolumeclaim }} is {{ $value | printf \"%.1f\" }}% full"
+
+        # WARNING: Loki high memory usage
+        - alert: LokiHighMemoryUsage
+          expr: |
+            container_memory_usage_bytes{container="loki", namespace="loki"}
+            / container_spec_memory_limit_bytes{container="loki", namespace="loki"} * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki high memory usage"
+            description: "Loki container memory usage is above 85%"
+
+        # WARNING: Loki query errors
+        - alert: LokiQueryErrors
+          expr: |
+            sum(rate(loki_logql_querystats_latency_seconds_count{status=~"5.."}[5m]))
+            / sum(rate(loki_logql_querystats_latency_seconds_count[5m])) * 100 > 5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Loki query error rate high"
+            description: "Loki query error rate is above 5%"
+
+        # MEDIUM: Loki ingester streams limit
+        - alert: LokiIngesterStreamsLimit
+          expr: |
+            loki_ingester_memory_streams / loki_ingester_memory_streams_limit * 100 > 80
+          for: 10m
+          labels:
+            severity: medium
+          annotations:
+            summary: "Loki ingester streams limit approaching"
+            description: "Loki ingester streams limit is at {{ $value | printf \"%.1f\" }}%"

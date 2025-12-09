@@ -241,6 +241,26 @@
       "packageNameTemplate": "jaeger",
       "datasourceTemplate": "helm",
       "registryUrlTemplate": "https://jaegertracing.github.io/helm-charts"
+    },
+    {
+      "customType": "regex",
+      "description": "Loki Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/loki/config/.*\\.yaml$"],
+      "matchStrings": ["loki:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "loki",
+      "packageNameTemplate": "loki",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://grafana.github.io/helm-charts"
+    },
+    {
+      "customType": "regex",
+      "description": "Alloy Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/alloy/config/.*\\.yaml$"],
+      "matchStrings": ["alloy:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "alloy",
+      "packageNameTemplate": "alloy",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://grafana.github.io/helm-charts"
     }
   ]
 }

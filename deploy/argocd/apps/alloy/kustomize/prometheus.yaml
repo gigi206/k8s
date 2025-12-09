@@ -1,0 +1,103 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: alloy-rules
+  namespace: alloy
+  labels:
+    prometheus: alloy
+    role: alert-rules
+spec:
+  groups:
+    - name: alloy.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Alloy DaemonSet not running on all nodes
+        - alert: AlloyDaemonSetNotRunning
+          expr: |
+            kube_daemonset_status_number_ready{daemonset="alloy", namespace="alloy"}
+            < kube_daemonset_status_desired_number_scheduled{daemonset="alloy", namespace="alloy"}
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Alloy DaemonSet not running on all nodes"
+            description: "Alloy DaemonSet has {{ $value }} pods not ready"
+
+        # CRITICAL: Alloy pod not ready
+        - alert: AlloyPodNotReady
+          expr: |
+            kube_pod_status_ready{
+              pod=~"alloy.*",
+              namespace="alloy",
+              condition="true"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Alloy pod not ready"
+            description: "Alloy pod {{ $labels.pod }} has been not ready for more than 5 minutes"
+
+        # HIGH: Alloy log delivery failures
+        - alert: AlloyLogDeliveryFailures
+          expr: |
+            sum(rate(loki_write_sent_bytes_total{job="alloy"}[5m])) == 0
+            and sum(rate(loki_write_dropped_bytes_total{job="alloy"}[5m])) > 0
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "Alloy failing to deliver logs"
+            description: "Alloy is dropping logs and not successfully sending to Loki"
+
+        # HIGH: Alloy pod crash looping
+        - alert: AlloyPodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"alloy.*",
+              namespace="alloy"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "Alloy pod is crash looping"
+            description: "Alloy pod {{ $labels.pod }} is restarting frequently"
+
+        # WARNING: Alloy high memory usage
+        - alert: AlloyHighMemoryUsage
+          expr: |
+            container_memory_usage_bytes{container="alloy", namespace="alloy"}
+            / container_spec_memory_limit_bytes{container="alloy", namespace="alloy"} * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Alloy high memory usage"
+            description: "Alloy pod {{ $labels.pod }} memory usage is above 85%"
+
+        # WARNING: Alloy high CPU usage
+        - alert: AlloyHighCPUUsage
+          expr: |
+            sum(rate(container_cpu_usage_seconds_total{container="alloy", namespace="alloy"}[5m])) by (pod)
+            / sum(container_spec_cpu_quota{container="alloy", namespace="alloy"}/100000) by (pod) * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Alloy high CPU usage"
+            description: "Alloy pod {{ $labels.pod }} CPU usage is above 85%"
+
+        # MEDIUM: Alloy slow log processing
+        - alert: AlloySlowLogProcessing
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(loki_process_duration_seconds_bucket{job="alloy"}[5m])) by (le)
+            ) > 1
+          for: 15m
+          labels:
+            severity: medium
+          annotations:
+            summary: "Alloy slow log processing"
+            description: "Alloy p99 log processing time is above 1 second"

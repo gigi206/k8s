@@ -130,6 +130,13 @@ features:
     monitoring:
       enabled: true  # Wave 76: ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
 
+  # === Observability: Logging ===
+  logging:
+    enabled: true        # Active le logging centralisé
+    loki:
+      enabled: true      # Wave 73: Grafana Loki (backend stockage logs)
+      collector: "alloy" # Wave 74: alloy (recommandé), fluent-bit (futur)
+
   # === Distributed Tracing ===
   tracing:
     enabled: false     # Wave 77: Jaeger distributed tracing

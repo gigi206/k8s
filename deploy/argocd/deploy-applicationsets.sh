@@ -355,6 +355,9 @@ FEAT_DATABASE_OPERATOR=$(get_feature '.features.databaseOperator.enabled' 'true'
 FEAT_DATABASE_PROVIDER=$(get_feature '.features.databaseOperator.provider' 'cnpg')
 FEAT_MONITORING=$(get_feature '.features.monitoring.enabled' 'true')
 FEAT_CILIUM_MONITORING=$(get_feature '.features.cilium.monitoring.enabled' 'true')
+FEAT_LOGGING=$(get_feature '.features.logging.enabled' 'true')
+FEAT_LOGGING_LOKI=$(get_feature '.features.logging.loki.enabled' 'true')
+FEAT_LOGGING_COLLECTOR=$(get_feature '.features.logging.loki.collector' 'alloy')
 FEAT_SSO=$(get_feature '.features.sso.enabled' 'true')
 FEAT_SSO_PROVIDER=$(get_feature '.features.sso.provider' 'keycloak')
 FEAT_OAUTH2_PROXY=$(get_feature '.features.oauth2Proxy.enabled' 'true')
@@ -375,6 +378,7 @@ log_debug "  csiSnapshotter: $FEAT_CSI_SNAPSHOTTER"
 log_debug "  databaseOperator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 log_debug "  monitoring: $FEAT_MONITORING"
 log_debug "  cilium.monitoring: $FEAT_CILIUM_MONITORING"
+log_debug "  logging: $FEAT_LOGGING (loki: $FEAT_LOGGING_LOKI, collector: $FEAT_LOGGING_COLLECTOR)"
 log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
 log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
@@ -651,6 +655,16 @@ if [[ "$FEAT_DATABASE_OPERATOR" == "true" ]]; then
   case "$FEAT_DATABASE_PROVIDER" in
     cnpg)
       APPLICATIONSETS+=("apps/cnpg-operator/applicationset.yaml")
+      ;;
+  esac
+fi
+
+# Wave 73-74: Logging (Loki + collector)
+if [[ "$FEAT_LOGGING" == "true" ]] && [[ "$FEAT_LOGGING_LOKI" == "true" ]]; then
+  APPLICATIONSETS+=("apps/loki/applicationset.yaml")
+  case "$FEAT_LOGGING_COLLECTOR" in
+    alloy)
+      APPLICATIONSETS+=("apps/alloy/applicationset.yaml")
       ;;
   esac
 fi

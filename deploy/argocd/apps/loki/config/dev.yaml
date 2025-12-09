@@ -1,0 +1,57 @@
+---
+environment: dev
+appName: loki
+
+loki:
+  namespace: loki
+  version: "6.24.0"  # Helm chart version - Renovate will update this
+
+  # Mode déploiement: SingleBinary, SimpleScalable, Distributed
+  deploymentMode: SingleBinary
+
+  # SingleBinary mode configuration
+  singleBinary:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  # Stockage
+  storage:
+    type: filesystem  # filesystem ou s3
+    size: 5Gi
+
+  # Rétention des logs
+  retention: 24h
+
+  # Désactiver les composants non utilisés en SingleBinary mode
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+
+  # Gateway (proxy pour Loki)
+  gateway:
+    enabled: false
+
+  # Cache (désactivé en dev pour économiser les ressources)
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+
+# Grafana dashboard folder
+dashboard:
+  folder: "Loki"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true
