@@ -1,26 +1,4 @@
 ---
-# PodMonitor to scrape Istio sidecar metrics from all namespaces
-# Required for Kiali traffic visualization
-# The 'release: prometheus-stack' label is added via Kustomize commonLabels
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: istio-sidecar
-  namespace: istio-system
-spec:
-  selector:
-    matchExpressions:
-    # Select all pods with Istio sidecar injection
-    - key: security.istio.io/tlsMode
-      operator: Exists
-  namespaceSelector:
-    # Scrape sidecars from all namespaces
-    any: true
-  podMetricsEndpoints:
-  - path: /stats/prometheus
-    targetPort: 15090
-    interval: 15s
----
 # PodMonitor for ztunnel (Istio Ambient Data Plane)
 # Ztunnel is a DaemonSet without a Service, so we need PodMonitor instead of ServiceMonitor
 # Docs: https://istio.io/latest/docs/ambient/usage/ztunnel/
