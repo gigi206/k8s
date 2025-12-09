@@ -1,0 +1,45 @@
+---
+# =============================================================================
+# Tempo Configuration - Dev Environment
+# =============================================================================
+# SingleBinary deployment for development.
+# Lightweight, single-pod deployment with local filesystem storage.
+# =============================================================================
+
+environment: dev
+appName: tempo
+
+tempo:
+  namespace: tempo
+  version: "1.10.3"  # Helm chart version - Renovate will update this
+
+  # Retention period
+  retention: "24h"
+
+  # Resources
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # Persistence
+  persistence:
+    enabled: true
+    size: "5Gi"
+
+# Dashboard folder for Grafana
+dashboard:
+  folder: "Tracing"
+
+# Sync policy for dev (auto-sync enabled)
+syncPolicy:
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

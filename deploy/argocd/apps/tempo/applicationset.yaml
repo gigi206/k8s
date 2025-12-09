@@ -1,0 +1,154 @@
+---
+# =============================================================================
+# Tempo ApplicationSet - Wave 77 (Distributed Tracing)
+# =============================================================================
+# Deploys Grafana Tempo for distributed tracing with Istio Ambient mode.
+# Integrates with Loki for log-trace correlation.
+# Docs: https://grafana.com/docs/tempo/latest/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: tempo
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "77"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/tempo/config/*.yaml
+
+  template:
+    metadata:
+      name: tempo
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "77"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://grafana.github.io/helm-charts
+        targetRevision: '{{ .tempo.version }}'
+        chart: tempo
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .tempo.namespace }}'
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 0: Namespace
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/tempo/resources
+          directory:
+            include: "namespace.yaml"
+
+        # Source 1: Tempo Helm Chart
+        - repoURL: https://grafana.github.io/helm-charts
+          targetRevision: '{{ .tempo.version }}'
+          chart: tempo
+          helm:
+            releaseName: tempo
+            valuesObject:
+              # Tempo configuration
+              tempo:
+                # OTLP receivers for traces
+                receivers:
+                  otlp:
+                    protocols:
+                      grpc:
+                        endpoint: "0.0.0.0:4317"
+                      http:
+                        endpoint: "0.0.0.0:4318"
+                  # Zipkin receiver for backwards compatibility with Istio
+                  zipkin:
+                    endpoint: "0.0.0.0:9411"
+
+                # Storage configuration
+                storage:
+                  trace:
+                    backend: local
+                    local:
+                      path: /var/tempo/traces
+                    wal:
+                      path: /var/tempo/wal
+
+                # Retention
+                retention: {{ .tempo.retention }}
+
+              # Resources
+              resources:
+                requests:
+                  cpu: {{ .tempo.resources.requests.cpu }}
+                  memory: {{ .tempo.resources.requests.memory }}
+                limits:
+                  cpu: {{ .tempo.resources.limits.cpu }}
+                  memory: {{ .tempo.resources.limits.memory }}
+
+              # Persistence
+              persistence:
+                enabled: {{ .tempo.persistence.enabled }}
+                size: {{ .tempo.persistence.size }}
+                storageClassName: {{ .features.storage.class }}
+
+              # Service configuration
+              service:
+                type: ClusterIP
+
+              # ServiceMonitor for Prometheus
+              {{- if .features.monitoring.enabled }}
+              serviceMonitor:
+                enabled: true
+                additionalLabels:
+                  release: {{ .features.monitoring.release }}
+              {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source 2: PrometheusRules for Tempo monitoring
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/tempo/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}
