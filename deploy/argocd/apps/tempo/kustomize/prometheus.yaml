@@ -1,0 +1,160 @@
+---
+# =============================================================================
+# Tempo PrometheusRules - Monitoring Alerts
+# =============================================================================
+# Alerts for Grafana Tempo distributed tracing health and performance.
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tempo-prometheus-rules
+  namespace: tempo
+  labels:
+    prometheus: tempo
+    role: alert-rules
+spec:
+  groups:
+    - name: tempo.rules
+      interval: 30s
+      rules:
+        # =======================================================================
+        # Availability Alerts
+        # =======================================================================
+
+        # CRITICAL: Tempo is down
+        - alert: TempoDown
+          expr: |
+            absent(up{job=~"tempo.*"}) == 1
+            or
+            up{job=~"tempo.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Tempo is down"
+            description: "Tempo has been unavailable for 5 minutes. Distributed tracing is not operational."
+
+        # CRITICAL: Tempo pod not available
+        - alert: TempoPodDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="tempo",
+              namespace="tempo"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Tempo pod is down"
+            description: "Tempo has no available replicas for 5 minutes."
+
+        # =======================================================================
+        # Pod Health Alerts
+        # =======================================================================
+
+        # CRITICAL: Pod crash looping
+        - alert: TempoPodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"tempo.*",
+              namespace="tempo"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Tempo pod is crash looping"
+            description: "Tempo pod {{ $labels.pod }} has been restarting frequently for 10 minutes."
+
+        # WARNING: Pod not ready
+        - alert: TempoPodNotReady
+          expr: |
+            kube_pod_status_ready{
+              pod=~"tempo.*",
+              namespace="tempo",
+              condition="true"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tempo pod is not ready"
+            description: "Tempo pod {{ $labels.pod }} has not been ready for 10 minutes."
+
+        # =======================================================================
+        # Performance Alerts
+        # =======================================================================
+
+        # WARNING: High ingestion rate
+        - alert: TempoHighIngestionRate
+          expr: |
+            rate(tempo_distributor_spans_received_total[5m]) > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tempo high span ingestion rate"
+            description: "Tempo is receiving {{ $value | humanize }} spans/sec. Consider scaling."
+
+        # WARNING: Ingestion failures
+        - alert: TempoIngestionFailures
+          expr: |
+            rate(tempo_ingester_traces_created_total[5m]) == 0
+            and
+            rate(tempo_distributor_spans_received_total[5m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tempo ingestion failures"
+            description: "Tempo is receiving spans but not creating traces. Check ingester health."
+
+        # =======================================================================
+        # Storage Alerts
+        # =======================================================================
+
+        # WARNING: High disk usage
+        - alert: TempoDiskUsageHigh
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*tempo.*"}
+              /
+              kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~".*tempo.*"}
+            ) * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tempo disk usage is high"
+            description: "Tempo PVC usage is {{ $value | humanize }}%. Consider increasing storage or reducing retention."
+
+        # CRITICAL: Disk almost full
+        - alert: TempoDiskAlmostFull
+          expr: |
+            (
+              kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*tempo.*"}
+              /
+              kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~".*tempo.*"}
+            ) * 100 > 90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Tempo disk is almost full"
+            description: "Tempo PVC usage is {{ $value | humanize }}%. Traces may be lost. Increase storage immediately."
+
+        # =======================================================================
+        # Query Alerts
+        # =======================================================================
+
+        # WARNING: High query latency
+        - alert: TempoHighQueryLatency
+          expr: |
+            histogram_quantile(0.99, rate(tempo_query_frontend_request_duration_seconds_bucket[5m])) > 10
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tempo query latency is high"
+            description: "P99 query latency is {{ $value | humanize }}s. Users may experience slow trace lookups."

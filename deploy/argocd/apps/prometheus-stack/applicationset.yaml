@@ -415,8 +415,9 @@ spec:
                   {{- end }}
                 {{- $lokiEnabled := and .features.logging.enabled .features.logging.loki.enabled }}
                 {{- $jaegerEnabled := and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
-                {{- if or $lokiEnabled $jaegerEnabled }}
-                # Additional datasources (Loki, Jaeger)
+                {{- $tempoEnabled := and .features.tracing.enabled (eq .features.tracing.provider "tempo") }}
+                {{- if or $lokiEnabled $jaegerEnabled $tempoEnabled }}
+                # Additional datasources (Loki, Jaeger, Tempo)
                 additionalDataSources:
                   {{- if $lokiEnabled }}
                   # Loki datasource for log querying
@@ -428,13 +429,50 @@ spec:
                     isDefault: false
                     jsonData:
                       maxLines: 1000
-                      {{- if $jaegerEnabled }}
+                      {{- if $tempoEnabled }}
+                      # Derived fields for trace correlation (Tempo)
+                      derivedFields:
+                        - name: TraceID
+                          matcherRegex: '(?:trace_id|traceId|traceid)[=":\s]+([a-f0-9]{16,32})'
+                          url: "$${__value.raw}"
+                          datasourceUid: tempo
+                          urlDisplayLabel: "View Trace"
+                      {{- else if $jaegerEnabled }}
+                      # Derived fields for trace correlation (Jaeger)
                       derivedFields:
                         - name: TraceID
                           matcherRegex: '"trace_id":"([a-f0-9]+)"'
                           url: "$${__value.raw}"
                           datasourceUid: jaeger
                       {{- end }}
+                  {{- end }}
+                  {{- if $tempoEnabled }}
+                  # Tempo datasource for distributed tracing
+                  - name: Tempo
+                    type: tempo
+                    uid: tempo
+                    url: http://tempo.tempo.svc.cluster.local:3100
+                    access: proxy
+                    isDefault: false
+                    jsonData:
+                      {{- if $lokiEnabled }}
+                      tracesToLogsV2:
+                        datasourceUid: loki
+                        spanStartTimeShift: '-1h'
+                        spanEndTimeShift: '1h'
+                        filterByTraceID: true
+                        filterBySpanID: true
+                        customQuery: true
+                        query: '{namespace="$${__span.tags["namespace"]}"} | json | trace_id=`$${__trace.traceId}`'
+                      {{- end }}
+                      tracesToMetrics:
+                        datasourceUid: prometheus
+                        spanStartTimeShift: '-1h'
+                        spanEndTimeShift: '1h'
+                      nodeGraph:
+                        enabled: true
+                      serviceMap:
+                        datasourceUid: prometheus
                   {{- end }}
                   {{- if $jaegerEnabled }}
                   # Jaeger datasource for distributed tracing

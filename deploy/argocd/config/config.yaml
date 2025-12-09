@@ -139,8 +139,8 @@ features:
 
   # === Distributed Tracing ===
   tracing:
-    enabled: false     # Wave 77: Jaeger distributed tracing
-    provider: "jaeger" # jaeger (seul provider actuellement supporté)
+    enabled: true      # Wave 77: Distributed tracing
+    provider: "tempo"  # tempo (recommandé, corrélation Loki) ou jaeger
     waypoints:
       enabled: true    # Deploy Istio Waypoint proxies for L7 tracing
       namespaces:      # Namespaces to enable L7 tracing via Waypoints

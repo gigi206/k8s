@@ -46,9 +46,12 @@ istio:
       service: "oauth2-proxy.oauth2-proxy.svc.cluster.local"
       port: 4180
 
-  # Distributed Tracing (Jaeger)
+  # Distributed Tracing
   tracing:
     sampling: 100  # 100% sampling in dev (sample all requests)
+    # Tempo (OTLP)
+    otlpAddress: "tempo.tempo.svc.cluster.local:4317"
+    # Jaeger (Zipkin protocol)
     zipkinAddress: "jaeger-collector.jaeger.svc.cluster.local:9411"
 
 # Kiali (Service Mesh Observability)

@@ -685,6 +685,9 @@ if [[ "$FEAT_TRACING" == "true" ]]; then
     jaeger)
       APPLICATIONSETS+=("apps/jaeger/applicationset.yaml")
       ;;
+    tempo)
+      APPLICATIONSETS+=("apps/tempo/applicationset.yaml")
+      ;;
   esac
 fi
 

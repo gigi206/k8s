@@ -144,8 +144,45 @@ spec:
                 ingressService: istio-ingressgateway
                 ingressSelector: ingressgateway
 
-                {{- if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
-                # Distributed tracing configuration
+                {{- if and .features.tracing.enabled (eq .features.tracing.provider "tempo") }}
+                # Distributed tracing configuration (Tempo via OTLP)
+                enableTracing: true
+                defaultProviders:
+                  tracing:
+                    - otel
+                extensionProviders:
+                  - name: otel
+                    opentelemetry:
+                      service: {{ .istio.tracing.otlpAddress | replace ":4317" "" }}
+                      port: 4317
+                {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
+                  - name: oauth2-proxy
+                    envoyExtAuthzHttp:
+                      service: {{ .istio.extensionProviders.oauth2Proxy.service }}
+                      port: {{ .istio.extensionProviders.oauth2Proxy.port }}
+                      headersToDownstreamOnDeny:
+                        - content-type
+                        - set-cookie
+                      headersToUpstreamOnAllow:
+                        - authorization
+                        - path
+                        - x-auth-request-user
+                        - x-auth-request-email
+                        - x-auth-request-access-token
+                      headersToDownstreamOnAllow:
+                        - set-cookie
+                      includeRequestHeadersInCheck:
+                        - authorization
+                        - cookie
+                      includeAdditionalHeadersInCheck:
+                        X-Auth-Request-Redirect: '%REQ(x-forwarded-proto)%://%REQ(:authority)%%REQ(:path)%'
+                      pathPrefix: /oauth2/auth
+                {{- end }}
+                defaultConfig:
+                  tracing:
+                    sampling: {{ .istio.tracing.sampling }}
+                {{- else if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
+                # Distributed tracing configuration (Jaeger via Zipkin)
                 enableTracing: true
                 defaultProviders:
                   tracing:
