@@ -159,11 +159,11 @@ Applications deploy in order via `argocd.argoproj.io/sync-wave` annotations:
 - **Wave 74**: Alloy (log collector DaemonSet)
 - **Wave 75**: Prometheus-Stack (monitoring) - higher wave to ensure Longhorn StorageClass is ready
 - **Wave 76**: Cilium-Monitoring (ServiceMonitors for Cilium/Hubble) - after prometheus-stack
-- **Wave 77**: Jaeger (distributed tracing) + Waypoint proxies - after monitoring for trace visualization
+- **Wave 77**: Tempo/Jaeger (distributed tracing) - after monitoring for trace visualization
 - **Wave 80**: Keycloak (SSO/Identity Provider)
 - **Wave 81**: OAuth2-Proxy (ext_authz authentication)
 
-**Note**: Prometheus-Stack is in Wave 75 (not 70) to give Longhorn time to fully initialize the StorageClass before Prometheus tries to create PVCs. Cilium-Monitoring is in Wave 76 to ensure Prometheus CRDs are available. Jaeger is in Wave 77 to ensure monitoring is ready for trace visualization in Kiali/Grafana.
+**Note**: Prometheus-Stack is in Wave 75 (not 70) to give Longhorn time to fully initialize the StorageClass before Prometheus tries to create PVCs. Cilium-Monitoring is in Wave 76 to ensure Prometheus CRDs are available. Tempo/Jaeger is in Wave 77 to ensure monitoring is ready for trace visualization in Kiali/Grafana.
 
 ### Feature Flags and Dynamic Deployment
 
@@ -230,14 +230,10 @@ features:
 
   # Distributed Tracing
   tracing:
-    enabled: true           # Wave 77: Jaeger distributed tracing
-    provider: "jaeger"      # jaeger (only supported provider)
+    enabled: true           # Wave 77: Distributed tracing
+    provider: "tempo"       # tempo (recommended, Loki correlation) or jaeger
     waypoints:
-      enabled: true         # Deploy Istio Waypoint proxies for L7 tracing
-      namespaces:           # Namespaces to enable L7 tracing via Waypoints
-        - monitoring
-        - keycloak
-        - oauth2-proxy
+      enabled: false        # Istio Waypoint proxies for L7 tracing (requires ambient mode on namespaces)
 
   # SSO / Authentication
   sso:
@@ -258,7 +254,6 @@ The script automatically enables dependencies when required:
 | `gatewayAPI.controller.provider=nginx-gateway-fabric/envoy-gateway/apisix/traefik` | `gatewayAPI` |
 | `cilium.monitoring.enabled` | `monitoring` |
 | `storage.provider=longhorn` | `storage.csiSnapshotter` (recommended) |
-| `tracing.waypoints.enabled` | `serviceMesh` (istio), `gatewayAPI` |
 
 **Example**: If you set `sso.enabled=true` with `sso.provider=keycloak` but `databaseOperator.enabled=false`, the script will automatically enable `databaseOperator`, `externalSecrets`, and `certManager` because Keycloak requires them.
 
@@ -283,6 +278,7 @@ The script automatically enables dependencies when required:
 | `logging.enabled` + `logging.loki.collector=alloy` | alloy | 74 |
 | `monitoring.enabled` | prometheus-stack | 75 |
 | `cilium.monitoring.enabled` | cilium-monitoring | 76 |
+| `tracing.enabled` + `provider=tempo` | tempo | 77 |
 | `tracing.enabled` + `provider=jaeger` | jaeger | 77 |
 | `sso.enabled` + `provider=keycloak` | keycloak | 80 |
 | `oauth2Proxy.enabled` | oauth2-proxy | 81 |
@@ -323,7 +319,7 @@ features:
   monitoring: { enabled: true }
   cilium: { monitoring: { enabled: true } }
   logging: { enabled: true, loki: { enabled: true, collector: alloy } }
-  tracing: { enabled: true, provider: jaeger, waypoints: { enabled: true } }
+  tracing: { enabled: true, provider: tempo }
   databaseOperator: { enabled: true, provider: cnpg }
   sso: { enabled: true, provider: keycloak }
   oauth2Proxy: { enabled: true }
@@ -349,7 +345,7 @@ With full configuration (all features enabled), 19 applications are deployed:
 14. **alloy** - Log collector DaemonSet (Grafana Alloy)
 15. **prometheus-stack** - Prometheus, Grafana (OIDC auth), Alertmanager
 16. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
-17. **jaeger** - Distributed tracing (all-in-one mode in dev) + Waypoint proxies
+17. **tempo** - Distributed tracing (Grafana Tempo with Loki correlation)
 18. **keycloak** - Identity and Access Management (OIDC provider)
 19. **oauth2-proxy** - OAuth2 Proxy for ext_authz authentication
 
@@ -1192,6 +1188,7 @@ Use these severity levels consistently:
 | csi-external-snapshotter | 3 | ✅ Complete |
 | prometheus-stack | 57+ | ✅ Complete |
 | gateway-api-controller | 2 | ✅ Complete |
+| tempo | 9 | ✅ Complete |
 | jaeger | 9 | ✅ Complete |
 
 **Target**: Maintain >90% application coverage
@@ -1416,14 +1413,24 @@ deploy/argocd/
 │   │   │   ├── kustomization.yaml
 │   │   │   └── servicemonitors.yaml
 │   │   └── README.md
+│   ├── tempo/
+│   │   ├── applicationset.yaml           # Wave 77
+│   │   ├── config/
+│   │   │   ├── dev.yaml
+│   │   │   └── prod.yaml
+│   │   ├── resources/
+│   │   │   └── namespace.yaml
+│   │   ├── kustomize/
+│   │   │   ├── kustomization.yaml
+│   │   │   └── prometheus.yaml           # Tempo alerts
+│   │   └── README.md                     # Waypoints documentation
 │   └── jaeger/
-│       ├── applicationset.yaml           # Wave 77
+│       ├── applicationset.yaml           # Wave 77 (alternative to Tempo)
 │       ├── config/
 │       │   ├── dev.yaml                  # All-in-one mode, Badger storage
 │       │   └── prod.yaml                 # Collector+Query, Elasticsearch
 │       ├── resources/
-│       │   ├── namespace.yaml
-│       │   └── waypoints.yaml            # Istio Waypoint Gateway for L7 tracing
+│       │   └── namespace.yaml
 │       ├── httproute/
 │       │   └── httproute.yaml
 │       └── kustomize/
