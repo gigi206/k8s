@@ -1,0 +1,229 @@
+---
+# =============================================================================
+# Loki ApplicationSet - Wave 73 (Log Storage)
+# =============================================================================
+# Deploys Grafana Loki for centralized log aggregation and querying.
+# Works with Alloy (Wave 74) for log collection.
+# Docs: https://grafana.com/docs/loki/latest/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: loki
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "73"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/loki/config/*.yaml
+
+  template:
+    metadata:
+      name: loki
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "73"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://grafana.github.io/helm-charts
+        targetRevision: '{{ .loki.version }}'
+        chart: loki
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .loki.namespace }}'
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 0: Namespace
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loki/resources
+          directory:
+            include: "namespace.yaml"
+
+        # Source 1: Loki Helm Chart
+        - repoURL: https://grafana.github.io/helm-charts
+          targetRevision: '{{ .loki.version }}'
+          chart: loki
+          helm:
+            releaseName: loki
+            valuesObject:
+              deploymentMode: '{{ .loki.deploymentMode }}'
+
+              loki:
+                auth_enabled: false
+                commonConfig:
+                  replication_factor: 1
+                  path_prefix: /var/loki
+                storage:
+                  type: '{{ .loki.storage.type }}'
+                schemaConfig:
+                  configs:
+                    - from: "2024-01-01"
+                      store: tsdb
+                      object_store: '{{ .loki.storage.type }}'
+                      schema: v13
+                      index:
+                        prefix: index_
+                        period: 24h
+                limits_config:
+                  retention_period: '{{ .loki.retention }}'
+                  ingestion_rate_mb: 10
+                  ingestion_burst_size_mb: 20
+                  max_streams_per_user: 10000
+
+              {{- if eq .loki.deploymentMode "SingleBinary" }}
+              # SingleBinary mode
+              singleBinary:
+                replicas: {{ .loki.singleBinary.replicas }}
+                persistence:
+                  enabled: true
+                  size: '{{ .loki.storage.size }}'
+                  storageClass: '{{ .features.storage.class }}'
+                {{- if .loki.singleBinary.resources }}
+                resources:
+                  requests:
+                    cpu: '{{ .loki.singleBinary.resources.requests.cpu }}'
+                    memory: '{{ .loki.singleBinary.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .loki.singleBinary.resources.limits.cpu }}'
+                    memory: '{{ .loki.singleBinary.resources.limits.memory }}'
+                {{- end }}
+
+              # Disable other components in SingleBinary mode
+              backend:
+                replicas: 0
+              read:
+                replicas: 0
+              write:
+                replicas: 0
+              {{- else }}
+              # SimpleScalable or Distributed mode
+              singleBinary:
+                replicas: 0
+
+              backend:
+                replicas: {{ .loki.backend.replicas }}
+                persistence:
+                  enabled: true
+                  size: '{{ .loki.storage.size }}'
+                  storageClass: '{{ .features.storage.class }}'
+                {{- if .loki.backend.resources }}
+                resources:
+                  requests:
+                    cpu: '{{ .loki.backend.resources.requests.cpu }}'
+                    memory: '{{ .loki.backend.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .loki.backend.resources.limits.cpu }}'
+                    memory: '{{ .loki.backend.resources.limits.memory }}'
+                {{- end }}
+
+              read:
+                replicas: {{ .loki.read.replicas }}
+                {{- if .loki.read.resources }}
+                resources:
+                  requests:
+                    cpu: '{{ .loki.read.resources.requests.cpu }}'
+                    memory: '{{ .loki.read.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .loki.read.resources.limits.cpu }}'
+                    memory: '{{ .loki.read.resources.limits.memory }}'
+                {{- end }}
+
+              write:
+                replicas: {{ .loki.write.replicas }}
+                persistence:
+                  enabled: true
+                  size: '{{ .loki.storage.size }}'
+                  storageClass: '{{ .features.storage.class }}'
+                {{- if .loki.write.resources }}
+                resources:
+                  requests:
+                    cpu: '{{ .loki.write.resources.requests.cpu }}'
+                    memory: '{{ .loki.write.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .loki.write.resources.limits.cpu }}'
+                    memory: '{{ .loki.write.resources.limits.memory }}'
+                {{- end }}
+              {{- end }}
+
+              # Gateway configuration
+              gateway:
+                enabled: {{ .loki.gateway.enabled }}
+                {{- if .loki.gateway.enabled }}
+                replicas: {{ .loki.gateway.replicas | default 1 }}
+                {{- end }}
+
+              # Cache configuration
+              chunksCache:
+                enabled: {{ .loki.chunksCache.enabled }}
+              resultsCache:
+                enabled: {{ .loki.resultsCache.enabled }}
+
+              # Monitoring (nested under monitoring.serviceMonitor in Loki chart)
+              {{- if .features.monitoring.enabled }}
+              monitoring:
+                serviceMonitor:
+                  enabled: true
+                  labels:
+                    release: '{{ .features.monitoring.release }}'
+              {{- end }}
+
+              # Test pod disabled
+              test:
+                enabled: false
+
+        {{- if .features.monitoring.enabled }}
+        # Source 2: PrometheusRules for Loki monitoring
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loki/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}

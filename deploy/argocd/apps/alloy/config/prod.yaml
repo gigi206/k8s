@@ -1,0 +1,30 @@
+---
+environment: prod
+appName: alloy
+
+alloy:
+  namespace: alloy
+  version: "0.12.0"  # Helm chart version - Renovate will update this
+
+  # Controller type: daemonset or deployment
+  controller:
+    type: daemonset
+
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Loki endpoint
+  loki:
+    url: "http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

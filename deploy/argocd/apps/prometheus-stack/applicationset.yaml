@@ -413,9 +413,31 @@ spec:
                     tls_skip_verify_insecure: {{ .prometheusStack.grafana.oidc.tlsSkipVerify }}
                     {{- end }}
                   {{- end }}
-                {{- if and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
-                # Jaeger datasource for distributed tracing
+                {{- $lokiEnabled := and .features.logging.enabled .features.logging.loki.enabled }}
+                {{- $jaegerEnabled := and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}
+                {{- if or $lokiEnabled $jaegerEnabled }}
+                # Additional datasources (Loki, Jaeger)
                 additionalDataSources:
+                  {{- if $lokiEnabled }}
+                  # Loki datasource for log querying
+                  - name: Loki
+                    type: loki
+                    uid: loki
+                    url: http://loki.loki.svc.cluster.local:3100
+                    access: proxy
+                    isDefault: false
+                    jsonData:
+                      maxLines: 1000
+                      {{- if $jaegerEnabled }}
+                      derivedFields:
+                        - name: TraceID
+                          matcherRegex: '"trace_id":"([a-f0-9]+)"'
+                          url: "$${__value.raw}"
+                          datasourceUid: jaeger
+                      {{- end }}
+                  {{- end }}
+                  {{- if $jaegerEnabled }}
+                  # Jaeger datasource for distributed tracing
                   - name: Jaeger
                     type: jaeger
                     uid: jaeger
@@ -423,16 +445,19 @@ spec:
                     access: proxy
                     isDefault: false
                     jsonData:
+                      {{- if $lokiEnabled }}
                       tracesToLogsV2:
                         datasourceUid: loki
                         spanStartTimeShift: '-1h'
                         spanEndTimeShift: '1h'
                         filterByTraceID: true
                         filterBySpanID: true
+                      {{- end }}
                       tracesToMetrics:
                         datasourceUid: prometheus
                         spanStartTimeShift: '-1h'
                         spanEndTimeShift: '1h'
                       nodeGraph:
                         enabled: true
+                  {{- end }}
                 {{- end }}

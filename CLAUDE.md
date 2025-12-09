@@ -154,6 +154,9 @@ Applications deploy in order via `argocd.argoproj.io/sync-wave` annotations:
 - **Wave 50**: ArgoCD (self-management)
 - **Wave 55**: CSI-External-Snapshotter (volume snapshots)
 - **Wave 60**: Longhorn (distributed storage)
+- **Wave 65**: CNPG-Operator (PostgreSQL operator)
+- **Wave 73**: Loki (log storage and querying)
+- **Wave 74**: Alloy (log collector DaemonSet)
 - **Wave 75**: Prometheus-Stack (monitoring) - higher wave to ensure Longhorn StorageClass is ready
 - **Wave 76**: Cilium-Monitoring (ServiceMonitors for Cilium/Hubble) - after prometheus-stack
 - **Wave 77**: Jaeger (distributed tracing) + Waypoint proxies - after monitoring for trace visualization
@@ -218,6 +221,13 @@ features:
     monitoring:
       enabled: true         # Wave 76: Cilium/Hubble metrics
 
+  # Logging
+  logging:
+    enabled: true           # Active le logging centralisé
+    loki:
+      enabled: true         # Wave 73: Grafana Loki
+      collector: "alloy"    # Wave 74: alloy (recommandé)
+
   # Distributed Tracing
   tracing:
     enabled: true           # Wave 77: Jaeger distributed tracing
@@ -269,6 +279,8 @@ The script automatically enables dependencies when required:
 | `storage.csiSnapshotter` | csi-external-snapshotter | 55 |
 | `storage.enabled` + `provider=longhorn` | longhorn | 60 |
 | `databaseOperator.enabled` + `provider=cnpg` | cnpg-operator | 65 |
+| `logging.enabled` + `logging.loki.enabled` | loki | 73 |
+| `logging.enabled` + `logging.loki.collector=alloy` | alloy | 74 |
 | `monitoring.enabled` | prometheus-stack | 75 |
 | `cilium.monitoring.enabled` | cilium-monitoring | 76 |
 | `tracing.enabled` + `provider=jaeger` | jaeger | 77 |
@@ -290,13 +302,14 @@ features:
   storage: { enabled: true, provider: longhorn, csiSnapshotter: true }
   monitoring: { enabled: true }
   cilium: { monitoring: { enabled: false } }
+  logging: { enabled: false }
   tracing: { enabled: false }
   databaseOperator: { enabled: false }
   sso: { enabled: false }
   oauth2Proxy: { enabled: false }
 ```
 
-**Full Configuration** (17 apps - all features):
+**Full Configuration** (19 apps - all features):
 ```yaml
 features:
   metallb: { enabled: true }
@@ -309,6 +322,7 @@ features:
   storage: { enabled: true, provider: longhorn, csiSnapshotter: true }
   monitoring: { enabled: true }
   cilium: { monitoring: { enabled: true } }
+  logging: { enabled: true, loki: { enabled: true, collector: alloy } }
   tracing: { enabled: true, provider: jaeger, waypoints: { enabled: true } }
   databaseOperator: { enabled: true, provider: cnpg }
   sso: { enabled: true, provider: keycloak }
@@ -317,7 +331,7 @@ features:
 
 ## Current Applications (Dev Environment)
 
-With full configuration (all features enabled), 17 applications are deployed:
+With full configuration (all features enabled), 19 applications are deployed:
 
 1. **metallb** - Layer 2 LoadBalancer (192.168.121.220-250)
 2. **kube-vip** - VIP for Kubernetes API (192.168.121.200)
@@ -331,11 +345,13 @@ With full configuration (all features enabled), 17 applications are deployed:
 10. **csi-external-snapshotter** - Snapshot CRDs for Longhorn
 11. **longhorn** - Distributed block storage
 12. **cnpg-operator** - CloudNativePG PostgreSQL operator
-13. **prometheus-stack** - Prometheus, Grafana (OIDC auth), Alertmanager
-14. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
-15. **jaeger** - Distributed tracing (all-in-one mode in dev) + Waypoint proxies
-16. **keycloak** - Identity and Access Management (OIDC provider)
-17. **oauth2-proxy** - OAuth2 Proxy for ext_authz authentication
+13. **loki** - Log storage and querying (Grafana Loki)
+14. **alloy** - Log collector DaemonSet (Grafana Alloy)
+15. **prometheus-stack** - Prometheus, Grafana (OIDC auth), Alertmanager
+16. **cilium-monitoring** - ServiceMonitors for Cilium/Hubble metrics
+17. **jaeger** - Distributed tracing (all-in-one mode in dev) + Waypoint proxies
+18. **keycloak** - Identity and Access Management (OIDC provider)
+19. **oauth2-proxy** - OAuth2 Proxy for ext_authz authentication
 
 ## Common Development Commands
 
