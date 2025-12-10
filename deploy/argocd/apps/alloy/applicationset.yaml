@@ -212,6 +212,23 @@ spec:
                         drop_malformed = false
                       }
 
+                      // Extract traceID from W3C Traceparent header (format: 00-<traceid>-<spanid>-<flags>)
+                      stage.regex {
+                        expression = "Traceparent:\\[00-(?P<traceID>[a-f0-9]+)-"
+                      }
+
+                      // Extract traceID from B3 header if not found
+                      stage.regex {
+                        expression = "X-B3-Traceid:\\[(?P<traceID>[a-f0-9]+)\\]"
+                      }
+
+                      // Add traceID as label for Tempo correlation
+                      stage.labels {
+                        values = {
+                          traceID = "",
+                        }
+                      }
+
                       // Normalize log level
                       stage.label_drop {
                         values = ["level"]
