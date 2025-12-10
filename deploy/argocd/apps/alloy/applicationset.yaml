@@ -203,13 +203,13 @@ spec:
                         expression = "^\\s*$"
                       }
 
-                      // Try to parse JSON logs
+                      // Try to parse JSON logs (keep non-JSON logs)
                       stage.json {
                         expressions = {
                           level = "level",
                           msg   = "msg",
                         }
-                        drop_malformed = true
+                        drop_malformed = false
                       }
 
                       // Normalize log level
