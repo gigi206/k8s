@@ -144,14 +144,6 @@ spec:
                 ingressService: istio-ingressgateway
                 ingressSelector: ingressgateway
 
-                {{- if and .features.serviceMesh.enabled .features.serviceMesh.accessLogs .features.serviceMesh.accessLogs.enabled }}
-                # Access logs with traceID for log-to-trace correlation
-                accessLogFile: /dev/stdout
-                accessLogFormat: |
-                  {"timestamp":"%START_TIME%","method":"%REQ(:METHOD)%","path":"%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%","protocol":"%PROTOCOL%","response_code":"%RESPONSE_CODE%","response_flags":"%RESPONSE_FLAGS%","bytes_received":"%BYTES_RECEIVED%","bytes_sent":"%BYTES_SENT%","duration_ms":"%DURATION%","upstream_host":"%UPSTREAM_HOST%","upstream_cluster":"%UPSTREAM_CLUSTER%","trace_id":"%REQ(X-B3-TRACEID)%","span_id":"%REQ(X-B3-SPANID)%","authority":"%REQ(:AUTHORITY)%","user_agent":"%REQ(USER-AGENT)%","request_id":"%REQ(X-REQUEST-ID)%"}
-                accessLogEncoding: JSON
-                {{- end }}
-
                 {{- if and .features.tracing.enabled (eq .features.tracing.provider "tempo") }}
                 # Distributed tracing configuration (Tempo via OTLP)
                 enableTracing: true
@@ -163,6 +155,28 @@ spec:
                     opentelemetry:
                       service: {{ .istio.tracing.otlpAddress | replace ":4317" "" }}
                       port: 4317
+                  # Access logging provider with JSON format including trace_id
+                  - name: access-log-json
+                    envoyFileAccessLog:
+                      path: /dev/stdout
+                      logFormat:
+                        labels:
+                          timestamp: "%START_TIME%"
+                          method: "%REQ(:METHOD)%"
+                          path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                          protocol: "%PROTOCOL%"
+                          response_code: "%RESPONSE_CODE%"
+                          response_flags: "%RESPONSE_FLAGS%"
+                          bytes_received: "%BYTES_RECEIVED%"
+                          bytes_sent: "%BYTES_SENT%"
+                          duration_ms: "%DURATION%"
+                          upstream_host: "%UPSTREAM_HOST%"
+                          upstream_cluster: "%UPSTREAM_CLUSTER%"
+                          trace_id: "%REQ(X-B3-TRACEID)%"
+                          span_id: "%REQ(X-B3-SPANID)%"
+                          authority: "%REQ(:AUTHORITY)%"
+                          user_agent: "%REQ(USER-AGENT)%"
+                          request_id: "%REQ(X-REQUEST-ID)%"
                 {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
                   - name: oauth2-proxy
                     envoyExtAuthzHttp:
@@ -200,6 +214,28 @@ spec:
                     zipkin:
                       service: {{ .istio.tracing.zipkinAddress | replace ":9411" "" }}
                       port: 9411
+                  # Access logging provider with JSON format including trace_id
+                  - name: access-log-json
+                    envoyFileAccessLog:
+                      path: /dev/stdout
+                      logFormat:
+                        labels:
+                          timestamp: "%START_TIME%"
+                          method: "%REQ(:METHOD)%"
+                          path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                          protocol: "%PROTOCOL%"
+                          response_code: "%RESPONSE_CODE%"
+                          response_flags: "%RESPONSE_FLAGS%"
+                          bytes_received: "%BYTES_RECEIVED%"
+                          bytes_sent: "%BYTES_SENT%"
+                          duration_ms: "%DURATION%"
+                          upstream_host: "%UPSTREAM_HOST%"
+                          upstream_cluster: "%UPSTREAM_CLUSTER%"
+                          trace_id: "%REQ(X-B3-TRACEID)%"
+                          span_id: "%REQ(X-B3-SPANID)%"
+                          authority: "%REQ(:AUTHORITY)%"
+                          user_agent: "%REQ(USER-AGENT)%"
+                          request_id: "%REQ(X-REQUEST-ID)%"
                 {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
                   - name: oauth2-proxy
                     envoyExtAuthzHttp:
@@ -229,9 +265,31 @@ spec:
                     zipkin:
                       address: {{ .istio.tracing.zipkinAddress }}
                 {{- else }}
-                # External authorization providers (only when SSO is enabled)
-                {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
+                # No tracing - still define access logging provider for namespace-level enablement
                 extensionProviders:
+                  # Access logging provider with JSON format including trace_id
+                  - name: access-log-json
+                    envoyFileAccessLog:
+                      path: /dev/stdout
+                      logFormat:
+                        labels:
+                          timestamp: "%START_TIME%"
+                          method: "%REQ(:METHOD)%"
+                          path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                          protocol: "%PROTOCOL%"
+                          response_code: "%RESPONSE_CODE%"
+                          response_flags: "%RESPONSE_FLAGS%"
+                          bytes_received: "%BYTES_RECEIVED%"
+                          bytes_sent: "%BYTES_SENT%"
+                          duration_ms: "%DURATION%"
+                          upstream_host: "%UPSTREAM_HOST%"
+                          upstream_cluster: "%UPSTREAM_CLUSTER%"
+                          trace_id: "%REQ(X-B3-TRACEID)%"
+                          span_id: "%REQ(X-B3-SPANID)%"
+                          authority: "%REQ(:AUTHORITY)%"
+                          user_agent: "%REQ(USER-AGENT)%"
+                          request_id: "%REQ(X-REQUEST-ID)%"
+                {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
                   - name: oauth2-proxy
                     envoyExtAuthzHttp:
                       service: {{ .istio.extensionProviders.oauth2Proxy.service }}

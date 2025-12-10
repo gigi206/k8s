@@ -306,6 +306,139 @@ Waypoint exposes metrics on port 15090 via `/stats/prometheus`. The PodMonitor i
 
 **Reporter label:** Waypoint metrics use `reporter="waypoint"` (vs `reporter="source"` or `reporter="destination"` for sidecars)
 
+## Access Logging (Log-to-Trace Correlation)
+
+### Overview
+
+Envoy access logs can be enabled per-namespace to capture HTTP request details including trace IDs. This enables **log-to-trace correlation** in Grafana (Loki → Tempo).
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                        meshConfig (global)                                   │
+│  extensionProviders:                                                         │
+│    - name: access-log-json         # Provider definition                     │
+│      envoyFileAccessLog:                                                     │
+│        path: /dev/stdout                                                     │
+│        logFormat:                                                            │
+│          labels: { trace_id, span_id, method, path, response_code, ... }     │
+└──────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │  Reference provider by name
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                     Telemetry (per namespace)                                │
+│  namespace: my-app                                                           │
+│  spec:                                                                       │
+│    accessLogging:                                                            │
+│      - providers:                                                            │
+│          - name: access-log-json   # Enable for this namespace only          │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Benefits**:
+- ✅ **Namespace-level control** - Enable only where needed (reduces log volume)
+- ✅ **JSON format with trace_id** - Enables log-to-trace correlation
+- ✅ **No global overhead** - Provider defined globally, activation per namespace
+
+### Enabling Access Logs for a Namespace
+
+**Prerequisites**:
+- Namespace must have a **waypoint proxy** for L7 logging (ztunnel only does L4)
+- Namespace must be labeled with `istio.io/dataplane-mode=ambient`
+
+**Step 1**: Create waypoint proxy (if not already present):
+```bash
+istioctl waypoint apply --namespace my-namespace
+# Or via kubectl:
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waypoint
+  namespace: my-namespace
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE
+EOF
+```
+
+**Step 2**: Create Telemetry resource to enable access logging:
+```yaml
+apiVersion: telemetry.istio.io/v1
+kind: Telemetry
+metadata:
+  name: access-logging
+  namespace: my-namespace
+spec:
+  accessLogging:
+    - providers:
+        - name: access-log-json
+```
+
+**Step 3**: Verify access logs are being generated:
+```bash
+kubectl logs -n my-namespace -l gateway.networking.k8s.io/gateway-name=waypoint --tail=5
+```
+
+### Log Format
+
+The `access-log-json` provider outputs JSON logs with the following fields:
+
+```json
+{
+  "timestamp": "2025-12-10T21:36:54.464Z",
+  "method": "GET",
+  "path": "/api/list",
+  "protocol": "HTTP/1.1",
+  "response_code": 200,
+  "response_flags": "-",
+  "bytes_received": 0,
+  "bytes_sent": 4513,
+  "duration_ms": 1,
+  "upstream_host": "envoy://connect_originate/10.42.0.74:8080",
+  "upstream_cluster": "inbound-vip|80|http|web-svc.emojivoto.svc.cluster.local;",
+  "trace_id": "29727b23974aae5447fe3f01292221c6",
+  "span_id": "8fd1f53441eada43",
+  "authority": "web-svc.emojivoto:80",
+  "user_agent": "Go-http-client/1.1",
+  "request_id": "2322499c-d24f-9200-b246-9fb30fab21d6"
+}
+```
+
+### Log-to-Trace Correlation in Grafana
+
+With access logs containing `trace_id`, you can navigate from logs to traces:
+
+1. **In Grafana Explore** → Select Loki datasource
+2. Query: `{namespace="my-namespace"} | json`
+3. Click on a log line with a `trace_id`
+4. Click **"View Trace"** button to jump to Tempo
+
+**Configuration**: The Loki datasource has `derivedFields` configured to extract `trace_id` and link to Tempo.
+
+### Disabling Access Logs
+
+To disable access logs for a namespace:
+```bash
+kubectl delete telemetry access-logging -n my-namespace
+```
+
+### Comparison: Global vs Namespace-Level
+
+| Approach | Scope | Configuration |
+|----------|-------|---------------|
+| `meshConfig.accessLogFile` | Global (all proxies) | Define in istiod Helm values |
+| `Telemetry` API | Per namespace | Create Telemetry resource per namespace |
+
+**Recommendation**: Use namespace-level Telemetry for selective logging to minimize log volume and storage costs.
+
 ## Monitoring
 
 ### ServiceMonitors and PodMonitors
