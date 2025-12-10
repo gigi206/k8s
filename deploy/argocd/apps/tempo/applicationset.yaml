@@ -65,6 +65,11 @@ spec:
 
   templatePatch: |
     spec:
+      ignoreDifferences:
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[]
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
