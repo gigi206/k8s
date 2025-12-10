@@ -232,6 +232,9 @@ features:
   tracing:
     enabled: true           # Wave 77: Distributed tracing
     provider: "tempo"       # tempo (recommended, Loki correlation) or jaeger
+    sampling: 100           # Percentage of traces sampled (1-100)
+    accessLogs:
+      enabled: false        # Envoy access logs with traceID (increases log volume, enables log-to-trace correlation)
     waypoints:
       enabled: false        # Istio Waypoint proxies for L7 tracing (requires ambient mode on namespaces)
 

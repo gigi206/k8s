@@ -141,6 +141,9 @@ features:
   tracing:
     enabled: true      # Wave 77: Distributed tracing
     provider: "tempo"  # tempo (recommandé, corrélation Loki) ou jaeger
+    sampling: 100      # Pourcentage de traces échantillonnées (1-100)
+    accessLogs:
+      enabled: false   # Access logs Envoy avec traceID (augmente le volume de logs)
     waypoints:
       enabled: false   # Waypoints désactivés (requiert istio.io/dataplane-mode=ambient sur les namespaces cibles)
 
