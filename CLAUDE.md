@@ -195,7 +195,7 @@ features:
     enabled: true           # Wave 40: Service Mesh control plane
     provider: "istio"       # istio, linkerd (future)
     accessLogs:
-      enabled: false        # Envoy access logs with traceID (increases log volume, enables log-to-trace correlation)
+      providerName: "access-log-json"  # Provider for namespace-level Telemetry (JSON with trace_id)
     waypoints:
       enabled: false        # Istio Waypoint proxies for L7 (requires ambient mode on namespaces)
 
