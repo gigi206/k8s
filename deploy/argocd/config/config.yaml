@@ -89,7 +89,7 @@ features:
     enabled: true      # Wave 40: Service Mesh (control plane + data plane)
     provider: "istio"  # istio, linkerd (futur)
     accessLogs:
-      enabled: false   # Access logs Envoy avec traceID (augmente le volume de logs, corrélation log-trace)
+      enabled: true    # Access logs Envoy avec traceID (augmente le volume de logs, corrélation log-trace)
     waypoints:
       enabled: false   # Istio Waypoint proxies pour L7 (requiert istio.io/dataplane-mode=ambient sur les namespaces)
 
