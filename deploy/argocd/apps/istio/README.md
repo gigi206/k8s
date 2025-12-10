@@ -404,7 +404,7 @@ The `access-log-json` provider outputs JSON logs with the following fields:
   "duration_ms": 1,
   "upstream_host": "envoy://connect_originate/10.42.0.74:8080",
   "upstream_cluster": "inbound-vip|80|http|web-svc.emojivoto.svc.cluster.local;",
-  "trace_id": "29727b23974aae5447fe3f01292221c6",
+  "trace_id": "225944ea496241841e6f4ae19e48129f",
   "span_id": "8fd1f53441eada43",
   "authority": "web-svc.emojivoto:80",
   "user_agent": "Go-http-client/1.1",
