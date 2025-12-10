@@ -88,6 +88,10 @@ features:
   serviceMesh:
     enabled: true      # Wave 40: Service Mesh (control plane + data plane)
     provider: "istio"  # istio, linkerd (futur)
+    accessLogs:
+      enabled: false   # Access logs Envoy avec traceID (augmente le volume de logs, corrélation log-trace)
+    waypoints:
+      enabled: false   # Istio Waypoint proxies pour L7 (requiert istio.io/dataplane-mode=ambient sur les namespaces)
 
   # === Gateway API ===
   gatewayAPI:
@@ -142,10 +146,6 @@ features:
     enabled: true      # Wave 77: Distributed tracing
     provider: "tempo"  # tempo (recommandé, corrélation Loki) ou jaeger
     sampling: 100      # Pourcentage de traces échantillonnées (1-100)
-    accessLogs:
-      enabled: false   # Access logs Envoy avec traceID (augmente le volume de logs)
-    waypoints:
-      enabled: false   # Waypoints désactivés (requiert istio.io/dataplane-mode=ambient sur les namespaces cibles)
 
   # === SSO / Authentication ===
   # sso.provider=keycloak déploie Keycloak local
