@@ -144,7 +144,7 @@ spec:
                 ingressService: istio-ingressgateway
                 ingressSelector: ingressgateway
 
-                {{- if and .features.tracing.enabled .features.tracing.accessLogs .features.tracing.accessLogs.enabled }}
+                {{- if and .features.serviceMesh.enabled .features.serviceMesh.accessLogs .features.serviceMesh.accessLogs.enabled }}
                 # Access logs with traceID for log-to-trace correlation
                 accessLogFile: /dev/stdout
                 accessLogFormat: |
