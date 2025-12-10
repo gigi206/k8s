@@ -144,6 +144,14 @@ spec:
                 ingressService: istio-ingressgateway
                 ingressSelector: ingressgateway
 
+                {{- if and .features.tracing.enabled .features.tracing.accessLogs .features.tracing.accessLogs.enabled }}
+                # Access logs with traceID for log-to-trace correlation
+                accessLogFile: /dev/stdout
+                accessLogFormat: |
+                  {"timestamp":"%START_TIME%","method":"%REQ(:METHOD)%","path":"%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%","protocol":"%PROTOCOL%","response_code":"%RESPONSE_CODE%","response_flags":"%RESPONSE_FLAGS%","bytes_received":"%BYTES_RECEIVED%","bytes_sent":"%BYTES_SENT%","duration_ms":"%DURATION%","upstream_host":"%UPSTREAM_HOST%","upstream_cluster":"%UPSTREAM_CLUSTER%","trace_id":"%REQ(X-B3-TRACEID)%","span_id":"%REQ(X-B3-SPANID)%","authority":"%REQ(:AUTHORITY)%","user_agent":"%REQ(USER-AGENT)%","request_id":"%REQ(X-REQUEST-ID)%"}
+                accessLogEncoding: JSON
+                {{- end }}
+
                 {{- if and .features.tracing.enabled (eq .features.tracing.provider "tempo") }}
                 # Distributed tracing configuration (Tempo via OTLP)
                 enableTracing: true
