@@ -1,0 +1,56 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Tempo Ingress Security
+# =============================================================================
+# Restricts access to Tempo to authorized namespaces only:
+# - istio-system: Trace push (OTLP, Zipkin from Envoy sidecars)
+# - monitoring: Grafana queries + Prometheus metrics scraping
+# - tempo: Internal communication
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tempo-ingress
+  namespace: tempo
+spec:
+  description: "Allow ingress to Tempo only from authorized namespaces"
+  endpointSelector: {}  # Applies to all pods in tempo namespace
+
+  ingress:
+    # Allow from Istio namespace (trace push from Envoy sidecars)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "4317"
+              protocol: TCP
+            - port: "4318"
+              protocol: TCP
+            - port: "9411"
+              protocol: TCP
+
+    # Allow from Monitoring namespace (Grafana queries + Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP
+
+    # Allow internal Tempo communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: tempo
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP
+            - port: "4317"
+              protocol: TCP
+            - port: "4318"
+              protocol: TCP
+            - port: "9411"
+              protocol: TCP
