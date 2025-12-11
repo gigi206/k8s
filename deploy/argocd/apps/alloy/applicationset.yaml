@@ -93,6 +93,36 @@ spec:
               # Controller type (daemonset for log collection)
               controller:
                 type: '{{ .alloy.controller.type }}'
+                {{- if or .alloy.logs.journal.enabled .alloy.logs.rke2.enabled }}
+                volumes:
+                  extra:
+                    {{- if .alloy.logs.journal.enabled }}
+                    - name: journal
+                      hostPath:
+                        path: /var/log/journal
+                        type: Directory
+                    {{- end }}
+                    {{- if .alloy.logs.rke2.enabled }}
+                    - name: rke2-logs
+                      hostPath:
+                        path: /var/lib/rancher/rke2/agent/logs
+                        type: Directory
+                    - name: rke2-containerd
+                      hostPath:
+                        path: /var/lib/rancher/rke2/agent/containerd
+                        type: Directory
+                    {{- end }}
+                {{- end }}
+
+              {{- if .alloy.logs.journal.enabled }}
+              # Pod security context for journal access (GID 999=systemd-journal, 4=adm)
+              global:
+                podSecurityContext:
+                  fsGroup: 999
+                  supplementalGroups:
+                    - 999
+                    - 4
+              {{- end }}
 
               # Alloy configuration
               alloy:
@@ -111,6 +141,25 @@ spec:
                     memory: '{{ .alloy.resources.limits.memory }}'
                 {{- end }}
 
+                {{- if or .alloy.logs.journal.enabled .alloy.logs.rke2.enabled }}
+                # Volume mounts for node logs
+                mounts:
+                  extra:
+                    {{- if .alloy.logs.journal.enabled }}
+                    - name: journal
+                      mountPath: /var/log/journal
+                      readOnly: true
+                    {{- end }}
+                    {{- if .alloy.logs.rke2.enabled }}
+                    - name: rke2-logs
+                      mountPath: /var/lib/rancher/rke2/agent/logs
+                      readOnly: true
+                    - name: rke2-containerd
+                      mountPath: /var/lib/rancher/rke2/agent/containerd
+                      readOnly: true
+                    {{- end }}
+                {{- end }}
+
                 # Alloy River configuration
                 configMap:
                   content: |
@@ -124,6 +173,7 @@ spec:
                       format = "logfmt"
                     }
 
+                    {{- if .alloy.logs.pods.enabled }}
                     // =============================================================================
                     // Kubernetes Pod Discovery
                     // =============================================================================
@@ -234,6 +284,117 @@ spec:
                         values = ["level"]
                       }
                     }
+                    {{- end }}
+
+                    {{- if .alloy.logs.events.enabled }}
+                    // =============================================================================
+                    // Kubernetes Events Collection
+                    // =============================================================================
+                    // Collects cluster events: pod scheduling, errors, warnings, etc.
+                    loki.source.kubernetes_events "cluster" {
+                      job_name   = "kubernetes-events"
+                      forward_to = [loki.process.events.receiver]
+                    }
+
+                    // Process Kubernetes events
+                    loki.process "events" {
+                      forward_to = [loki.write.default.receiver]
+
+                      // Add source label to identify events
+                      stage.static_labels {
+                        values = {
+                          source = "kubernetes-events",
+                        }
+                      }
+                    }
+                    {{- end }}
+
+                    {{- if .alloy.logs.journal.enabled }}
+                    // =============================================================================
+                    // Node Journal Logs (systemd/journald)
+                    // =============================================================================
+                    // Collects logs from kubelet, containerd, and other system services
+                    loki.source.journal "node" {
+                      path         = "/var/log/journal"
+                      relabel_rules = discovery.relabel.journal.rules
+                      forward_to   = [loki.process.journal.receiver]
+                    }
+
+                    // Relabel journal entries to extract useful labels
+                    discovery.relabel "journal" {
+                      targets = []
+
+                      // Extract systemd unit name
+                      rule {
+                        source_labels = ["__journal__systemd_unit"]
+                        target_label  = "unit"
+                      }
+
+                      // Extract hostname
+                      rule {
+                        source_labels = ["__journal__hostname"]
+                        target_label  = "node"
+                      }
+
+                      // Extract priority (log level)
+                      rule {
+                        source_labels = ["__journal_priority_keyword"]
+                        target_label  = "level"
+                      }
+
+                      // Set job label
+                      rule {
+                        replacement  = "journal"
+                        target_label = "job"
+                      }
+                    }
+
+                    // Process journal logs
+                    loki.process "journal" {
+                      forward_to = [loki.write.default.receiver]
+
+                      // Add source label to identify journal logs
+                      stage.static_labels {
+                        values = {
+                          source = "journal",
+                        }
+                      }
+                    }
+                    {{- end }}
+
+                    {{- if .alloy.logs.rke2.enabled }}
+                    // =============================================================================
+                    // RKE2 Node Logs (file-based: kubelet.log, containerd.log)
+                    // =============================================================================
+                    local.file_match "rke2_logs" {
+                      path_targets = [
+                        {
+                          __path__ = "/var/lib/rancher/rke2/agent/logs/*.log",
+                          type     = "kubelet",
+                        },
+                        {
+                          __path__ = "/var/lib/rancher/rke2/agent/containerd/containerd.log",
+                          type     = "containerd",
+                        },
+                      ]
+                    }
+
+                    loki.source.file "rke2" {
+                      targets    = local.file_match.rke2_logs.targets
+                      forward_to = [loki.process.rke2.receiver]
+                    }
+
+                    loki.process "rke2" {
+                      forward_to = [loki.write.default.receiver]
+
+                      // Add source and type labels
+                      stage.static_labels {
+                        values = {
+                          source = "rke2",
+                        }
+                      }
+                    }
+                    {{- end }}
 
                     // =============================================================================
                     // Send Logs to Loki

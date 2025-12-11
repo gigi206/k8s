@@ -23,6 +23,24 @@ alloy:
   loki:
     url: "http://loki.loki.svc.cluster.local:3100/loki/api/v1/push"
 
+  # Log sources configuration
+  logs:
+    # Kubernetes pod logs (current behavior)
+    pods:
+      enabled: true
+
+    # Kubernetes Events (cluster-wide events: pod scheduling, errors, etc.)
+    events:
+      enabled: true
+
+    # Node journal logs (systemd services via journald)
+    journal:
+      enabled: true
+
+    # RKE2 node logs (kubelet.log, containerd.log)
+    rke2:
+      enabled: true
+
 syncPolicy:
   automated:
     enabled: true
