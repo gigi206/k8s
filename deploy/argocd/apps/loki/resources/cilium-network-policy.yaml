@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Loki Ingress Security
+# =============================================================================
+# Restricts access to Loki to authorized namespaces only:
+# - alloy: Log push (loki.source.kubernetes, loki.source.journal, etc.)
+# - monitoring: Grafana queries + Prometheus metrics scraping
+# - loki: Internal communication (memberlist clustering)
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: loki-ingress
+  namespace: loki
+spec:
+  description: "Allow ingress to Loki only from authorized namespaces"
+  endpointSelector: {}  # Applies to all pods in loki namespace
+
+  ingress:
+    # Allow from Alloy namespace (log push)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: alloy
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP
+
+    # Allow from Monitoring namespace (Grafana queries + Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP
+
+    # Allow internal Loki communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: loki
+      toPorts:
+        - ports:
+            - port: "3100"
+              protocol: TCP
+            - port: "7946"
+              protocol: TCP
+            - port: "7946"
+              protocol: UDP
