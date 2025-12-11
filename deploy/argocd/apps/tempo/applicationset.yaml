@@ -81,12 +81,12 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 0: Namespace
+        # Source 0: Namespace + CiliumNetworkPolicy
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/tempo/resources
           directory:
-            include: "namespace.yaml"
+            include: "*.yaml"
 
         # Source 1: Tempo Helm Chart
         - repoURL: https://grafana.github.io/helm-charts
