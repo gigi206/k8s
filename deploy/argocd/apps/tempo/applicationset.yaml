@@ -148,7 +148,7 @@ spec:
                   release: {{ .features.monitoring.release }}
               {{- end }}
 
-        {{- if and .features.tracing.waypoints.enabled .features.serviceMesh.enabled }}
+        {{- if and .features.serviceMesh.waypoints.enabled .features.serviceMesh.enabled }}
         # Source 2: Waypoint proxies for L7 tracing
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
