@@ -2,7 +2,37 @@
 export DEBIAN_FRONTEND=noninteractive
 apt update
 apt full-upgrade -y
-apt install -y curl git jq htop
+apt install -y curl git jq htop cloud-guest-utils
+
+# Expand root partition to use full disk
+echo "Expanding root partition to use full disk..."
+ROOT_DEV=$(findmnt -n -o SOURCE /)
+
+if [[ "$ROOT_DEV" == /dev/mapper/* ]]; then
+    # LVM setup: expand partition, PV, LV, then filesystem
+    echo "Detected LVM root filesystem"
+    # Find the physical partition backing LVM (usually vda3)
+    PV_DEV=$(pvs --noheadings -o pv_name 2>/dev/null | tr -d ' ' | head -1)
+    if [ -n "$PV_DEV" ]; then
+        DISK=$(lsblk -no PKNAME "$PV_DEV" | head -1)
+        PART_NUM=$(echo "$PV_DEV" | grep -oE '[0-9]+$')
+        if [ -n "$DISK" ] && [ -n "$PART_NUM" ]; then
+            growpart "/dev/$DISK" "$PART_NUM" 2>/dev/null || true
+            pvresize "$PV_DEV" 2>/dev/null || true
+            lvextend -l +100%FREE "$ROOT_DEV" 2>/dev/null || true
+            resize2fs "$ROOT_DEV" 2>/dev/null || true
+        fi
+    fi
+else
+    # Standard partition: just expand partition and filesystem
+    ROOT_DISK=$(lsblk -no PKNAME "$ROOT_DEV")
+    ROOT_PART=$(echo "$ROOT_DEV" | grep -oE '[0-9]+$')
+    if [ -n "$ROOT_DISK" ] && [ -n "$ROOT_PART" ]; then
+        growpart "/dev/$ROOT_DISK" "$ROOT_PART" 2>/dev/null || true
+        resize2fs "$ROOT_DEV" 2>/dev/null || true
+    fi
+fi
+echo "Root partition expanded: $(df -h / | tail -1 | awk '{print $2}')"
 
 # Don't install that on the managemnt node
 if [ "$1" != "management" ]
@@ -10,6 +40,38 @@ then
     # Requirement for Longhorn (normally for worker, but keep if we use worker + master)
     apt install -y open-iscsi nfs-common util-linux curl bash grep
     systemctl enable --now iscsid.service
+
+    # Storage disk setup (/dev/vdb)
+    if [ -b /dev/vdb ]; then
+        # Read storage provider from ArgoCD config
+        STORAGE_PROVIDER=""
+        CONFIG_FILE="/vagrant/deploy/argocd/config/config.yaml"
+        if [ -f "$CONFIG_FILE" ]; then
+            STORAGE_PROVIDER=$(grep -A5 "storage:" "$CONFIG_FILE" | grep "provider:" | awk -F'"' '{print $2}')
+        fi
+
+        # Only format for Longhorn (Rook needs raw disk)
+        if [ "$STORAGE_PROVIDER" = "longhorn" ]; then
+            # Check if disk is empty (no filesystem, no partition table)
+            if ! blkid /dev/vdb &>/dev/null && ! fdisk -l /dev/vdb 2>/dev/null | grep -q "^/dev/vdb"; then
+                echo "Formatting /dev/vdb for Longhorn storage..."
+                mkfs.ext4 -F /dev/vdb
+                mkdir -p /var/lib/longhorn
+                # Add to fstab if not already present
+                if ! grep -q "/dev/vdb" /etc/fstab; then
+                    echo "/dev/vdb /var/lib/longhorn ext4 defaults 0 2" >> /etc/fstab
+                fi
+                mount /var/lib/longhorn
+                echo "Storage disk /dev/vdb mounted on /var/lib/longhorn"
+            else
+                echo "Disk /dev/vdb is not empty, skipping format"
+            fi
+        elif [ "$STORAGE_PROVIDER" = "rook" ]; then
+            echo "Storage provider is Rook - keeping /dev/vdb as raw disk"
+        else
+            echo "Storage provider not detected or unknown ($STORAGE_PROVIDER), skipping disk setup"
+        fi
+    fi
 fi
 
 echo "alias ll='ls -l --color'" >>~/.bashrc
