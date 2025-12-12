@@ -71,6 +71,26 @@ kubectl -n rook-ceph get secret rook-ceph-dashboard-password \
 
 Default username: `admin`
 
+### SSO / Authentification
+
+#### SAML2 (actuel)
+
+Le dashboard utilise SAML2 avec Keycloak pour l'authentification SSO. Configuré automatiquement si `features.sso.enabled: true` dans la config globale.
+
+Fonctionnement :
+1. L'utilisateur accède à `https://ceph.<domain>`
+2. Redirection vers Keycloak pour authentification
+3. Retour au dashboard avec session SSO
+
+#### OIDC (futur)
+
+> **Note** : L'OIDC natif du dashboard Ceph nécessite :
+> - **Ceph 20.x (Tentacle)** minimum
+> - Services `mgmt-gateway` et `oauth2-proxy` intégrés à Ceph
+> - Support Rook à venir (probablement Rook 1.19+)
+>
+> Actuellement Rook 1.18.x supporte uniquement Ceph 19.x (Squid), donc SAML2 est utilisé.
+
 ## Object Store (S3)
 
 When `objectStore.enabled: true`, a RADOS Gateway (RGW) is deployed providing S3-compatible storage.

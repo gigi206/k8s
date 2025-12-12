@@ -1,0 +1,158 @@
+---
+# =============================================================================
+# Job - Configure Ceph Dashboard SAML2 SSO
+# =============================================================================
+# Configures the Ceph Dashboard to use SAML2 SSO with Keycloak
+# Uses the official Rook toolbox pattern with init container
+# Requires: Keycloak SAML client to be created first
+# Ref: https://rook.github.io/docs/rook/latest-release/Troubleshooting/ceph-toolbox/
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ceph-dashboard-saml-config
+  namespace: rook-ceph
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: config-init
+          image: docker.io/rook/ceph:v1.18.6
+          command: ["/usr/local/bin/toolbox.sh"]
+          args: ["--skip-watch"]
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ROOK_CEPH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: rook-ceph-mon
+                  key: ceph-username
+          volumeMounts:
+            - mountPath: /etc/ceph
+              name: ceph-config
+            - name: mon-endpoint-volume
+              mountPath: /etc/rook
+            - name: ceph-admin-secret
+              mountPath: /var/lib/rook-ceph-mon
+            - name: rook-config-override
+              mountPath: /etc/rook-config-override
+              readOnly: true
+      containers:
+        - name: configure-sso
+          image: docker.io/rook/ceph:v1.18.6
+          env:
+            - name: DOMAIN
+              value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            - name: KEYCLOAK_REALM
+              value: "k8s"
+          volumeMounts:
+            - mountPath: /etc/ceph
+              name: ceph-config
+              readOnly: true
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "=== Ceph Dashboard SAML2 SSO Configuration ==="
+
+              # Wait for Ceph cluster to be healthy
+              echo "Waiting for Ceph cluster to be ready..."
+              for i in $(seq 1 120); do
+                HEALTH=$(ceph health 2>/dev/null || echo "ERROR")
+                if echo "$HEALTH" | grep -qE "HEALTH_OK|HEALTH_WARN"; then
+                  echo "Ceph cluster is ready: $HEALTH"
+                  break
+                fi
+                echo "Attempt $i/120 - Ceph not ready ($HEALTH), waiting..."
+                sleep 10
+              done
+
+              # Verify cluster is accessible
+              if ! ceph health 2>/dev/null | grep -qE "HEALTH_OK|HEALTH_WARN"; then
+                echo "ERROR: Ceph cluster not accessible"
+                exit 1
+              fi
+
+              # Wait for Keycloak SAML metadata to be available
+              echo "Waiting for Keycloak SAML metadata..."
+              KEYCLOAK_SAML_URL="https://keycloak.${DOMAIN}/realms/${KEYCLOAK_REALM}/protocol/saml/descriptor"
+              for i in $(seq 1 60); do
+                if curl -sk -o /dev/null -w "%{http_code}" "$KEYCLOAK_SAML_URL" | grep -q "200"; then
+                  echo "Keycloak SAML metadata is available"
+                  break
+                fi
+                echo "Attempt $i/60 - Keycloak SAML not ready, waiting..."
+                sleep 5
+              done
+
+              # Check current SSO status
+              echo "Checking current SSO status..."
+              SSO_STATUS=$(ceph dashboard sso status 2>/dev/null || echo "disabled")
+              echo "Current SSO status: $SSO_STATUS"
+
+              # Configure SAML2 SSO parameters
+              DASHBOARD_URL="https://ceph.${DOMAIN}"
+              IDP_METADATA="https://keycloak.${DOMAIN}/realms/${KEYCLOAK_REALM}/protocol/saml/descriptor"
+              IDP_USERNAME_ATTR="username"
+              IDP_ENTITY_ID="https://keycloak.${DOMAIN}/realms/${KEYCLOAK_REALM}"
+
+              # Check if already configured with SAML2
+              if echo "$SSO_STATUS" | grep -q "SAML2"; then
+                echo "SSO already enabled with SAML2, verifying configuration..."
+              else
+                # Setup SAML2 SSO
+                echo "Configuring SAML2 SSO..."
+                ceph dashboard sso setup saml2 \
+                  "$DASHBOARD_URL" \
+                  "$IDP_METADATA" \
+                  "$IDP_USERNAME_ATTR" \
+                  "$IDP_ENTITY_ID"
+
+                # Fix authnRequestsSigned - Ceph sets it to true by default even without SP cert
+                # This causes Saml2Settings validation to fail. We need to disable it.
+                echo "Patching SSO config to disable request signing (no SP certificate)..."
+                SSO_CONFIG=$(ceph config-key get mgr/dashboard/ssodb_v1)
+                PATCHED_CONFIG=$(echo "$SSO_CONFIG" | python3 -c "import sys, json; data = json.load(sys.stdin); data['saml2']['onelogin_settings']['security']['authnRequestsSigned'] = False; print(json.dumps(data))")
+                echo "$PATCHED_CONFIG" | ceph config-key set mgr/dashboard/ssodb_v1 -i -
+                echo "SSO config patched successfully"
+
+                # Restart dashboard module to pick up the changes
+                echo "Restarting dashboard module..."
+                ceph mgr module disable dashboard
+                sleep 3
+                ceph mgr module enable dashboard
+                echo "Dashboard module restarted"
+              fi
+
+              # Verify configuration
+              echo "Verifying SSO configuration..."
+              ceph dashboard sso status
+              ceph dashboard sso show saml2
+
+              echo "=== Ceph Dashboard SAML2 SSO Configuration Complete ==="
+              echo "Users can now login via Keycloak at: $DASHBOARD_URL"
+      volumes:
+        - name: ceph-admin-secret
+          secret:
+            secretName: rook-ceph-mon
+            optional: false
+            items:
+              - key: ceph-secret
+                path: secret.keyring
+        - name: mon-endpoint-volume
+          configMap:
+            name: rook-ceph-mon-endpoints
+            items:
+              - key: data
+                path: mon-endpoints
+        - name: rook-config-override
+          configMap:
+            name: rook-config-override
+            optional: true
+        - name: ceph-config
+          emptyDir: {}
