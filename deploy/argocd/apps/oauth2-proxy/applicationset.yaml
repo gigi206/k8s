@@ -217,7 +217,7 @@ spec:
               # Only when using local Keycloak as SSO provider
               extraInitContainers:
                 - name: wait-for-keycloak
-                  image: curlimages/curl:8.5.0
+                  image: '{{ .images.curl.repository }}:{{ .images.curl.tag }}'
                   command:
                     - /bin/sh
                     - -c

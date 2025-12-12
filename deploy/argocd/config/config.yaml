@@ -44,6 +44,12 @@ common:
   certEmail: "admin@example.com"
   clusterIssuer: "selfsigned-cluster-issuer"
 
+# Images communes utilisées par les Jobs
+images:
+  curl:
+    repository: curlimages/curl
+    tag: "8.17.0"
+
 # Configuration Git
 git:
   revision: "HEAD"

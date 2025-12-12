@@ -28,8 +28,9 @@ spec:
               value: "https://keycloak-service.keycloak.svc.cluster.local:9000"
             - name: REALM
               value: "k8s"
+            # CLIENT_ID must match SP Entity ID for SAML
             - name: CLIENT_ID
-              value: "ceph-dashboard"
+              value: "https://ceph.PLACEHOLDER.example.com/auth/saml2/metadata"
             - name: KEYCLOAK_ADMIN
               valueFrom:
                 secretKeyRef:

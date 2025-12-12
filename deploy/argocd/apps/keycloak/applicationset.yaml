@@ -159,6 +159,8 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize-oauth2-proxy-job
           kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
             patches:
               - target:
                   kind: Job
