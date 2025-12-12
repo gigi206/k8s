@@ -281,6 +281,13 @@
       "packageNameTemplate": "rook-ceph-cluster",
       "datasourceTemplate": "helm",
       "registryUrlTemplate": "https://charts.rook.io/release"
+    },
+    {
+      "customType": "regex",
+      "description": "Curl image (curlimages/curl)",
+      "fileMatch": ["^deploy/argocd/config/config\\.yaml$"],
+      "matchStrings": ["images:\\s*\\n\\s*curl:\\s*\\n\\s*repository:\\s*(?<depName>[^\\n]+)\\s*\\n\\s*tag:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "docker"
     }
   ]
 }

@@ -78,6 +78,8 @@ spec:
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio-gateway/resources
           kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
             patches:
               - target:
                   kind: Gateway

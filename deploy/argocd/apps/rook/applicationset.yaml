@@ -128,6 +128,8 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/resources
           kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
             patches:
               - target:
                   kind: Job
@@ -136,6 +138,9 @@ spec:
                   - op: replace
                     path: /spec/template/spec/containers/0/env/0/value
                     value: {{ .common.domain }}
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/4/value
+                    value: https://ceph.{{ .common.domain }}/auth/saml2/metadata
               - target:
                   kind: Job
                   name: ceph-dashboard-saml-config
