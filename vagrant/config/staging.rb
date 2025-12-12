@@ -26,3 +26,8 @@ $workers = 0
 $worker_cpu = 8
 $worker_memory = 8192
 $worker_disk = 50
+
+# Disque de stockage supplémentaire (pour Longhorn)
+# Désactivé car pas de workers en staging
+$storage_disk_enabled = false
+$storage_disk_size = "50G"

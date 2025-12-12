@@ -63,6 +63,15 @@ Vagrant.configure("2") do |config|
         domain.memory = $master_memory
         domain.machine_virtual_size = $master_disk
         domain.keymap = $keymap
+
+        # Disque de stockage sur masters en mode all-in-one (pas de workers)
+        if $workers == 0 && defined?($storage_disk_enabled) && $storage_disk_enabled
+          domain.storage :file,
+            :size => $storage_disk_size,
+            :device => 'vdb',
+            :bus => 'virtio',
+            :type => 'raw'
+        end
       end
 
       # Premier master: initialisation du cluster
@@ -133,6 +142,15 @@ Vagrant.configure("2") do |config|
         domain.memory = $worker_memory
         domain.machine_virtual_size = $worker_disk
         domain.keymap = $keymap
+
+        # Disque de stockage supplémentaire (pour Longhorn)
+        if defined?($storage_disk_enabled) && $storage_disk_enabled
+          domain.storage :file,
+            :size => $storage_disk_size,
+            :device => 'vdb',
+            :bus => 'virtio',
+            :type => 'raw'
+        end
       end
 
       worker.vm.provision "shell", path: "scripts/install_common.sh"

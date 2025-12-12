@@ -26,3 +26,7 @@ $workers = 3
 $worker_cpu = 8
 $worker_memory = 16384
 $worker_disk = 100
+
+# Disque de stockage supplémentaire (pour Longhorn)
+$storage_disk_enabled = true
+$storage_disk_size = "100G"
