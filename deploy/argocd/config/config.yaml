@@ -112,8 +112,8 @@ features:
   # === Storage ===
   storage:
     enabled: true        # Wave 60: Stockage distribué
-    provider: "longhorn" # Provider selection: longhorn (seul provider actuellement supporté)
-    class: "longhorn"    # Kubernetes StorageClass name (used by workloads for PVCs)
+    provider: "rook"       # Provider selection: longhorn | rook
+    class: "ceph-block"    # Kubernetes StorageClass name: longhorn | ceph-block (rook)
     csiSnapshotter: true # Wave 55: CSI External Snapshotter (requis pour snapshots)
 
   # === Database Operator ===

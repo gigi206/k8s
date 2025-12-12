@@ -1,0 +1,129 @@
+---
+# =============================================================================
+# Rook-Ceph Prometheus Monitoring
+# =============================================================================
+# PrometheusRule pour monitoring Rook-Ceph avec Prometheus
+# Note: ServiceMonitor est créé par le chart Helm rook-ceph-cluster (monitoring.enabled)
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rook-ceph-prometheus-rules
+  namespace: rook-ceph
+  labels:
+    prometheus: rook-ceph
+    role: alert-rules
+spec:
+  groups:
+  - name: ceph.rules
+    interval: 30s
+    rules:
+    # CRITICAL: Ceph health status
+    - alert: CephHealthCritical
+      annotations:
+        description: Ceph cluster health status is HEALTH_ERR. Immediate action required.
+        summary: Ceph cluster health is CRITICAL.
+      expr: ceph_health_status == 2
+      for: 5m
+      labels:
+        severity: critical
+
+    - alert: CephHealthWarning
+      annotations:
+        description: Ceph cluster health status is HEALTH_WARN.
+        summary: Ceph cluster health is WARNING.
+      expr: ceph_health_status == 1
+      for: 10m
+      labels:
+        severity: warning
+
+    # CRITICAL: Ceph is down
+    - alert: CephClusterDown
+      annotations:
+        description: Ceph cluster metrics are not being collected. Cluster may be down.
+        summary: Ceph cluster is down.
+      expr: absent(ceph_health_status) == 1
+      for: 5m
+      labels:
+        severity: critical
+
+    # CRITICAL: OSD down
+    - alert: CephOSDDown
+      annotations:
+        description: OSD {{ $labels.ceph_daemon }} is down.
+        summary: Ceph OSD is down.
+      expr: ceph_osd_up == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    # WARNING: OSD nearly full
+    - alert: CephOSDNearlyFull
+      annotations:
+        description: OSD {{ $labels.ceph_daemon }} is {{ $value | humanize }}% full.
+        summary: Ceph OSD nearly full.
+      expr: (ceph_osd_stat_bytes_used / ceph_osd_stat_bytes) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+
+    # CRITICAL: OSD full
+    - alert: CephOSDFull
+      annotations:
+        description: OSD {{ $labels.ceph_daemon }} is {{ $value | humanize }}% full. Data loss imminent.
+        summary: Ceph OSD is full.
+      expr: (ceph_osd_stat_bytes_used / ceph_osd_stat_bytes) * 100 > 90
+      for: 5m
+      labels:
+        severity: critical
+
+    # CRITICAL: MON quorum lost
+    - alert: CephMonQuorumLost
+      annotations:
+        description: Monitor {{ $labels.ceph_daemon }} has lost quorum.
+        summary: Ceph MON quorum lost.
+      expr: ceph_mon_quorum_status == 0
+      for: 5m
+      labels:
+        severity: critical
+
+    # WARNING: Pool near full
+    - alert: CephPoolNearlyFull
+      annotations:
+        description: Pool {{ $labels.pool_id }} is {{ $value | humanize }}% full.
+        summary: Ceph pool nearly full.
+      expr: (ceph_pool_bytes_used / ceph_pool_max_avail) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+
+    # WARNING: PG degraded
+    - alert: CephPGsDegraded
+      annotations:
+        description: "{{ $value }} PGs are in degraded state."
+        summary: Ceph PGs are degraded.
+      expr: ceph_pg_degraded > 0
+      for: 10m
+      labels:
+        severity: warning
+
+    # CRITICAL: PG stuck unclean
+    - alert: CephPGsStuckUnclean
+      annotations:
+        description: "{{ $value }} PGs have been undersized for 30 minutes."
+        summary: Ceph PGs stuck in unclean state.
+      expr: ceph_pg_undersized > 0
+      for: 30m
+      labels:
+        severity: critical
+
+    # WARNING: Slow OSD requests
+    - alert: CephSlowOps
+      annotations:
+        description: "{{ $value }} slow operations detected."
+        summary: Ceph slow operations detected.
+      expr: ceph_healthcheck_slow_ops > 0
+      for: 10m
+      labels:
+        severity: warning

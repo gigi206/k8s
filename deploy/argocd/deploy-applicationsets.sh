@@ -461,13 +461,15 @@ resolve_dependencies() {
     fi
 
     # =========================================================================
-    # longhorn → csiSnapshotter (recommandé)
+    # longhorn/rook → csiSnapshotter (recommandé)
     # =========================================================================
-    if [[ "$FEAT_STORAGE" == "true" ]] && [[ "$FEAT_STORAGE_PROVIDER" == "longhorn" ]]; then
-      if [[ "$FEAT_CSI_SNAPSHOTTER" != "true" ]]; then
-        log_info "  → Activation de csiSnapshotter (recommandé pour Longhorn)"
-        FEAT_CSI_SNAPSHOTTER="true"
-        changes_made=true
+    if [[ "$FEAT_STORAGE" == "true" ]]; then
+      if [[ "$FEAT_STORAGE_PROVIDER" == "longhorn" ]] || [[ "$FEAT_STORAGE_PROVIDER" == "rook" ]]; then
+        if [[ "$FEAT_CSI_SNAPSHOTTER" != "true" ]]; then
+          log_info "  → Activation de csiSnapshotter (recommandé pour $FEAT_STORAGE_PROVIDER)"
+          FEAT_CSI_SNAPSHOTTER="true"
+          changes_made=true
+        fi
       fi
     fi
 
@@ -548,9 +550,9 @@ validate_dependencies() {
   # Vérifier que le storage provider est supporté
   if [[ "$FEAT_STORAGE" == "true" ]]; then
     case "$FEAT_STORAGE_PROVIDER" in
-      longhorn) ;;  # OK
+      longhorn|rook) ;;  # OK
       *)
-        log_error "Storage provider '$FEAT_STORAGE_PROVIDER' non supporté (seul 'longhorn' est disponible)"
+        log_error "Storage provider '$FEAT_STORAGE_PROVIDER' non supporté (longhorn, rook)"
         errors=$((errors + 1))
         ;;
     esac
@@ -646,6 +648,9 @@ if [[ "$FEAT_STORAGE" == "true" ]]; then
   case "$FEAT_STORAGE_PROVIDER" in
     longhorn)
       APPLICATIONSETS+=("apps/longhorn/applicationset.yaml")
+      ;;
+    rook)
+      APPLICATIONSETS+=("apps/rook/applicationset.yaml")
       ;;
   esac
 fi

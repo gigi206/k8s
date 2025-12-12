@@ -1,0 +1,68 @@
+---
+# Configuration Rook-Ceph - Prod
+# HA configuration with 3 replicas
+environment: prod
+appName: rook
+
+# Dashboard configuration for Grafana
+dashboard:
+  folder: "Rook-Ceph"
+
+rook:
+  # Operator configuration
+  operator:
+    version: "v1.18.6"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+  # Cluster configuration
+  cluster:
+    version: "v1.18.6"
+    cephVersion: "19.2.0"
+    osdPoolDefaultSize: 3
+    mon:
+      count: 3
+      allowMultiplePerNode: false
+    mgr:
+      count: 2
+      allowMultiplePerNode: false
+
+  # Storage configuration (OSDs)
+  storage:
+    deviceFilter: "^vdb$"
+
+  # CSI configuration
+  csi:
+    provisionerReplicas: 2
+
+  # Block Pool (RBD)
+  blockPool:
+    replicaSize: 3
+
+  # CephFS (Optional shared filesystem)
+  cephfs:
+    enabled: true
+    replicaSize: 3
+
+  # Object Store (S3 compatible)
+  objectStore:
+    enabled: true
+    replicaSize: 3
+    gateway:
+      instances: 2
+
+  # Ceph Dashboard
+  dashboard:
+    enabled: true
+
+# Sync policy
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

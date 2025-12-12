@@ -22,10 +22,9 @@ spec:
     name: postgresql
     major: 18
 
-  # Configuration du stockage
+  # Configuration du stockage (utilise la StorageClass par défaut)
   storage:
     size: 1Gi
-    storageClass: longhorn
 
   # Bootstrap: creation de la base de donnees keycloak
   bootstrap:

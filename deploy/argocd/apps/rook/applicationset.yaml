@@ -1,0 +1,257 @@
+---
+# =============================================================================
+# Rook-Ceph ApplicationSet - Wave 60 (Distributed Storage)
+# =============================================================================
+# Deploys Rook-Ceph for distributed block and file storage
+# Charts: rook-ceph (operator) + rook-ceph-cluster (cluster)
+# Docs: https://rook.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: rook
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "60"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/rook/config/*.yaml
+
+  template:
+    metadata:
+      name: rook
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "60"
+    spec:
+      project: default
+
+      sources:
+        # Source 0: Rook-Ceph Operator Helm Chart
+        - repoURL: https://charts.rook.io/release
+          targetRevision: '{{ .rook.operator.version }}'
+          chart: rook-ceph
+          helm:
+            releaseName: rook-ceph
+
+        # Source 1: Rook-Ceph Cluster Helm Chart
+        - repoURL: https://charts.rook.io/release
+          targetRevision: '{{ .rook.cluster.version }}'
+          chart: rook-ceph-cluster
+          helm:
+            releaseName: rook-ceph-cluster
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: rook-ceph
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+
+      ignoreDifferences:
+        - group: ceph.rook.io
+          kind: CephCluster
+          jqPathExpressions:
+            - .spec.cephVersion.image
+
+      sources:
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute (Gateway API) - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: ceph-dashboard
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: ceph.{{ .common.domain }}
+        {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source: Prometheus monitoring + Grafana dashboard (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+
+        # Source: Rook-Ceph Operator Helm Chart
+        - repoURL: https://charts.rook.io/release
+          targetRevision: '{{ .rook.operator.version }}'
+          chart: rook-ceph
+          helm:
+            releaseName: rook-ceph
+            valuesObject:
+              monitoring:
+                enabled: {{ .features.monitoring.enabled }}
+              csi:
+                enableRbdDriver: true
+                enableCephfsDriver: {{ .rook.cephfs.enabled }}
+                provisionerReplicas: {{ .rook.csi.provisionerReplicas }}
+              resources:
+                requests:
+                  cpu: '{{ .rook.operator.resources.requests.cpu }}'
+                  memory: '{{ .rook.operator.resources.requests.memory }}'
+                limits:
+                  cpu: '{{ .rook.operator.resources.limits.cpu }}'
+                  memory: '{{ .rook.operator.resources.limits.memory }}'
+
+        # Source: Rook-Ceph Cluster Helm Chart
+        - repoURL: https://charts.rook.io/release
+          targetRevision: '{{ .rook.cluster.version }}'
+          chart: rook-ceph-cluster
+          helm:
+            releaseName: rook-ceph-cluster
+            valuesObject:
+              operatorNamespace: rook-ceph
+              configOverride: |
+                [global]
+                osd_pool_default_size = {{ .rook.cluster.osdPoolDefaultSize }}
+
+              monitoring:
+                enabled: {{ .features.monitoring.enabled }}
+                createPrometheusRules: false
+                {{- if .features.monitoring.enabled }}
+                metricsDisabled: false
+                {{- end }}
+
+              cephClusterSpec:
+                cephVersion:
+                  image: 'quay.io/ceph/ceph:v{{ .rook.cluster.cephVersion }}'
+                dataDirHostPath: /var/lib/rook
+                mon:
+                  count: {{ .rook.cluster.mon.count }}
+                  allowMultiplePerNode: {{ .rook.cluster.mon.allowMultiplePerNode }}
+                mgr:
+                  count: {{ .rook.cluster.mgr.count }}
+                  allowMultiplePerNode: {{ .rook.cluster.mgr.allowMultiplePerNode }}
+                dashboard:
+                  enabled: {{ .rook.dashboard.enabled }}
+                  ssl: false
+                storage:
+                  useAllNodes: true
+                  useAllDevices: false
+                  deviceFilter: '{{ .rook.storage.deviceFilter }}'
+
+              cephBlockPools:
+                - name: ceph-blockpool
+                  spec:
+                    failureDomain: host
+                    replicated:
+                      size: {{ .rook.blockPool.replicaSize }}
+                  storageClass:
+                    enabled: true
+                    name: ceph-block
+                    isDefault: true
+                    reclaimPolicy: Delete
+                    allowVolumeExpansion: true
+                    volumeBindingMode: Immediate
+                    parameters:
+                      imageFormat: "2"
+                      imageFeatures: layering
+                      csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+                      csi.storage.k8s.io/provisioner-secret-namespace: rook-ceph
+                      csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+                      csi.storage.k8s.io/controller-expand-secret-namespace: rook-ceph
+                      csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+                      csi.storage.k8s.io/node-stage-secret-namespace: rook-ceph
+                      csi.storage.k8s.io/fstype: ext4
+
+              {{- if .rook.cephfs.enabled }}
+              cephFileSystems:
+                - name: ceph-filesystem
+                  spec:
+                    metadataPool:
+                      replicated:
+                        size: {{ .rook.cephfs.replicaSize }}
+                    dataPools:
+                      - name: data0
+                        failureDomain: host
+                        replicated:
+                          size: {{ .rook.cephfs.replicaSize }}
+                    metadataServer:
+                      activeCount: 1
+                      activeStandby: true
+                  storageClass:
+                    enabled: true
+                    name: ceph-filesystem
+                    isDefault: false
+                    reclaimPolicy: Delete
+                    allowVolumeExpansion: true
+                    volumeBindingMode: Immediate
+                    pool: data0
+              {{- else }}
+              cephFileSystems: []
+              {{- end }}
+
+              {{- if .rook.objectStore.enabled }}
+              cephObjectStores:
+                - name: ceph-objectstore
+                  spec:
+                    metadataPool:
+                      failureDomain: host
+                      replicated:
+                        size: {{ .rook.objectStore.replicaSize }}
+                    dataPool:
+                      failureDomain: host
+                      replicated:
+                        size: {{ .rook.objectStore.replicaSize }}
+                    preservePoolsOnDelete: false
+                    gateway:
+                      port: 80
+                      instances: {{ .rook.objectStore.gateway.instances }}
+                  storageClass:
+                    enabled: true
+                    name: ceph-bucket
+                    reclaimPolicy: Delete
+                    volumeBindingMode: Immediate
+              {{- else }}
+              cephObjectStores: []
+              {{- end }}
