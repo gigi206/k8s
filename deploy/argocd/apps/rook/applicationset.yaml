@@ -122,6 +122,29 @@ spec:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
 
+        {{- if and .features.sso.enabled .rook.dashboard.enabled }}
+        # Source: SAML2 SSO configuration (Keycloak client + Ceph dashboard SSO)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/resources
+          kustomize:
+            patches:
+              - target:
+                  kind: Job
+                  name: ceph-dashboard-keycloak-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+              - target:
+                  kind: Job
+                  name: ceph-dashboard-saml-config
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+        {{- end }}
+
         # Source: Rook-Ceph Operator Helm Chart
         - repoURL: https://charts.rook.io/release
           targetRevision: '{{ .rook.operator.version }}'
@@ -174,7 +197,7 @@ spec:
                   allowMultiplePerNode: {{ .rook.cluster.mgr.allowMultiplePerNode }}
                 dashboard:
                   enabled: {{ .rook.dashboard.enabled }}
-                  ssl: false
+                  ssl: true
                 storage:
                   useAllNodes: true
                   useAllDevices: false

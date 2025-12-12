@@ -1,0 +1,197 @@
+---
+# =============================================================================
+# Job - Create/Update SAML Client in Keycloak for Ceph Dashboard
+# =============================================================================
+# Uses Keycloak Admin REST API to create the Ceph Dashboard SAML client
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ceph-dashboard-keycloak-client
+  namespace: keycloak
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-client
+          image: curlimages/curl:8.17.0
+          env:
+            - name: DOMAIN
+              value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            - name: KEYCLOAK_URL
+              value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
+            - name: KEYCLOAK_HEALTH_URL
+              value: "https://keycloak-service.keycloak.svc.cluster.local:9000"
+            - name: REALM
+              value: "k8s"
+            - name: CLIENT_ID
+              value: "ceph-dashboard"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: password
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "=== Ceph Dashboard SAML Client Setup ==="
+              echo "Keycloak URL: $KEYCLOAK_URL"
+              echo "Realm: $REALM"
+              echo "Client ID: $CLIENT_ID"
+
+              # Wait for Keycloak to be ready
+              echo "Waiting for Keycloak..."
+              for i in $(seq 1 60); do
+                if curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_HEALTH_URL}/health/ready" | grep -q "200"; then
+                  echo "Keycloak is ready"
+                  break
+                fi
+                echo "Attempt $i/60 - Keycloak not ready, waiting..."
+                sleep 5
+              done
+
+              # Get admin token from master realm
+              echo "Getting admin token..."
+              TOKEN=$(curl -sk -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli" \
+                -d "username=$KEYCLOAK_ADMIN" \
+                -d "password=$KEYCLOAK_ADMIN_PASSWORD" | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+
+              if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+                echo "ERROR: Failed to get admin token"
+                exit 1
+              fi
+              echo "Admin token obtained successfully"
+
+              # Check if client exists
+              echo "Checking if client '$CLIENT_ID' exists..."
+              EXISTING=$(curl -sk -X GET "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$CLIENT_ID" \
+                -H "Authorization: Bearer $TOKEN")
+
+              # SAML Client JSON configuration
+              # Ceph Dashboard expects:
+              # - ACS URL: https://ceph.<domain>/auth/saml2
+              # - Entity ID: https://ceph.<domain>/auth/saml2/metadata
+              CLIENT_JSON=$(cat <<EOF
+              {
+                "clientId": "$CLIENT_ID",
+                "name": "Ceph Dashboard",
+                "description": "Client SAML pour Ceph Dashboard SSO",
+                "enabled": true,
+                "protocol": "saml",
+                "publicClient": false,
+                "frontchannelLogout": true,
+                "fullScopeAllowed": true,
+                "baseUrl": "https://ceph.${DOMAIN}",
+                "adminUrl": "https://ceph.${DOMAIN}/auth/saml2",
+                "redirectUris": [
+                  "https://ceph.${DOMAIN}/*"
+                ],
+                "webOrigins": ["https://ceph.${DOMAIN}"],
+                "attributes": {
+                  "saml.assertion.signature": "true",
+                  "saml.force.post.binding": "true",
+                  "saml.multivalued.roles": "false",
+                  "saml.encrypt": "false",
+                  "saml.server.signature": "true",
+                  "saml.server.signature.keyinfo.ext": "false",
+                  "saml.client.signature": "false",
+                  "saml_force_name_id_format": "true",
+                  "saml_name_id_format": "username",
+                  "saml_assertion_consumer_url_post": "https://ceph.${DOMAIN}/auth/saml2",
+                  "saml_single_logout_service_url_redirect": "https://ceph.${DOMAIN}/auth/saml2/logout"
+                },
+                "protocolMappers": [
+                  {
+                    "name": "username",
+                    "protocol": "saml",
+                    "protocolMapper": "saml-user-property-mapper",
+                    "consentRequired": false,
+                    "config": {
+                      "attribute.nameformat": "Basic",
+                      "user.attribute": "username",
+                      "friendly.name": "username",
+                      "attribute.name": "username"
+                    }
+                  },
+                  {
+                    "name": "email",
+                    "protocol": "saml",
+                    "protocolMapper": "saml-user-property-mapper",
+                    "consentRequired": false,
+                    "config": {
+                      "attribute.nameformat": "Basic",
+                      "user.attribute": "email",
+                      "friendly.name": "email",
+                      "attribute.name": "email"
+                    }
+                  },
+                  {
+                    "name": "groups",
+                    "protocol": "saml",
+                    "protocolMapper": "saml-group-membership-mapper",
+                    "consentRequired": false,
+                    "config": {
+                      "attribute.nameformat": "Basic",
+                      "single": "false",
+                      "full.path": "false",
+                      "friendly.name": "groups",
+                      "attribute.name": "groups"
+                    }
+                  }
+                ]
+              }
+              EOF
+              )
+
+              if echo "$EXISTING" | grep -q '"id"'; then
+                # Client exists - update it
+                CLIENT_UUID=$(echo "$EXISTING" | sed 's/\[{"id":"\([^"]*\)".*/\1/')
+                echo "Client exists (UUID: $CLIENT_UUID), updating..."
+
+                RESPONSE=$(curl -sk -w "\n%{http_code}" -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_UUID" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$CLIENT_JSON")
+
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+                if [ "$HTTP_CODE" = "204" ]; then
+                  echo "Client updated successfully"
+                else
+                  echo "ERROR: Failed to update client (HTTP $HTTP_CODE)"
+                  echo "$RESPONSE"
+                  exit 1
+                fi
+              else
+                # Client doesn't exist - create it
+                echo "Client doesn't exist, creating..."
+
+                RESPONSE=$(curl -sk -w "\n%{http_code}" -X POST "$KEYCLOAK_URL/admin/realms/$REALM/clients" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$CLIENT_JSON")
+
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+                if [ "$HTTP_CODE" = "201" ]; then
+                  echo "Client created successfully"
+                else
+                  echo "ERROR: Failed to create client (HTTP $HTTP_CODE)"
+                  echo "$RESPONSE"
+                  exit 1
+                fi
+              fi
+
+              echo "=== Ceph Dashboard SAML Client Setup Complete ==="

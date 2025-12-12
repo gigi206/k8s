@@ -1,0 +1,19 @@
+---
+# =============================================================================
+# DestinationRule - TLS to Ceph Dashboard backend
+# =============================================================================
+# Required when dashboard SSL is enabled. Tells Istio to use TLS when
+# connecting to the backend service (since dashboard uses self-signed cert).
+# =============================================================================
+
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ceph-dashboard
+  namespace: rook-ceph
+spec:
+  host: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      insecureSkipVerify: true
