@@ -264,8 +264,10 @@ argocd-install-dev:
 	echo "" && \
 	echo "$(GREEN)⚙️  Étape 4/5: Installation ArgoCD via Helm (avec KSOPS)...$(NC)" && \
 	K8S_VERSION=$$(kubectl version -o json | jq -r '.serverVersion.gitVersion' | sed 's/^v//; s/+.*//' ) && \
+	ARGOCD_VERSION=$$(yq -r '.argocd.version' $(ARGOCD_DIR)/apps/argocd/config/dev.yaml) && \
 	helm template argocd argo/argo-cd \
 		--namespace $(ARGOCD_NAMESPACE) \
+		--version $$ARGOCD_VERSION \
 		--kube-version $$K8S_VERSION \
 		-f $(ARGOCD_DIR)/argocd-bootstrap-values.yaml | kubectl apply --server-side -f - && \
 	echo "   Attente du démarrage d'ArgoCD..." && \
