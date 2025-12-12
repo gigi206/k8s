@@ -1,0 +1,68 @@
+---
+# Configuration Rook-Ceph - Dev
+# Single node, single replica, minimal resources
+environment: dev
+appName: rook
+
+# Dashboard configuration for Grafana
+dashboard:
+  folder: "Rook-Ceph"
+
+rook:
+  # Operator configuration
+  operator:
+    version: "v1.18.6"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Cluster configuration
+  cluster:
+    version: "v1.18.6"
+    cephVersion: "19.2.0"
+    osdPoolDefaultSize: 1
+    mon:
+      count: 1
+      allowMultiplePerNode: true
+    mgr:
+      count: 1
+      allowMultiplePerNode: true
+
+  # Storage configuration (OSDs)
+  storage:
+    deviceFilter: "^vdb$"
+
+  # CSI configuration
+  csi:
+    provisionerReplicas: 1
+
+  # Block Pool (RBD)
+  blockPool:
+    replicaSize: 1
+
+  # CephFS (Optional shared filesystem)
+  cephfs:
+    enabled: false
+    replicaSize: 1
+
+  # Object Store (S3 compatible)
+  objectStore:
+    enabled: false
+    replicaSize: 1
+    gateway:
+      instances: 1
+
+  # Ceph Dashboard
+  dashboard:
+    enabled: true
+
+# Sync policy
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

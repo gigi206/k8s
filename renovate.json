@@ -261,6 +261,26 @@
       "packageNameTemplate": "alloy",
       "datasourceTemplate": "helm",
       "registryUrlTemplate": "https://grafana.github.io/helm-charts"
+    },
+    {
+      "customType": "regex",
+      "description": "Rook-Ceph Operator Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/rook/config/.*\\.yaml$"],
+      "matchStrings": ["operator:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "rook-ceph",
+      "packageNameTemplate": "rook-ceph",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.rook.io/release"
+    },
+    {
+      "customType": "regex",
+      "description": "Rook-Ceph Cluster Helm chart",
+      "fileMatch": ["^deploy/argocd/apps/rook/config/.*\\.yaml$"],
+      "matchStrings": ["cluster:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "rook-ceph-cluster",
+      "packageNameTemplate": "rook-ceph-cluster",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.rook.io/release"
     }
   ]
 }

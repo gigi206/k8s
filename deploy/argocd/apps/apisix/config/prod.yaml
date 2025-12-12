@@ -45,7 +45,6 @@ apisix:
     replicaCount: 3
     persistence:
       enabled: true
-      storageClass: "longhorn"
       size: "10Gi"
 
 # Sync policy (manual for production)
