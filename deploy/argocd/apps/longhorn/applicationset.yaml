@@ -113,6 +113,21 @@ spec:
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
+        {{- if .features.oauth2Proxy.enabled }}
+        # Source: AuthorizationPolicy for OAuth2 Proxy ext_authz
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/oauth2-authz
+          kustomize:
+            patches:
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-longhorn
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: longhorn.{{ .common.domain }}
+        {{- end }}
         # Source: Longhorn Helm Chart
         - repoURL: https://charts.longhorn.io
           targetRevision: '{{ .longhorn.version }}'

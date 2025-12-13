@@ -23,19 +23,6 @@ oauth2Proxy:
       cpu: "100m"
       memory: "128Mi"
 
-  # Apps to protect via ext_authz
-  # Note: Les hosts complets sont construits dans les AuthorizationPolicies
-  # via les patches kustomize avec {{ .common.domain }}
-  protectedApps:
-    - subdomain: "prometheus"
-      name: "Prometheus"
-    - subdomain: "alertmanager"
-      name: "Alertmanager"
-    - subdomain: "hubble"
-      name: "Hubble UI"
-    - subdomain: "longhorn"
-      name: "Longhorn UI"
-
 syncPolicy:
   automated:
     enabled: true
