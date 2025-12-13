@@ -116,6 +116,28 @@ spec:
                     path: /spec/hostnames/0
                     value: alertmanager.{{ .common.domain }}
         {{- end }}
+        {{- if .features.oauth2Proxy.enabled }}
+        # Source: AuthorizationPolicies for OAuth2 Proxy ext_authz
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/oauth2-authz
+          kustomize:
+            patches:
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-prometheus
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: prometheus.{{ .common.domain }}
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-alertmanager
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: alertmanager.{{ .common.domain }}
+        {{- end }}
         {{- if .features.sso.enabled }}
         # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
         # - keycloak-client.yaml: déploie le client OIDC Grafana dans Keycloak (ns: keycloak)

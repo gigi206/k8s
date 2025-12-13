@@ -59,6 +59,8 @@ deploy/argocd/
     │   └── prod.yaml              # Prod config
     ├── resources/                  # K8s manifests, Helm values
     ├── kustomize/                  # PrometheusRules, ServiceMonitors
+    ├── httproute/                  # HTTPRoute (conditional: gatewayAPI.httpRoute.enabled)
+    ├── oauth2-authz/               # AuthorizationPolicy (conditional: oauth2Proxy.enabled)
     └── secrets/                    # SOPS-encrypted secrets
         ├── dev/
         └── prod/

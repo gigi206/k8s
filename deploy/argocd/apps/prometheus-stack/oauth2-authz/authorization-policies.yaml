@@ -2,7 +2,7 @@
 # =============================================================================
 # Istio AuthorizationPolicies for OAuth2 Proxy ext_authz
 # =============================================================================
-# These policies protect apps by requiring authentication via OAuth2 Proxy
+# Protects Prometheus and Alertmanager by requiring authentication via OAuth2 Proxy
 # In Istio ambient mode, must use targetRef with Gateway instead of selector
 # =============================================================================
 
@@ -46,45 +46,3 @@ spec:
         - operation:
             hosts:
               - "alertmanager.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
-
----
-# Hubble UI
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: oauth2-proxy-hubble
-  namespace: istio-system
-spec:
-  targetRef:
-    kind: Gateway
-    group: gateway.networking.k8s.io
-    name: istio-gateway
-  action: CUSTOM
-  provider:
-    name: oauth2-proxy
-  rules:
-    - to:
-        - operation:
-            hosts:
-              - "hubble.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
-
----
-# Longhorn UI
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: oauth2-proxy-longhorn
-  namespace: istio-system
-spec:
-  targetRef:
-    kind: Gateway
-    group: gateway.networking.k8s.io
-    name: istio-gateway
-  action: CUSTOM
-  provider:
-    name: oauth2-proxy
-  rules:
-    - to:
-        - operation:
-            hosts:
-              - "longhorn.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain

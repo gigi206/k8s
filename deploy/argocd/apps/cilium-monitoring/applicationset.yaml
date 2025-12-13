@@ -97,6 +97,21 @@ spec:
                     path: /spec/hostnames/0
                     value: hubble.{{ .common.domain }}
         {{- end }}
+        {{- if .features.oauth2Proxy.enabled }}
+        # Source: AuthorizationPolicy for OAuth2 Proxy ext_authz
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium-monitoring/oauth2-authz
+          kustomize:
+            patches:
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-hubble
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: hubble.{{ .common.domain }}
+        {{- end }}
         # Source: Kustomize monitoring resources
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

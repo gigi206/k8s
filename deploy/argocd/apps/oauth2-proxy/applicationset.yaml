@@ -73,40 +73,10 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 1: Namespace, AuthorizationPolicies (with domain patches)
+        # Source 1: Namespace
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/resources
-          kustomize:
-            patches:
-              - target:
-                  kind: AuthorizationPolicy
-                  name: oauth2-proxy-prometheus
-                patch: |
-                  - op: replace
-                    path: /spec/rules/0/to/0/operation/hosts/0
-                    value: prometheus.{{ .common.domain }}
-              - target:
-                  kind: AuthorizationPolicy
-                  name: oauth2-proxy-alertmanager
-                patch: |
-                  - op: replace
-                    path: /spec/rules/0/to/0/operation/hosts/0
-                    value: alertmanager.{{ .common.domain }}
-              - target:
-                  kind: AuthorizationPolicy
-                  name: oauth2-proxy-hubble
-                patch: |
-                  - op: replace
-                    path: /spec/rules/0/to/0/operation/hosts/0
-                    value: hubble.{{ .common.domain }}
-              - target:
-                  kind: AuthorizationPolicy
-                  name: oauth2-proxy-longhorn
-                patch: |
-                  - op: replace
-                    path: /spec/rules/0/to/0/operation/hosts/0
-                    value: longhorn.{{ .common.domain }}
         # Source 2: Encrypted secrets (KSOPS)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
