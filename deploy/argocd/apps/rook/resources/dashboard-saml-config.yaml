@@ -49,6 +49,8 @@ spec:
               value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
             - name: KEYCLOAK_REALM
               value: "k8s"
+            - name: KEYCLOAK_INTERNAL_URL
+              value: "keycloak-service.keycloak.svc.cluster.local:8443"  # Internal K8s service URL
           volumeMounts:
             - mountPath: /etc/ceph
               name: ceph-config
@@ -78,11 +80,11 @@ spec:
                 exit 1
               fi
 
-              # Wait for Keycloak SAML metadata to be available
+              # Wait for Keycloak SAML metadata to be available (use internal URL for cluster access)
               echo "Waiting for Keycloak SAML metadata..."
-              KEYCLOAK_SAML_URL="https://keycloak.${DOMAIN}/realms/${KEYCLOAK_REALM}/protocol/saml/descriptor"
+              KEYCLOAK_SAML_URL_INTERNAL="https://${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}/protocol/saml/descriptor"
               for i in $(seq 1 60); do
-                if curl -sk -o /dev/null -w "%{http_code}" "$KEYCLOAK_SAML_URL" | grep -q "200"; then
+                if curl -sk -o /dev/null -w "%{http_code}" "$KEYCLOAK_SAML_URL_INTERNAL" | grep -q "200"; then
                   echo "Keycloak SAML metadata is available"
                   break
                 fi
@@ -96,8 +98,10 @@ spec:
               echo "Current SSO status: $SSO_STATUS"
 
               # Configure SAML2 SSO parameters
+              # IDP_METADATA uses internal URL (for cluster access to download metadata)
+              # IDP_ENTITY_ID uses external URL (must match Keycloak's configured entityID)
               DASHBOARD_URL="https://ceph.${DOMAIN}"
-              IDP_METADATA="https://keycloak.${DOMAIN}/realms/${KEYCLOAK_REALM}/protocol/saml/descriptor"
+              IDP_METADATA="https://${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}/protocol/saml/descriptor"
               IDP_USERNAME_ATTR="username"
               IDP_ENTITY_ID="https://keycloak.${DOMAIN}/realms/${KEYCLOAK_REALM}"
 
