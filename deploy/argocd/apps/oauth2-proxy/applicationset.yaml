@@ -73,10 +73,23 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 1: Namespace
+        # Source 1: Namespace + Keycloak client Job (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/resources
+          {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: oauth2-proxy-keycloak-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+          {{- end }}
         # Source 2: Encrypted secrets (KSOPS)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
