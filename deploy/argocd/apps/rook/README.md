@@ -113,6 +113,9 @@ rook:
 | Type | URL |
 |------|-----|
 | Internal (cluster) | `http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80` |
+| External (HTTPRoute) | `https://s3.<domain>` (e.g., `https://s3.k8s.lan`) |
+
+> External access requires `features.gatewayAPI.httpRoute.enabled: true` in global config.
 
 ### Create a Bucket
 
@@ -199,17 +202,14 @@ export AWS_ACCESS_KEY_ID=$(kubectl -n my-app get secret my-bucket -o jsonpath='{
 export AWS_SECRET_ACCESS_KEY=$(kubectl -n my-app get secret my-bucket -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
 export BUCKET_NAME=$(kubectl -n my-app get configmap my-bucket -o jsonpath='{.data.BUCKET_NAME}')
 
-# Port-forward RGW (from outside cluster)
+# Option 1: External access via HTTPRoute (recommended)
+aws --endpoint-url https://s3.k8s.lan --no-verify-ssl s3 ls s3://$BUCKET_NAME/
+aws --endpoint-url https://s3.k8s.lan --no-verify-ssl s3 cp myfile.txt s3://$BUCKET_NAME/
+
+# Option 2: Port-forward (if no HTTPRoute)
 kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-ceph-objectstore 8080:80 &
-
-# List bucket
 aws --endpoint-url http://localhost:8080 s3 ls s3://$BUCKET_NAME/
-
-# Upload file
 aws --endpoint-url http://localhost:8080 s3 cp myfile.txt s3://$BUCKET_NAME/
-
-# Download file
-aws --endpoint-url http://localhost:8080 s3 cp s3://$BUCKET_NAME/myfile.txt ./downloaded.txt
 ```
 
 ### Check Object Store Status
