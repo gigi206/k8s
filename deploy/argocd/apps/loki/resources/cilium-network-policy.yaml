@@ -35,6 +35,8 @@ spec:
         - ports:
             - port: "3100"
               protocol: TCP
+            - port: "3500"  # loki-canary metrics
+              protocol: TCP
 
     # Allow internal Loki communication (same namespace)
     - fromEndpoints:
