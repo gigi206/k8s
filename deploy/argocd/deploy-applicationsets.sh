@@ -1073,11 +1073,18 @@ HEALTH:.status.health.status 2>/dev/null
 
 echo ""
 
-# Services accessibles via Ingress
-INGRESSES=$(kubectl get ingress -A -o json 2>/dev/null)
-if [[ -n "$INGRESSES" ]] && [[ $(echo "$INGRESSES" | jq '.items | length') -gt 0 ]]; then
+# Services accessibles via Ingress et HTTPRoute
+INGRESS_HOSTS=$(kubectl get ingress -A -o json 2>/dev/null | jq -r '.items[].spec.rules[].host // empty' 2>/dev/null | sort -u)
+HTTPROUTE_HOSTS=$(kubectl get httproutes -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' 2>/dev/null | sort -u)
+
+# Combiner et dédupliquer les hosts
+ALL_HOSTS=$(echo -e "${INGRESS_HOSTS}\n${HTTPROUTE_HOSTS}" | grep -v '^$' | sort -u)
+
+if [[ -n "$ALL_HOSTS" ]]; then
   echo -e "${GREEN}🌐 Services accessibles:${RESET}"
-  echo "$INGRESSES" | jq -r '.items[] | "  • \u001b[36mhttps://\(.spec.rules[0].host)\u001b[0m"' 2>/dev/null | sort
+  echo "$ALL_HOSTS" | while read -r host; do
+    echo -e "  • \033[36mhttps://${host}\033[0m"
+  done
   echo ""
 
   # Identifiants ArgoCD
@@ -1087,7 +1094,7 @@ if [[ -n "$INGRESSES" ]] && [[ $(echo "$INGRESSES" | jq '.items | length') -gt 0
   echo "  Password: $ARGOCD_PASSWORD"
   echo ""
 else
-  echo -e "${YELLOW}⚠️  Aucun ingress déployé${RESET}"
+  echo -e "${YELLOW}⚠️  Aucun Ingress ou HTTPRoute déployé${RESET}"
   echo ""
 fi
 
