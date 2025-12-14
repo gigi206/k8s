@@ -1,7 +1,89 @@
 ---
+# =============================================================================
+# Rook-Ceph Kustomization - Monitoring & Dashboards
+# =============================================================================
+# Inclut:
+#   - PrometheusRules pour alertes Ceph
+#   - Dashboards Grafana officiels Ceph (ceph-mixin)
+#
+# Labels injectés par ApplicationSet:
+#   - release: prometheus-stack (ServiceMonitor discovery)
+#   - grafana_dashboard: "1" (auto-import Grafana)
+# =============================================================================
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+namespace: rook-ceph
+
 resources:
   - prometheus.yaml
-  - grafana-dashboard.yaml
+
+# Génère une ConfigMap par dashboard Grafana officiel Ceph
+configMapGenerator:
+  - name: ceph-dashboard-cluster
+    files:
+      - dashboards/ceph-cluster.json
+  - name: ceph-dashboard-cluster-advanced
+    files:
+      - dashboards/ceph-cluster-advanced.json
+  - name: ceph-dashboard-application-overview
+    files:
+      - dashboards/ceph-application-overview.json
+  - name: ceph-dashboard-osds-overview
+    files:
+      - dashboards/osds-overview.json
+  - name: ceph-dashboard-osd-device-details
+    files:
+      - dashboards/osd-device-details.json
+  - name: ceph-dashboard-hosts-overview
+    files:
+      - dashboards/hosts-overview.json
+  - name: ceph-dashboard-host-details
+    files:
+      - dashboards/host-details.json
+  - name: ceph-dashboard-pool-overview
+    files:
+      - dashboards/pool-overview.json
+  - name: ceph-dashboard-pool-detail
+    files:
+      - dashboards/pool-detail.json
+  - name: ceph-dashboard-rbd-overview
+    files:
+      - dashboards/rbd-overview.json
+  - name: ceph-dashboard-rbd-details
+    files:
+      - dashboards/rbd-details.json
+  - name: ceph-dashboard-cephfs
+    files:
+      - dashboards/cephfsdashboard.json
+  - name: ceph-dashboard-radosgw-overview
+    files:
+      - dashboards/radosgw-overview.json
+  - name: ceph-dashboard-radosgw-detail
+    files:
+      - dashboards/radosgw-detail.json
+  - name: ceph-dashboard-radosgw-sync-overview
+    files:
+      - dashboards/radosgw-sync-overview.json
+  - name: ceph-dashboard-rgw-s3-analytics
+    files:
+      - dashboards/rgw-s3-analytics.json
+  - name: ceph-dashboard-multi-cluster-overview
+    files:
+      - dashboards/multi-cluster-overview.json
+  - name: ceph-dashboard-nvmeof
+    files:
+      - dashboards/ceph-nvmeof.json
+  - name: ceph-dashboard-nvmeof-performance
+    files:
+      - dashboards/ceph-nvmeof-performance.json
+  - name: ceph-dashboard-smb-overview
+    files:
+      - dashboards/smb-overview.json
+
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    app.kubernetes.io/name: rook-ceph
+    app.kubernetes.io/component: monitoring

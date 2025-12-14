@@ -1,0 +1,79 @@
+---
+# =============================================================================
+# Job: Configure Ceph Prometheus Module
+# =============================================================================
+# Enables OSD perf counters export for Prometheus metrics
+# Required for dashboards showing ceph_osd_op_r, ceph_osd_op_w, etc.
+# Uses same pattern as rook-ceph-tools for cluster access
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ceph-prometheus-config
+  namespace: rook-ceph
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: ceph-config
+          image: quay.io/ceph/ceph:v19.2.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              # Generate ceph.conf from mon-endpoints (same as toolbox)
+              CEPH_CONF=/etc/ceph/ceph.conf
+              MON_ENDPOINTS=$(cat /etc/rook/mon-endpoints)
+              echo "Mon endpoints: $MON_ENDPOINTS"
+
+              # Extract first mon IP
+              MON_HOST=$(echo "$MON_ENDPOINTS" | sed 's/=/ /g' | awk '{print $2}' | head -1)
+              echo "Using mon host: $MON_HOST"
+
+              # Create ceph.conf
+              cat > $CEPH_CONF <<EOF
+              [global]
+              mon_host = $MON_HOST
+              [client.admin]
+              keyring = /etc/ceph/keyring
+              EOF
+
+              # Create keyring
+              cat /etc/rook/admin-secret > /etc/ceph/keyring
+
+              echo "Waiting for Ceph cluster to be ready..."
+              until ceph health 2>/dev/null | grep -qE "HEALTH_OK|HEALTH_WARN"; do
+                echo "Waiting for Ceph cluster..."
+                sleep 5
+              done
+
+              echo "Configuring Prometheus module to export perf counters..."
+              ceph config set mgr mgr/prometheus/exclude_perf_counters false
+              echo "Configuration applied successfully"
+              ceph config get mgr mgr/prometheus/exclude_perf_counters
+          volumeMounts:
+            - name: mon-endpoints
+              mountPath: /etc/rook
+              readOnly: true
+      volumes:
+        - name: mon-endpoints
+          projected:
+            sources:
+              - configMap:
+                  name: rook-ceph-mon-endpoints
+                  items:
+                    - key: data
+                      path: mon-endpoints
+              - secret:
+                  name: rook-ceph-admin-keyring
+                  items:
+                    - key: keyring
+                      path: admin-secret
