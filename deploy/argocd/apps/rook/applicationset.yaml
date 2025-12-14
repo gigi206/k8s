@@ -120,6 +120,11 @@ spec:
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+
+        # Source: Prometheus module configuration (enable perf counters)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/monitoring-config
         {{- end }}
 
         {{- if and .features.sso.enabled .rook.dashboard.enabled }}
@@ -191,6 +196,11 @@ spec:
                 {{- end }}
 
               cephClusterSpec:
+                {{- if .features.monitoring.enabled }}
+                labels:
+                  monitoring:
+                    release: '{{ .features.monitoring.release }}'
+                {{- end }}
                 cephVersion:
                   image: 'quay.io/ceph/ceph:v{{ .rook.cluster.cephVersion }}'
                 dataDirHostPath: /var/lib/rook
@@ -214,6 +224,9 @@ spec:
                     failureDomain: host
                     replicated:
                       size: {{ .rook.blockPool.replicaSize }}
+                    {{- if .features.monitoring.enabled }}
+                    enableRBDStats: true
+                    {{- end }}
                   storageClass:
                     enabled: true
                     name: ceph-block
