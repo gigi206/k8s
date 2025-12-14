@@ -94,7 +94,7 @@ spec:
 
       sources:
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source: HTTPRoute (Gateway API) - conditional
+        # Source: HTTPRoute (Gateway API) - Ceph Dashboard
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/httproute
@@ -107,6 +107,22 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: ceph.{{ .common.domain }}
+
+        {{- if .rook.objectStore.enabled }}
+        # Source: HTTPRoute (Gateway API) - S3 Object Store
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/httproute-s3
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: ceph-s3
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: s3.{{ .common.domain }}
+        {{- end }}
         {{- end }}
 
         {{- if .features.monitoring.enabled }}
