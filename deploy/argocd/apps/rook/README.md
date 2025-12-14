@@ -43,7 +43,8 @@ features:
 | MGR count | 1 | 2 |
 | OSD replicas | 1 | 3 |
 | CephFS | Disabled | Enabled |
-| Object Store (S3) | Disabled | Enabled |
+| Object Store (S3) | Enabled (1 replica) | Enabled (3 replicas) |
+| RGW instances | 1 | 2+ |
 | allowMultiplePerNode | true | false |
 
 ### OSD Device Configuration
@@ -107,7 +108,18 @@ rook:
       instances: 2       # RGW instances for HA
 ```
 
+### S3 Endpoint
+
+| Type | URL |
+|------|-----|
+| Internal (cluster) | `http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80` |
+
 ### Create a Bucket
+
+When you create an `ObjectBucketClaim`, Rook automatically provisions:
+- The S3 bucket in Ceph
+- A **Secret** with S3 credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+- A **ConfigMap** with bucket info (`BUCKET_HOST`, `BUCKET_PORT`, `BUCKET_NAME`)
 
 ```yaml
 apiVersion: objectbucket.io/v1alpha1
@@ -120,17 +132,95 @@ spec:
   storageClassName: ceph-bucket
 ```
 
-### Get S3 Credentials
+### Using S3 in Your Application
 
-```bash
-# After ObjectBucketClaim is created
-kubectl -n my-app get secret my-bucket -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d
-kubectl -n my-app get secret my-bucket -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d
+Reference the auto-created Secret and ConfigMap in your Pod:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: s3-app
+  namespace: my-app
+spec:
+  containers:
+  - name: app
+    image: my-app:latest
+    env:
+    # S3 Credentials (from Secret)
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: my-bucket
+          key: AWS_ACCESS_KEY_ID
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: my-bucket
+          key: AWS_SECRET_ACCESS_KEY
+    # Bucket configuration (from ConfigMap)
+    - name: S3_ENDPOINT
+      value: "http://$(BUCKET_HOST):$(BUCKET_PORT)"
+    - name: BUCKET_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: my-bucket
+          key: BUCKET_HOST
+    - name: BUCKET_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: my-bucket
+          key: BUCKET_PORT
+    - name: BUCKET_NAME
+      valueFrom:
+        configMapKeyRef:
+          name: my-bucket
+          key: BUCKET_NAME
 ```
 
-### S3 Endpoint
+### Get S3 Credentials Manually
 
-Internal: `http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80`
+```bash
+# Access Key
+kubectl -n my-app get secret my-bucket -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d
+
+# Secret Key
+kubectl -n my-app get secret my-bucket -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d
+
+# Bucket info
+kubectl -n my-app get configmap my-bucket -o jsonpath='{.data}'
+```
+
+### Test S3 with AWS CLI
+
+```bash
+# Set credentials
+export AWS_ACCESS_KEY_ID=$(kubectl -n my-app get secret my-bucket -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+export AWS_SECRET_ACCESS_KEY=$(kubectl -n my-app get secret my-bucket -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+export BUCKET_NAME=$(kubectl -n my-app get configmap my-bucket -o jsonpath='{.data.BUCKET_NAME}')
+
+# Port-forward RGW (from outside cluster)
+kubectl -n rook-ceph port-forward svc/rook-ceph-rgw-ceph-objectstore 8080:80 &
+
+# List bucket
+aws --endpoint-url http://localhost:8080 s3 ls s3://$BUCKET_NAME/
+
+# Upload file
+aws --endpoint-url http://localhost:8080 s3 cp myfile.txt s3://$BUCKET_NAME/
+
+# Download file
+aws --endpoint-url http://localhost:8080 s3 cp s3://$BUCKET_NAME/myfile.txt ./downloaded.txt
+```
+
+### Check Object Store Status
+
+```bash
+# Status
+kubectl get cephobjectstore -n rook-ceph
+
+# List buckets
+kubectl get objectbucketclaim -A
+```
 
 ## Monitoring
 
