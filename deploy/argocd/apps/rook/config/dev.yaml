@@ -51,7 +51,7 @@ rook:
 
   # Object Store (S3 compatible)
   objectStore:
-    enabled: false
+    enabled: true
     replicaSize: 1
     gateway:
       instances: 1
