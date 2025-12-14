@@ -274,7 +274,7 @@ argocd-install-dev:
 	kubectl wait --for=condition=available deployment -l app.kubernetes.io/name=argocd-server -n $(ARGOCD_NAMESPACE) --timeout=10m && \
 	echo "" && \
 	echo "$(GREEN)🚀 Étape 5/5: Déploiement des ApplicationSets...$(NC)" && \
-	cd $(ARGOCD_DIR) && bash deploy-applicationsets.sh
+	cd $(ARGOCD_DIR) && bash deploy-applicationsets.sh --wait-healthy
 
 dev-full: vagrant-dev-up argocd-install-dev
 	@echo "$(GREEN)✅ Environnement DEV complet déployé!$(NC)"

@@ -8,6 +8,7 @@
 #   -e, --env ENV         Environment (dev/prod/local, auto-detect if not set)
 #   -v, --verbose         Enable verbose output
 #   -t, --timeout SECS    Global timeout in seconds (default: 600)
+#   -w, --wait-healthy    Wait until all apps are synced and healthy (no timeout)
 #   -h, --help            Show this help
 # =============================================================================
 
@@ -22,14 +23,18 @@ ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argo-cd}"
 
 # Timeouts (configurables via variables d'environnement)
 TIMEOUT_APPSETS="${TIMEOUT_APPSETS:-120}"
-TIMEOUT_APPS_GENERATION="${TIMEOUT_APPS_GENERATION:-60}"
-TIMEOUT_APPS_SYNC="${TIMEOUT_APPS_SYNC:-300}"
+TIMEOUT_APPS_GENERATION="${TIMEOUT_APPS_GENERATION:-120}"
+TIMEOUT_APPS_SYNC="${TIMEOUT_APPS_SYNC:-900}"
 TIMEOUT_API_LB="${TIMEOUT_API_LB:-60}"
+
+# Nombre d'applications attendues (sera calculé dynamiquement)
+EXPECTED_APPS_COUNT=0
 
 # Options
 VERBOSE=0
 ENVIRONMENT=""
 GLOBAL_TIMEOUT=""
+WAIT_HEALTHY=0
 
 # Couleurs (désactivées si NO_COLOR est défini)
 if [[ -z "${NO_COLOR}" ]] && [[ -t 1 ]]; then
@@ -84,6 +89,7 @@ Options:
   -e, --env ENV         Environment (dev/prod/local, auto-detect if not set)
   -v, --verbose         Enable verbose output
   -t, --timeout SECS    Global timeout in seconds (default: 600)
+  -w, --wait-healthy    Wait until all apps are synced and healthy (no timeout)
   -h, --help            Show this help
 
 Environment Variables:
@@ -100,6 +106,7 @@ Examples:
   $0                    # Auto-detect environment
   $0 -e dev             # Deploy to dev environment
   $0 -v -t 900          # Verbose with 900s timeout
+  $0 -w                 # Wait until all apps are healthy (no timeout)
   VERBOSE=1 $0          # Verbose via env var
 
 EOF
@@ -225,6 +232,10 @@ while [[ $# -gt 0 ]]; do
     -t|--timeout)
       GLOBAL_TIMEOUT="$2"
       shift 2
+      ;;
+    -w|--wait-healthy)
+      WAIT_HEALTHY=1
+      shift
       ;;
     -h|--help)
       show_help
@@ -711,6 +722,12 @@ fi
 # OAuth2-Proxy (indépendant du SSO - peut utiliser IdP externe)
 [[ "$FEAT_OAUTH2_PROXY" == "true" ]] && APPLICATIONSETS+=("apps/oauth2-proxy/applicationset.yaml")
 
+# Calculer le nombre d'applications attendues
+# En environnement dev/local, chaque ApplicationSet génère 1 Application
+# En environnement prod, certains ApplicationSets peuvent générer plusieurs Applications (HA)
+EXPECTED_APPS_COUNT=${#APPLICATIONSETS[@]}
+log_debug "Nombre d'Applications attendues: $EXPECTED_APPS_COUNT"
+
 # Afficher la liste finale
 log_info "ApplicationSets à déployer (${#APPLICATIONSETS[@]}):"
 for appset in "${APPLICATIONSETS[@]}"; do
@@ -791,35 +808,50 @@ wait_for_condition \
 # =============================================================================
 
 echo ""
-check_apps_generated() {
-  local current=$(kubectl get application -A --no-headers 2>/dev/null | wc -l)
+log_info "Attente de la génération des Applications (attendu: $EXPECTED_APPS_COUNT)..."
+apps_gen_elapsed=0
+apps_gen_interval=5
 
-  if [[ $current -gt 0 ]]; then
+while true; do
+  current_apps=$(kubectl get application -A --no-headers 2>/dev/null | wc -l)
+
+  if [[ $current_apps -ge $EXPECTED_APPS_COUNT ]]; then
     printf "\n"
-    log_success "Applications générées: $current"
-    return 0
+    log_success "Toutes les Applications générées: $current_apps/$EXPECTED_APPS_COUNT"
+    break
   fi
 
-  log_debug "Applications: $current"
-  return 1
-}
-
-wait_for_condition \
-  "Attente de la génération des Applications..." \
-  "$TIMEOUT_APPS_GENERATION" \
-  check_apps_generated || {
-    log_warning "Aucune Application générée"
+  # Timeout
+  if [[ $apps_gen_elapsed -ge $TIMEOUT_APPS_GENERATION ]]; then
+    printf "\n"
+    log_warning "Timeout après ${TIMEOUT_APPS_GENERATION}s: $current_apps/$EXPECTED_APPS_COUNT Applications générées"
     log_info "Vérifiez les logs du ApplicationSet Controller:"
     echo "  kubectl logs -n $ARGOCD_NAMESPACE -l app.kubernetes.io/name=argocd-applicationset-controller"
-  }
+    break
+  fi
+
+  # Barre de progression
+  progress=$((current_apps * 100 / EXPECTED_APPS_COUNT))
+  printf "\r  Applications: [%-50s] %d%% (%d/%d)" \
+    "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
+    "$progress" "$current_apps" "$EXPECTED_APPS_COUNT"
+
+  sleep $apps_gen_interval
+  apps_gen_elapsed=$((apps_gen_elapsed + apps_gen_interval))
+done
 
 # =============================================================================
 # Attente de la synchronisation des Applications
 # =============================================================================
 
 echo ""
-log_info "Attente de la synchronisation et santé des Applications..."
-elapsed=0
+if [[ $WAIT_HEALTHY -eq 1 ]]; then
+  log_info "Attente de la synchronisation et santé des Applications (sans timeout)..."
+else
+  log_info "Attente de la synchronisation et santé des Applications (timeout: ${TIMEOUT_APPS_SYNC}s)..."
+fi
+sync_elapsed=0
+sync_interval=5
 
 while true; do
   # Récupérer toutes les applications en une seule requête
@@ -828,8 +860,8 @@ while true; do
 
   if [[ $TOTAL_APPS -eq 0 ]]; then
     log_debug "Aucune application trouvée, attente..."
-    sleep 5
-    elapsed=$((elapsed + 5))
+    sleep $sync_interval
+    sync_elapsed=$((sync_elapsed + sync_interval))
     continue
   fi
 
@@ -838,33 +870,42 @@ while true; do
   HEALTHY=$(echo "$APPS_JSON" | jq -r '[.items[] | select(.status.health.status=="Healthy")] | length')
   SYNCED_AND_HEALTHY=$(echo "$APPS_JSON" | jq -r '[.items[] | select(.status.sync.status=="Synced" and .status.health.status=="Healthy")] | length')
 
-  # Affichage de l'état
-  progress=$((SYNCED_AND_HEALTHY * 100 / TOTAL_APPS))
-  printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy)" \
-    "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
-    "$progress" "$SYNCED_AND_HEALTHY" "$TOTAL_APPS"
+  # Affichage de l'état - utiliser le nombre attendu pour la progression
+  target_apps=$EXPECTED_APPS_COUNT
+  [[ $TOTAL_APPS -gt $target_apps ]] && target_apps=$TOTAL_APPS
+  progress=$((SYNCED_AND_HEALTHY * 100 / target_apps))
 
-  log_debug "Synced: $SYNCED, Healthy: $HEALTHY"
+  if [[ $WAIT_HEALTHY -eq 1 ]]; then
+    printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy, %ds)" \
+      "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
+      "$progress" "$SYNCED_AND_HEALTHY" "$target_apps" "$sync_elapsed"
+  else
+    printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy)" \
+      "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
+      "$progress" "$SYNCED_AND_HEALTHY" "$target_apps"
+  fi
 
-  # Condition de succès
-  if [[ $SYNCED_AND_HEALTHY -eq $TOTAL_APPS ]] && [[ $TOTAL_APPS -gt 0 ]]; then
+  log_debug "Synced: $SYNCED, Healthy: $HEALTHY, Total: $TOTAL_APPS, Expected: $EXPECTED_APPS_COUNT"
+
+  # Condition de succès: toutes les apps attendues sont synced et healthy
+  if [[ $SYNCED_AND_HEALTHY -ge $EXPECTED_APPS_COUNT ]] && [[ $TOTAL_APPS -ge $EXPECTED_APPS_COUNT ]]; then
     printf "\n"
-    log_success "Toutes les applications sont Synced + Healthy!"
+    log_success "Toutes les applications sont Synced + Healthy! ($SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT)"
     break
   fi
 
-  # Timeout
-  if [[ $elapsed -ge $TIMEOUT_APPS_SYNC ]]; then
+  # Timeout (sauf si --wait-healthy)
+  if [[ $WAIT_HEALTHY -eq 0 ]] && [[ $sync_elapsed -ge $TIMEOUT_APPS_SYNC ]]; then
     printf "\n"
-    log_warning "Timeout après ${TIMEOUT_APPS_SYNC}s: $SYNCED_AND_HEALTHY/$TOTAL_APPS apps Synced + Healthy"
+    log_warning "Timeout après ${TIMEOUT_APPS_SYNC}s: $SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT apps Synced + Healthy"
     echo ""
     log_warning "Applications avec problèmes:"
     echo "$APPS_JSON" | jq -r '.items[] | select(.status.sync.status!="Synced" or .status.health.status!="Healthy") | "  - \(.metadata.name): Sync=\(.status.sync.status // "Unknown") Health=\(.status.health.status // "Unknown")"'
     break
   fi
 
-  sleep 5
-  elapsed=$((elapsed + 5))
+  sleep $sync_interval
+  sync_elapsed=$((sync_elapsed + sync_interval))
 done
 
 # =============================================================================
@@ -1001,8 +1042,9 @@ FINAL_OUTOFSYNC_AUTOSYNC=$(echo "$FINAL_APPS_JSON" | jq -r '[.items[] | select(.
 
 # Message de fin en fonction de l'état
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-if [[ $FINAL_SYNCED_HEALTHY -eq $FINAL_TOTAL ]] && [[ $FINAL_TOTAL -gt 0 ]]; then
+if [[ $FINAL_SYNCED_HEALTHY -ge $EXPECTED_APPS_COUNT ]] && [[ $FINAL_TOTAL -ge $EXPECTED_APPS_COUNT ]]; then
   echo -e "${GREEN}✅ Installation terminée!${RESET}"
+  echo -e "${GREEN}   ($FINAL_SYNCED_HEALTHY/$EXPECTED_APPS_COUNT apps Synced + Healthy)${RESET}"
 elif [[ $FINAL_OUTOFSYNC_AUTOSYNC -gt 0 ]]; then
   echo -e "${YELLOW}⏳ Installation terminée - Synchronisation automatique en cours...${RESET}"
   echo -e "${YELLOW}   ($FINAL_OUTOFSYNC_AUTOSYNC app(s) OutOfSync avec auto-sync se synchroniseront automatiquement)${RESET}"
@@ -1010,18 +1052,18 @@ elif [[ $FINAL_OUTOFSYNC_AUTOSYNC -gt 0 ]]; then
   echo -e "${YELLOW}   Apps: $OUTOFSYNC_APPS_LIST${RESET}"
 elif [[ $FINAL_SYNCED -eq $FINAL_TOTAL ]] && [[ $FINAL_TOTAL -gt 0 ]]; then
   echo -e "${YELLOW}⚠️  Installation terminée avec avertissements${RESET}"
-  echo -e "${YELLOW}   ($FINAL_SYNCED/$FINAL_TOTAL apps Synced, certaines ne sont pas encore Healthy)${RESET}"
+  echo -e "${YELLOW}   ($FINAL_SYNCED/$EXPECTED_APPS_COUNT apps Synced, certaines ne sont pas encore Healthy)${RESET}"
 else
   echo -e "${YELLOW}⚠️  Installation terminée avec avertissements${RESET}"
-  echo -e "${YELLOW}   ($FINAL_SYNCED/$FINAL_TOTAL apps Synced, $FINAL_SYNCED_HEALTHY/$FINAL_TOTAL apps Healthy)${RESET}"
+  echo -e "${YELLOW}   ($FINAL_SYNCED/$EXPECTED_APPS_COUNT apps Synced, $FINAL_SYNCED_HEALTHY/$EXPECTED_APPS_COUNT apps Healthy)${RESET}"
 fi
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
 
 # ApplicationSets et Applications
 APPSET_COUNT=$(kubectl get applicationset -n "$ARGOCD_NAMESPACE" --no-headers 2>/dev/null | wc -l)
-echo -e "${GREEN}📱 ApplicationSets créés: ${BOLD}$APPSET_COUNT${RESET}"
-echo -e "${GREEN}📱 Applications générées: ${BOLD}$FINAL_TOTAL${RESET}"
+echo -e "${GREEN}📱 ApplicationSets créés: ${BOLD}$APPSET_COUNT${RESET} (attendu: $EXPECTED_APPS_COUNT)"
+echo -e "${GREEN}📱 Applications générées: ${BOLD}$FINAL_TOTAL${RESET} (attendu: $EXPECTED_APPS_COUNT)"
 echo ""
 kubectl get application -A -o custom-columns=\
 NAME:.metadata.name,\
