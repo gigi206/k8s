@@ -44,8 +44,12 @@ loki:
 
   # Stockage
   storage:
-    type: s3  # Configuration S3/MinIO requise
-    size: 50Gi
+    type: s3  # S3 via Rook-Ceph ObjectStore
+    size: 10Gi  # Local storage for WAL
+    # S3 configuration (used when type: s3)
+    s3:
+      secretName: loki-storage  # Secret créé par ObjectBucketClaim
+      configMapName: loki-storage  # ConfigMap créé par ObjectBucketClaim
 
   # Rétention des logs
   retention: 7d
