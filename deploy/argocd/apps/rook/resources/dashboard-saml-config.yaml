@@ -20,6 +20,28 @@ spec:
     spec:
       restartPolicy: OnFailure
       initContainers:
+        - name: wait-for-mon-endpoints
+          image: docker.io/rook/ceph:v1.18.6
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "Waiting for mon-endpoints to be populated..."
+              for i in $(seq 1 120); do
+                MON_DATA=$(cat /etc/rook/mon-endpoints 2>/dev/null || echo "")
+                # Check if mon-endpoints has actual IP:port data (format: a=IP:PORT)
+                if echo "$MON_DATA" | grep -qE "=[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+"; then
+                  echo "Mon endpoints are ready: $MON_DATA"
+                  exit 0
+                fi
+                echo "Attempt $i/120 - Mon endpoints not ready yet (data: '$MON_DATA'), waiting..."
+                sleep 5
+              done
+              echo "ERROR: Timeout waiting for mon-endpoints ConfigMap to be populated"
+              exit 1
+          volumeMounts:
+            - name: mon-endpoint-volume
+              mountPath: /etc/rook
         - name: config-init
           image: docker.io/rook/ceph:v1.18.6
           command: ["/usr/local/bin/toolbox.sh"]
@@ -61,6 +83,25 @@ spec:
               set -e
 
               echo "=== Ceph Dashboard SAML2 SSO Configuration ==="
+
+              # Wait for ceph.conf to have valid mon_host (init container may have started before cluster was ready)
+              echo "Waiting for valid Ceph configuration..."
+              for i in $(seq 1 60); do
+                MON_HOST=$(grep -E "^mon_host = " /etc/ceph/ceph.conf 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+                if [ -n "$MON_HOST" ]; then
+                  echo "Ceph config is valid: mon_host = $MON_HOST"
+                  break
+                fi
+                echo "Attempt $i/60 - ceph.conf not ready (mon_host empty), waiting..."
+                sleep 5
+              done
+
+              if [ -z "$MON_HOST" ]; then
+                echo "ERROR: ceph.conf has empty mon_host - cluster not initialized yet"
+                echo "Content of /etc/ceph/ceph.conf:"
+                cat /etc/ceph/ceph.conf
+                exit 1
+              fi
 
               # Wait for Ceph cluster to be healthy
               echo "Waiting for Ceph cluster to be ready..."
