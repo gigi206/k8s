@@ -22,8 +22,12 @@ loki:
 
   # Stockage
   storage:
-    type: filesystem  # filesystem ou s3
+    type: s3  # filesystem ou s3
     size: 5Gi
+    # S3 configuration (used when type: s3)
+    s3:
+      secretName: loki-storage  # Secret créé par ObjectBucketClaim
+      configMapName: loki-storage  # ConfigMap créé par ObjectBucketClaim
 
   # Rétention des logs
   retention: 24h

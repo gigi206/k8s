@@ -83,7 +83,14 @@ spec:
           directory:
             include: "*.yaml"
 
-        # Source 1: Loki Helm Chart
+        {{- if and (eq .loki.storage.type "s3") (eq .features.storage.provider "rook") }}
+        # Source: S3 ObjectBucketClaim (creates bucket + credentials via Rook-Ceph)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loki/resources-s3
+        {{- end }}
+
+        # Source: Loki Helm Chart
         - repoURL: https://grafana.github.io/helm-charts
           targetRevision: '{{ .loki.version }}'
           chart: loki
@@ -99,6 +106,19 @@ spec:
                   path_prefix: /var/loki
                 storage:
                   type: '{{ .loki.storage.type }}'
+                  {{- if eq .loki.storage.type "s3" }}
+                  bucketNames:
+                    chunks: ${BUCKET_NAME}
+                    ruler: ${BUCKET_NAME}
+                    admin: ${BUCKET_NAME}
+                  s3:
+                    endpoint: http://${BUCKET_HOST}:${BUCKET_PORT}
+                    bucketnames: ${BUCKET_NAME}
+                    access_key_id: ${AWS_ACCESS_KEY_ID}
+                    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+                    s3ForcePathStyle: true
+                    insecure: true
+                  {{- end }}
                 schemaConfig:
                   configs:
                     - from: "2024-01-01"
@@ -120,7 +140,11 @@ spec:
                 replicas: {{ .loki.singleBinary.replicas }}
                 persistence:
                   enabled: true
+                  {{- if eq .loki.storage.type "s3" }}
+                  size: 1Gi
+                  {{- else }}
                   size: '{{ .loki.storage.size }}'
+                  {{- end }}
                   storageClass: '{{ .features.storage.class }}'
                 {{- if .loki.singleBinary.resources }}
                 resources:
@@ -130,6 +154,34 @@ spec:
                   limits:
                     cpu: '{{ .loki.singleBinary.resources.limits.cpu }}'
                     memory: '{{ .loki.singleBinary.resources.limits.memory }}'
+                {{- end }}
+                {{- if eq .loki.storage.type "s3" }}
+                extraEnv:
+                  - name: AWS_ACCESS_KEY_ID
+                    valueFrom:
+                      secretKeyRef:
+                        name: '{{ .loki.storage.s3.secretName }}'
+                        key: AWS_ACCESS_KEY_ID
+                  - name: AWS_SECRET_ACCESS_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: '{{ .loki.storage.s3.secretName }}'
+                        key: AWS_SECRET_ACCESS_KEY
+                  - name: BUCKET_HOST
+                    valueFrom:
+                      configMapKeyRef:
+                        name: '{{ .loki.storage.s3.configMapName }}'
+                        key: BUCKET_HOST
+                  - name: BUCKET_PORT
+                    valueFrom:
+                      configMapKeyRef:
+                        name: '{{ .loki.storage.s3.configMapName }}'
+                        key: BUCKET_PORT
+                  - name: BUCKET_NAME
+                    valueFrom:
+                      configMapKeyRef:
+                        name: '{{ .loki.storage.s3.configMapName }}'
+                        key: BUCKET_NAME
                 {{- end }}
 
               # Disable other components in SingleBinary mode
