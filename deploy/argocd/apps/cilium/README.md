@@ -22,17 +22,18 @@ Cet ApplicationSet gère les ressources additionnelles pour Cilium CNI, incluant
 
 ### Feature Flags
 
-Les network policies sont contrôlées par les feature flags dans `config.yaml` :
+Les network policies sont contrôlées par le feature flag dans `config.yaml` :
 
 ```yaml
 features:
-  network:
-    provider: "cilium"      # CNI provider
+  cilium:
+    monitoring:
+      enabled: true       # Wave 76: ServiceMonitors, dashboards Grafana
     egressPolicy:
-      enabled: true         # Active les policies egress (default-deny + per-app)
+      enabled: true       # CiliumClusterwideNetworkPolicy default-deny + per-app policies
 ```
 
-Les policies ne sont déployées que si `features.network.provider == "cilium"` ET `features.network.egressPolicy.enabled == true`.
+Les policies ne sont déployées que si `features.cilium.egressPolicy.enabled == true`.
 
 ### Architecture
 
@@ -119,7 +120,7 @@ resources:
 4. Ajouter la source conditionnelle dans l'ApplicationSet de l'application (`templatePatch.sources`) :
 
 ```yaml
-{{- if and (eq .features.network.provider "cilium") .features.network.egressPolicy.enabled }}
+{{- if .features.cilium.egressPolicy.enabled }}
 # Source: Cilium egress policy - conditional
 - repoURL: https://github.com/gigi206/k8s
   targetRevision: '{{ .git.revision }}'
@@ -155,7 +156,7 @@ kubectl exec -n kube-system ds/cilium -- \
 
 **Option 1 : Via feature flag (recommandé)**
 
-Mettre `features.network.egressPolicy.enabled: false` dans `config.yaml`, puis synchroniser ArgoCD.
+Mettre `features.cilium.egressPolicy.enabled: false` dans `config.yaml`, puis synchroniser ArgoCD.
 Les policies seront automatiquement supprimées (prune).
 
 **Option 2 : Suppression manuelle**
@@ -524,7 +525,7 @@ kubectl exec -n kube-system ds/cilium -- \
 - Le trafic est vers une destination interne au cluster (toEntities: cluster)
 - Le trafic est du DNS (port 53, autorisé pour le forwarding)
 - La policy n'est pas encore synchronisée par ArgoCD
-- Le feature flag `features.network.egressPolicy.enabled` est désactivé
+- Le feature flag `features.cilium.egressPolicy.enabled` est désactivé
 
 ## Références
 
