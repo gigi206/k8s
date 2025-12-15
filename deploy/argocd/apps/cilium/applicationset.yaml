@@ -85,7 +85,7 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        {{- if and (eq .features.network.provider "cilium") .features.network.egressPolicy.enabled }}
+        {{- if .features.cilium.egressPolicy.enabled }}
         # Source 1: Network Policies (CiliumClusterwideNetworkPolicy) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
