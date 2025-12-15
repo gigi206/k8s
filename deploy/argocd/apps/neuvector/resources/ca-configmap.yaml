@@ -1,0 +1,29 @@
+---
+# ConfigMap containing the CA certificate for TLS verification
+# This certificate is used by NeuVector to trust Keycloak OIDC endpoints
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuvector-custom-ca
+  namespace: neuvector
+data:
+  # Wildcard certificate for *.k8s.lan (self-signed by cert-manager)
+  ca-certificates.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIC0DCCAbigAwIBAgIUBoSdl8ZckRS3z0NFw8Cx3BkS1HAwDQYJKoZIhvcNAQEL
+    BQAwADAeFw0yNTEyMTUxNzQzNDNaFw0yNjAzMTUxNzQzNDNaMAAwggEiMA0GCSqG
+    SIb3DQEBAQUAA4IBDwAwggEKAoIBAQCzjx8w0f4rLEdb0OnS8Xgt/9bhjxpWAvIc
+    QqKkhvWKT0RJJH6RcwDrXxhllyp+q7jkKfALNrY45lXxJqy2xkLO3sA3ifn6pmtK
+    F7IHN0mOB4wQE242QQa5pzS2rnyjMQw11nDtzfXr5iOz83erYB15NFWdT09JnXAU
+    JWtY2PTcVNbg2T03Efft3uef9qn4ZHlE5hKI+17WxEIiS0/INndL5eC136XmB4oN
+    jdM1QG8WckqNYt3NRiBXV1ceiWUMytmHlPEMxsJ1x1riNJ8IKpRaTupAPFKPzSAz
+    xBY1ccrTxnJBKubbysa+XVk/SHV1Ma08+N+XXVUpObYkdF9MRmbTAgMBAAGjQjBA
+    MA4GA1UdDwEB/wQEAwIFoDAMBgNVHRMBAf8EAjAAMCAGA1UdEQEB/wQWMBSCCSou
+    azhzLmxhboIHazhzLmxhbjANBgkqhkiG9w0BAQsFAAOCAQEAOKTrlq0o9WF46TIE
+    b5p3sTaRMdTA+qNfft2d08GC1SFsZ/IcIYOPgcEi0UiRWS4mr9ns9UqiVByuPcWj
+    VdeV4nt3638y1z/QiA0NzCyX6pPtkoW/lHsNf4CtwNVvjd1gs94stAs/GWJYzA39
+    gP0lujtYpY/KD8dCrGVc7V24ExQaGLS/gKqM90cFADopuZHbKbFzzFteLIVAyG7A
+    a3vCVmhl8Xb4dOtCZEALp+ia+OSZZimi4nEgPQl3eFJ+MJ/6CJvetZa81WQzyP7X
+    rtB83UhKZWNMP7i1x18sZS5j/3Zp6P0Tk2iFmYfJFDrlWjkMiGYl+P8oJ9MZecYO
+    Ry34LA==
+    -----END CERTIFICATE-----

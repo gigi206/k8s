@@ -1,0 +1,274 @@
+---
+# =============================================================================
+# NeuVector PrometheusRules - Security Monitoring Alerts
+# =============================================================================
+# Alerts for NeuVector container security platform health and security events.
+# Note: ServiceMonitor is created by the NeuVector monitor Helm chart
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: neuvector-prometheus-rules
+  namespace: neuvector
+  labels:
+    prometheus: neuvector
+    role: alert-rules
+spec:
+  groups:
+    # =========================================================================
+    # Controller Health Alerts
+    # =========================================================================
+    - name: neuvector.controller.rules
+      interval: 30s
+      rules:
+        - alert: NeuVectorControllerDown
+          annotations:
+            description: |
+              NeuVector Controller has been unavailable for 5 minutes.
+              Security policies are not being enforced.
+            summary: NeuVector Controller is down.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="neuvector-controller-pod",
+              namespace="neuvector"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: NeuVectorControllerHighMemory
+          annotations:
+            description: |
+              NeuVector Controller memory usage is above 90% ({{ $value | printf "%.1f" }}%).
+              Risk of OOMKill.
+            summary: NeuVector Controller high memory usage.
+          expr: |
+            (
+              sum(container_memory_working_set_bytes{
+                pod=~"neuvector-controller-pod.*",
+                namespace="neuvector",
+                container!=""
+              }) by (pod)
+              /
+              sum(kube_pod_container_resource_limits{
+                pod=~"neuvector-controller-pod.*",
+                namespace="neuvector",
+                resource="memory"
+              }) by (pod)
+            ) * 100 > 90
+          for: 10m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Enforcer Health Alerts
+    # =========================================================================
+    - name: neuvector.enforcer.rules
+      interval: 30s
+      rules:
+        - alert: NeuVectorEnforcerDown
+          annotations:
+            description: |
+              {{ $value }} NeuVector Enforcer pods are unavailable.
+              Nodes may lack runtime protection.
+            summary: NeuVector Enforcer pods unavailable.
+          expr: |
+            kube_daemonset_status_number_unavailable{
+              daemonset="neuvector-enforcer-pod",
+              namespace="neuvector"
+            } > 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: NeuVectorEnforcerNotRunningOnAllNodes
+          annotations:
+            description: |
+              {{ $value }} nodes are missing NeuVector Enforcer.
+              Runtime security is incomplete.
+            summary: NeuVector Enforcer not running on all nodes.
+          expr: |
+            kube_daemonset_status_desired_number_scheduled{
+              daemonset="neuvector-enforcer-pod",
+              namespace="neuvector"
+            }
+            -
+            kube_daemonset_status_number_ready{
+              daemonset="neuvector-enforcer-pod",
+              namespace="neuvector"
+            } > 0
+          for: 15m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Scanner Health Alerts
+    # =========================================================================
+    - name: neuvector.scanner.rules
+      interval: 30s
+      rules:
+        - alert: NeuVectorScannerDown
+          annotations:
+            description: |
+              NeuVector Scanner has no available replicas.
+              CVE scanning is not operational.
+            summary: NeuVector Scanner is down.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="neuvector-scanner-pod",
+              namespace="neuvector"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: NeuVectorScannerDegraded
+          annotations:
+            description: |
+              NeuVector Scanner has fewer replicas than expected.
+              Scanning capacity is reduced.
+            summary: NeuVector Scanner is degraded.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="neuvector-scanner-pod",
+              namespace="neuvector"
+            }
+            <
+            kube_deployment_spec_replicas{
+              deployment="neuvector-scanner-pod",
+              namespace="neuvector"
+            }
+          for: 15m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Manager Health Alerts
+    # =========================================================================
+    - name: neuvector.manager.rules
+      interval: 30s
+      rules:
+        - alert: NeuVectorManagerDown
+          annotations:
+            description: |
+              NeuVector Manager (Web UI) is unavailable.
+              Administrators cannot access the security console.
+            summary: NeuVector Manager is down.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="neuvector-manager-pod",
+              namespace="neuvector"
+            } == 0
+          for: 5m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Pod Health Alerts
+    # =========================================================================
+    - name: neuvector.pods.rules
+      interval: 30s
+      rules:
+        - alert: NeuVectorPodCrashLooping
+          annotations:
+            description: |
+              NeuVector pod {{ $labels.pod }} has been restarting frequently.
+              Check pod logs for errors.
+            summary: NeuVector pod is crash looping.
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"neuvector-(controller|enforcer|manager|scanner|prometheus-exporter).*",
+              namespace="neuvector"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: NeuVectorPodNotReady
+          annotations:
+            description: |
+              NeuVector pod {{ $labels.pod }} is not ready.
+              The container may be failing health checks.
+            summary: NeuVector pod is not ready.
+          expr: |
+            kube_pod_status_ready{
+              pod=~"neuvector-(controller|enforcer|manager|scanner|prometheus-exporter).*",
+              namespace="neuvector",
+              condition="true"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Security Event Alerts (require NeuVector exporter metrics)
+    # =========================================================================
+    - name: neuvector.security.rules
+      interval: 60s
+      rules:
+        - alert: NeuVectorHighCVECount
+          annotations:
+            description: |
+              NeuVector has detected {{ $value }} HIGH severity CVEs across workloads.
+              Review and remediate vulnerable images.
+            summary: High number of HIGH severity CVEs detected.
+          expr: |
+            sum(neuvector_scan_cve_high_count) > 100
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: NeuVectorCriticalCVEDetected
+          annotations:
+            description: |
+              NeuVector has detected new CRITICAL severity CVEs.
+              Immediate action required to remediate.
+            summary: CRITICAL CVE detected.
+          expr: |
+            increase(neuvector_scan_cve_critical_count[1h]) > 0
+          for: 1m
+          labels:
+            severity: critical
+
+        - alert: NeuVectorAdmissionDenied
+          annotations:
+            description: |
+              NeuVector admission controller denied {{ $value }} deployments in the last hour.
+              Check admission rules and denied workloads.
+            summary: Deployments denied by admission controller.
+          expr: |
+            increase(neuvector_admission_denied_total[1h]) > 10
+          for: 5m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # License Alerts
+    # =========================================================================
+    - name: neuvector.license.rules
+      interval: 3600s
+      rules:
+        - alert: NeuVectorLicenseExpiringSoon
+          annotations:
+            description: |
+              NeuVector license expires in {{ $value }} days.
+              Renew to avoid service disruption.
+            summary: NeuVector license expiring soon.
+          expr: |
+            neuvector_license_days_remaining < 30
+          for: 1h
+          labels:
+            severity: warning
+
+        - alert: NeuVectorLicenseExpired
+          annotations:
+            description: |
+              NeuVector license has expired.
+              Some features may be disabled.
+            summary: NeuVector license expired.
+          expr: |
+            neuvector_license_days_remaining <= 0
+          for: 5m
+          labels:
+            severity: critical

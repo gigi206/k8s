@@ -372,6 +372,7 @@ FEAT_LOGGING_COLLECTOR=$(get_feature '.features.logging.loki.collector' 'alloy')
 FEAT_SSO=$(get_feature '.features.sso.enabled' 'true')
 FEAT_SSO_PROVIDER=$(get_feature '.features.sso.provider' 'keycloak')
 FEAT_OAUTH2_PROXY=$(get_feature '.features.oauth2Proxy.enabled' 'true')
+FEAT_NEUVECTOR=$(get_feature '.features.neuvector.enabled' 'false')
 FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
 FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
 FEAT_TRACING_WAYPOINTS=$(get_feature '.features.tracing.waypoints.enabled' 'false')
@@ -392,6 +393,7 @@ log_debug "  cilium.monitoring: $FEAT_CILIUM_MONITORING"
 log_debug "  logging: $FEAT_LOGGING (loki: $FEAT_LOGGING_LOKI, collector: $FEAT_LOGGING_COLLECTOR)"
 log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
+log_debug "  neuvector: $FEAT_NEUVECTOR"
 log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
 
 # =============================================================================
@@ -721,6 +723,9 @@ fi
 
 # OAuth2-Proxy (indépendant du SSO - peut utiliser IdP externe)
 [[ "$FEAT_OAUTH2_PROXY" == "true" ]] && APPLICATIONSETS+=("apps/oauth2-proxy/applicationset.yaml")
+
+# NeuVector (container security platform)
+[[ "$FEAT_NEUVECTOR" == "true" ]] && APPLICATIONSETS+=("apps/neuvector/applicationset.yaml")
 
 # Calculer le nombre d'applications attendues
 # En environnement dev/local, chaque ApplicationSet génère 1 Application
@@ -1128,6 +1133,7 @@ echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
 echo "  Tracing:           $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
 echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 echo "  OAuth2-Proxy:      $FEAT_OAUTH2_PROXY"
+echo "  NeuVector:         $FEAT_NEUVECTOR"
 echo ""
 
 log_success "Déploiement terminé! 🎉"
