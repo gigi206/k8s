@@ -37,9 +37,6 @@ echo "Root partition expanded: $(df -h / | tail -1 | awk '{print $2}')"
 # Don't install that on the managemnt node
 if [ "$1" != "management" ]
 then
-    # Requirement for Longhorn (normally for worker, but keep if we use worker + master)
-    apt install -y open-iscsi nfs-common util-linux curl bash grep
-    systemctl enable --now iscsid.service
 
     # Storage disk setup (/dev/vdb)
     if [ -b /dev/vdb ]; then
@@ -52,6 +49,10 @@ then
 
         # Only format for Longhorn (Rook needs raw disk)
         if [ "$STORAGE_PROVIDER" = "longhorn" ]; then
+            # Requirement for Longhorn (normally for worker, but keep if we use worker + master)
+            apt install -y open-iscsi nfs-common util-linux curl bash grep
+            systemctl enable --now iscsid.service
+
             # Check if disk is empty (no filesystem, no partition table)
             if ! blkid /dev/vdb &>/dev/null && ! fdisk -l /dev/vdb 2>/dev/null | grep -q "^/dev/vdb"; then
                 echo "Formatting /dev/vdb for Longhorn storage..."
