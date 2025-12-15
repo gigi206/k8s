@@ -138,6 +138,12 @@ features:
       baseFolder: "/tmp/dashboards"  # Base folder for dashboard organization
       folderAnnotation: "grafana_dashboard_folder"  # Annotation name for dashboard folder path
 
+  # === Network / CNI ===
+  network:
+    provider: "cilium"  # CNI provider (cilium installé par RKE2)
+    egressPolicy:
+      enabled: true     # CiliumClusterwideNetworkPolicy default-deny + per-app policies
+
   # === Cilium Monitoring ===
   cilium:
     monitoring:

@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - ArgoCD External Egress
+# =============================================================================
+# Allows ArgoCD to reach external services:
+# - GitHub (git repositories)
+# - Helm registries (charts.helm.sh, ghcr.io, etc.)
+# - Container registries (for Kustomize remote bases)
+#
+# This policy complements the cluster-wide default-deny-external-egress policy
+# defined in deploy/argocd/apps/cilium/resources/
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-allow-external-egress
+  namespace: argo-cd
+spec:
+  description: "Allow ArgoCD to access external Git repos and Helm registries"
+
+  # Apply to all pods in argo-cd namespace
+  endpointSelector: {}
+
+  egress:
+    # Allow HTTPS to external services (GitHub, Helm registries, container registries)
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "22"
+              protocol: TCP  # SSH for git clone

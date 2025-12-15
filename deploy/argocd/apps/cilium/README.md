@@ -1,14 +1,176 @@
-# Cilium Monitoring
+# Cilium
 
-Cet ApplicationSet déploie les ServiceMonitors et PodMonitors pour les composants Cilium et Hubble afin d'activer la collecte de métriques Prometheus.
+Cet ApplicationSet gère les ressources additionnelles pour Cilium CNI, incluant le monitoring Prometheus et les network policies cluster-wide.
 
 ## Vue d'ensemble
 
-Cilium est installé par RKE2 lors du bootstrap du cluster en tant que CNI (Container Network Interface). Le script d'installation RKE2 (`vagrant/scripts/configure_cilium.sh`) **désactive** intentionnellement tous les ServiceMonitors pour éviter les erreurs durant l'installation, puisque Prometheus n'est pas encore disponible à ce stade.
+**Cilium est installé par RKE2** lors du bootstrap du cluster en tant que CNI (Container Network Interface). Le script d'installation RKE2 (`vagrant/scripts/configure_cilium.sh`) configure Cilium avec les options suivantes :
 
-Une fois le cluster complètement bootstrappé et prometheus-stack déployé (Wave 75), cet ApplicationSet crée les ServiceMonitors et PodMonitors nécessaires pour activer le monitoring de Cilium et Hubble.
+- `kubeProxyReplacement: true` - Cilium remplace kube-proxy via eBPF
+- `routingMode: native` - Routage direct sans tunneling
+- `l7Proxy: true` - Proxy L7 Envoy activé
+- `hostFirewall: enabled` - Firewall au niveau host
+- `hubble.enabled: true` - Observabilité réseau via Hubble
 
-## Cilium en remplacement de kube-proxy
+**Cet ApplicationSet déploie des ressources additionnelles :**
+
+1. **Monitoring** - ServiceMonitors, PodMonitors et dashboards Grafana pour Prometheus
+2. **Network Policies** - CiliumClusterwideNetworkPolicy pour le contrôle du trafic egress
+3. **HTTPRoute** - Accès à l'UI Hubble via Gateway API (optionnel)
+
+## Network Policies
+
+### Feature Flags
+
+Les network policies sont contrôlées par les feature flags dans `config.yaml` :
+
+```yaml
+features:
+  network:
+    provider: "cilium"      # CNI provider
+    egressPolicy:
+      enabled: true         # Active les policies egress (default-deny + per-app)
+```
+
+Les policies ne sont déployées que si `features.network.provider == "cilium"` ET `features.network.egressPolicy.enabled == true`.
+
+### Architecture
+
+La politique réseau suit le principe **default-deny avec exceptions par application** :
+
+1. **`cilium/resources/default-deny-external-egress.yaml`** - Bloque TOUT le trafic externe (cluster-wide)
+2. **Chaque application** définit sa propre `CiliumNetworkPolicy` dans son répertoire `network-policy/`
+
+```
+cilium/
+└── resources/default-deny-external-egress.yaml   # Bloque tout (cluster-wide)
+
+argocd/
+└── network-policy/cilium-egress-policy.yaml      # Autorise egress argo-cd
+
+neuvector/
+└── network-policy/cilium-egress-policy.yaml      # Autorise egress neuvector
+
+cert-manager/
+└── network-policy/cilium-egress-policy.yaml      # Autorise egress cert-manager (ACME)
+```
+
+### Politique par défaut (default-deny)
+
+La `CiliumClusterwideNetworkPolicy` bloque tout le trafic sortant vers l'extérieur (`world`) sauf DNS.
+
+**Trafic toujours autorisé (pour tous les namespaces) :**
+
+- Cluster interne (pod-to-pod, services) via `toEntities: cluster`
+- DNS interne (kube-dns sur port 53)
+- DNS externe (port 53 vers `world`) - requis pour résoudre les domaines externes
+- API Kubernetes via `toEntities: kube-apiserver`
+- Node-local via `toEntities: host`
+
+**Trafic bloqué :**
+
+- Tout autre trafic vers `world` (HTTPS, HTTP, SSH, etc.)
+
+### Applications avec accès externe
+
+| Application | Fichier | Ports autorisés |
+|-------------|---------|-----------------|
+| ArgoCD | `argocd/network-policy/cilium-egress-policy.yaml` | 443/TCP (HTTPS), 22/TCP (SSH) |
+| NeuVector | `neuvector/network-policy/cilium-egress-policy.yaml` | 443/TCP (HTTPS) |
+| cert-manager | `cert-manager/network-policy/cilium-egress-policy.yaml` | 443/TCP (ACME) |
+
+### Ajouter une application à la whitelist
+
+1. Créer le répertoire `network-policy/` dans le répertoire de l'application :
+
+```bash
+mkdir -p deploy/argocd/apps/mon-app/network-policy
+```
+
+2. Créer le fichier `cilium-egress-policy.yaml` :
+
+```yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mon-app-allow-external-egress
+  namespace: mon-namespace
+spec:
+  description: "Allow mon-app to access external services"
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+```
+
+3. Créer le fichier `kustomization.yaml` :
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cilium-egress-policy.yaml
+```
+
+4. Ajouter la source conditionnelle dans l'ApplicationSet de l'application (`templatePatch.sources`) :
+
+```yaml
+{{- if and (eq .features.network.provider "cilium") .features.network.egressPolicy.enabled }}
+# Source: Cilium egress policy - conditional
+- repoURL: https://github.com/gigi206/k8s
+  targetRevision: '{{ .git.revision }}'
+  path: deploy/argocd/apps/mon-app/network-policy
+{{- end }}
+```
+
+### Vérifier le blocage
+
+```bash
+# Vérifier les policies
+kubectl get ciliumclusterwidenetworkpolicies
+kubectl get ciliumnetworkpolicies -A
+
+# Test depuis un namespace bloqué (doit timeout)
+kubectl exec -n monitoring deploy/prometheus-stack-grafana -- \
+  curl -s --connect-timeout 5 https://example.com
+
+# Test depuis un namespace autorisé (doit fonctionner)
+kubectl exec -n argo-cd deploy/argocd-repo-server -- \
+  curl -s https://github.com
+
+# Observer les drops via Hubble
+kubectl exec -n kube-system ds/cilium -- \
+  cilium hubble observe --verdict DROPPED --type drop
+
+# Observer les drops en temps réel
+kubectl exec -n kube-system ds/cilium -- \
+  cilium hubble observe --verdict DROPPED --reason POLICY_DENIED -f
+```
+
+### Désactiver / Rollback
+
+**Option 1 : Via feature flag (recommandé)**
+
+Mettre `features.network.egressPolicy.enabled: false` dans `config.yaml`, puis synchroniser ArgoCD.
+Les policies seront automatiquement supprimées (prune).
+
+**Option 2 : Suppression manuelle**
+
+```bash
+# Supprimer la policy globale (autorise tout)
+kubectl delete ciliumclusterwidenetworkpolicy default-deny-external-egress
+
+# Ou supprimer une policy spécifique
+kubectl delete ciliumnetworkpolicy -n argo-cd argocd-allow-external-egress
+```
+
+## Monitoring
+
+### Cilium en remplacement de kube-proxy
 
 Dans ce cluster, Cilium est configuré avec `kubeProxyReplacement: true`, ce qui signifie que **kube-proxy n'est pas installé**. Cilium remplace complètement kube-proxy en utilisant eBPF pour gérer les services Kubernetes, le load balancing et les network policies.
 
@@ -17,17 +179,17 @@ Dans ce cluster, Cilium est configuré avec `kubeProxyReplacement: true`, ce qui
 - Les métriques de load balancing sont disponibles dans les dashboards Cilium à la place
 - C'est la configuration recommandée pour les déploiements Cilium en production
 
-## Composants déployés
+### Composants déployés
 
 Cette application déploie :
 
-### ServiceMonitors (3)
+#### ServiceMonitors (3)
 
 1. **hubble** - Monitore les métriques Hubble (requêtes DNS, flows, etc.)
 2. **hubble-relay** - Monitore le service Hubble Relay (agrège les flows Hubble)
 3. **cilium-envoy** - Monitore les métriques du proxy Envoy (proxy L7)
 
-### PodMonitors (2)
+#### PodMonitors (2)
 
 1. **cilium-agent** - Monitore les métriques de l'agent Cilium (DaemonSet)
 2. **cilium-operator** - Monitore les métriques de l'opérateur Cilium
@@ -42,7 +204,7 @@ Les PodMonitors ajoutent automatiquement le label `k8s_app=cilium` requis par le
 
 Tous les ServiceMonitors et PodMonitors sont déployés dans le namespace `kube-system` avec le label `release: prometheus-stack` (injecté dynamiquement via Kustomize), qui est requis pour que Prometheus les découvre et les scrape.
 
-### Dashboards Grafana (2)
+#### Dashboards Grafana (2)
 
 1. **Cilium Agent Dashboard** - Métriques eBPF, load balancing des services, BPF maps, performance datapath
    - Affiche la fonctionnalité de remplacement de kube-proxy via eBPF
@@ -93,12 +255,12 @@ La métrique `cilium_bpf_syscall_duration_seconds` existe dans Cilium v1.18 mais
 
 | Métrique | Statut | Description |
 |--------|--------|-------------|
-| `cilium_bpf_map_ops_total` | ✅ Activée | Opérations sur les BPF maps (lookup, update, delete) |
-| `cilium_bpf_map_pressure` | ✅ Activée | Ratio d'utilisation des BPF maps |
-| `cilium_bpf_map_capacity` | ✅ Activée | Taille maximale des BPF maps |
-| `cilium_bpf_maps_virtual_memory_max_bytes` | ✅ Activée | Mémoire utilisée par les BPF maps |
-| `cilium_bpf_progs_virtual_memory_max_bytes` | ✅ Activée | Mémoire utilisée par les programmes BPF |
-| `cilium_bpf_syscall_duration_seconds` | ❌ **Désactivée** | Durée des appels système BPF |
+| `cilium_bpf_map_ops_total` | Activée | Opérations sur les BPF maps (lookup, update, delete) |
+| `cilium_bpf_map_pressure` | Activée | Ratio d'utilisation des BPF maps |
+| `cilium_bpf_map_capacity` | Activée | Taille maximale des BPF maps |
+| `cilium_bpf_maps_virtual_memory_max_bytes` | Activée | Mémoire utilisée par les BPF maps |
+| `cilium_bpf_progs_virtual_memory_max_bytes` | Activée | Mémoire utilisée par les programmes BPF |
+| `cilium_bpf_syscall_duration_seconds` | **Désactivée** | Durée des appels système BPF |
 
 ### Pourquoi désactivée ?
 
@@ -158,9 +320,9 @@ kubectl rollout restart daemonset/cilium -n kube-system
 ### Panels BPF fonctionnels
 
 Ces panels fonctionnent correctement avec les métriques par défaut :
-- **System-wide BPF memory usage** ✅
-- **BPF map pressure** ✅
-- **BPF map operations** ✅
+- **System-wide BPF memory usage**
+- **BPF map pressure**
+- **BPF map operations**
 
 ## Configuration
 
@@ -192,8 +354,8 @@ Les dashboards Cilium Agent/Operator sont déployés via cet ApplicationSet plut
 Vérifier si l'Application existe et est synchronisée :
 
 ```bash
-kubectl get application -n argo-cd cilium-monitoring
-kubectl get application -n argo-cd cilium-monitoring -o yaml
+kubectl get application -n argo-cd cilium
+kubectl get application -n argo-cd cilium -o yaml
 ```
 
 ### Métriques n'apparaissent pas dans Prometheus
@@ -339,8 +501,36 @@ kubectl delete pod -n monitoring prometheus-xxx
 
 Vérifier que le PodMonitor a le bon label `release: prometheus-stack`.
 
+### Network Policy ne bloque pas le trafic
+
+**Problème** : Le trafic externe n'est pas bloqué malgré la policy.
+
+**Vérification** :
+
+```bash
+# Vérifier que la policy est créée
+kubectl get ciliumclusterwidenetworkpolicies
+
+# Vérifier le statut de la policy
+kubectl describe ciliumclusterwidenetworkpolicy default-deny-external-egress
+
+# Observer les flows avec Hubble
+kubectl exec -n kube-system ds/cilium -- \
+  cilium hubble observe --type policy-verdict -f
+```
+
+**Causes possibles** :
+- Le namespace a une `CiliumNetworkPolicy` qui autorise le trafic (voir section "Applications avec accès externe")
+- Le trafic est vers une destination interne au cluster (toEntities: cluster)
+- Le trafic est du DNS (port 53, autorisé pour le forwarding)
+- La policy n'est pas encore synchronisée par ArgoCD
+- Le feature flag `features.network.egressPolicy.enabled` est désactivé
+
 ## Références
 
+- [Cilium Documentation](https://docs.cilium.io/en/stable/)
+- [Cilium Network Policies](https://docs.cilium.io/en/stable/security/policy/)
+- [CiliumClusterwideNetworkPolicy](https://docs.cilium.io/en/stable/security/policy/language/#ciliumclusterwidenetworkpolicy)
 - [Cilium Observability Metrics](https://docs.cilium.io/en/stable/observability/metrics/)
 - [Hubble Metrics](https://docs.cilium.io/en/stable/observability/metrics/#hubble-metrics)
 - [Prometheus Operator ServiceMonitor](https://prometheus-operator.dev/docs/operator/design/#servicemonitor)

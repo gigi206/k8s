@@ -1,7 +1,7 @@
 ---
-# Configuration Cilium Monitoring - Prod
+# Configuration Cilium - Prod
 environment: prod
-appName: cilium-monitoring
+appName: cilium
 
 # Dashboard configuration
 dashboard:

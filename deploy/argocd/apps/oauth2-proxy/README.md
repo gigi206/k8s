@@ -43,7 +43,7 @@ Chaque application gère sa propre `AuthorizationPolicy` dans son dossier `oauth
 | Application | AuthorizationPolicy | Condition |
 |-------------|---------------------|-----------|
 | prometheus-stack | `oauth2-proxy-prometheus`, `oauth2-proxy-alertmanager` | `features.oauth2Proxy.enabled` |
-| cilium-monitoring | `oauth2-proxy-hubble` | `features.oauth2Proxy.enabled` |
+| cilium | `oauth2-proxy-hubble` | `features.oauth2Proxy.enabled` |
 | longhorn | `oauth2-proxy-longhorn` | `features.oauth2Proxy.enabled` |
 
 ## Configuration

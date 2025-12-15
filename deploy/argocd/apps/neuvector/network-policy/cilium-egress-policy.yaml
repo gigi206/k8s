@@ -1,0 +1,32 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - NeuVector External Egress
+# =============================================================================
+# Allows NeuVector to reach external services:
+# - CVE database updates (NIST NVD, etc.)
+# - Container registry scanning
+# - License validation
+#
+# This policy complements the cluster-wide default-deny-external-egress policy
+# defined in deploy/argocd/apps/cilium/resources/
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: neuvector-allow-external-egress
+  namespace: neuvector
+spec:
+  description: "Allow NeuVector to access CVE databases and registries"
+
+  # Apply to all pods in neuvector namespace
+  endpointSelector: {}
+
+  egress:
+    # Allow HTTPS to external services (CVE databases, registries)
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

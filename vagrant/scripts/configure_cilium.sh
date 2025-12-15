@@ -118,7 +118,7 @@ spec:
           labels:
             release: prometheus-stack
       # dashboards: # Cilium Operator dashboard (endpoints, IP allocation, reconciliation)
-      #   enabled: true # A activer une fois prometheus-stack installé (via cilium-monitoring app)
+      #   enabled: true # A activer une fois prometheus-stack installé (via cilium app)
       #   annotations:
       #     grafana_dashboard_folder: /tmp/dashboards/Cilium
     # encryption:
@@ -237,7 +237,7 @@ spec:
         # service:
         #   type: LoadBalancer
         replicas: 1
-        # ingress:  # Géré par ArgoCD cilium-monitoring app (avec variables dynamiques)
+        # ingress:  # Géré par ArgoCD cilium app (avec variables dynamiques)
         #   enabled: true
         #   # className: cilium
         #   hosts:
@@ -267,7 +267,7 @@ spec:
     #   annotations:
     #     grafana_folder: /tmp/dashboards/Cilium
     # dashboards: # Cilium Agent dashboard (eBPF, kube-proxy replacement metrics)
-    #   enabled: true # A activer une fois prometheus-stack installé (via cilium-monitoring app)
+    #   enabled: true # A activer une fois prometheus-stack installé (via cilium app)
     #   annotations:
     #     grafana_dashboard_folder: /tmp/dashboards/Cilium
 
