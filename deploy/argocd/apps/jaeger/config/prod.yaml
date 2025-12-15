@@ -25,12 +25,13 @@ jaeger:
         cpu: "500m"
         memory: "512Mi"
 
-  # Storage configuration
+  # Storage backend configuration (requires features.storage.enabled)
   storage:
-    type: badger  # Use elasticsearch for large-scale production
+    type: badger
     badger:
       ephemeral: false
-      size: "20Gi"
+      persistence:
+        size: "20Gi"
 
   # Collector configuration (receives spans)
   collector:

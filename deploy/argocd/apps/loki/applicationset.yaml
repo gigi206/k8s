@@ -139,13 +139,14 @@ spec:
               singleBinary:
                 replicas: {{ .loki.singleBinary.replicas }}
                 persistence:
-                  enabled: true
+                  enabled: {{ and .loki.singleBinary.persistence.enabled .features.storage.enabled }}
+                  {{- if and .loki.singleBinary.persistence.enabled .features.storage.enabled }}
                   {{- if eq .loki.storage.type "s3" }}
                   size: 1Gi
                   {{- else }}
-                  size: '{{ .loki.storage.size }}'
+                  size: '{{ .loki.singleBinary.persistence.size }}'
                   {{- end }}
-                  storageClass: '{{ .features.storage.class }}'
+                  {{- end }}
                 {{- if .loki.singleBinary.resources }}
                 resources:
                   requests:
@@ -199,9 +200,10 @@ spec:
               backend:
                 replicas: {{ .loki.backend.replicas }}
                 persistence:
-                  enabled: true
-                  size: '{{ .loki.storage.size }}'
-                  storageClass: '{{ .features.storage.class }}'
+                  volumeClaimsEnabled: {{ and .loki.backend.persistence.volumeClaimsEnabled .features.storage.enabled }}
+                  {{- if and .loki.backend.persistence.volumeClaimsEnabled .features.storage.enabled }}
+                  size: '{{ .loki.backend.persistence.size }}'
+                  {{- end }}
                 {{- if .loki.backend.resources }}
                 resources:
                   requests:
@@ -283,9 +285,10 @@ spec:
               write:
                 replicas: {{ .loki.write.replicas }}
                 persistence:
-                  enabled: true
-                  size: '{{ .loki.storage.size }}'
-                  storageClass: '{{ .features.storage.class }}'
+                  volumeClaimsEnabled: {{ and .loki.write.persistence.volumeClaimsEnabled .features.storage.enabled }}
+                  {{- if and .loki.write.persistence.volumeClaimsEnabled .features.storage.enabled }}
+                  size: '{{ .loki.write.persistence.size }}'
+                  {{- end }}
                 {{- if .loki.write.resources }}
                 resources:
                   requests:

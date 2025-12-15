@@ -12,6 +12,10 @@ loki:
   # SingleBinary mode configuration
   singleBinary:
     replicas: 1
+    # Persistence (requires features.storage.enabled)
+    persistence:
+      enabled: true
+      size: 5Gi
     resources:
       requests:
         cpu: 100m
@@ -23,7 +27,6 @@ loki:
   # Stockage
   storage:
     type: s3  # filesystem ou s3
-    size: 5Gi
     # S3 configuration (used when type: s3)
     s3:
       secretName: loki-storage  # Secret créé par ObjectBucketClaim

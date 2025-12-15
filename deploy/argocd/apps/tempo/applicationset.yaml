@@ -132,9 +132,10 @@ spec:
 
               # Persistence
               persistence:
-                enabled: {{ .tempo.persistence.enabled }}
+                enabled: {{ and .tempo.persistence.enabled .features.storage.enabled }}
+                {{- if and .tempo.persistence.enabled .features.storage.enabled }}
                 size: {{ .tempo.persistence.size }}
-                storageClassName: {{ .features.storage.class }}
+                {{- end }}
 
               # Service configuration
               service:
