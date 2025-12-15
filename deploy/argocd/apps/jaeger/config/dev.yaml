@@ -25,12 +25,13 @@ jaeger:
         cpu: "500m"
         memory: "512Mi"
 
-  # Storage configuration
+  # Storage backend configuration (requires features.storage.enabled)
   storage:
-    type: badger  # Embedded storage (good for dev)
+    type: badger
     badger:
-      ephemeral: false  # Persist data
-      size: "5Gi"
+      ephemeral: false
+      persistence:
+        size: "5Gi"
 
   # Disabled in all-in-one mode
   collector:

@@ -125,12 +125,11 @@ spec:
               storage:
                 type: badger
                 badger:
-                  ephemeral: {{ .jaeger.storage.badger.ephemeral }}
+                  ephemeral: {{ or .jaeger.storage.badger.ephemeral (not .features.storage.enabled) }}
                   persistence:
-                    enabled: {{ not .jaeger.storage.badger.ephemeral }}
-                    {{- if not .jaeger.storage.badger.ephemeral }}
-                    storageClassName: {{ .features.storage.class }}
-                    size: {{ .jaeger.storage.badger.size }}
+                    enabled: {{ and (not .jaeger.storage.badger.ephemeral) .features.storage.enabled }}
+                    {{- if and (not .jaeger.storage.badger.ephemeral) .features.storage.enabled }}
+                    size: {{ .jaeger.storage.badger.persistence.size }}
                     {{- end }}
               {{- else }}
               # Production mode with separate components
@@ -188,8 +187,24 @@ spec:
                     value: jaeger.{{ .common.domain }}
         {{- end }}
 
+        {{- if .features.oauth2Proxy.enabled }}
+        # Source 4: AuthorizationPolicy for OAuth2 Proxy ext_authz
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/oauth2-authz
+          kustomize:
+            patches:
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-jaeger
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: jaeger.{{ .common.domain }}
+        {{- end }}
+
         {{- if .features.monitoring.enabled }}
-        # Source 4: PrometheusRules for Jaeger monitoring
+        # Source 5: PrometheusRules for Jaeger monitoring
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/jaeger/kustomize

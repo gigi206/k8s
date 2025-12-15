@@ -6,9 +6,13 @@ appName: prometheus-stack
 prometheusStack:
   version: "80.0.0"
   prometheus:
-    # Retention and storage
+    # Persistence (requires features.storage.enabled)
+    persistence:
+      enabled: true
+      size: "5Gi"
+
+    # Retention
     retention: "7d"
-    storageSize: "5Gi"
 
     # Replicas (prod: 2 for HA)
     replicas: 2
@@ -37,7 +41,7 @@ prometheusStack:
     # Replicas (prod: 2 for HA)
     replicas: 2
 
-    # Persistence (prod: enabled)
+    # Persistence (requires features.storage.enabled)
     persistence:
       enabled: true
       size: "10Gi"
@@ -83,6 +87,11 @@ prometheusStack:
     # Alertmanager (prod: enabled)
     enabled: true
     replicas: 3
+
+    # Persistence (requires features.storage.enabled)
+    persistence:
+      enabled: true
+      size: "5Gi"
 
     # Ingress (prod: enabled)
     ingress:

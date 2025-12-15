@@ -6,9 +6,13 @@ appName: prometheus-stack
 prometheusStack:
   version: "80.0.0"
   prometheus:
-    # Retention and storage
+    # Persistence (requires features.storage.enabled)
+    persistence:
+      enabled: true
+      size: "2Gi"
+
+    # Retention
     retention: "2d"
-    storageSize: "2Gi"
 
     # Replicas (dev: 1)
     replicas: 1
@@ -56,12 +60,9 @@ prometheusStack:
     # Replicas (dev: 1)
     replicas: 1
 
-    # Persistence (dev: enabled via features.storage.enabled)
-    # Note: ApplicationSet utilise directement features.storage.enabled pour grafana.persistence.enabled
-    # Note: storageClassName est géré par ApplicationSet via features.storage.class
+    # Persistence (requires features.storage.enabled)
     persistence:
-      # enabled: true  # Géré automatiquement par features.storage.enabled dans ApplicationSet
-      # storageClassName: géré par ApplicationSet (default: features.storage.class)
+      enabled: true
       size: "1Gi"
 
     # Resources (dev: minimal, augmenté pour éviter OOMKill)
@@ -128,8 +129,9 @@ prometheusStack:
       enabled: false
       hostname: "alertmanager.{{ .common.domain }}"
 
-    # Storage
-    storage:
+    # Persistence (requires features.storage.enabled)
+    persistence:
+      enabled: true
       size: "1Gi"
 
   pushgateway:

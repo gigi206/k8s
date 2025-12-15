@@ -180,12 +180,12 @@ spec:
             # Prometheus: retention and storage
             - name: prometheus.prometheusSpec.retention
               value: '{{ .prometheusStack.prometheus.retention | default "7d" }}'
+            {{- if and .prometheusStack.prometheus.persistence.enabled .features.storage.enabled }}
             - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage
-              value: '{{ .prometheusStack.prometheus.storageSize | default "5Gi" }}'
-            - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName
-              value: '{{ .features.storage.class | default "longhorn" }}'
+              value: '{{ .prometheusStack.prometheus.persistence.size | default "5Gi" }}'
             - name: prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.accessModes[0]
               value: "ReadWriteOnce"
+            {{- end }}
 
             # Grafana: admin credentials (from encrypted secret via KSOPS)
             - name: grafana.admin.existingSecret
@@ -195,12 +195,10 @@ spec:
             - name: grafana.admin.passwordKey
               value: admin-password
 
-            # Grafana: persistence (enabled automatiquement si features.storage.enabled)
+            # Grafana: persistence
             - name: grafana.persistence.enabled
-              value: '{{ .features.storage.enabled }}'
-            {{- if .features.storage.enabled }}
-            - name: grafana.persistence.storageClassName
-              value: '{{ .features.storage.class }}'
+              value: '{{ and .prometheusStack.grafana.persistence.enabled .features.storage.enabled }}'
+            {{- if and .prometheusStack.grafana.persistence.enabled .features.storage.enabled }}
             - name: grafana.persistence.size
               value: '{{ .prometheusStack.grafana.persistence.size | default "1Gi" }}'
             {{- end }}
@@ -362,11 +360,9 @@ spec:
             {{- end }}
 
             # Alertmanager: storage
-            {{- if .prometheusStack.alertmanager.storage }}
-            - name: alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.storageClassName
-              value: '{{ .features.storage.class }}'
+            {{- if and .prometheusStack.alertmanager.persistence.enabled .features.storage.enabled }}
             - name: alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage
-              value: '{{ .prometheusStack.alertmanager.storage.size }}'
+              value: '{{ .prometheusStack.alertmanager.persistence.size }}'
             {{- end }}
             {{- end }}
             {{- end }}

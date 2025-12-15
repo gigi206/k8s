@@ -16,6 +16,10 @@ loki:
   # SimpleScalable mode configuration
   backend:
     replicas: 2
+    # Persistence (requires features.storage.enabled)
+    persistence:
+      volumeClaimsEnabled: true
+      size: 10Gi
     resources:
       requests:
         cpu: 200m
@@ -34,6 +38,10 @@ loki:
         memory: 1Gi
   write:
     replicas: 2
+    # Persistence (requires features.storage.enabled)
+    persistence:
+      volumeClaimsEnabled: true
+      size: 10Gi
     resources:
       requests:
         cpu: 200m
@@ -45,7 +53,6 @@ loki:
   # Stockage
   storage:
     type: s3  # S3 via Rook-Ceph ObjectStore
-    size: 10Gi  # Local storage for WAL
     # S3 configuration (used when type: s3)
     s3:
       secretName: loki-storage  # Secret créé par ObjectBucketClaim
