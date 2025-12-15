@@ -1,0 +1,159 @@
+---
+# =============================================================================
+# Keycloak Client Creation Job for NeuVector
+# =============================================================================
+# Creates the neuvector OIDC client in Keycloak realm
+# NeuVector redirect URI format: https://<manager-url>/openId_auth
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: neuvector-keycloak-client
+  namespace: keycloak
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-client
+          image: curlimages/curl:8.17.0
+          env:
+            - name: DOMAIN
+              value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            - name: KEYCLOAK_URL
+              value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
+            - name: KEYCLOAK_HEALTH_URL
+              value: "https://keycloak-service.keycloak.svc.cluster.local:9000"
+            - name: REALM
+              value: "k8s"
+            - name: CLIENT_ID
+              value: "neuvector"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: password
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: neuvector-oidc-client-secret
+                  key: client-secret
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "=== Creating NeuVector client in Keycloak ==="
+
+              # Wait for Keycloak to be ready (max 5 minutes)
+              echo "Waiting for Keycloak to be ready..."
+              MAX_RETRIES=60
+              RETRY_INTERVAL=5
+              RETRY_COUNT=0
+
+              until curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_HEALTH_URL}/health/ready" | grep -q "200"; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Keycloak not ready after $((MAX_RETRIES * RETRY_INTERVAL)) seconds"
+                  exit 1
+                fi
+                echo "Keycloak not ready yet, waiting ${RETRY_INTERVAL}s... (attempt ${RETRY_COUNT}/${MAX_RETRIES})"
+                sleep $RETRY_INTERVAL
+              done
+              echo "Keycloak is ready!"
+
+              # Get admin token
+              echo "Getting admin token..."
+              TOKEN=$(curl -sk -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "username=${KEYCLOAK_ADMIN}" \
+                -d "password=${KEYCLOAK_ADMIN_PASSWORD}" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+              if [ -z "$TOKEN" ]; then
+                echo "ERROR: Failed to get admin token"
+                exit 1
+              fi
+              echo "Got admin token"
+
+              # NeuVector requires specific redirect URI format: /openId_auth
+              CLIENT_PAYLOAD=$(cat <<EOF
+              {
+                "clientId": "${CLIENT_ID}",
+                "name": "NeuVector Security Platform",
+                "description": "NeuVector container security platform OIDC client",
+                "enabled": true,
+                "clientAuthenticatorType": "client-secret",
+                "secret": "${CLIENT_SECRET}",
+                "redirectUris": [
+                  "https://neuvector.${DOMAIN}/openId_auth"
+                ],
+                "webOrigins": [
+                  "https://neuvector.${DOMAIN}"
+                ],
+                "publicClient": false,
+                "protocol": "openid-connect",
+                "standardFlowEnabled": true,
+                "implicitFlowEnabled": false,
+                "directAccessGrantsEnabled": false,
+                "serviceAccountsEnabled": false,
+                "attributes": {
+                  "post.logout.redirect.uris": "https://neuvector.${DOMAIN}/*"
+                },
+                "defaultClientScopes": [
+                  "openid",
+                  "profile",
+                  "email",
+                  "groups"
+                ]
+              }
+              EOF
+              )
+
+              # Create or update client
+              EXISTING_CLIENT=$(curl -sk \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}")
+
+              if echo "$EXISTING_CLIENT" | grep -q "\"clientId\":\"${CLIENT_ID}\""; then
+                # Client exists, get the UUID (first "id" field after array opening bracket)
+                # Pattern: [{"id":"UUID" - extract UUID from first element of array
+                CLIENT_UUID=$(echo "$EXISTING_CLIENT" | sed -n 's/^\[{"id":"\([^"]*\)".*/\1/p')
+                echo "Client exists with ID: ${CLIENT_UUID}, updating..."
+
+                RESPONSE=$(curl -sk -o /dev/null -w "%{http_code}" -X PUT \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d "${CLIENT_PAYLOAD}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}")
+
+                if [ "$RESPONSE" = "204" ]; then
+                  echo "Client updated successfully"
+                else
+                  echo "WARNING: Update returned status ${RESPONSE}"
+                fi
+              else
+                # Client doesn't exist, create it
+                echo "Creating new client..."
+                RESPONSE=$(curl -sk -o /dev/null -w "%{http_code}" -X POST \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d "${CLIENT_PAYLOAD}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients")
+
+                if [ "$RESPONSE" = "201" ]; then
+                  echo "Client created successfully"
+                else
+                  echo "WARNING: Create returned status ${RESPONSE}"
+                fi
+              fi
+
+              echo "=== Done ==="

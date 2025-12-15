@@ -1,0 +1,249 @@
+---
+# =============================================================================
+# NeuVector ApplicationSet - Wave 82 (Container Security)
+# =============================================================================
+# Deploys NeuVector container security platform with:
+# - Controller (policy engine, single or HA)
+# - Enforcer (runtime security DaemonSet on each node)
+# - Manager (Web UI)
+# - Scanner (CVE vulnerability scanning)
+# - Monitor (Prometheus exporter)
+# Docs: https://open-docs.neuvector.com/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: neuvector
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "82"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/neuvector/config/*.yaml
+
+  template:
+    metadata:
+      name: neuvector
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "82"
+    spec:
+      project: default
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: neuvector
+
+      syncPolicy:
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 5m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 1: Namespace + Keycloak client Job (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/resources
+          {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: neuvector-keycloak-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+          {{- end }}
+
+        # Source 2: Encrypted secrets (KSOPS)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/secrets/{{ .environment }}
+
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source 3: HTTPRoute (Gateway API)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: neuvector-manager
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: neuvector.{{ .common.domain }}
+        {{- end }}
+
+        {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}
+        # Source 4: Istio DestinationRule (TLS to NeuVector Manager backend)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/istio
+        {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source 5: PrometheusRules
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/kustomize
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}
+
+        # Source 6: NeuVector Core Helm chart
+        - repoURL: https://neuvector.github.io/neuvector-helm/
+          targetRevision: '{{ .neuvector.version }}'
+          chart: core
+          helm:
+            valuesObject:
+              # Bootstrap password (must match neuvector-admin-credentials secret)
+              bootstrapPassword: "admin"
+
+              # Controller configuration
+              controller:
+                enabled: true
+                replicas: {{ .neuvector.controller.replicas | default 1 }}
+                apisvc:
+                  type: ClusterIP
+                resources:
+                  requests:
+                    cpu: {{ .neuvector.controller.resources.requests.cpu | default "100m" }}
+                    memory: {{ .neuvector.controller.resources.requests.memory | default "256Mi" }}
+                  limits:
+                    cpu: {{ .neuvector.controller.resources.limits.cpu | default "500m" }}
+                    memory: {{ .neuvector.controller.resources.limits.memory | default "512Mi" }}
+                {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+                # OIDC Configuration via Secret (Keycloak)
+                # Ref: https://open-docs.neuvector.com/deploying/production/configmap/
+                secret:
+                  enabled: true
+                  data:
+                    # User initialization (set password to avoid reset prompt)
+                    userinitcfg.yaml:
+                      always_reload: true
+                      users:
+                        - Fullname: admin
+                          Password: {{ .neuvector.adminPassword | default "admin" }}
+                          Role: admin
+                    # OIDC configuration (note: field names are case-sensitive!)
+                    oidcinitcfg.yaml:
+                      always_reload: true
+                      Issuer: https://keycloak.{{ .common.domain }}/realms/k8s
+                      Client_ID: {{ .neuvector.oidc.clientId | default "neuvector" }}
+                      Client_Secret: {{ .neuvector.oidc.clientSecret | default "neuvector-keycloak-secret-placeholder" }}
+                      Scopes:
+                        - openid
+                        - profile
+                        - email
+                        - groups
+                      Enable: true
+                      Default_Role: reader
+                      Group_Claim: groups
+                      group_mapped_roles:
+                        - group: admins
+                          global_role: admin
+                        - group: neuvector-admins
+                          global_role: admin
+                {{- end }}
+
+              # Enforcer configuration (DaemonSet)
+              enforcer:
+                enabled: true
+                resources:
+                  requests:
+                    cpu: {{ .neuvector.enforcer.resources.requests.cpu | default "100m" }}
+                    memory: {{ .neuvector.enforcer.resources.requests.memory | default "128Mi" }}
+                  limits:
+                    cpu: {{ .neuvector.enforcer.resources.limits.cpu | default "500m" }}
+                    memory: {{ .neuvector.enforcer.resources.limits.memory | default "512Mi" }}
+
+              # Manager configuration (Web UI)
+              manager:
+                enabled: true
+                svc:
+                  type: ClusterIP
+                route:
+                  enabled: false  # Using HTTPRoute instead
+                resources:
+                  requests:
+                    cpu: {{ .neuvector.manager.resources.requests.cpu | default "50m" }}
+                    memory: {{ .neuvector.manager.resources.requests.memory | default "128Mi" }}
+                  limits:
+                    cpu: {{ .neuvector.manager.resources.limits.cpu | default "200m" }}
+                    memory: {{ .neuvector.manager.resources.limits.memory | default "256Mi" }}
+
+              # Scanner configuration
+              cve:
+                scanner:
+                  enabled: true
+                  replicas: {{ .neuvector.scanner.replicas | default 1 }}
+                  resources:
+                    requests:
+                      cpu: {{ .neuvector.scanner.resources.requests.cpu | default "100m" }}
+                      memory: {{ .neuvector.scanner.resources.requests.memory | default "512Mi" }}
+                    limits:
+                      cpu: {{ .neuvector.scanner.resources.limits.cpu | default "500m" }}
+                      memory: {{ .neuvector.scanner.resources.limits.memory | default "1Gi" }}
+
+              # CRD webhook
+              crdwebhook:
+                enabled: true
+
+        {{- if .features.monitoring.enabled }}
+        # Source 7: NeuVector Monitor Helm chart (Prometheus exporter)
+        - repoURL: https://neuvector.github.io/neuvector-helm/
+          targetRevision: '{{ .neuvector.monitorVersion | default .neuvector.version }}'
+          chart: monitor
+          helm:
+            valuesObject:
+              exporter:
+                enabled: true
+                apiSvc: neuvector-svc-controller-api:10443
+                ctrlSecretName: neuvector-admin-credentials
+                svc:
+                  enabled: true
+                  type: ClusterIP
+                serviceMonitor:
+                  enabled: true
+                  labels:
+                    release: '{{ .features.monitoring.release }}'
+                  interval: 30s
+        {{- end }}

@@ -1,0 +1,115 @@
+---
+# Job to patch NeuVector controller deployment with custom CA certificate
+# This is needed because the Helm chart doesn't support extraVolumes
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: neuvector-controller-ca-patch
+  namespace: neuvector
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: neuvector-controller-ca-patch
+      restartPolicy: OnFailure
+      containers:
+        - name: kubectl
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Patching NeuVector controller deployment to add CA certificate..."
+
+              # Check if patch is already applied
+              EXISTING_VOL=$(kubectl get deployment neuvector-controller-pod -n neuvector -o jsonpath='{.spec.template.spec.volumes[?(@.name=="custom-ca")].name}' 2>/dev/null || echo "")
+
+              if [ "$EXISTING_VOL" = "custom-ca" ]; then
+                echo "CA volume already exists, skipping patch"
+                exit 0
+              fi
+
+              # Apply strategic merge patch to add volume and volumeMount
+              kubectl patch deployment neuvector-controller-pod -n neuvector --type=strategic -p '
+              {
+                "spec": {
+                  "template": {
+                    "spec": {
+                      "containers": [
+                        {
+                          "name": "neuvector-controller-pod",
+                          "env": [
+                            {
+                              "name": "SSL_CERT_FILE",
+                              "value": "/etc/ssl/custom-ca/ca-certificates.crt"
+                            }
+                          ],
+                          "volumeMounts": [
+                            {
+                              "name": "custom-ca",
+                              "mountPath": "/etc/ssl/custom-ca",
+                              "readOnly": true
+                            }
+                          ]
+                        }
+                      ],
+                      "volumes": [
+                        {
+                          "name": "custom-ca",
+                          "configMap": {
+                            "name": "neuvector-custom-ca"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }'
+
+              echo "Patch applied successfully. Controller will restart with CA certificate."
+---
+# ServiceAccount for the patch job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: neuvector-controller-ca-patch
+  namespace: neuvector
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+---
+# Role to allow patching the deployment
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: neuvector-controller-ca-patch
+  namespace: neuvector
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+---
+# RoleBinding for the patch job
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: neuvector-controller-ca-patch
+  namespace: neuvector
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+subjects:
+  - kind: ServiceAccount
+    name: neuvector-controller-ca-patch
+    namespace: neuvector
+roleRef:
+  kind: Role
+  name: neuvector-controller-ca-patch
+  apiGroup: rbac.authorization.k8s.io

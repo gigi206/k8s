@@ -1,0 +1,14 @@
+---
+# DestinationRule to configure TLS from Istio gateway to NeuVector Manager
+# NeuVector Manager serves HTTPS on port 8443 with self-signed certificate
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: neuvector-manager-tls
+  namespace: neuvector
+spec:
+  host: neuvector-service-webui.neuvector.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      insecureSkipVerify: true

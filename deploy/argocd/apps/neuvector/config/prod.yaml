@@ -1,0 +1,63 @@
+---
+# Configuration NeuVector - Prod
+environment: prod
+appName: neuvector
+
+neuvector:
+  # Helm chart versions
+  version: "2.8.10"        # Core chart version
+  monitorVersion: "2.8.10" # Monitor chart version (Prometheus exporter)
+
+  # Controller (HA for prod)
+  controller:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+  # Enforcer (DaemonSet - runs on all nodes)
+  enforcer:
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+  # Manager (Web UI)
+  manager:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Scanner (HA for prod)
+  scanner:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+
+  # OIDC Configuration (Keycloak) - Native NeuVector OIDC
+  oidc:
+    enabled: true
+    clientId: "neuvector"
+    clientSecret: "CHANGE_ME_IN_PRODUCTION"  # Set via SOPS secret
+
+syncPolicy:
+  automated:
+    enabled: false  # Manual sync for prod
+    prune: false
+    selfHeal: false

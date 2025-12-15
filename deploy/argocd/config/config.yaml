@@ -174,3 +174,7 @@ features:
   # Utilisé en mode ext_authz avec Istio (auth seulement, pas de proxy du trafic)
   oauth2Proxy:
     enabled: true  # Wave 81: OAuth2 Proxy pour authentification OIDC
+
+  # === Container Security ===
+  neuvector:
+    enabled: true  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
