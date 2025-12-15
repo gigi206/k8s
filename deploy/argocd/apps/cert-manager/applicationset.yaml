@@ -95,6 +95,12 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if and (eq .features.network.provider "cilium") .features.network.egressPolicy.enabled }}
+        # Source: Cilium egress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cert-manager/network-policy
+        {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source 3: Prometheus monitoring (conditional) - with dynamic release label
         - repoURL: https://github.com/gigi206/k8s

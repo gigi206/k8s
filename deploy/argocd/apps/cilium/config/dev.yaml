@@ -1,7 +1,7 @@
 ---
-# Configuration Cilium Monitoring - Dev
+# Configuration Cilium - Dev
 environment: dev
-appName: cilium-monitoring
+appName: cilium
 
 # Dashboard configuration
 dashboard:

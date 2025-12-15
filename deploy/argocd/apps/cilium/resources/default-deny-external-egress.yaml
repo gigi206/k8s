@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - Default Deny External Egress
+# =============================================================================
+# This policy blocks ALL external (world) egress traffic from the cluster.
+# NO EXCEPTIONS here - each application that needs external access must
+# define its own CiliumNetworkPolicy in its own directory.
+#
+# Internal cluster traffic (DNS, API, pod-to-pod) remains unrestricted.
+#
+# Applications with external egress policies:
+# - argo-cd: deploy/argocd/apps/argocd/network-policy/cilium-egress-policy.yaml
+# - neuvector: deploy/argocd/apps/neuvector/network-policy/cilium-egress-policy.yaml
+# - cert-manager: deploy/argocd/apps/cert-manager/network-policy/cilium-egress-policy.yaml
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: default-deny-external-egress
+spec:
+  description: "Block all external egress, allow internal cluster traffic only"
+
+  # Apply to ALL pods in the cluster
+  endpointSelector: {}
+
+  egress:
+    # Rule 1: Allow all traffic to cluster-internal endpoints
+    - toEntities:
+        - cluster
+
+    # Rule 2: Allow DNS resolution (kube-dns in kube-system)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Rule 3: Allow Kubernetes API server access
+    - toEntities:
+        - kube-apiserver
+
+    # Rule 4: Allow host access (for node-local services)
+    - toEntities:
+        - host
+
+    # Rule 5: Allow DNS forwarding to external DNS servers (infrastructure)
+    # Required for kube-dns to resolve external domains (github.com, etc.)
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # NO other external (world) access - applications must define their own policies

@@ -27,7 +27,7 @@ meshConfig:
 
 **Ingress Kubernetes**:
 ```yaml
-# Exemple: deploy/argocd/apps/cilium-monitoring/kustomize/hubble-ingress.yaml
+# Exemple: deploy/argocd/apps/cilium/kustomize/hubble-ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

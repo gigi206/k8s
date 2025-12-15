@@ -110,7 +110,7 @@ Feature flags in `config/config.yaml` control which ApplicationSets are deployed
 | `logging.enabled` + `logging.loki.enabled` | loki | 73 |
 | `logging.enabled` + `logging.loki.collector=alloy` | alloy | 74 |
 | `monitoring.enabled` | prometheus-stack | 75 |
-| `cilium.monitoring.enabled` | cilium-monitoring | 76 |
+| `cilium.monitoring.enabled` | cilium | 76 |
 | `tracing.enabled` + `provider=tempo` | tempo | 77 |
 | `tracing.enabled` + `provider=jaeger` | jaeger | 77 |
 | `sso.enabled` + `provider=keycloak` | keycloak | 80 |
@@ -237,7 +237,7 @@ apps/<app-name>/kustomize/
 
 | Application | Alerts | Status |
 |-------------|--------|--------|
-| cilium-monitoring | 10 | Complete |
+| cilium | 10 | Complete |
 | longhorn | 9 | Complete |
 | istio | 5 | Complete |
 | argocd | 13 | Complete |
@@ -293,7 +293,7 @@ Each application has detailed documentation in its README.md:
 | Infrastructure | metallb, kube-vip, external-dns |
 | Certificates & Secrets | cert-manager, external-secrets |
 | Ingress & Gateway API | ingress-nginx, gateway-api-controller, nginx-gateway-fabric, envoy-gateway, traefik |
-| Service Mesh | istio, cilium-monitoring |
+| Service Mesh | istio, cilium |
 | Storage | longhorn, csi-external-snapshotter |
 | Monitoring | prometheus-stack |
 | Tracing & Logging | tempo, jaeger, alloy |

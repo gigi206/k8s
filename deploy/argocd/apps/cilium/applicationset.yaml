@@ -1,16 +1,19 @@
 ---
 # =============================================================================
-# Cilium Monitoring ApplicationSet - Wave 76 (After Prometheus-Stack)
+# Cilium ApplicationSet - Wave 76 (After Prometheus-Stack)
 # =============================================================================
-# Deploys ServiceMonitors for Cilium/Hubble to enable Prometheus scraping
-# This complements the RKE2-installed Cilium CNI with monitoring capabilities
-# Deployed after prometheus-stack since ServiceMonitors depend on Prometheus CRDs
+# Cilium CNI is installed by RKE2 during cluster bootstrap. This ApplicationSet
+# deploys additional resources:
+# - ServiceMonitors/PodMonitors for Prometheus scraping
+# - Grafana dashboards for Cilium/Hubble metrics
+# - CiliumClusterwideNetworkPolicy for cluster-wide egress control
+# - HTTPRoute for Hubble UI access (optional)
 # =============================================================================
 
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: cilium-monitoring
+  name: cilium
   namespace: argo-cd
   annotations:
     argocd.argoproj.io/sync-wave: "76"
@@ -35,11 +38,11 @@ spec:
               repoURL: https://github.com/gigi206/k8s
               revision: 'HEAD'
               files:
-                - path: deploy/argocd/apps/cilium-monitoring/config/*.yaml
+                - path: deploy/argocd/apps/cilium/config/*.yaml
 
   template:
     metadata:
-      name: cilium-monitoring
+      name: cilium
       namespace: argo-cd
       annotations:
         argocd.argoproj.io/sync-wave: "76"
@@ -49,7 +52,7 @@ spec:
       source:
         repoURL: https://github.com/gigi206/k8s
         targetRevision: '{{ .git.revision }}'
-        path: deploy/argocd/apps/cilium-monitoring/kustomize
+        path: deploy/argocd/apps/cilium/kustomize
         kustomize:
           commonLabels:
             release: '{{ .features.monitoring.release }}'
@@ -82,11 +85,17 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source: HTTPRoute (Gateway API) - conditional
+        {{- if and (eq .features.network.provider "cilium") .features.network.egressPolicy.enabled }}
+        # Source 1: Network Policies (CiliumClusterwideNetworkPolicy) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium-monitoring/httproute
+          path: deploy/argocd/apps/cilium/resources
+        {{- end }}
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source 2: HTTPRoute (Gateway API) - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/httproute
           kustomize:
             patches:
               - target:
@@ -98,10 +107,10 @@ spec:
                     value: hubble.{{ .common.domain }}
         {{- end }}
         {{- if .features.oauth2Proxy.enabled }}
-        # Source: AuthorizationPolicy for OAuth2 Proxy ext_authz
+        # Source 3: AuthorizationPolicy for OAuth2 Proxy ext_authz
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium-monitoring/oauth2-authz
+          path: deploy/argocd/apps/cilium/oauth2-authz
           kustomize:
             patches:
               - target:
@@ -112,10 +121,10 @@ spec:
                     path: /spec/rules/0/to/0/operation/hosts/0
                     value: hubble.{{ .common.domain }}
         {{- end }}
-        # Source: Kustomize monitoring resources
+        # Source 4: Kustomize monitoring resources
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium-monitoring/kustomize
+          path: deploy/argocd/apps/cilium/kustomize
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

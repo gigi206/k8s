@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - cert-manager External Egress
+# =============================================================================
+# Allows cert-manager to reach ACME servers for certificate issuance:
+# - Let's Encrypt (acme-v02.api.letsencrypt.org, acme-staging-v02.api.letsencrypt.org)
+# - Other ACME providers
+#
+# This policy complements the cluster-wide default-deny-external-egress policy
+# defined in deploy/argocd/apps/cilium/resources/
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-allow-external-egress
+  namespace: cert-manager
+spec:
+  description: "Allow cert-manager to access ACME servers"
+
+  # Apply to all pods in cert-manager namespace
+  endpointSelector: {}
+
+  egress:
+    # Allow HTTPS to ACME servers (Let's Encrypt, etc.)
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

@@ -72,6 +72,12 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if and (eq .features.network.provider "cilium") .features.network.egressPolicy.enabled }}
+        # Source: Cilium egress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/network-policy
+        {{- end }}
         # Source 1: Namespace + Keycloak client Job (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

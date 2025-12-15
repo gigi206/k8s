@@ -463,11 +463,11 @@ resolve_dependencies() {
     fi
 
     # =========================================================================
-    # cilium-monitoring → monitoring
+    # cilium → monitoring
     # =========================================================================
     if [[ "$FEAT_CILIUM_MONITORING" == "true" ]]; then
       if [[ "$FEAT_MONITORING" != "true" ]]; then
-        log_info "  → Activation de monitoring (requis par cilium-monitoring)"
+        log_info "  → Activation de monitoring (requis par cilium)"
         FEAT_MONITORING="true"
         changes_made=true
       fi
@@ -692,9 +692,9 @@ if [[ "$FEAT_MONITORING" == "true" ]]; then
   APPLICATIONSETS+=("apps/prometheus-stack/applicationset.yaml")
 fi
 
-# Cilium monitoring (séparé car CNI spécifique)
+# Cilium (CNI installé par RKE2, cette app ajoute monitoring + network policies)
 if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]]; then
-  APPLICATIONSETS+=("apps/cilium-monitoring/applicationset.yaml")
+  APPLICATIONSETS+=("apps/cilium/applicationset.yaml")
 fi
 
 # Wave 77: Distributed Tracing
