@@ -376,6 +376,7 @@ FEAT_NEUVECTOR=$(get_feature '.features.neuvector.enabled' 'false')
 FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
 FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
 FEAT_TRACING_WAYPOINTS=$(get_feature '.features.tracing.waypoints.enabled' 'false')
+FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
 
 log_debug "Feature flags lus:"
 log_debug "  metallb: $FEAT_METALLB"
@@ -395,6 +396,7 @@ log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
 log_debug "  neuvector: $FEAT_NEUVECTOR"
 log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
+log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
 
 # =============================================================================
 # Résolution automatique des dépendances
@@ -757,6 +759,36 @@ if [[ ${#missing_files[@]} -gt 0 ]]; then
   exit 1
 fi
 log_success "Tous les fichiers ApplicationSets sont présents"
+
+# =============================================================================
+# Pré-déploiement des CiliumNetworkPolicies (bootstrap)
+# =============================================================================
+# ArgoCD a besoin d'accéder à GitHub/Helm registries pour récupérer sa config.
+# Si la default-deny-external-egress est active, ArgoCD sera bloqué.
+# On applique donc la network policy ArgoCD AVANT le déploiement des ApplicationSets.
+
+apply_bootstrap_network_policies() {
+  if [[ "$FEAT_CILIUM_EGRESS_POLICY" != "true" ]]; then
+    log_debug "Cilium egress policy désactivée, pas de pré-déploiement nécessaire"
+    return 0
+  fi
+
+  log_info "Pré-déploiement des CiliumNetworkPolicies pour bootstrap..."
+
+  # ArgoCD network policy - critique pour le bootstrap
+  local argocd_policy="${SCRIPT_DIR}/apps/argocd/network-policy/cilium-egress-policy.yaml"
+  if [[ -f "$argocd_policy" ]]; then
+    if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
+      log_success "CiliumNetworkPolicy ArgoCD appliquée (permet l'accès à GitHub/Helm)"
+    else
+      log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD"
+    fi
+  else
+    log_debug "Pas de network policy ArgoCD trouvée: $argocd_policy"
+  fi
+}
+
+apply_bootstrap_network_policies
 
 # =============================================================================
 # Déploiement des ApplicationSets (en parallèle)
