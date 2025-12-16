@@ -84,7 +84,9 @@ spec:
         # Source: Cilium egress policy - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/neuvector/kustomize/network-policy
+          path: deploy/argocd/apps/neuvector/resources
+          directory:
+            include: "cilium-egress-policy.yaml"
         {{- end }}
         # Source 1: Namespace + Keycloak client Job (conditional)
         - repoURL: https://github.com/gigi206/k8s

@@ -40,20 +40,20 @@ Les policies ne sont déployées que si `features.cilium.egressPolicy.enabled ==
 La politique réseau suit le principe **default-deny avec exceptions par application** :
 
 1. **`cilium/resources/default-deny-external-egress.yaml`** - Bloque TOUT le trafic externe (cluster-wide)
-2. **Chaque application** définit sa propre `CiliumNetworkPolicy` dans son répertoire `network-policy/`
+2. **Chaque application** définit sa propre `CiliumNetworkPolicy` dans son répertoire `resources/`
 
 ```
 cilium/
 └── resources/default-deny-external-egress.yaml   # Bloque tout (cluster-wide)
 
 argocd/
-└── network-policy/cilium-egress-policy.yaml      # Autorise egress argo-cd
+└── resources/cilium-egress-policy.yaml           # Autorise egress argo-cd
 
 neuvector/
-└── network-policy/cilium-egress-policy.yaml      # Autorise egress neuvector
+└── resources/cilium-egress-policy.yaml           # Autorise egress neuvector
 
 cert-manager/
-└── network-policy/cilium-egress-policy.yaml      # Autorise egress cert-manager (ACME)
+└── resources/cilium-egress-policy.yaml           # Autorise egress cert-manager (ACME)
 ```
 
 ### Politique par défaut (default-deny)
@@ -76,21 +76,16 @@ La `CiliumClusterwideNetworkPolicy` bloque tout le trafic sortant vers l'extéri
 
 | Application | Fichier | Ports autorisés |
 |-------------|---------|-----------------|
-| ArgoCD | `argocd/network-policy/cilium-egress-policy.yaml` | 443/TCP (HTTPS), 22/TCP (SSH) |
-| NeuVector | `neuvector/network-policy/cilium-egress-policy.yaml` | 443/TCP (HTTPS) |
-| cert-manager | `cert-manager/network-policy/cilium-egress-policy.yaml` | 443/TCP (ACME) |
+| ArgoCD | `argocd/resources/cilium-egress-policy.yaml` | 443/TCP (HTTPS), 22/TCP (SSH) |
+| NeuVector | `neuvector/resources/cilium-egress-policy.yaml` | 443/TCP (HTTPS) |
+| cert-manager | `cert-manager/resources/cilium-egress-policy.yaml` | 443/TCP (ACME) |
 
 ### Ajouter une application à la whitelist
 
-1. Créer le répertoire `network-policy/` dans le répertoire de l'application :
-
-```bash
-mkdir -p deploy/argocd/apps/mon-app/network-policy
-```
-
-2. Créer le fichier `cilium-egress-policy.yaml` :
+1. Créer le fichier `cilium-egress-policy.yaml` dans le répertoire `resources/` de l'application :
 
 ```yaml
+# deploy/argocd/apps/mon-app/resources/cilium-egress-policy.yaml
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -108,25 +103,21 @@ spec:
               protocol: TCP
 ```
 
-3. Créer le fichier `kustomization.yaml` :
-
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - cilium-egress-policy.yaml
-```
-
-4. Ajouter la source conditionnelle dans l'ApplicationSet de l'application (`templatePatch.sources`) :
+2. Ajouter la source conditionnelle dans l'ApplicationSet de l'application (`templatePatch.sources`) :
 
 ```yaml
 {{- if .features.cilium.egressPolicy.enabled }}
 # Source: Cilium egress policy - conditional
 - repoURL: https://github.com/gigi206/k8s
   targetRevision: '{{ .git.revision }}'
-  path: deploy/argocd/apps/mon-app/network-policy
+  path: deploy/argocd/apps/mon-app/resources
+  directory:
+    include: "cilium-egress-policy.yaml"
 {{- end }}
 ```
+
+**Note** : On utilise `directory: include:` pour charger uniquement le fichier network-policy
+de manière conditionnelle, sans affecter les autres ressources du répertoire `resources/`.
 
 ### Vérifier le blocage
 
