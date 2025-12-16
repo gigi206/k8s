@@ -5,5 +5,4 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - keycloak-client.yaml
-  - ca-configmap.yaml
   - controller-ca-patch-job.yaml
