@@ -19,13 +19,13 @@ $management_disk = 20
 $masters = 1
 $master_cpu = 16
 $master_memory = 32768
-$master_disk = 50
+$master_disk = 64
 
 # Workers (désactivés pour dev - all-in-one)
 $workers = 0
 $worker_cpu = 8
 $worker_memory = 8192
-$worker_disk = 50
+$worker_disk = 64
 
 # Disque de stockage supplémentaire (pour Longhorn)
 $storage_disk_enabled = true
