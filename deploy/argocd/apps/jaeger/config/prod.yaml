@@ -11,7 +11,7 @@ appName: jaeger
 
 jaeger:
   namespace: jaeger
-  version: "3.4.1"  # Helm chart version - Renovate will update this
+  version: "4.1.5"  # Helm chart version - Renovate will update this
 
   # Disable all-in-one for production
   allInOne:
