@@ -11,7 +11,7 @@ dashboard:
 rook:
   # Operator configuration
   operator:
-    version: "v1.18.6"
+    version: "v1.18.8"
     resources:
       requests:
         cpu: "100m"
@@ -22,7 +22,7 @@ rook:
 
   # Cluster configuration
   cluster:
-    version: "v1.18.6"
+    version: "v1.18.8"
     cephVersion: "19.2.0"
     osdPoolDefaultSize: 1
     mon:
