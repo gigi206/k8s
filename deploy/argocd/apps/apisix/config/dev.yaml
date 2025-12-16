@@ -7,7 +7,7 @@ apisix:
   chart:
     repo: https://charts.apiseven.com
     name: apisix
-    version: "2.12.3"
+    version: "2.12.4"
 
   # Replica count for dev environment
   replicaCount: 1
