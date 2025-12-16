@@ -99,7 +99,9 @@ spec:
         # Source: Cilium egress policy - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cert-manager/kustomize/network-policy
+          path: deploy/argocd/apps/cert-manager/resources
+          directory:
+            include: "cilium-egress-policy.yaml"
         {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source 3: Prometheus monitoring (conditional) - with dynamic release label
