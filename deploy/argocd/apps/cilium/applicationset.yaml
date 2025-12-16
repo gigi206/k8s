@@ -52,7 +52,7 @@ spec:
       source:
         repoURL: https://github.com/gigi206/k8s
         targetRevision: '{{ .git.revision }}'
-        path: deploy/argocd/apps/cilium/kustomize
+        path: deploy/argocd/apps/cilium/kustomize/monitoring
         kustomize:
           commonLabels:
             release: '{{ .features.monitoring.release }}'
@@ -95,7 +95,7 @@ spec:
         # Source 2: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/httproute
+          path: deploy/argocd/apps/cilium/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -110,7 +110,7 @@ spec:
         # Source 3: AuthorizationPolicy for OAuth2 Proxy ext_authz
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/oauth2-authz
+          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz
           kustomize:
             patches:
               - target:
@@ -124,7 +124,7 @@ spec:
         # Source 4: Kustomize monitoring resources
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/kustomize
+          path: deploy/argocd/apps/cilium/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

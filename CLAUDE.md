@@ -58,9 +58,12 @@ deploy/argocd/
     │   ├── dev.yaml               # Dev config + chart version
     │   └── prod.yaml              # Prod config
     ├── resources/                  # K8s manifests, Helm values
-    ├── kustomize/                  # PrometheusRules, ServiceMonitors
-    ├── httproute/                  # HTTPRoute (conditional: gatewayAPI.httpRoute.enabled)
-    ├── oauth2-authz/               # AuthorizationPolicy (conditional: oauth2Proxy.enabled)
+    ├── kustomize/                  # All kustomize-based resources
+    │   ├── monitoring/            # PrometheusRules, ServiceMonitors, dashboards
+    │   ├── httproute/             # HTTPRoute (conditional: gatewayAPI.httpRoute.enabled)
+    │   ├── oauth2-authz/          # AuthorizationPolicy (conditional: oauth2Proxy.enabled)
+    │   ├── network-policy/        # CiliumNetworkPolicy
+    │   └── custom-resources/      # App-specific CRs (keycloak)
     └── secrets/                    # SOPS-encrypted secrets
         ├── dev/
         └── prod/
@@ -180,7 +183,7 @@ make vagrant-dev-destroy         # Delete cluster
 - Helm `parameters` (as strings passed to Helm)
 
 **Where Go templates DON'T work**:
-- YAML manifests in `resources/` or `kustomize/` directories
+- YAML manifests in `resources/` or `kustomize/*/` directories
 - Helm values files
 - Raw Kubernetes manifests
 
@@ -228,9 +231,12 @@ Applications use Keycloak for OIDC authentication. See detailed documentation:
 
 **Structure**:
 ```
-apps/<app-name>/kustomize/
+apps/<app-name>/kustomize/monitoring/
 ├── kustomization.yaml
-└── prometheus.yaml    # PrometheusRule
+├── prometheusrules.yaml    # PrometheusRule
+├── servicemonitors.yaml    # ServiceMonitor (optional)
+├── podmonitors.yaml        # PodMonitor (optional)
+└── grafana-*.yaml          # Grafana dashboards (optional)
 ```
 
 **Current Coverage** (maintain >90%):

@@ -87,7 +87,7 @@ spec:
         # Source 2: PrometheusRules (avec label release)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/csi-external-snapshotter/kustomize
+          path: deploy/argocd/apps/csi-external-snapshotter/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

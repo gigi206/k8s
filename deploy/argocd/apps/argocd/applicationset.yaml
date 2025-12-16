@@ -98,13 +98,13 @@ spec:
         # Source: Cilium egress policy - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/argocd/network-policy
+          path: deploy/argocd/apps/argocd/kustomize/network-policy
         {{- end }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/argocd/httproute
+          path: deploy/argocd/apps/argocd/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -119,7 +119,7 @@ spec:
         # Source: Prometheus monitoring + Grafana dashboards (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/argocd/kustomize
+          path: deploy/argocd/apps/argocd/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
