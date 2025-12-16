@@ -409,15 +409,24 @@ spec:
                   limits:
                     cpu: {{ .kiali.resources.limits.cpu }}
                     memory: {{ .kiali.resources.limits.memory }}
-                {{- if .features.monitoring.enabled }}
-                # Mount Grafana credentials for kiali-server helm chart
-                # See: https://kiali.io/docs/faq/installation/
+                # Mount CA certificate for TLS verification
                 custom_secrets:
+                  - name: root-ca
+                    mount: /etc/ssl/certs/root-ca
+                {{- if .features.monitoring.enabled }}
+                  # Mount Grafana credentials for kiali-server helm chart
+                  # See: https://kiali.io/docs/faq/installation/
                   - name: kiali-grafana-username
                     mount: /kiali-override-secrets/grafana-username
                   - name: kiali-grafana-password
                     mount: /kiali-override-secrets/grafana-password
                 {{- end }}
+                # Environment variable to use custom CA
+                pod_annotations: {}
+                pod_labels: {}
+                custom_envs:
+                  - name: SSL_CERT_FILE
+                    value: /etc/ssl/certs/root-ca/ca.crt
 
               # Istio configuration
               external_services:
@@ -480,7 +489,6 @@ spec:
                   {{- end }}
                   username_claim: {{ .kiali.auth.openid.usernameClaim }}
                   disable_rbac: {{ .kiali.auth.openid.disableRbac }}
-                  insecure_skip_verify_tls: {{ .kiali.auth.openid.insecureSkipVerifyTls }}
                 {{- end }}
                 {{- else }}
                 # SSO disabled - use anonymous authentication

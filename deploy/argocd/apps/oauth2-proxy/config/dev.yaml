@@ -11,8 +11,6 @@ oauth2Proxy:
   # OIDC Configuration (Keycloak)
   oidc:
     clientId: "oauth2-proxy"
-    # Skip SSL verification for self-signed certs in dev
-    skipProviderVerify: true
 
   # Resources (dev: minimal)
   resources:
