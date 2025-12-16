@@ -763,9 +763,15 @@ log_success "Tous les fichiers ApplicationSets sont présents"
 # =============================================================================
 # Pré-déploiement des CiliumNetworkPolicies (bootstrap)
 # =============================================================================
-# ArgoCD a besoin d'accéder à GitHub/Helm registries pour récupérer sa config.
-# Si la default-deny-external-egress est active, ArgoCD sera bloqué.
-# On applique donc la network policy ArgoCD AVANT le déploiement des ApplicationSets.
+# Ordre d'application:
+# 1. CiliumClusterwideNetworkPolicy (default-deny-external-egress)
+#    → Autorise le trafic interne (cluster, kube-apiserver, DNS) pour tous les pods
+#    → Bloque l'egress externe (world) par défaut
+# 2. CiliumNetworkPolicy ArgoCD
+#    → Ajoute l'accès externe (GitHub, Helm registries) pour ArgoCD uniquement
+#
+# Sans ces policies pré-appliquées, ArgoCD ne peut pas accéder à GitHub pour
+# récupérer sa propre configuration (chicken-and-egg problem).
 
 apply_bootstrap_network_policies() {
   if [[ "$FEAT_CILIUM_EGRESS_POLICY" != "true" ]]; then
@@ -775,11 +781,23 @@ apply_bootstrap_network_policies() {
 
   log_info "Pré-déploiement des CiliumNetworkPolicies pour bootstrap..."
 
-  # ArgoCD network policy - critique pour le bootstrap
+  # 1. Clusterwide policy - autorise le trafic interne pour tout le cluster
+  local clusterwide_policy="${SCRIPT_DIR}/apps/cilium/resources/default-deny-external-egress.yaml"
+  if [[ -f "$clusterwide_policy" ]]; then
+    if kubectl apply -f "$clusterwide_policy" > /dev/null 2>&1; then
+      log_success "CiliumClusterwideNetworkPolicy appliquée (trafic interne autorisé)"
+    else
+      log_warning "Impossible d'appliquer la CiliumClusterwideNetworkPolicy"
+    fi
+  else
+    log_debug "Pas de clusterwide policy trouvée: $clusterwide_policy"
+  fi
+
+  # 2. ArgoCD policy - ajoute l'accès externe (GitHub, Helm)
   local argocd_policy="${SCRIPT_DIR}/apps/argocd/network-policy/cilium-egress-policy.yaml"
   if [[ -f "$argocd_policy" ]]; then
     if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
-      log_success "CiliumNetworkPolicy ArgoCD appliquée (permet l'accès à GitHub/Helm)"
+      log_success "CiliumNetworkPolicy ArgoCD appliquée (accès GitHub/Helm)"
     else
       log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD"
     fi
