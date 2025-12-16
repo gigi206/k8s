@@ -55,7 +55,6 @@ prometheusStack:
       # admins -> Admin, developers -> Editor, autres -> Viewer
       roleAttributePath: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'developers') && 'Editor' || 'Viewer'"
       allowAssignGrafanaAdmin: true
-      tlsSkipVerify: true  # Skip TLS verification (self-signed cert in dev)
 
     # Replicas (dev: 1)
     replicas: 1

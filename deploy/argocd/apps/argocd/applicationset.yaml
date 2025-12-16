@@ -334,9 +334,6 @@ spec:
                   kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
                   url: 'https://argocd.{{ .common.domain }}'
                   {{- if .features.sso.enabled }}
-                  {{- if index .argocd.configs.cm "oidc.tls.insecure.skip.verify" }}
-                  oidc.tls.insecure.skip.verify: '{{ index .argocd.configs.cm "oidc.tls.insecure.skip.verify" }}'
-                  {{- end }}
                   oidc.config: |
                     name: Keycloak
                     issuer: https://keycloak.{{ .common.domain }}/realms/k8s
@@ -349,6 +346,7 @@ spec:
                       - groups
                     enablePKCEAuthentication: true
                   {{- end }}
+
                 {{- if .argocd.configs.rbac }}
                 rbac:
                   policy.default: '{{ index .argocd.configs.rbac "policy.default" }}'
@@ -359,6 +357,22 @@ spec:
                 # Disable secret creation - ExternalSecret creates argocd-secret
                 secret:
                   createSecret: false
+
+              # CA certificate for OIDC TLS verification
+              {{- if .features.sso.enabled }}
+              server:
+                env:
+                  - name: SSL_CERT_FILE
+                    value: /etc/ssl/certs/root-ca/ca.crt
+                volumes:
+                  - name: root-ca
+                    secret:
+                      secretName: root-ca
+                volumeMounts:
+                  - name: root-ca
+                    mountPath: /etc/ssl/certs/root-ca
+                    readOnly: true
+              {{- end }}
 
               repoServer:
                 # Init container to install KSOPS and SOPS binaries

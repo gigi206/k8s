@@ -396,11 +396,15 @@ spec:
             valuesObject:
               grafana:
                 {{- if $oidcEnabled }}
-                # Mount OIDC client secret as file (more secure than env var)
+                # Mount OIDC client secret and CA certificate as files
                 extraSecretMounts:
                   - name: oidc-client-secret
                     secretName: grafana-oidc-credentials
                     mountPath: /etc/secrets/oidc
+                    readOnly: true
+                  - name: root-ca
+                    secretName: root-ca
+                    mountPath: /etc/ssl/certs/root-ca
                     readOnly: true
                 {{- end }}
                 grafana.ini:
@@ -429,9 +433,7 @@ spec:
                     role_attribute_path: "{{ .prometheusStack.grafana.oidc.roleAttributePath }}"
                     allow_assign_grafana_admin: {{ .prometheusStack.grafana.oidc.allowAssignGrafanaAdmin | default false }}
                     signout_redirect_url: "https://keycloak.{{ .common.domain }}/realms/{{ .prometheusStack.grafana.oidc.realm }}/protocol/openid-connect/logout?id_token_hint=${id_token}&post_logout_redirect_uri=https%3A%2F%2Fgrafana.{{ .common.domain }}%2Flogin"
-                    {{- if .prometheusStack.grafana.oidc.tlsSkipVerify }}
-                    tls_skip_verify_insecure: {{ .prometheusStack.grafana.oidc.tlsSkipVerify }}
-                    {{- end }}
+                    tls_client_ca: /etc/ssl/certs/root-ca/ca.crt
                   {{- end }}
                 {{- $lokiEnabled := and .features.logging.enabled .features.logging.loki.enabled }}
                 {{- $jaegerEnabled := and .features.tracing.enabled (eq .features.tracing.provider "jaeger") }}

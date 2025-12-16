@@ -85,7 +85,6 @@ kiali:
         - "groups"
       usernameClaim: "preferred_username"
       disableRbac: true  # Dev: disable RBAC, all users have full access
-      insecureSkipVerifyTls: true  # Dev: skip TLS verification (self-signed cert)
 
 # Sync policy
 syncPolicy:
