@@ -157,13 +157,6 @@ spec:
                 # Email/user settings
                 email-domain: "*"
 
-                # Skip provider verification for self-signed certs (dev)
-                {{- if .oauth2Proxy.oidc.skipProviderVerify }}
-                skip-provider-button: true
-                insecure-oidc-skip-issuer-verification: true
-                ssl-insecure-skip-verify: true
-                {{- end }}
-
                 # Upstream for health checks only (not used in ext_authz mode)
                 upstream: "static://200"
 
