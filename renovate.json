@@ -5,21 +5,32 @@
     ":semanticCommits",
     ":separateMajorReleases"
   ],
-  "labels": ["dependencies", "renovate"],
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
   "prHourlyLimit": 5,
   "prConcurrentLimit": 10,
   "timezone": "Europe/Paris",
-  "schedule": ["before 6am on monday"],
+  "schedule": [
+    "before 6am on monday"
+  ],
   "packageRules": [
     {
       "description": "Group all patch updates together",
-      "matchUpdateTypes": ["patch"],
+      "matchUpdateTypes": [
+        "patch"
+      ],
       "groupName": "patch updates"
     },
     {
       "description": "ArgoCD apps - automerge patch updates",
-      "matchFileNames": ["deploy/argocd/apps/**"],
-      "matchUpdateTypes": ["patch"],
+      "matchFileNames": [
+        "deploy/argocd/apps/**"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
       "automerge": true
     }
   ],
@@ -27,8 +38,12 @@
     {
       "customType": "regex",
       "description": "MetalLB Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/metallb/config/.*\\.yaml$"],
-      "matchStrings": ["metallb:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/metallb/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "metallb:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "metallb",
       "packageNameTemplate": "metallb",
       "datasourceTemplate": "helm",
@@ -37,8 +52,12 @@
     {
       "customType": "regex",
       "description": "ArgoCD Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/argocd/config/.*\\.yaml$"],
-      "matchStrings": ["argocd:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/argocd/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "argocd:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "argo-cd",
       "packageNameTemplate": "argo-cd",
       "datasourceTemplate": "helm",
@@ -47,8 +66,12 @@
     {
       "customType": "regex",
       "description": "Cert-Manager Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/cert-manager/config/.*\\.yaml$"],
-      "matchStrings": ["certManager:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/cert-manager/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "certManager:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "cert-manager",
       "packageNameTemplate": "cert-manager",
       "datasourceTemplate": "helm",
@@ -57,8 +80,12 @@
     {
       "customType": "regex",
       "description": "External-Secrets Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/external-secrets/config/.*\\.yaml$"],
-      "matchStrings": ["externalSecrets:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/external-secrets/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "externalSecrets:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "external-secrets",
       "packageNameTemplate": "external-secrets",
       "datasourceTemplate": "helm",
@@ -67,8 +94,12 @@
     {
       "customType": "regex",
       "description": "External-DNS Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/external-dns/config/.*\\.yaml$"],
-      "matchStrings": ["externalDns:\\s*\\n\\s*versions:\\s*\\n\\s*chart:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "externalDns:\\s*\\n\\s*versions:\\s*\\n\\s*chart:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "external-dns",
       "packageNameTemplate": "external-dns",
       "datasourceTemplate": "helm",
@@ -77,8 +108,12 @@
     {
       "customType": "regex",
       "description": "CoreDNS Helm chart (for External-DNS)",
-      "fileMatch": ["^deploy/argocd/apps/external-dns/config/.*\\.yaml$"],
-      "matchStrings": ["coredns:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "coredns:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "coredns",
       "packageNameTemplate": "coredns",
       "datasourceTemplate": "helm",
@@ -87,8 +122,12 @@
     {
       "customType": "regex",
       "description": "Etcd Helm chart (for External-DNS)",
-      "fileMatch": ["^deploy/argocd/apps/external-dns/config/.*\\.yaml$"],
-      "matchStrings": ["etcd:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "etcd:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "etcd",
       "packageNameTemplate": "etcd",
       "datasourceTemplate": "helm",
@@ -97,8 +136,12 @@
     {
       "customType": "regex",
       "description": "Ingress-NGINX Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/ingress-nginx/config/.*\\.yaml$"],
-      "matchStrings": ["ingressNginx:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/ingress-nginx/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "ingressNginx:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "ingress-nginx",
       "packageNameTemplate": "ingress-nginx",
       "datasourceTemplate": "helm",
@@ -107,8 +150,12 @@
     {
       "customType": "regex",
       "description": "Longhorn Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/longhorn/config/.*\\.yaml$"],
-      "matchStrings": ["longhorn:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/longhorn/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "longhorn:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "longhorn",
       "packageNameTemplate": "longhorn",
       "datasourceTemplate": "helm",
@@ -117,8 +164,12 @@
     {
       "customType": "regex",
       "description": "Prometheus-Stack Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/prometheus-stack/config/.*\\.yaml$"],
-      "matchStrings": ["prometheusStack:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/prometheus-stack/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "prometheusStack:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "kube-prometheus-stack",
       "packageNameTemplate": "kube-prometheus-stack",
       "datasourceTemplate": "helm",
@@ -127,8 +178,12 @@
     {
       "customType": "regex",
       "description": "OAuth2-Proxy Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/oauth2-proxy/config/.*\\.yaml$"],
-      "matchStrings": ["oauth2Proxy:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/oauth2-proxy/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "oauth2Proxy:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "oauth2-proxy",
       "packageNameTemplate": "oauth2-proxy",
       "datasourceTemplate": "helm",
@@ -137,8 +192,12 @@
     {
       "customType": "regex",
       "description": "Traefik Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/traefik/config/.*\\.yaml$"],
-      "matchStrings": ["traefik:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/traefik/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "traefik:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "traefik",
       "packageNameTemplate": "traefik",
       "datasourceTemplate": "helm",
@@ -147,8 +206,12 @@
     {
       "customType": "regex",
       "description": "CloudNativePG Operator Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/cnpg-operator/config/.*\\.yaml$"],
-      "matchStrings": ["cnpgOperator:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/cnpg-operator/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "cnpgOperator:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "cloudnative-pg",
       "packageNameTemplate": "cloudnative-pg",
       "datasourceTemplate": "helm",
@@ -157,8 +220,12 @@
     {
       "customType": "regex",
       "description": "Istio Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/istio/config/.*\\.yaml$"],
-      "matchStrings": ["istio:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/istio/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "istio:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "base",
       "packageNameTemplate": "base",
       "datasourceTemplate": "helm",
@@ -167,8 +234,12 @@
     {
       "customType": "regex",
       "description": "Kiali Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/istio/config/.*\\.yaml$"],
-      "matchStrings": ["kiali:\\s*\\n\\s*enabled:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/istio/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kiali:\\s*\\n\\s*enabled:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "kiali-server",
       "packageNameTemplate": "kiali-server",
       "datasourceTemplate": "helm",
@@ -177,16 +248,24 @@
     {
       "customType": "regex",
       "description": "Envoy Gateway Helm chart (OCI)",
-      "fileMatch": ["^deploy/argocd/apps/envoy-gateway/config/.*\\.yaml$"],
-      "matchStrings": ["envoyGateway:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/envoy-gateway/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "envoyGateway:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "envoyproxy/gateway-helm",
       "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",
       "description": "APISIX Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/apisix/config/.*\\.yaml$"],
-      "matchStrings": ["chart:\\s*\\n\\s*repo:[^\\n]*\\n\\s*name:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/apisix/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart:\\s*\\n\\s*repo:[^\\n]*\\n\\s*name:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "apisix",
       "packageNameTemplate": "apisix",
       "datasourceTemplate": "helm",
@@ -195,48 +274,72 @@
     {
       "customType": "regex",
       "description": "Gateway API CRDs (GitHub releases)",
-      "fileMatch": ["^deploy/argocd/apps/gateway-api-controller/config/.*\\.yaml$"],
-      "matchStrings": ["gatewayApiController:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/gateway-api-controller/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "gatewayApiController:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "kubernetes-sigs/gateway-api",
       "datasourceTemplate": "github-releases"
     },
     {
       "customType": "regex",
       "description": "CSI External Snapshotter (GitHub releases)",
-      "fileMatch": ["^deploy/argocd/apps/csi-external-snapshotter/config/.*\\.yaml$"],
-      "matchStrings": ["csiSnapshotter:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/csi-external-snapshotter/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "csiSnapshotter:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "kubernetes-csi/external-snapshotter",
       "datasourceTemplate": "github-releases"
     },
     {
       "customType": "regex",
       "description": "NGINX Gateway Fabric (GitHub releases)",
-      "fileMatch": ["^deploy/argocd/apps/nginx-gateway-fabric/config/.*\\.yaml$"],
-      "matchStrings": ["nginxGatewayFabric:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/nginx-gateway-fabric/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "nginxGatewayFabric:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "nginxinc/nginx-gateway-fabric",
       "datasourceTemplate": "github-releases"
     },
     {
       "customType": "regex",
       "description": "Keycloak Operator (GitHub releases)",
-      "fileMatch": ["^deploy/argocd/apps/keycloak/config/.*\\.yaml$"],
-      "matchStrings": ["keycloak:\\s*\\n\\s*operatorVersion:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/keycloak/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "keycloak:\\s*\\n\\s*operatorVersion:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "keycloak/keycloak",
       "datasourceTemplate": "github-releases"
     },
     {
       "customType": "regex",
       "description": "Kube-VIP (GitHub releases)",
-      "fileMatch": ["^deploy/argocd/apps/kube-vip/config/.*\\.yaml$"],
-      "matchStrings": ["kubeVip:\\s*\\n(?:\\s*#[^\\n]*\\n)*\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kube-vip/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kubeVip:\\s*\\n(?:\\s*#[^\\n]*\\n)*\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "kube-vip/kube-vip",
       "datasourceTemplate": "github-releases"
     },
     {
       "customType": "regex",
       "description": "Jaeger Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/jaeger/config/.*\\.yaml$"],
-      "matchStrings": ["jaeger:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/jaeger/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "jaeger:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "jaeger",
       "packageNameTemplate": "jaeger",
       "datasourceTemplate": "helm",
@@ -245,8 +348,12 @@
     {
       "customType": "regex",
       "description": "Loki Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/loki/config/.*\\.yaml$"],
-      "matchStrings": ["loki:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/loki/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "loki:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "loki",
       "packageNameTemplate": "loki",
       "datasourceTemplate": "helm",
@@ -255,8 +362,12 @@
     {
       "customType": "regex",
       "description": "Alloy Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/alloy/config/.*\\.yaml$"],
-      "matchStrings": ["alloy:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/alloy/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "alloy:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "alloy",
       "packageNameTemplate": "alloy",
       "datasourceTemplate": "helm",
@@ -265,8 +376,12 @@
     {
       "customType": "regex",
       "description": "Rook-Ceph Operator Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/rook/config/.*\\.yaml$"],
-      "matchStrings": ["operator:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/rook/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "operator:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "rook-ceph",
       "packageNameTemplate": "rook-ceph",
       "datasourceTemplate": "helm",
@@ -275,8 +390,12 @@
     {
       "customType": "regex",
       "description": "Rook-Ceph Cluster Helm chart",
-      "fileMatch": ["^deploy/argocd/apps/rook/config/.*\\.yaml$"],
-      "matchStrings": ["cluster:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/rook/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "cluster:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "depNameTemplate": "rook-ceph-cluster",
       "packageNameTemplate": "rook-ceph-cluster",
       "datasourceTemplate": "helm",
@@ -285,8 +404,12 @@
     {
       "customType": "regex",
       "description": "Curl image (curlimages/curl)",
-      "fileMatch": ["^deploy/argocd/config/config\\.yaml$"],
-      "matchStrings": ["images:\\s*\\n\\s*curl:\\s*\\n\\s*repository:\\s*(?<depName>[^\\n]+)\\s*\\n\\s*tag:\\s*\"(?<currentValue>[^\"]+)\""],
+      "managerFilePatterns": [
+        "/^deploy/argocd/config/config\\.yaml$/"
+      ],
+      "matchStrings": [
+        "images:\\s*\\n\\s*curl:\\s*\\n\\s*repository:\\s*(?<depName>[^\\n]+)\\s*\\n\\s*tag:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
       "datasourceTemplate": "docker"
     }
   ]
