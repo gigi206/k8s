@@ -16,8 +16,7 @@ argocd:
     # ===================
     # OIDC Configuration (Keycloak)
     # ===================
-    cm:
-      "oidc.tls.insecure.skip.verify": "true"  # Skip TLS verification (self-signed cert in dev)
+    cm: {}
 
     # ===================
     # RBAC Configuration
