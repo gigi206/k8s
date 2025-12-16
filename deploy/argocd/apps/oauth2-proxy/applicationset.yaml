@@ -98,7 +98,7 @@ spec:
         # Source 3: HTTPRoute (Gateway API)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/oauth2-proxy/httproute
+          path: deploy/argocd/apps/oauth2-proxy/kustomize/httproute
           kustomize:
             patches:
               - target:

@@ -90,7 +90,7 @@ spec:
         # Source: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/longhorn/httproute
+          path: deploy/argocd/apps/longhorn/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -105,7 +105,7 @@ spec:
         # Source: Prometheus monitoring + Grafana dashboard (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/longhorn/kustomize
+          path: deploy/argocd/apps/longhorn/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
@@ -117,7 +117,7 @@ spec:
         # Source: AuthorizationPolicy for OAuth2 Proxy ext_authz
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/longhorn/oauth2-authz
+          path: deploy/argocd/apps/longhorn/kustomize/oauth2-authz
           kustomize:
             patches:
               - target:

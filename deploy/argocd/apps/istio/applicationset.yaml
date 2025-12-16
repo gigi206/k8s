@@ -63,6 +63,13 @@ spec:
             maxDuration: 10m
 
       ignoreDifferences:
+        # Ignore auto-added fields in ExternalSecrets
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .spec.data[].remoteRef.conversionStrategy
+            - .spec.data[].remoteRef.decodingStrategy
+            - .spec.data[].remoteRef.metadataPolicy
         # Ignore dynamic caBundle in ValidatingWebhookConfigurations
         - group: admissionregistration.k8s.io
           kind: ValidatingWebhookConfiguration
@@ -520,7 +527,7 @@ spec:
         # Source: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
-          path: deploy/argocd/apps/istio/httproute
+          path: deploy/argocd/apps/istio/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -536,7 +543,7 @@ spec:
         # Source: PrometheusRules for monitoring Istio (with release label)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
-          path: deploy/argocd/apps/istio/kustomize
+          path: deploy/argocd/apps/istio/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

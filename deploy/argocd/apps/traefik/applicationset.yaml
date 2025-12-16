@@ -118,7 +118,7 @@ spec:
         # Source 2: Prometheus monitoring + Grafana dashboard (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/traefik/kustomize
+          path: deploy/argocd/apps/traefik/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

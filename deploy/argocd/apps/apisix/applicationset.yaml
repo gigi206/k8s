@@ -116,7 +116,7 @@ spec:
         # Source 1: Prometheus monitoring (ServiceMonitor + PrometheusRules)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
-          path: deploy/argocd/apps/apisix/kustomize
+          path: deploy/argocd/apps/apisix/kustomize/monitoring
           kustomize:
             commonLabels:
               release: {{ .features.monitoring.release }}

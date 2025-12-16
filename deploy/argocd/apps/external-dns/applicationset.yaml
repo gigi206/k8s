@@ -76,16 +76,16 @@ spec:
       {{- $sources = append $sources (dict "repoURL" "https://groundhog2k.github.io/helm-charts" "chart" "etcd" "targetRevision" .externalDns.versions.etcd "helm" (dict "parameters" (list (dict "name" "fullnameOverride" "value" "external-dns-etcd") (dict "name" "replicas" "value" (toString (.externalDns.etcd.replicas | default 1)))))) }}
       {{- end }}
       {{- if .features.monitoring.enabled }}
-      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/services") }}
-      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitors" "kustomize" (dict "commonLabels" (dict "release" .features.monitoring.release))) }}
+      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitoring/services") }}
+      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitoring/monitors" "kustomize" (dict "commonLabels" (dict "release" .features.monitoring.release))) }}
       {{- end }}
       {{- toYaml $sources | nindent 4 }}
       {{- else }}
       sources:
       {{- $sources := list (dict "repoURL" "https://kubernetes-sigs.github.io/external-dns" "targetRevision" .externalDns.versions.chart "chart" "external-dns" "helm" (dict "parameters" (list (dict "name" "provider.name" "value" (.externalDns.provider | default "cloudflare")) (dict "name" "txtOwnerId" "value" (.externalDns.txtOwnerId | default "k8s-test")) (dict "name" "policy" "value" (.externalDns.policy | default "sync")) (dict "name" "interval" "value" (.externalDns.interval | default "15s")) (dict "name" "rbac.create" "value" (toString (.externalDns.rbac.create | default true))) (dict "name" "crd.create" "value" (toString (.externalDns.crd.create | default true))) (dict "name" "domainFilters[0]" "value" .common.domain)))) }}
       {{- if .features.monitoring.enabled }}
-      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/services") }}
-      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitors" "kustomize" (dict "commonLabels" (dict "release" .features.monitoring.release))) }}
+      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitoring/services") }}
+      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitoring/monitors" "kustomize" (dict "commonLabels" (dict "release" .features.monitoring.release))) }}
       {{- end }}
       {{- toYaml $sources | nindent 4 }}
       {{- end }}
@@ -93,8 +93,8 @@ spec:
       sources:
       {{- $sources := list (dict "repoURL" "https://kubernetes-sigs.github.io/external-dns" "targetRevision" .externalDns.versions.chart "chart" "external-dns" "helm" (dict "parameters" (list (dict "name" "provider.name" "value" (.externalDns.provider | default "cloudflare")) (dict "name" "txtOwnerId" "value" (.externalDns.txtOwnerId | default "k8s-test")) (dict "name" "policy" "value" (.externalDns.policy | default "sync")) (dict "name" "interval" "value" (.externalDns.interval | default "15s")) (dict "name" "rbac.create" "value" (toString (.externalDns.rbac.create | default true))) (dict "name" "crd.create" "value" (toString (.externalDns.crd.create | default true))) (dict "name" "domainFilters[0]" "value" .common.domain)))) }}
       {{- if .features.monitoring.enabled }}
-      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/services") }}
-      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitors" "kustomize" (dict "commonLabels" (dict "release" .features.monitoring.release))) }}
+      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitoring/services") }}
+      {{- $sources = append $sources (dict "repoURL" "https://github.com/gigi206/k8s" "targetRevision" .git.revision "path" "deploy/argocd/apps/external-dns/kustomize/monitoring/monitors" "kustomize" (dict "commonLabels" (dict "release" .features.monitoring.release))) }}
       {{- end }}
       {{- toYaml $sources | nindent 4 }}
       {{- end }}

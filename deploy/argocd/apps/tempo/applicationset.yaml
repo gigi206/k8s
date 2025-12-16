@@ -162,7 +162,7 @@ spec:
         # Source 3: PrometheusRules for Tempo monitoring
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/tempo/kustomize
+          path: deploy/argocd/apps/tempo/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

@@ -97,7 +97,7 @@ spec:
         # Source: HTTPRoute (Gateway API) - Ceph Dashboard
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/rook/httproute
+          path: deploy/argocd/apps/rook/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -112,7 +112,7 @@ spec:
         # Source: HTTPRoute (Gateway API) - S3 Object Store
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/rook/httproute-s3
+          path: deploy/argocd/apps/rook/kustomize/httproute-s3
           kustomize:
             patches:
               - target:
@@ -129,7 +129,7 @@ spec:
         # Source: Prometheus monitoring + Grafana dashboard (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/rook/kustomize
+          path: deploy/argocd/apps/rook/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
@@ -140,7 +140,7 @@ spec:
         # Source: Prometheus module configuration (enable perf counters)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/rook/monitoring-config
+          path: deploy/argocd/apps/rook/kustomize/monitoring-config
         {{- end }}
 
         {{- if and .features.sso.enabled .rook.dashboard.enabled }}

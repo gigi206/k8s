@@ -109,12 +109,12 @@ spec:
         # Source 3: Services pour métriques (sans label release dans selectors)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/metallb/kustomize/services
+          path: deploy/argocd/apps/metallb/kustomize/monitoring/services
 
         # Source 4: ServiceMonitors et PrometheusRules (avec label release)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/metallb/kustomize/monitors
+          path: deploy/argocd/apps/metallb/kustomize/monitoring/monitors
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

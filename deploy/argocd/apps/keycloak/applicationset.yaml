@@ -112,7 +112,7 @@ spec:
         # Source 3: Keycloak CR instance (with domain patches)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/kustomize-cr
+          path: deploy/argocd/apps/keycloak/kustomize/custom-resources
           kustomize:
             patches:
               - target:
@@ -163,7 +163,7 @@ spec:
         # Source 8: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/httproute
+          path: deploy/argocd/apps/keycloak/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -179,7 +179,7 @@ spec:
         # Source 9: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/kustomize
+          path: deploy/argocd/apps/keycloak/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

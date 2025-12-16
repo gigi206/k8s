@@ -74,7 +74,7 @@ spec:
         # Source: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/external-secrets/kustomize
+          path: deploy/argocd/apps/external-secrets/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

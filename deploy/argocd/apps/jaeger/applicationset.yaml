@@ -175,7 +175,7 @@ spec:
         # Source 3: HTTPRoute for Jaeger UI
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/httproute
+          path: deploy/argocd/apps/jaeger/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -191,7 +191,7 @@ spec:
         # Source 4: AuthorizationPolicy for OAuth2 Proxy ext_authz
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/oauth2-authz
+          path: deploy/argocd/apps/jaeger/kustomize/oauth2-authz
           kustomize:
             patches:
               - target:
@@ -207,7 +207,7 @@ spec:
         # Source 5: PrometheusRules for Jaeger monitoring
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/kustomize
+          path: deploy/argocd/apps/jaeger/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
