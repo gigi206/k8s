@@ -157,6 +157,11 @@ spec:
                 # Email/user settings
                 email-domain: "*"
 
+                # Skip issuer verification (Keycloak returns external URL in discovery)
+                # This is NOT about SSL - it's about accepting the URL mismatch
+                # when using internal HTTP URLs while Keycloak advertises external HTTPS
+                insecure-oidc-skip-issuer-verification: true
+
                 # Upstream for health checks only (not used in ext_authz mode)
                 upstream: "static://200"
 
