@@ -84,7 +84,7 @@ spec:
         # Source 2: PrometheusRules (avec label release)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/kube-vip/kustomize
+          path: deploy/argocd/apps/kube-vip/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

@@ -435,7 +435,7 @@ spec:
         # Source 2: PrometheusRules for Alloy monitoring
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/alloy/kustomize
+          path: deploy/argocd/apps/alloy/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

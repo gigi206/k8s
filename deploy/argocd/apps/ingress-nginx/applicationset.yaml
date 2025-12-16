@@ -108,7 +108,7 @@ spec:
         # Source 2: Prometheus monitoring + Grafana dashboard (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/ingress-nginx/kustomize
+          path: deploy/argocd/apps/ingress-nginx/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'

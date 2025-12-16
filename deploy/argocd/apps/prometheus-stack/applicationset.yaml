@@ -91,7 +91,7 @@ spec:
         # Source: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/prometheus-stack/httproute
+          path: deploy/argocd/apps/prometheus-stack/kustomize/httproute
           kustomize:
             patches:
               - target:
@@ -120,7 +120,7 @@ spec:
         # Source: AuthorizationPolicies for OAuth2 Proxy ext_authz
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/prometheus-stack/oauth2-authz
+          path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz
           kustomize:
             patches:
               - target:
@@ -165,7 +165,7 @@ spec:
         # Source: Prometheus health alerts (conditional) - with dynamic release label
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/prometheus-stack/kustomize
+          path: deploy/argocd/apps/prometheus-stack/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
