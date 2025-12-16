@@ -1,6 +1,12 @@
 ---
-# Job to sync CA certificate from cert-manager and patch NeuVector controller
-# This ensures NeuVector trusts certificates signed by the cluster CA
+# =============================================================================
+# Job to patch NeuVector controller with CA certificate mount
+# =============================================================================
+# The CA certificate is synced by ExternalSecret (external-secret-ca.yaml).
+# This Job only patches the deployment to mount it and set SSL_CERT_FILE.
+#
+# Why a Job? The NeuVector Helm chart doesn't support extraVolumes/extraVolumeMounts.
+# =============================================================================
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -23,37 +29,35 @@ spec:
             - -c
             - |
               set -e
-              echo "=== Syncing CA certificate from cert-manager to NeuVector ==="
+              echo "=== Patching NeuVector controller to mount CA certificate ==="
 
-              # Step 1: Get CA certificate from cert-manager root-ca-secret
-              echo "Fetching CA certificate from cert-manager..."
-              CA_CERT=$(kubectl get secret root-ca-secret -n cert-manager -o jsonpath='{.data.tls\.crt}' | base64 -d)
+              # Wait for root-ca secret to be created by ExternalSecret
+              echo "Waiting for root-ca secret..."
+              for i in $(seq 1 30); do
+                if kubectl get secret root-ca -n neuvector >/dev/null 2>&1; then
+                  echo "root-ca secret found"
+                  break
+                fi
+                echo "Waiting... ($i/30)"
+                sleep 2
+              done
 
-              if [ -z "$CA_CERT" ]; then
-                echo "ERROR: Could not retrieve CA certificate from cert-manager"
+              if ! kubectl get secret root-ca -n neuvector >/dev/null 2>&1; then
+                echo "ERROR: root-ca secret not found after 60s"
                 exit 1
               fi
-              echo "CA certificate retrieved successfully"
 
-              # Step 2: Create/Update ConfigMap with the CA certificate
-              echo "Creating/updating neuvector-custom-ca ConfigMap..."
-              kubectl create configmap neuvector-custom-ca \
-                --namespace neuvector \
-                --from-literal=ca-certificates.crt="$CA_CERT" \
-                --dry-run=client -o yaml | kubectl apply -f -
-              echo "ConfigMap updated"
-
-              # Step 3: Check if deployment patch is already applied
+              # Check if deployment patch is already applied
               EXISTING_VOL=$(kubectl get deployment neuvector-controller-pod -n neuvector \
-                -o jsonpath='{.spec.template.spec.volumes[?(@.name=="custom-ca")].name}' 2>/dev/null || echo "")
+                -o jsonpath='{.spec.template.spec.volumes[?(@.name=="root-ca")].name}' 2>/dev/null || echo "")
 
-              if [ "$EXISTING_VOL" = "custom-ca" ]; then
-                echo "CA volume already mounted, restarting controller to pick up new CA..."
+              if [ "$EXISTING_VOL" = "root-ca" ]; then
+                echo "CA volume already mounted, restarting controller to pick up any CA updates..."
                 kubectl rollout restart deployment/neuvector-controller-pod -n neuvector
                 exit 0
               fi
 
-              # Step 4: Apply strategic merge patch to add volume and volumeMount
+              # Apply strategic merge patch to add volume and volumeMount
               echo "Patching NeuVector controller deployment..."
               kubectl patch deployment neuvector-controller-pod -n neuvector --type=strategic -p '
               {
@@ -66,13 +70,13 @@ spec:
                           "env": [
                             {
                               "name": "SSL_CERT_FILE",
-                              "value": "/etc/ssl/custom-ca/ca-certificates.crt"
+                              "value": "/etc/ssl/certs/root-ca/ca.crt"
                             }
                           ],
                           "volumeMounts": [
                             {
-                              "name": "custom-ca",
-                              "mountPath": "/etc/ssl/custom-ca",
+                              "name": "root-ca",
+                              "mountPath": "/etc/ssl/certs/root-ca",
                               "readOnly": true
                             }
                           ]
@@ -80,9 +84,9 @@ spec:
                       ],
                       "volumes": [
                         {
-                          "name": "custom-ca",
-                          "configMap": {
-                            "name": "neuvector-custom-ca"
+                          "name": "root-ca",
+                          "secret": {
+                            "secretName": "root-ca"
                           }
                         }
                       ]
@@ -103,7 +107,7 @@ metadata:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
 ---
-# Role to allow patching deployment and managing configmaps in neuvector namespace
+# Role to allow patching deployment and reading secrets in neuvector namespace
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -117,10 +121,11 @@ rules:
     resources: ["deployments"]
     verbs: ["get", "patch"]
   - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "create", "update", "patch"]
+    resources: ["secrets"]
+    resourceNames: ["root-ca"]
+    verbs: ["get"]
 ---
-# RoleBinding for the patch job (neuvector namespace)
+# RoleBinding for the patch job
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -136,37 +141,4 @@ subjects:
 roleRef:
   kind: Role
   name: neuvector-controller-ca-patch
-  apiGroup: rbac.authorization.k8s.io
----
-# Role to read CA secret from cert-manager namespace
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: neuvector-read-ca-secret
-  namespace: cert-manager
-  annotations:
-    argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: ["root-ca-secret"]
-    verbs: ["get"]
----
-# RoleBinding to allow neuvector SA to read cert-manager CA secret
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: neuvector-read-ca-secret
-  namespace: cert-manager
-  annotations:
-    argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
-subjects:
-  - kind: ServiceAccount
-    name: neuvector-controller-ca-patch
-    namespace: neuvector
-roleRef:
-  kind: Role
-  name: neuvector-read-ca-secret
   apiGroup: rbac.authorization.k8s.io
