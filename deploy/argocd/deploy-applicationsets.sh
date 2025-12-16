@@ -794,7 +794,7 @@ apply_bootstrap_network_policies() {
   fi
 
   # 2. ArgoCD policy - ajoute l'accès externe (GitHub, Helm)
-  local argocd_policy="${SCRIPT_DIR}/apps/argocd/network-policy/cilium-egress-policy.yaml"
+  local argocd_policy="${SCRIPT_DIR}/apps/argocd/kustomize/network-policy/cilium-egress-policy.yaml"
   if [[ -f "$argocd_policy" ]]; then
     if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
       log_success "CiliumNetworkPolicy ArgoCD appliquée (accès GitHub/Helm)"
