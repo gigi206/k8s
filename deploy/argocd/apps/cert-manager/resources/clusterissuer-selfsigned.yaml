@@ -1,17 +1,62 @@
 ---
 # =============================================================================
-# Cert-Manager ClusterIssuer - Self-Signed
+# Cert-Manager CA Infrastructure
 # =============================================================================
-# ClusterIssuer pour certificats auto-signés (dev/local)
-# Docs: https://cert-manager.io/docs/configuration/
+# Creates a proper CA hierarchy:
+# 1. Bootstrap ClusterIssuer (self-signed) - only used to create the root CA
+# 2. Root CA Certificate - the actual CA that signs all certificates
+# 3. CA ClusterIssuer - uses the root CA to sign certificates
+#
+# This allows applications to trust a single CA certificate instead of
+# trusting each individual self-signed certificate.
+#
+# Docs: https://cert-manager.io/docs/configuration/ca/
 # =============================================================================
 
+# Step 1: Bootstrap issuer (only used to create the root CA)
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: selfsigned-cluster-issuer
+  name: selfsigned-bootstrap-issuer
   annotations:
     argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   selfSigned: {}
+
+---
+# Step 2: Root CA Certificate (self-signed via bootstrap issuer)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: root-ca
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  isCA: true
+  commonName: k8s.lan Root CA
+  secretName: root-ca-secret
+  duration: 87600h # 10 years
+  renewBefore: 8760h # 1 year
+  privateKey:
+    algorithm: RSA
+    size: 4096
+  issuerRef:
+    name: selfsigned-bootstrap-issuer
+    kind: ClusterIssuer
+
+---
+# Step 3: CA ClusterIssuer (uses the root CA to sign certificates)
+# This is the issuer that should be used by all applications
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-cluster-issuer
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  ca:
+    secretName: root-ca-secret
