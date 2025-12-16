@@ -19,7 +19,7 @@ $management_disk = 20
 $masters = 3
 $master_cpu = 8
 $master_memory = 16384
-$master_disk = 50
+$master_disk = 64
 
 # Configuration workers
 $workers = 3
