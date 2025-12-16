@@ -57,8 +57,8 @@ deploy/argocd/
     ├── config/
     │   ├── dev.yaml               # Dev config + chart version
     │   └── prod.yaml              # Prod config
-    ├── resources/                  # K8s manifests, Helm values
-    ├── kustomize/                  # Kustomize overlays (require transformations)
+    ├── resources/                  # Raw YAML manifests (no transformations)
+    ├── kustomize/                  # Kustomize overlays (with transformations)
     │   ├── monitoring/            # PrometheusRules, ServiceMonitors, dashboards
     │   ├── httproute/             # HTTPRoute (conditional: gatewayAPI.httpRoute.enabled)
     │   ├── oauth2-authz/          # AuthorizationPolicy (conditional: oauth2Proxy.enabled)
@@ -68,28 +68,32 @@ deploy/argocd/
         └── prod/
 ```
 
+### resources/ vs kustomize/ Directory Convention
+
+**Criterion**: Does the directory use Kustomize transformations?
+
+| Directory | Usage | Transformations |
+|-----------|-------|-----------------|
+| `resources/` | Raw YAML files deployed as-is | None - just `resources:` list |
+| `kustomize/` | Overlays requiring processing | `patches`, `commonLabels`, `commonAnnotations`, `configMapGenerator`, etc. |
+
+**Examples**:
+- `resources/cilium-egress-policy.yaml` → Raw CiliumNetworkPolicy, no transformation needed
+- `kustomize/monitoring/` → Uses `commonLabels: release: prometheus-stack` for Prometheus discovery
+- `kustomize/httproute/` → Uses `patches` to inject `{{ .common.domain }}` dynamically
+
+**In ApplicationSets**, conditional resources from `resources/` use `directory.include`:
+```yaml
+{{- if .features.cilium.egressPolicy.enabled }}
+- path: deploy/argocd/apps/my-app/resources
+  directory:
+    include: "cilium-egress-policy.yaml"
+{{- end }}
+```
+
 ### Sync Wave Strategy
 
-| Wave | Applications |
-|------|-------------|
-| 10 | MetalLB |
-| 15 | Gateway-API-Controller, Kube-VIP |
-| 20 | Cert-Manager |
-| 25 | External-Secrets |
-| 30 | External-DNS |
-| 40 | Istio |
-| 41 | Istio-Gateway |
-| 50 | ArgoCD |
-| 55 | CSI-External-Snapshotter |
-| 60 | Longhorn |
-| 65 | CNPG-Operator |
-| 73 | Loki |
-| 74 | Alloy |
-| 75 | Prometheus-Stack |
-| 76 | Cilium-Monitoring |
-| 77 | Tempo/Jaeger |
-| 80 | Keycloak |
-| 81 | OAuth2-Proxy |
+Applications are deployed in order using ArgoCD sync waves (lower = earlier). The wave number is defined in each ApplicationSet's `argocd.argoproj.io/sync-wave` annotation. See the Feature Flags table below for each application's wave.
 
 ### Feature Flags
 
@@ -102,12 +106,18 @@ Feature flags in `config/config.yaml` control which ApplicationSets are deployed
 | `gatewayAPI.enabled` | gateway-api-controller | 15 |
 | `certManager.enabled` | cert-manager | 20 |
 | `externalSecrets.enabled` | external-secrets | 25 |
-| `externalDns.enabled` | external-dns | 30 |
 | `serviceMesh.enabled` + `provider=istio` | istio | 40 |
-| `gatewayAPI.controller.provider=istio` | istio-gateway | 41 |
+| `ingress.enabled` + `class=nginx` | ingress-nginx | 40 |
+| `ingress.enabled` + `class=traefik` | traefik | 40 |
+| `gatewayAPI.controller.provider=envoy-gateway` | envoy-gateway | 41 |
+| `gatewayAPI.controller.provider=nginx-gateway-fabric` | nginx-gateway-fabric | 41 |
+| `gatewayAPI.controller.provider=apisix` | apisix | 42 |
+| `externalDns.enabled` | external-dns | 45 |
+| `gatewayAPI.controller.provider=istio` | istio-gateway | 45 |
 | *(always)* | argocd | 50 |
 | `storage.csiSnapshotter` | csi-external-snapshotter | 55 |
 | `storage.enabled` + `provider=longhorn` | longhorn | 60 |
+| `storage.enabled` + `provider=rook` | rook | 60 |
 | `databaseOperator.enabled` + `provider=cnpg` | cnpg-operator | 65 |
 | `logging.enabled` + `logging.loki.enabled` | loki | 73 |
 | `logging.enabled` + `logging.loki.collector=alloy` | alloy | 74 |
@@ -117,6 +127,7 @@ Feature flags in `config/config.yaml` control which ApplicationSets are deployed
 | `tracing.enabled` + `provider=jaeger` | jaeger | 77 |
 | `sso.enabled` + `provider=keycloak` | keycloak | 80 |
 | `oauth2Proxy.enabled` | oauth2-proxy | 81 |
+| `neuvector.enabled` | neuvector | 82 |
 
 **Automatic Dependency Resolution**: The script enables dependencies automatically (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
 
