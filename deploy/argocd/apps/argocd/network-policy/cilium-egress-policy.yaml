@@ -1,11 +1,14 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - ArgoCD External Egress
+# CiliumNetworkPolicy - ArgoCD Egress
 # =============================================================================
-# Allows ArgoCD to reach external services:
-# - GitHub (git repositories)
-# - Helm registries (charts.helm.sh, ghcr.io, etc.)
-# - Container registries (for Kustomize remote bases)
+# Allows ArgoCD to reach:
+# - External services: GitHub, Helm registries, container registries
+# - Internal services: Kubernetes API, cluster DNS, other namespaces
+#
+# IMPORTANT: When egress rules are specified, Cilium applies deny-by-default
+# for everything not explicitly allowed. We must allow both external AND
+# internal cluster communication.
 #
 # This policy complements the cluster-wide default-deny-external-egress policy
 # defined in deploy/argocd/apps/cilium/resources/
@@ -17,7 +20,7 @@ metadata:
   name: argocd-allow-external-egress
   namespace: argo-cd
 spec:
-  description: "Allow ArgoCD to access external Git repos and Helm registries"
+  description: "Allow ArgoCD to access external and internal services"
 
   # Apply to all pods in argo-cd namespace
   endpointSelector: {}
@@ -32,3 +35,23 @@ spec:
               protocol: TCP
             - port: "22"
               protocol: TCP  # SSH for git clone
+
+    # Allow access to Kubernetes API server (critical for ArgoCD controllers)
+    - toEntities:
+        - kube-apiserver
+
+    # Allow communication within the cluster (other namespaces, services)
+    - toEntities:
+        - cluster
+
+    # Allow access to cluster DNS (CoreDNS)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
