@@ -5,7 +5,7 @@ appName: kube-vip
 
 kubeVip:
   # Version de l'image kube-vip
-  version: "v0.8.9"
+  version: "v1.0.2"
 
   # VIP pour l'API Kubernetes
   vip: "192.168.121.200"
