@@ -98,7 +98,9 @@ spec:
         # Source: Cilium egress policy - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/argocd/kustomize/network-policy
+          path: deploy/argocd/apps/argocd/resources
+          directory:
+            include: "cilium-egress-policy.yaml"
         {{- end }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source: HTTPRoute (Gateway API) - conditional

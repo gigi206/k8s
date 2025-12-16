@@ -58,11 +58,10 @@ deploy/argocd/
     │   ├── dev.yaml               # Dev config + chart version
     │   └── prod.yaml              # Prod config
     ├── resources/                  # K8s manifests, Helm values
-    ├── kustomize/                  # All kustomize-based resources
+    ├── kustomize/                  # Kustomize overlays (require transformations)
     │   ├── monitoring/            # PrometheusRules, ServiceMonitors, dashboards
     │   ├── httproute/             # HTTPRoute (conditional: gatewayAPI.httpRoute.enabled)
     │   ├── oauth2-authz/          # AuthorizationPolicy (conditional: oauth2Proxy.enabled)
-    │   ├── network-policy/        # CiliumNetworkPolicy
     │   └── custom-resources/      # App-specific CRs (keycloak)
     └── secrets/                    # SOPS-encrypted secrets
         ├── dev/
