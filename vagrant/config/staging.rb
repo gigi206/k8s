@@ -19,13 +19,13 @@ $management_disk = 20
 $masters = 3
 $master_cpu = 8
 $master_memory = 16384
-$master_disk = 50
+$master_disk = 64
 
 # Workers (désactivés - les masters jouent ce rôle)
 $workers = 0
 $worker_cpu = 8
 $worker_memory = 8192
-$worker_disk = 50
+$worker_disk = 64
 
 # Disque de stockage supplémentaire (pour Longhorn)
 # Désactivé car pas de workers en staging
