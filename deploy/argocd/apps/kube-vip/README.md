@@ -71,6 +71,54 @@ Le script `deploy-applicationsets.sh` met automatiquement à jour votre kubeconf
 
 **Note** : Kube-VIP n'expose pas de métriques Prometheus natives. Les alertes utilisent kube-state-metrics pour surveiller le DaemonSet.
 
+## Troubleshooting
+
+### VIP inaccessible
+
+```bash
+# Vérifier les pods kube-vip
+kubectl get pods -n kube-system -l app.kubernetes.io/name=kube-vip
+
+# Logs du pod
+kubectl logs -n kube-system -l app.kubernetes.io/name=kube-vip
+
+# Vérifier que la VIP est bien annoncée (ARP)
+arping -c 3 192.168.121.200
+```
+
+### Pod ne démarre pas
+
+```bash
+# Vérifier les events
+kubectl get events -n kube-system --sort-by='.lastTimestamp' | grep kube-vip
+
+# Vérifier les tolérances (doit tolérer master taints)
+kubectl describe daemonset -n kube-system kube-vip | grep -A5 Tolerations
+```
+
+### VIP non attribuée au bon node
+
+```bash
+# Identifier le leader actuel
+kubectl logs -n kube-system -l app.kubernetes.io/name=kube-vip | grep -i leader
+
+# Vérifier l'interface réseau configurée
+kubectl get daemonset kube-vip -n kube-system -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="vip_interface")].value}'
+```
+
+### Kubeconfig ne fonctionne pas avec la VIP
+
+```bash
+# Vérifier que kubectl pointe vers la VIP
+grep server ~/.kube/config
+
+# Tester la connexion
+curl -k https://192.168.121.200:6443/version
+
+# Mettre à jour le kubeconfig si nécessaire
+kubectl config set-cluster kubernetes --server=https://192.168.121.200:6443
+```
+
 ## Documentation
 
 - [Kube-VIP Documentation](https://kube-vip.io/)
