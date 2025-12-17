@@ -86,13 +86,23 @@ spec:
       {{- end }}
       sources:
         {{- if .features.cilium.egressPolicy.enabled }}
-        # Source 1: Network Policies (CiliumClusterwideNetworkPolicy) - conditional
+        # Source 1: Egress Policy - blocks external egress, allows internal cluster traffic
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "default-deny-external-egress.yaml"
+        {{- end }}
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source 2: Host Ingress Policy - protects nodes (SSH, API, HTTP/HTTPS allowed)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "default-deny-host-ingress.yaml"
         {{- end }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 2: HTTPRoute (Gateway API) - conditional
+        # Source 3: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium/kustomize/httproute

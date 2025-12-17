@@ -1,0 +1,77 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - Default Deny Host Ingress
+# =============================================================================
+# This policy blocks ALL external ingress to Kubernetes nodes by default.
+# Only essential services are allowed:
+# - SSH (22) - for node administration
+# - Kubernetes API (6443) - for kubectl access
+# - HTTP/HTTPS (80/443) - for ingress controllers (Istio, Traefik, nginx, etc.)
+# - Internal cluster traffic - always allowed
+#
+# Applications needing additional host ports must define their own policies
+# using CiliumClusterwideNetworkPolicy with nodeSelector.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: default-deny-host-ingress
+spec:
+  description: "Block all external ingress to nodes, allow essential services only"
+
+  # Apply to ALL nodes in the cluster
+  nodeSelector:
+    matchLabels: {}
+
+  ingress:
+    # === CLUSTER INTERNAL - ALWAYS ALLOWED ===
+    - fromEntities:
+        - cluster
+        - host
+        - remote-node
+
+    # === ESSENTIAL SERVICES ===
+    # SSH - accessible from everywhere
+    # To restrict to admin network, comment this and uncomment the fromCIDR block below
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "22"
+              protocol: TCP
+
+    # SSH - restricted to admin network (EXAMPLE - uncomment to use)
+    # - fromCIDR:
+    #     - 192.168.121.0/24
+    #   toPorts:
+    #     - ports:
+    #         - port: "22"
+    #           protocol: TCP
+
+    # Kubernetes API - required for kubectl access
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+    # HTTP/HTTPS - required for ingress controllers (Istio, Traefik, nginx, etc.)
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+
+    # ICMP Echo (ping) - for diagnostics
+    - fromEntities:
+        - world
+      icmps:
+        - fields:
+            - type: 8  # Echo Request
+
+    # NO other external access - applications must define their own policies

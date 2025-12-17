@@ -34,6 +34,7 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 | `{{- if .features.gatewayAPI.httpRoute.enabled }}` | kustomize/httproute/ |
 | `{{- if .features.oauth2Proxy.enabled }}` | kustomize/oauth2-authz/ |
 | `{{- if .features.cilium.egressPolicy.enabled }}` | resources/cilium-egress-policy.yaml |
+| `{{- if .features.cilium.ingressPolicy.enabled }}` | resources/default-deny-host-ingress.yaml |
 | `{{- if .features.sso.enabled }}` | secrets/, ExternalSecret, KeycloakClient |
 | `{{- if .features.tracing.enabled }}` | tracing config (Tempo/Jaeger) |
 | `{{- if .features.serviceMesh.enabled }}` | service mesh integration |
@@ -314,11 +315,16 @@ Structure: `kustomization.yaml` (with `generators: [ksops-generator.yaml]`) → 
 
 ### CiliumNetworkPolicy Pattern
 
-Two essential policies are required:
+**Egress policies** (pod → external):
 1. **`apps/cilium/resources/default-deny-external-egress.yaml`** - `CiliumClusterwideNetworkPolicy` (blocks egress to world by default, allows internal cluster traffic)
 2. **`apps/argocd/resources/cilium-egress-policy.yaml`** - `CiliumNetworkPolicy` (allows ArgoCD to reach Git repos and Helm registries)
 
 Then each application needing external access defines its own `CiliumNetworkPolicy` in `resources/cilium-egress-policy.yaml`.
+
+**Host firewall policies** (external → node):
+1. **`apps/cilium/resources/default-deny-host-ingress.yaml`** - `CiliumClusterwideNetworkPolicy` with `nodeSelector` (blocks external ingress to nodes, allows SSH 22, API 6443, HTTP/HTTPS 80/443, ICMP)
+
+Applications needing additional host ports define their own `CiliumClusterwideNetworkPolicy` with `nodeSelector`.
 
 ### HTTPRoute Structure
 

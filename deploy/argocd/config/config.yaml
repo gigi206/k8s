@@ -143,7 +143,9 @@ features:
     monitoring:
       enabled: true     # Wave 76: ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
     egressPolicy:
-      enabled: true     # CiliumClusterwideNetworkPolicy default-deny + per-app policies
+      enabled: true     # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
+    ingressPolicy:
+      enabled: true     # CiliumClusterwideNetworkPolicy default-deny host ingress (SSH, API, HTTP/HTTPS)
 
   # === Observability: Logging ===
   logging:
