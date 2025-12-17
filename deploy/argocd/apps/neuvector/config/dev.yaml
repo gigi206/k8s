@@ -54,6 +54,12 @@ neuvector:
         cpu: "1000m"
         memory: "2Gi"
 
+  # Prometheus exporter settings
+  exporter:
+    # WARNING: enforcerStats impacts performance - enable only if needed
+    enforcerStats:
+      enabled: true
+
   # OIDC Configuration (Keycloak) - Native NeuVector OIDC
   oidc:
     enabled: true

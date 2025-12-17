@@ -49,6 +49,34 @@ A PostSync Job (`controller-ca-patch-job.yaml`) patches the controller deploymen
 
 ## Monitoring
 
+### Prometheus Exporter
+
+The Prometheus exporter collects metrics from NeuVector.
+
+#### Enforcer Stats (Performance Impact)
+
+By default, enforcer CPU/Memory metrics are **disabled** for performance reasons. Enable only if needed:
+
+```yaml
+# config/dev.yaml
+neuvector:
+  exporter:
+    enforcerStats:
+      enabled: true  # WARNING: impacts performance
+```
+
+When enabled, the exporter exposes `nv_enforcer_cpu` and `nv_enforcer_memory` metrics for the Grafana dashboard.
+
+### Grafana Dashboard
+
+An official NeuVector dashboard is auto-imported into Grafana (folder: NeuVector). It displays:
+- System summary (hosts, controllers, enforcers, pods)
+- Admission control stats
+- CVEDB version and create time
+- CPU/Memory usage (requires `enforcerStats.enabled: true`)
+- Service and image vulnerabilities
+- Security events log
+
 ### Prometheus Alerts
 
 14 alertes sont configurées pour NeuVector :

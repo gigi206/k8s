@@ -254,6 +254,9 @@ spec:
                 enabled: true
                 apiSvc: neuvector-svc-controller-api:10443
                 ctrlSecretName: neuvector-admin-credentials
+                # WARNING: enforcerStats impacts performance
+                enforcerStats:
+                  enabled: {{ .neuvector.exporter.enforcerStats.enabled | default false }}
                 svc:
                   enabled: true
                   type: ClusterIP
@@ -262,4 +265,5 @@ spec:
                   labels:
                     release: '{{ .features.monitoring.release }}'
                   interval: 30s
+                  scrapeTimeout: 30s
         {{- end }}
