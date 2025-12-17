@@ -342,12 +342,18 @@ Structure: `kustomization.yaml` (with `generators: [ksops-generator.yaml]`) → 
 1. **`apps/cilium/resources/default-deny-external-egress.yaml`** - `CiliumClusterwideNetworkPolicy` (blocks egress to world by default, allows internal cluster traffic)
 2. **`apps/argocd/resources/cilium-egress-policy.yaml`** - `CiliumNetworkPolicy` (allows ArgoCD to reach Git repos and Helm registries)
 
-Then each application needing external access defines its own `CiliumNetworkPolicy` in `resources/cilium-egress-policy.yaml`.
+Each application needing external access defines its own `CiliumNetworkPolicy` in `resources/cilium-egress-policy.yaml`.
 
 **Host firewall policies** (external → node):
-1. **`apps/cilium/resources/default-deny-host-ingress.yaml`** - `CiliumClusterwideNetworkPolicy` with `nodeSelector` (blocks external ingress to nodes, allows SSH 22, API 6443, HTTP/HTTPS 80/443, ICMP)
+1. **`apps/cilium/resources/default-deny-host-ingress.yaml`** - `CiliumClusterwideNetworkPolicy` with `nodeSelector` (blocks external ingress to nodes, allows only SSH 22, API 6443, ICMP)
+2. **Per-app policies** for LoadBalancer ports (in each app's `resources/cilium-host-ingress-policy.yaml`):
+   - **Ingress controllers** (80/443): istio-gateway, ingress-nginx, traefik, apisix, envoy-gateway, nginx-gateway-fabric
+   - **DNS** (53): external-dns
 
-Applications needing additional host ports define their own `CiliumClusterwideNetworkPolicy` with `nodeSelector`.
+All policies use `nodeSelector` with specific labels (`node-role.kubernetes.io/ingress` or `node-role.kubernetes.io/dns`). Label your nodes accordingly:
+```bash
+kubectl label node <worker> node-role.kubernetes.io/ingress=""
+```
 
 ### HTTPRoute Structure
 

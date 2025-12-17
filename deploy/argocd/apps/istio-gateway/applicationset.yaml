@@ -75,6 +75,14 @@ spec:
       {{- end }}
 
       sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/istio-gateway/resources
+          directory:
+            include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
         # Gateway API resources (Gateway + Certificate)
         # Istio automatically creates a Deployment and LoadBalancer Service for the Gateway
         - repoURL: https://github.com/gigi206/k8s

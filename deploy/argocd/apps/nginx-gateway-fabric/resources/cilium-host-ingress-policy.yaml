@@ -1,0 +1,39 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - Nginx Gateway Fabric Host Ingress
+# =============================================================================
+# Allow external HTTP/HTTPS traffic to nodes for Nginx Gateway Fabric LoadBalancer.
+# This complements the default-deny-host-ingress policy in cilium app.
+#
+# Node Targeting:
+# - With externalTrafficPolicy: Cluster (default), all nodes need ports open
+# - With externalTrafficPolicy: Local, only nodes running Nginx pods need ports
+#
+# To restrict to specific nodes, use nodeSelector with labels like:
+#   matchLabels:
+#     node-role.kubernetes.io/ingress: ""
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: nginx-gateway-fabric-host-ingress
+spec:
+  description: "Allow HTTP/HTTPS to nodes for Nginx Gateway Fabric LoadBalancer"
+
+  # Target: Only nodes labeled for ingress workloads
+  # Label your worker nodes with: kubectl label node <node> node-role.kubernetes.io/ingress=""
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/ingress: ""
+
+  ingress:
+    # HTTP/HTTPS for Nginx Gateway Fabric LoadBalancer
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
