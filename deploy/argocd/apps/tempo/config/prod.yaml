@@ -1,0 +1,46 @@
+---
+# =============================================================================
+# Tempo Configuration - Prod Environment
+# =============================================================================
+# Production deployment with increased resources and longer retention.
+# Consider using distributed mode for high-volume production workloads.
+# =============================================================================
+
+environment: prod
+appName: tempo
+
+tempo:
+  namespace: tempo
+  version: "1.10.3"  # Helm chart version - Renovate will update this
+
+  # Retention period (longer for production)
+  retention: "168h"  # 7 days
+
+  # Resources (prod: increased)
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  # Persistence
+  persistence:
+    enabled: true
+    size: "20Gi"
+
+# Dashboard folder for Grafana
+dashboard:
+  folder: "Tracing"
+
+# Sync policy for prod (manual sync)
+syncPolicy:
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - RespectIgnoreDifferences=true
+  automated:
+    enabled: false  # Manual sync in production
+    prune: true
+    selfHeal: true

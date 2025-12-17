@@ -308,12 +308,13 @@ Each application has detailed documentation in its README.md:
 |----------|-------------------|
 | Infrastructure | metallb, kube-vip, external-dns |
 | Certificates & Secrets | cert-manager, external-secrets |
-| Ingress & Gateway API | ingress-nginx, gateway-api-controller, nginx-gateway-fabric, envoy-gateway, traefik |
+| Ingress & Gateway API | ingress-nginx, gateway-api-controller, nginx-gateway-fabric, envoy-gateway, traefik, apisix, istio-gateway |
 | Service Mesh | istio, cilium |
-| Storage | longhorn, csi-external-snapshotter |
+| Storage | longhorn, csi-external-snapshotter, rook |
+| Database | cnpg-operator |
 | Monitoring | prometheus-stack |
-| Tracing & Logging | tempo, jaeger, alloy |
-| Identity | keycloak |
+| Tracing & Logging | tempo, jaeger, alloy, loki |
+| Identity & Security | keycloak, oauth2-proxy, neuvector |
 | GitOps | argocd |
 
 Path: `deploy/argocd/apps/<app-name>/README.md`
