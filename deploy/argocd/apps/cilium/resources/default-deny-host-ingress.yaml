@@ -6,11 +6,11 @@
 # Only essential services are allowed:
 # - SSH (22) - for node administration
 # - Kubernetes API (6443) - for kubectl access
-# - HTTP/HTTPS (80/443) - for ingress controllers (Istio, Traefik, nginx, etc.)
 # - Internal cluster traffic - always allowed
 #
-# Applications needing additional host ports must define their own policies
-# using CiliumClusterwideNetworkPolicy with nodeSelector.
+# Applications needing additional host ports (e.g., 80/443 for ingress) must
+# define their own CiliumClusterwideNetworkPolicy. Example:
+# - istio-gateway: deploy/argocd/apps/istio-gateway/resources/cilium-host-ingress-policy.yaml
 # =============================================================================
 
 apiVersion: cilium.io/v2
@@ -55,16 +55,6 @@ spec:
       toPorts:
         - ports:
             - port: "6443"
-              protocol: TCP
-
-    # HTTP/HTTPS - required for ingress controllers (Istio, Traefik, nginx, etc.)
-    - fromEntities:
-        - world
-      toPorts:
-        - ports:
-            - port: "80"
-              protocol: TCP
-            - port: "443"
               protocol: TCP
 
     # ICMP Echo (ping) - for diagnostics

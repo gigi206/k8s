@@ -62,23 +62,43 @@ cert-manager/
 
 #### Host Firewall Policies (external → nodes)
 
-1. **`cilium/resources/default-deny-host-ingress.yaml`** - Protège les nœuds Kubernetes
+1. **`cilium/resources/default-deny-host-ingress.yaml`** - Protège les nœuds Kubernetes (policy globale)
+2. **Per-app policies** - Chaque application exposant un LoadBalancer définit ses ports
 
-**Ports autorisés par défaut sur les nœuds :**
+**Ports autorisés par la policy globale :**
 
 | Port | Protocol | Description |
 |------|----------|-------------|
 | 22 | TCP | SSH (administration) |
 | 6443 | TCP | Kubernetes API |
-| 80 | TCP | HTTP (ingress controllers) |
-| 443 | TCP | HTTPS (ingress controllers) |
 | ICMP type 8 | - | Echo Request (ping) |
 | Cluster interne | All | Trafic cluster (pods, services, nodes) |
+
+**Ports définis par application (per-app policies) :**
+
+| Application | Fichier | Ports | Node Label |
+|-------------|---------|-------|------------|
+| istio-gateway | `resources/cilium-host-ingress-policy.yaml` | 80, 443 TCP | `node-role.kubernetes.io/ingress` |
+| ingress-nginx | `resources/cilium-host-ingress-policy.yaml` | 80, 443 TCP | `node-role.kubernetes.io/ingress` |
+| traefik | `resources/cilium-host-ingress-policy.yaml` | 80, 443 TCP | `node-role.kubernetes.io/ingress` |
+| apisix | `resources/cilium-host-ingress-policy.yaml` | 80, 443 TCP | `node-role.kubernetes.io/ingress` |
+| envoy-gateway | `resources/cilium-host-ingress-policy.yaml` | 80, 443 TCP | `node-role.kubernetes.io/ingress` |
+| nginx-gateway-fabric | `resources/cilium-host-ingress-policy.yaml` | 80, 443 TCP | `node-role.kubernetes.io/ingress` |
+| external-dns | `resources/cilium-host-ingress-policy.yaml` | 53 TCP/UDP | `node-role.kubernetes.io/dns` |
 
 **Trafic bloqué :**
 - Tous les autres ports depuis l'extérieur (etcd 2379, kubelet 10250, etc.)
 
-Applications nécessitant des ports host additionnels définissent leur propre `CiliumClusterwideNetworkPolicy` avec `nodeSelector`.
+**Ciblage des nœuds :**
+```bash
+# Labéliser les workers pour les ingress controllers
+kubectl label node <worker-node> node-role.kubernetes.io/ingress=""
+
+# Labéliser les nodes pour external-dns
+kubectl label node <node> node-role.kubernetes.io/dns=""
+```
+
+Pour un ciblage plus précis, utilisez `externalTrafficPolicy: Local` sur les LoadBalancer services.
 
 ### Politique par défaut (default-deny)
 

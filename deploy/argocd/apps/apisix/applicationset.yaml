@@ -62,6 +62,14 @@ spec:
             maxDuration: {{ .syncPolicy.retry.backoff.maxDuration }}
 
       sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
         # Source 0: APISIX Helm Chart
         - repoURL: {{ .apisix.chart.repo }}
           chart: {{ .apisix.chart.name }}
