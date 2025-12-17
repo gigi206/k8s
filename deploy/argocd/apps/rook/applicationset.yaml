@@ -147,7 +147,7 @@ spec:
         # Source: SAML2 SSO configuration (Keycloak client + Ceph dashboard SSO)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/rook/resources
+          path: deploy/argocd/apps/rook/kustomize/sso
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'

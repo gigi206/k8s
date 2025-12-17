@@ -91,11 +91,15 @@ spec:
             - .spec.template
 
       sources:
-        {{- if .features.sso.enabled }}
-        # Source 0: Base resources (Namespace, IngressClass, Keycloak client Job) - only when SSO enabled
+        # Source 0: Base resources (Namespace, IngressClass) - always deployed
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/resources
+        {{- if .features.sso.enabled }}
+        # Source 1: SSO resources (ExternalSecrets, Keycloak client Job, Telemetry) - only when SSO enabled
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/kustomize/sso
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
@@ -107,13 +111,6 @@ spec:
                   - op: replace
                     path: /spec/template/spec/containers/0/env/0/value
                     value: {{ .common.domain }}
-        {{- else }}
-        # Source 0: Base resources (Namespace, IngressClass only) - SSO disabled
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: {{ .git.revision }}
-          path: deploy/argocd/apps/istio/resources
-          directory:
-            include: "{namespace.yaml,ingressclass.yaml}"
         {{- end }}
 
         # Source: Encrypted secrets (KSOPS)

@@ -144,7 +144,7 @@ spec:
         # - external-secret.yaml: synchronise le secret OIDC vers monitoring namespace
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/prometheus-stack/resources
+          path: deploy/argocd/apps/prometheus-stack/kustomize/sso
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'

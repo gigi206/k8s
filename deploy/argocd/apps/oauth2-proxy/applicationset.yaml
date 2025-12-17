@@ -73,11 +73,17 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 1: Namespace + Keycloak client Job (conditional)
+        # Source 1: Namespace (always deployed)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/resources
-          {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+          directory:
+            include: "namespace.yaml"
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source 2: SSO resources (Keycloak client Job) - only when SSO enabled
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/kustomize/sso
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
@@ -89,7 +95,7 @@ spec:
                   - op: replace
                     path: /spec/template/spec/containers/0/env/0/value
                     value: {{ .common.domain }}
-          {{- end }}
+        {{- end }}
         # Source 2: Encrypted secrets (KSOPS)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
