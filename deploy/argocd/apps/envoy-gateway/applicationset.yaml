@@ -78,6 +78,14 @@ spec:
       {{- if .features.monitoring.enabled }}
       # Multi-source: Helm chart + PrometheusRules
       sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/envoy-gateway/resources
+          directory:
+            include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
         # Source 0: Envoy Gateway Helm Chart (OCI)
         - repoURL: oci://docker.io/envoyproxy/gateway-helm
           chart: gateway-helm
@@ -114,27 +122,35 @@ spec:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
       {{- else }}
-      # Single source: Helm chart uniquement
-      source:
-        repoURL: oci://docker.io/envoyproxy/gateway-helm
-        chart: gateway-helm
-        targetRevision: '{{ .envoyGateway.version }}'
-        helm:
-          releaseName: envoy-gateway
-          valuesObject:
-            deployment:
-              replicas: {{ .envoyGateway.replicas | default "1" }}
-              envoyGateway:
-                resources:
-                  requests:
-                    cpu: {{ .envoyGateway.resources.requests.cpu | default "100m" }}
-                    memory: {{ .envoyGateway.resources.requests.memory | default "256Mi" }}
-                  limits:
-                    cpu: {{ .envoyGateway.resources.limits.cpu | default "1000m" }}
-                    memory: {{ .envoyGateway.resources.limits.memory | default "1Gi" }}
-            config:
-              envoyGateway:
-                gateway:
-                  controllerName: gateway.envoyproxy.io/gatewayclass-controller
-            createNamespace: false
+      # Sources: Helm chart + optional Cilium policy
+      sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/envoy-gateway/resources
+          directory:
+            include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
+        - repoURL: oci://docker.io/envoyproxy/gateway-helm
+          chart: gateway-helm
+          targetRevision: '{{ .envoyGateway.version }}'
+          helm:
+            releaseName: envoy-gateway
+            valuesObject:
+              deployment:
+                replicas: {{ .envoyGateway.replicas | default "1" }}
+                envoyGateway:
+                  resources:
+                    requests:
+                      cpu: {{ .envoyGateway.resources.requests.cpu | default "100m" }}
+                      memory: {{ .envoyGateway.resources.requests.memory | default "256Mi" }}
+                    limits:
+                      cpu: {{ .envoyGateway.resources.limits.cpu | default "1000m" }}
+                      memory: {{ .envoyGateway.resources.limits.memory | default "1Gi" }}
+              config:
+                envoyGateway:
+                  gateway:
+                    controllerName: gateway.envoyproxy.io/gatewayclass-controller
+              createNamespace: false
       {{- end }}

@@ -1,0 +1,39 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - Traefik Host Ingress
+# =============================================================================
+# Allow external HTTP/HTTPS traffic to nodes for Traefik LoadBalancer.
+# This complements the default-deny-host-ingress policy in cilium app.
+#
+# Node Targeting:
+# - With externalTrafficPolicy: Cluster (default), all nodes need ports open
+# - With externalTrafficPolicy: Local, only nodes running Traefik pods need ports
+#
+# To restrict to specific nodes, use nodeSelector with labels like:
+#   matchLabels:
+#     node-role.kubernetes.io/ingress: ""
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: traefik-host-ingress
+spec:
+  description: "Allow HTTP/HTTPS to nodes for Traefik LoadBalancer"
+
+  # Target: Only nodes labeled for ingress workloads
+  # Label your worker nodes with: kubectl label node <node> node-role.kubernetes.io/ingress=""
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/ingress: ""
+
+  ingress:
+    # HTTP/HTTPS for Traefik LoadBalancer
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

@@ -89,44 +89,52 @@ spec:
           prune: {{ .syncPolicy.automated.prune }}
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
-      source:
-        repoURL: https://github.com/nginxinc/nginx-gateway-fabric
-        targetRevision: '{{ .nginxGatewayFabric.version }}'
-        path: charts/nginx-gateway-fabric
-        helm:
-          parameters:
-            # Nombre de réplicas (renamed in v2.0.0: replicaCount -> replicas)
-            - name: nginxGateway.replicas
-              value: '{{ .nginxGatewayFabric.replicas | default 1 }}'
+      sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/nginx-gateway-fabric/resources
+          directory:
+            include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
+        - repoURL: https://github.com/nginxinc/nginx-gateway-fabric
+          targetRevision: '{{ .nginxGatewayFabric.version }}'
+          path: charts/nginx-gateway-fabric
+          helm:
+            parameters:
+              # Nombre de réplicas (renamed in v2.0.0: replicaCount -> replicas)
+              - name: nginxGateway.replicas
+                value: '{{ .nginxGatewayFabric.replicas | default 1 }}'
 
-            # Service type
-            - name: nginxGateway.service.type
-              value: '{{ .nginxGatewayFabric.serviceType | default "LoadBalancer" }}'
+              # Service type
+              - name: nginxGateway.service.type
+                value: '{{ .nginxGatewayFabric.serviceType | default "LoadBalancer" }}'
 
-            # GatewayClass name
-            - name: nginxGateway.gatewayClassName
-              value: '{{ .nginxGatewayFabric.gatewayClassName | default "nginx-gwf" }}'
+              # GatewayClass name
+              - name: nginxGateway.gatewayClassName
+                value: '{{ .nginxGatewayFabric.gatewayClassName | default "nginx-gwf" }}'
 
-            # Resources (optional)
-            {{- with .nginxGatewayFabric.resources }}
-            {{- if .requests }}
-            - name: nginxGateway.resources.requests.cpu
-              value: '{{ .requests.cpu }}'
-            - name: nginxGateway.resources.requests.memory
-              value: '{{ .requests.memory }}'
-            {{- end }}
-            {{- if .limits }}
-            - name: nginxGateway.resources.limits.cpu
-              value: '{{ .limits.cpu }}'
-            - name: nginxGateway.resources.limits.memory
-              value: '{{ .limits.memory }}'
-            {{- end }}
-            {{- end }}
+              # Resources (optional)
+              {{- with .nginxGatewayFabric.resources }}
+              {{- if .requests }}
+              - name: nginxGateway.resources.requests.cpu
+                value: '{{ .requests.cpu }}'
+              - name: nginxGateway.resources.requests.memory
+                value: '{{ .requests.memory }}'
+              {{- end }}
+              {{- if .limits }}
+              - name: nginxGateway.resources.limits.cpu
+                value: '{{ .limits.cpu }}'
+              - name: nginxGateway.resources.limits.memory
+                value: '{{ .limits.memory }}'
+              {{- end }}
+              {{- end }}
 
-            # Metrics (Prometheus)
-            {{- if .features.monitoring.enabled }}
-            - name: metrics.enabled
-              value: "true"
-            - name: metrics.port
-              value: "9113"
-            {{- end }}
+              # Metrics (Prometheus)
+              {{- if .features.monitoring.enabled }}
+              - name: metrics.enabled
+                value: "true"
+              - name: metrics.port
+                value: "9113"
+              {{- end }}

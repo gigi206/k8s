@@ -104,6 +104,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/ingress-nginx/resources
+          directory:
+            include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source 2: Prometheus monitoring + Grafana dashboard (conditional)
         - repoURL: https://github.com/gigi206/k8s
