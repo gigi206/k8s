@@ -377,11 +377,11 @@ stringData:
 
 ### CiliumNetworkPolicy Pattern
 
-Two essential `CiliumClusterwideNetworkPolicy` are required:
-1. **`apps/cilium/resources/`** - `default-deny-external-egress.yaml` (blocks egress to world by default)
-2. **`apps/argocd/resources/`** - `cilium-egress-policy.yaml` (allows ArgoCD to reach Git repos)
+Two essential policies are required:
+1. **`apps/cilium/resources/default-deny-external-egress.yaml`** - `CiliumClusterwideNetworkPolicy` (blocks egress to world by default, allows internal cluster traffic)
+2. **`apps/argocd/resources/cilium-egress-policy.yaml`** - `CiliumNetworkPolicy` (allows ArgoCD to reach Git repos and Helm registries)
 
-Then each application defines its own `CiliumNetworkPolicy` in `resources/cilium-egress-policy.yaml` to allow specific egress (external APIs, registries, etc.).
+Then each application needing external access defines its own `CiliumNetworkPolicy` in `resources/cilium-egress-policy.yaml`.
 
 ### HTTPRoute Structure
 
