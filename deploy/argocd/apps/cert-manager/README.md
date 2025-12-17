@@ -7,7 +7,7 @@ Cert-Manager gère automatiquement les certificats TLS dans Kubernetes, avec sup
 ### Automatiques (via ApplicationSets)
 Ces composants sont déployés automatiquement dans le bon ordre grâce aux sync waves:
 
-- **Prometheus Stack** (Wave 70): Pour le monitoring cert-manager
+- **Prometheus Stack** (Wave 75): Pour le monitoring cert-manager
   - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
   - Dashboard Grafana automatiquement chargé
   - Alertes automatiques pour certificats expirés/non-ready

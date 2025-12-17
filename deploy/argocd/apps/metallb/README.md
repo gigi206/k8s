@@ -17,7 +17,7 @@ MetalLB est une implémentation de LoadBalancer pour les clusters Kubernetes bar
 - **Plage d'IPs disponibles**: IPs non utilisées sur le réseau local
 
 ### Optionnelles
-- **Prometheus Stack** (Wave 70): Pour monitoring des speakers et controller
+- **Prometheus Stack** (Wave 75): Pour monitoring des speakers et controller
 - **BGP Router** (mode BGP uniquement): Pour advertisement BGP
 
 ## Architecture
