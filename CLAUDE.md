@@ -377,21 +377,11 @@ stringData:
 
 ### CiliumNetworkPolicy Pattern
 
-Default-deny egress policy + per-app allow rules:
+Two essential `CiliumClusterwideNetworkPolicy` are required:
+1. **`apps/cilium/resources/`** - `default-deny-external-egress.yaml` (blocks egress to world by default)
+2. **`apps/argocd/resources/`** - `cilium-egress-policy.yaml` (allows ArgoCD to reach Git repos)
 
-```yaml
-# Default deny (in resources/)
-apiVersion: cilium.io/v2
-kind: CiliumClusterwideNetworkPolicy
-metadata:
-  name: default-deny-egress
-spec:
-  endpointSelector: {}
-  egressDeny:
-    - toEntities: ["world"]
-```
-
-Per-app policies allow specific egress (DNS, APIs, etc.).
+Then each application defines its own `CiliumNetworkPolicy` in `resources/cilium-egress-policy.yaml` to allow specific egress (external APIs, registries, etc.).
 
 ### HTTPRoute Structure
 
