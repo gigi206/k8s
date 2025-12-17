@@ -93,43 +93,18 @@ deploy/argocd/
 
 ### Sync Wave Strategy
 
-Applications are deployed in order using ArgoCD sync waves (lower = earlier). The wave number is defined in each ApplicationSet's `argocd.argoproj.io/sync-wave` annotation. See the Feature Flags table below for each application's wave.
+Applications are deployed in order using ArgoCD sync waves (lower = earlier). The wave number is defined in each ApplicationSet's `argocd.argoproj.io/sync-wave` annotation.
 
 ### Feature Flags
 
-Feature flags in `config/config.yaml` control which ApplicationSets are deployed:
+Feature flags in `config/config.yaml` control which ApplicationSets are deployed.
 
-| Feature Flag | ApplicationSet | Wave |
-|-------------|----------------|------|
-| `metallb.enabled` | metallb | 10 |
-| `kubeVip.enabled` | kube-vip | 15 |
-| `gatewayAPI.enabled` | gateway-api-controller | 15 |
-| `certManager.enabled` | cert-manager | 20 |
-| `externalSecrets.enabled` | external-secrets | 25 |
-| `serviceMesh.enabled` + `provider=istio` | istio | 40 |
-| `ingress.enabled` + `class=nginx` | ingress-nginx | 40 |
-| `ingress.enabled` + `class=traefik` | traefik | 40 |
-| `gatewayAPI.controller.provider=envoy-gateway` | envoy-gateway | 41 |
-| `gatewayAPI.controller.provider=nginx-gateway-fabric` | nginx-gateway-fabric | 41 |
-| `gatewayAPI.controller.provider=apisix` | apisix | 42 |
-| `externalDns.enabled` | external-dns | 45 |
-| `gatewayAPI.controller.provider=istio` | istio-gateway | 45 |
-| *(always)* | argocd | 50 |
-| `storage.csiSnapshotter` | csi-external-snapshotter | 55 |
-| `storage.enabled` + `provider=longhorn` | longhorn | 60 |
-| `storage.enabled` + `provider=rook` | rook | 60 |
-| `databaseOperator.enabled` + `provider=cnpg` | cnpg-operator | 65 |
-| `logging.enabled` + `logging.loki.enabled` | loki | 73 |
-| `logging.enabled` + `logging.loki.collector=alloy` | alloy | 74 |
-| `monitoring.enabled` | prometheus-stack | 75 |
-| `cilium.monitoring.enabled` | cilium | 76 |
-| `tracing.enabled` + `provider=tempo` | tempo | 77 |
-| `tracing.enabled` + `provider=jaeger` | jaeger | 77 |
-| `sso.enabled` + `provider=keycloak` | keycloak | 80 |
-| `oauth2Proxy.enabled` | oauth2-proxy | 81 |
-| `neuvector.enabled` | neuvector | 82 |
+Examples:
+- `features.metallb.enabled` → metallb (wave 10)
+- `features.monitoring.enabled` → prometheus-stack (wave 75)
+- `features.sso.enabled` + `provider=keycloak` → keycloak (wave 80)
 
-**Automatic Dependency Resolution**: The script enables dependencies automatically (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
+See `deploy-applicationsets.sh` for the complete list and automatic dependency resolution (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
 
 ## Common Development Commands
 
