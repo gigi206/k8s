@@ -120,6 +120,73 @@ neuvector:
 - **externalSecrets**: CA certificate synchronization
 - **certManager**: TLS certificates
 
+## Troubleshooting
+
+### Controller ne démarre pas
+
+```bash
+# Vérifier les pods
+kubectl get pods -n neuvector -l app=neuvector-controller-pod
+
+# Logs du controller
+kubectl logs -n neuvector -l app=neuvector-controller-pod
+
+# Events
+kubectl get events -n neuvector --sort-by='.lastTimestamp'
+```
+
+### Enforcer pas déployé sur tous les nodes
+
+```bash
+# Vérifier le DaemonSet
+kubectl get daemonset -n neuvector neuvector-enforcer-pod
+
+# Nodes sans enforcer
+kubectl get pods -n neuvector -l app=neuvector-enforcer-pod -o wide
+
+# Vérifier les tolerations si nodes tainted
+kubectl describe daemonset -n neuvector neuvector-enforcer-pod | grep -A5 Tolerations
+```
+
+### OIDC ne fonctionne pas
+
+```bash
+# Vérifier le certificat CA
+kubectl get secret -n neuvector keycloak-ca-cert
+
+# Vérifier que le controller monte le CA
+kubectl describe pod -n neuvector -l app=neuvector-controller-pod | grep -A5 Mounts
+
+# Logs d'authentification
+kubectl logs -n neuvector -l app=neuvector-controller-pod | grep -i auth
+```
+
+### Scanner ne trouve pas de CVEs
+
+```bash
+# Vérifier le scanner
+kubectl get pods -n neuvector -l app=neuvector-scanner-pod
+
+# Logs du scanner
+kubectl logs -n neuvector -l app=neuvector-scanner-pod
+
+# Vérifier la connectivité vers la base CVE
+kubectl exec -n neuvector -l app=neuvector-scanner-pod -- wget -q --spider https://cve.mitre.org
+```
+
+### Accès UI impossible
+
+```bash
+# Vérifier le manager
+kubectl get pods -n neuvector -l app=neuvector-manager-pod
+
+# Vérifier le service
+kubectl get svc -n neuvector neuvector-service-webui
+
+# Port-forward pour test direct
+kubectl port-forward -n neuvector svc/neuvector-service-webui 8443:8443
+```
+
 ## References
 
 - [NeuVector Documentation](https://open-docs.neuvector.com/)

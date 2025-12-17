@@ -160,6 +160,27 @@ kubectl get gatewayclass
 kubectl logs -n gateway-system deployment/gateway-api-controller
 ```
 
+## Monitoring
+
+### Prometheus Alerts
+
+2 alertes sont configurées pour Gateway API Controller :
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| GatewayApiControllerPodDown | critical | Controller indisponible (5m) |
+| GatewayApiControllerPodCrashLooping | critical | Pod en restart loop (10m) |
+
+### Métriques clés
+
+```promql
+# Disponibilité du controller
+kube_deployment_status_replicas_available{deployment="gateway-api-admission-server", namespace="gateway-api-controller"}
+
+# Restarts
+rate(kube_pod_container_status_restarts_total{pod=~"gateway-api-admission-server.*", namespace="gateway-api-controller"}[15m])
+```
+
 ## Docs
 
 - [Gateway API Documentation](https://gateway-api.sigs.k8s.io/)
