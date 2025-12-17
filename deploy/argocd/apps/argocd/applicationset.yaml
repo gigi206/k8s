@@ -133,7 +133,7 @@ spec:
         # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/argocd/resources
+          path: deploy/argocd/apps/argocd/kustomize/sso
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'

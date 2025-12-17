@@ -4,9 +4,5 @@ kind: Kustomization
 
 resources:
   - external-secret-ca.yaml
-  - external-secret-grafana.yaml
-  - external-secret-oidc.yaml
-  - ingressclass.yaml
   - keycloak-client.yaml
-  - namespace.yaml
-  - telemetry.yaml
+  - controller-ca-patch-job.yaml

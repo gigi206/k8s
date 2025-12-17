@@ -78,11 +78,15 @@ deploy/argocd/
     ├── config/
     │   ├── dev.yaml               # Dev config + chart version
     │   └── prod.yaml              # Prod config
-    ├── resources/                  # Raw YAML manifests (no transformations)
+    ├── resources/                  # Raw YAML manifests (NO kustomization.yaml!)
+    │   ├── cilium-egress-policy.yaml  # CiliumNetworkPolicy (raw)
+    │   └── namespace.yaml             # Namespace (raw)
     ├── kustomize/                  # Kustomize overlays (with transformations)
     │   ├── monitoring/            # PrometheusRules, ServiceMonitors, dashboards
     │   ├── httproute/             # HTTPRoute (conditional: gatewayAPI.httpRoute.enabled)
     │   ├── oauth2-authz/          # AuthorizationPolicy (conditional: oauth2Proxy.enabled)
+    │   ├── sso/                   # ExternalSecrets, Keycloak clients (conditional: sso.enabled)
+    │   ├── gateway/               # Gateway API resources (istio-gateway)
     │   └── custom-resources/      # App-specific CRs (keycloak)
     └── secrets/                    # SOPS-encrypted secrets
         ├── dev/
@@ -95,13 +99,22 @@ deploy/argocd/
 
 | Directory | Usage | Transformations |
 |-----------|-------|-----------------|
-| `resources/` | Raw YAML files deployed as-is | None - just `resources:` list |
-| `kustomize/` | Overlays requiring processing | `patches`, `commonLabels`, `commonAnnotations`, `configMapGenerator`, etc. |
+| `resources/` | Raw YAML files deployed as-is | **NONE** - No kustomization.yaml allowed |
+| `kustomize/<name>/` | Overlays requiring processing | `patches`, `commonLabels`, `images`, etc. |
+
+**IMPORTANT**: The `resources/` directory must **NEVER** contain a `kustomization.yaml` file. All files that require Kustomize transformations (images replacement, patches, commonLabels) must be in `kustomize/<name>/`.
+
+**Common kustomize subdirectories**:
+- `kustomize/monitoring/` → ServiceMonitors, PrometheusRules (uses `commonLabels: release`)
+- `kustomize/httproute/` → HTTPRoute (uses `patches` for domain injection)
+- `kustomize/sso/` → ExternalSecrets, Keycloak client Jobs (uses `images`, `patches`)
+- `kustomize/gateway/` → Gateway API resources (uses `patches`)
+- `kustomize/oauth2-authz/` → AuthorizationPolicy (uses `patches`)
 
 **Examples**:
 - `resources/cilium-egress-policy.yaml` → Raw CiliumNetworkPolicy, no transformation needed
-- `kustomize/monitoring/` → Uses `commonLabels: release: prometheus-stack` for Prometheus discovery
-- `kustomize/httproute/` → Uses `patches` to inject `{{ .common.domain }}` dynamically
+- `resources/namespace.yaml` → Raw Namespace, deployed via `directory.include`
+- `kustomize/sso/keycloak-client.yaml` → Uses `images:` for curl tag replacement
 
 **In ApplicationSets**, conditional resources from `resources/` use `directory.include`:
 ```yaml
@@ -109,6 +122,16 @@ deploy/argocd/
 - path: deploy/argocd/apps/my-app/resources
   directory:
     include: "cilium-egress-policy.yaml"
+{{- end }}
+```
+
+**Kustomize sources** use the `kustomize:` block:
+```yaml
+{{- if .features.sso.enabled }}
+- path: deploy/argocd/apps/my-app/kustomize/sso
+  kustomize:
+    images:
+      - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
 {{- end }}
 ```
 
