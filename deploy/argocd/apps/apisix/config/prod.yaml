@@ -7,7 +7,7 @@ apisix:
   chart:
     repo: https://charts.apiseven.com
     name: apisix
-    version: "2.12.4"
+    version: "2.12.5"
 
   # APISIX Configuration
   gateway:
