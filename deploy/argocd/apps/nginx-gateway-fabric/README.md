@@ -246,6 +246,87 @@ spec:
 ✅ **Multi-protocol** : HTTP, HTTPS, TCP, UDP, gRPC natifs
 ✅ **Extension points** : Support des features custom via CRDs
 
+## Troubleshooting
+
+### Controller ne démarre pas
+
+```bash
+# Vérifier les pods
+kubectl get pods -n nginx-gateway
+
+# Logs du controller
+kubectl logs -n nginx-gateway -l app.kubernetes.io/name=nginx-gateway-fabric
+
+# Events
+kubectl get events -n nginx-gateway --sort-by='.lastTimestamp'
+```
+
+### GatewayClass non prête
+
+```bash
+# Status de la GatewayClass
+kubectl describe gatewayclass nginx-gwf
+
+# Vérifier le controller
+kubectl get deployment -n nginx-gateway
+```
+
+### Gateway ne devient pas Ready
+
+```bash
+# Status détaillé
+kubectl describe gateway <name>
+
+# Vérifier les listeners
+kubectl get gateway <name> -o jsonpath='{.status.listeners[*].conditions}'
+
+# Logs pour cette gateway
+kubectl logs -n nginx-gateway -l app.kubernetes.io/name=nginx-gateway-fabric | grep <gateway-name>
+```
+
+### HTTPRoute ne fonctionne pas
+
+```bash
+# Status de l'HTTPRoute
+kubectl describe httproute <name>
+
+# Vérifier le parentRef
+kubectl get httproute <name> -o jsonpath='{.status.parents}'
+
+# Vérifier le service backend
+kubectl get svc <backend-service> -n <namespace>
+
+# Vérifier les endpoints
+kubectl get endpoints <backend-service> -n <namespace>
+```
+
+### Service backend inaccessible (502/503)
+
+```bash
+# Vérifier que les pods backend sont prêts
+kubectl get pods -n <namespace> -l app=<backend-app>
+
+# Tester la connectivité directe
+kubectl exec -n nginx-gateway -l app.kubernetes.io/name=nginx-gateway-fabric -- \
+  curl -s http://<backend-service>.<namespace>.svc:port
+
+# Logs NGINX
+kubectl logs -n nginx-gateway -l app.kubernetes.io/name=nginx-gateway-fabric | grep error
+```
+
+### TLS ne fonctionne pas
+
+```bash
+# Vérifier le secret TLS
+kubectl get secret <tls-secret> -n <namespace>
+
+# Vérifier que le certificat est valide
+kubectl get secret <tls-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -noout -dates
+
+# Vérifier le listener HTTPS
+kubectl get gateway <name> -o jsonpath='{.status.listeners[?(@.name=="https")].conditions}'
+```
+
 ## Documentation
 
 - [NGINX Gateway Fabric Docs](https://docs.nginx.com/nginx-gateway-fabric/)
