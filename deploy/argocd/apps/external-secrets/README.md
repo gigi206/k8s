@@ -172,6 +172,43 @@ kubectl annotate externalsecret <name> -n <namespace> \
   force-sync=$(date +%s) --overwrite
 ```
 
+## Monitoring
+
+### Prometheus Alerts
+
+6 alertes sont configurées pour External Secrets Operator :
+
+**Disponibilité**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| ExternalSecretsOperatorDown | critical | Opérateur indisponible (5m) |
+| ExternalSecretsPodRestarting | warning | Pod en restart loop (10m) |
+
+**Synchronisation**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| ExternalSecretSyncFailed | critical | ExternalSecret en échec sync (10m) |
+| SecretStoreNotReady | high | SecretStore non prêt (5m) |
+| ClusterSecretStoreNotReady | high | ClusterSecretStore non prêt (5m) |
+| ExternalSecretHighSyncLatency | warning | Latence sync p99 > 30s (10m) |
+
+### Métriques clés
+
+```promql
+# Status des ExternalSecrets
+externalsecret_status_condition{condition="Ready", status="True"}
+externalsecret_status_condition{condition="Ready", status="False"}
+
+# Status des SecretStores
+secretstore_status_condition{condition="Ready"}
+clustersecretstore_status_condition{condition="Ready"}
+
+# Latence de synchronisation
+histogram_quantile(0.99, rate(externalsecret_sync_calls_total_bucket[5m]))
+```
+
 ## References
 
 - [External Secrets Operator Documentation](https://external-secrets.io/)

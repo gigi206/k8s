@@ -287,6 +287,94 @@ L'application inclut :
 | TraefikServiceDown | warning | Service backend indisponible |
 | TraefikPodCrashLooping | warning | Pod en crash loop |
 
+## Troubleshooting
+
+### Traefik ne démarre pas
+
+```bash
+# Vérifier les pods
+kubectl get pods -n traefik
+
+# Logs détaillés
+kubectl logs -n traefik -l app.kubernetes.io/name=traefik
+
+# Events
+kubectl get events -n traefik --sort-by='.lastTimestamp'
+```
+
+### IngressRoute ne fonctionne pas
+
+```bash
+# Vérifier que l'IngressRoute existe
+kubectl get ingressroute -A
+
+# Status de l'IngressRoute
+kubectl describe ingressroute <name> -n <namespace>
+
+# Vérifier les middlewares référencés
+kubectl get middleware -n <namespace>
+
+# Logs Traefik pour cette route
+kubectl logs -n traefik -l app.kubernetes.io/name=traefik | grep <hostname>
+```
+
+### Gateway API route pas active
+
+```bash
+# Vérifier la GatewayClass
+kubectl get gatewayclass traefik
+
+# Vérifier la Gateway
+kubectl describe gateway <name>
+
+# Vérifier l'HTTPRoute
+kubectl describe httproute <name>
+
+# Status des listeners
+kubectl get gateway <name> -o jsonpath='{.status.listeners}'
+```
+
+### Erreurs TLS / Certificats
+
+```bash
+# Vérifier le secret TLS
+kubectl get secret <tls-secret> -n <namespace>
+
+# Vérifier que cert-manager a créé le certificat
+kubectl get certificate -A
+
+# Logs cert-manager si ACME
+kubectl logs -n cert-manager -l app=cert-manager
+```
+
+### Service backend inaccessible (503)
+
+```bash
+# Vérifier le service backend
+kubectl get svc <backend-service> -n <namespace>
+
+# Vérifier les endpoints
+kubectl get endpoints <backend-service> -n <namespace>
+
+# Vérifier les pods backend
+kubectl get pods -n <namespace> -l app=<backend-app>
+
+# Test direct depuis Traefik
+kubectl exec -n traefik -l app.kubernetes.io/name=traefik -- wget -q -O- http://<backend-service>.<namespace>.svc:port
+```
+
+### Dashboard inaccessible
+
+```bash
+# Vérifier que le dashboard est activé
+kubectl get deployment -n traefik traefik -o yaml | grep dashboard
+
+# Port-forward direct
+kubectl port-forward -n traefik svc/traefik 9000:9000
+
+# Ouvrir http://localhost:9000/dashboard/
+```
+
 ## Documentation
 
 - [Traefik Documentation](https://doc.traefik.io/traefik/)
