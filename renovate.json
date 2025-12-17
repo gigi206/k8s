@@ -233,6 +233,20 @@
     },
     {
       "customType": "regex",
+      "description": "Istio Gateway Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/istio-gateway/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "istio:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "gateway",
+      "packageNameTemplate": "gateway",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://istio-release.storage.googleapis.com/charts"
+    },
+    {
+      "customType": "regex",
       "description": "Kiali Helm chart",
       "managerFilePatterns": [
         "/^deploy/argocd/apps/istio/config/.*\\.yaml$/"
