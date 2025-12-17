@@ -239,7 +239,7 @@ sops decrypt apps/<app>/secrets/dev/secret.yaml              # Decrypt (view)
 
 **IMPORTANT**: Never disable TLS certificate verification (`--insecure`, `verify: false`, `skip_tls_verify`). Always configure applications to trust the cluster CA certificate instead.
 
-The CA is available via the `selfsigned-cluster-issuer-ca` Secret in `cert-manager` namespace.
+The CA is available via the `selfsigned-cluster-issuer-ca` Secret in `cert-manager` namespace. Use External Secrets with `ClusterSecretStore` to sync it to other namespaces (see `apps/external-secrets/README.md`).
 
 ## OIDC Authentication
 
