@@ -57,13 +57,14 @@ certManager:
         cpu: "50m"
         memory: "64Mi"
 
-  # ClusterIssuers
+  # ClusterIssuers (ACME / Let's Encrypt)
+  # Note: Replace PLACEHOLDER emails with valid addresses for ACME registration
   clusterIssuers:
     staging:
-      email: "dev@PLACEHOLDER.example.com"  # TODO: Update with valid email
+      email: "admin@k8s.local"  # ACME registration email (staging)
       server: "https://acme-staging-v02.api.letsencrypt.org/directory"
     prod:
-      email: "dev@PLACEHOLDER.example.com"  # TODO: Update with valid email
+      email: "admin@k8s.local"  # ACME registration email (production)
       server: "https://acme-v02.api.letsencrypt.org/directory"
 
 syncPolicy:

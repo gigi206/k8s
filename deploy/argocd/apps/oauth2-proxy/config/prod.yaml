@@ -1,0 +1,28 @@
+---
+# Configuration OAuth2 Proxy - Prod
+environment: prod
+appName: oauth2-proxy
+
+oauth2Proxy:
+  version: "9.0.1"
+  # Replicas (HA for production)
+  replicas: 2
+
+  # OIDC Configuration (Keycloak)
+  oidc:
+    clientId: "oauth2-proxy"
+
+  # Resources (prod: increased)
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+syncPolicy:
+  automated:
+    enabled: false  # Manual sync in production
+    prune: true
+    selfHeal: true
