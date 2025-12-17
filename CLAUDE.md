@@ -375,6 +375,106 @@ stringData:
   key: ENC[AES256_GCM,data:...,type:str]
 ```
 
+### CiliumNetworkPolicy Pattern
+
+Default-deny egress policy + per-app allow rules:
+
+```yaml
+# Default deny (in resources/)
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: default-deny-egress
+spec:
+  endpointSelector: {}
+  egressDeny:
+    - toEntities: ["world"]
+```
+
+Per-app policies allow specific egress (DNS, APIs, etc.).
+
+### HTTPRoute Structure
+
+HTTPRoutes reference a Gateway and define backends:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-app
+spec:
+  parentRefs:
+    - name: default-gateway
+      namespace: istio-system
+  hostnames:
+    - "my-app.k8s.lan"
+  rules:
+    - backendRefs:
+        - name: my-app-service
+          port: 8080
+```
+
+### Multi-Source Application Pattern
+
+Combine Helm chart + Kustomize overlays in one Application:
+
+```yaml
+sources:
+  - repoURL: https://charts.example.io
+    chart: my-app
+    targetRevision: "{{ .myApp.version }}"
+    helm:
+      releaseName: my-app
+      valueFiles:
+        - $values/deploy/argocd/apps/my-app/resources/values.yaml
+  - repoURL: '{{ .git.url }}'
+    targetRevision: '{{ .git.revision }}'
+    ref: values  # Reference for $values above
+  - repoURL: '{{ .git.url }}'
+    targetRevision: '{{ .git.revision }}'
+    path: deploy/argocd/apps/my-app/kustomize/monitoring
+```
+
+### Sync Waves Intra-Application
+
+Use annotations on resources for ordering within an Application (CRDs before CRs):
+
+```yaml
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"  # CRDs first
+---
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"   # CRs after
+```
+
+### PVC Protection
+
+Prevent PVC deletion during sync with resource annotation:
+
+```yaml
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+```
+
+Or exclude from pruning globally in ApplicationSet `syncPolicy.syncOptions`.
+
+### ArgoCD Finalizers
+
+Control resource cleanup behavior:
+
+```yaml
+metadata:
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io  # Delete resources when App deleted
+    # Or use foreground deletion:
+    - resources-finalizer.argocd.argoproj.io/foreground
+```
+
+Without finalizer, resources are orphaned when Application is deleted.
+
 ## Troubleshooting
 
 ### Applications Not Syncing
