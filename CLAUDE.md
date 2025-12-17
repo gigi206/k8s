@@ -227,35 +227,9 @@ Applications use Keycloak for OIDC authentication. See detailed documentation:
 
 **MANDATORY**: Always add Prometheus alerts when creating a new application.
 
-**Structure**:
-```
-apps/<app-name>/kustomize/monitoring/
-├── kustomization.yaml
-├── prometheusrules.yaml    # PrometheusRule
-├── servicemonitors.yaml    # ServiceMonitor (optional)
-├── podmonitors.yaml        # PodMonitor (optional)
-└── grafana-*.yaml          # Grafana dashboards (optional)
-```
+**Structure**: `apps/<app-name>/kustomize/monitoring/` with `prometheusrules.yaml`, `servicemonitors.yaml`, `grafana-*.yaml`.
 
-**Current Coverage** (maintain >90%):
-
-| Application | Alerts | Status |
-|-------------|--------|--------|
-| cilium | 10 | Complete |
-| longhorn | 9 | Complete |
-| istio | 5 | Complete |
-| argocd | 13 | Complete |
-| metallb | 8 | Complete |
-| external-dns | 7 | Complete |
-| cert-manager | 6 | Complete |
-| kube-vip | 3 | Complete |
-| csi-external-snapshotter | 3 | Complete |
-| prometheus-stack | 57+ | Complete |
-| gateway-api-controller | 2 | Complete |
-| tempo | 9 | Complete |
-| jaeger | 9 | Complete |
-
-> See `apps/prometheus-stack/README.md` for alert guidelines, severity levels, and examples.
+See `apps/prometheus-stack/README.md` for alert guidelines and examples.
 
 ## Environment Differences
 
@@ -468,19 +442,4 @@ make vagrant-dev-ssh                               # SSH to master
 
 ## App-Specific Documentation
 
-Each application has detailed documentation in its README.md:
-
-| Category | Apps with READMEs |
-|----------|-------------------|
-| Infrastructure | metallb, kube-vip, external-dns |
-| Certificates & Secrets | cert-manager, external-secrets |
-| Ingress & Gateway API | ingress-nginx, gateway-api-controller, nginx-gateway-fabric, envoy-gateway, traefik, apisix, istio-gateway |
-| Service Mesh | istio, cilium |
-| Storage | longhorn, csi-external-snapshotter, rook |
-| Database | cnpg-operator |
-| Monitoring | prometheus-stack |
-| Tracing & Logging | tempo, jaeger, alloy, loki |
-| Identity & Security | keycloak, oauth2-proxy, neuvector |
-| GitOps | argocd |
-
-Path: `deploy/argocd/apps/<app-name>/README.md`
+Each application has detailed documentation: `deploy/argocd/apps/<app-name>/README.md`
