@@ -287,6 +287,94 @@ apps/<app-name>/kustomize/monitoring/
 - **dev**: RKE2 via Vagrant, auto-sync enabled, 1 replica
 - **prod**: HA replicas (3+), manual sync, production-grade settings
 
+## Best Practices & Tips
+
+### Prometheus ServiceMonitor/PodMonitor Discovery
+
+ServiceMonitors and PodMonitors **must** have the label `release: prometheus-stack` to be discovered by Prometheus. Use Kustomize `commonLabels` in `kustomize/monitoring/kustomization.yaml`:
+
+```yaml
+commonLabels:
+  release: prometheus-stack
+```
+
+### Istio Namespace Annotations
+
+Configure Istio behavior per namespace with these annotations/labels:
+- `istio-injection: enabled` - Sidecar injection (classic mode)
+- `istio.io/dataplane-mode: ambient` - Ambient mesh mode (ztunnel)
+- `istio.io/use-waypoint: <waypoint-name>` - L7 processing via waypoint proxy
+
+### Grafana Dashboard Auto-Import
+
+Dashboards are ConfigMaps with specific labels/annotations for auto-import:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_dashboard_folder: "/tmp/dashboards/MyApp"
+```
+
+### ArgoCD ignoreDifferences
+
+Common fields to ignore in ApplicationSet `spec.template.spec.ignoreDifferences`:
+
+```yaml
+ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+      - /spec/replicas  # Managed by HPA
+  - group: autoscaling
+    kind: HorizontalPodAutoscaler
+    jsonPointers:
+      - /spec/minReplicas
+      - /spec/maxReplicas
+```
+
+### Go Template Validation
+
+Test ApplicationSet Go templates locally before pushing:
+
+```bash
+# Render ApplicationSet with yq to check syntax
+yq eval-all 'select(document_index == 0)' apps/my-app/applicationset.yaml
+
+# Validate with argocd CLI (requires cluster access)
+argocd appset generate apps/my-app/applicationset.yaml --dry-run
+```
+
+### KSOPS Secret Structure
+
+Standard structure for encrypted secrets:
+
+```yaml
+# kustomization.yaml
+generators:
+  - ksops-generator.yaml
+
+# ksops-generator.yaml
+apiVersion: viaduct.ai/v1
+kind: ksops
+metadata:
+  name: secret-generator
+files:
+  - ./secret.yaml
+
+# secret.yaml (encrypted with sops)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-secret
+type: Opaque
+stringData:
+  key: ENC[AES256_GCM,data:...,type:str]
+```
+
 ## Troubleshooting
 
 ### Applications Not Syncing
