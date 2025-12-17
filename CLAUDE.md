@@ -235,6 +235,12 @@ sops decrypt apps/<app>/secrets/dev/secret.yaml              # Decrypt (view)
 
 > See `apps/prometheus-stack/README.md` and `apps/keycloak/README.md` for detailed examples.
 
+## TLS Certificate Validation
+
+**IMPORTANT**: Never disable TLS certificate verification (`--insecure`, `verify: false`, `skip_tls_verify`). Always configure applications to trust the cluster CA certificate instead.
+
+The CA is available via the `selfsigned-cluster-issuer-ca` Secret in `cert-manager` namespace.
+
 ## OIDC Authentication
 
 Applications use Keycloak for OIDC authentication. See detailed documentation:
