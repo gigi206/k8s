@@ -225,7 +225,7 @@ spec:
       relay:
         enabled: true
         service:
-          type: LoadBalancer
+          type: ClusterIP  # Exposed via HTTPRoute (hubble.k8s.lan)
         prometheus:
           enabled: true
           serviceMonitor:
