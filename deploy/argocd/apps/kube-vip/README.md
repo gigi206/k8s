@@ -57,6 +57,20 @@ Le script `deploy-applicationsets.sh` met automatiquement à jour votre kubeconf
 # Après: https://192.168.121.200:6443 (VIP)
 ```
 
+## Monitoring
+
+### Prometheus Alerts
+
+3 alertes sont configurées pour surveiller Kube-VIP via kube-state-metrics :
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| KubeVIPDaemonSetNotReady | critical | DaemonSet n'a pas tous les pods ready (5m) |
+| KubeVIPPodCrashLooping | critical | Pod en restart loop (10m) |
+| KubeVIPPodNotRunning | critical | Pod n'est pas en état Running (5m) |
+
+**Note** : Kube-VIP n'expose pas de métriques Prometheus natives. Les alertes utilisent kube-state-metrics pour surveiller le DaemonSet.
+
 ## Documentation
 
 - [Kube-VIP Documentation](https://kube-vip.io/)

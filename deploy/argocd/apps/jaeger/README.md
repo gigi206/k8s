@@ -136,3 +136,60 @@ external_services:
     in_cluster_url: http://jaeger-query.jaeger:16686
     url: https://jaeger.<domain>
 ```
+
+## Monitoring
+
+### Prometheus Alerts
+
+9 alertes sont configurées pour Jaeger :
+
+**Disponibilité**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| JaegerAllInOneDown | critical | All-in-one indisponible (5m) |
+| JaegerCollectorDown | critical | Collector indisponible (5m) |
+| JaegerQueryDown | critical | Query indisponible (5m) |
+
+**Santé des Pods**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| JaegerPodCrashLooping | critical | Pod en restart loop (10m) |
+| JaegerPodNotReady | warning | Pod non ready (10m) |
+
+**Performance**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| JaegerSpansDropped | warning | Spans perdus (10m) |
+| JaegerCollectorQueueLength | warning | Queue > 1000 (10m) |
+| JaegerStorageErrors | warning | Erreurs stockage (5m) |
+
+**Waypoint** (Istio Ambient):
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| IstioWaypointNotReady | warning | Waypoint proxy non ready (10m) |
+
+## Troubleshooting
+
+### Pas de traces
+
+```bash
+# Vérifier que Jaeger reçoit des spans
+kubectl logs -n jaeger -l app.kubernetes.io/name=jaeger | grep -i span
+
+# Tester l'API
+kubectl port-forward -n jaeger svc/jaeger-query 16686:16686
+curl http://localhost:16686/api/services
+```
+
+### Traces incomplètes
+
+Voir la section "Known Limitations with Ambient Mode" ci-dessus.
+
+## References
+
+- [Jaeger Documentation](https://www.jaegertracing.io/docs/)
+- [Jaeger Helm Chart](https://github.com/jaegertracing/helm-charts)
