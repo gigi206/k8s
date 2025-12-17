@@ -8,9 +8,10 @@ git:
 
 istio:
   namespace: istio-system
-  version: "1.28.0"  # Must match istio control plane version
+  version: "1.28.0"  # Must match istio control plane version (used when features.ingress.enabled)
 
-  # Istio Ingress Gateway
+  # Istio Ingress Gateway (only used when features.ingress.enabled=true)
+  # When disabled, only Gateway API is used (istio-gateway-istio service)
   ingressGateway:
     kind: "DaemonSet"  # DaemonSet (1 per node) or Deployment
     replicas: 1  # Only used if kind=Deployment

@@ -62,8 +62,9 @@ spec:
             factor: 2
             maxDuration: 10m
 
+      {{- if .features.ingress.enabled }}
       ignoreDifferences:
-        # Ignore dynamic metadata in DaemonSet
+        # Ignore dynamic metadata in DaemonSet (only when using Helm chart gateway)
         - group: apps
           kind: DaemonSet
           name: istio-ingressgateway
@@ -71,9 +72,11 @@ spec:
           jqPathExpressions:
             - .metadata.annotations["deprecated.daemonset.template.generation"]
             - .spec.template
+      {{- end }}
 
       sources:
-        # Source 0: Gateway and Certificate resources
+        # Gateway API resources (Gateway + Certificate)
+        # Istio automatically creates a Deployment and LoadBalancer Service for the Gateway
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio-gateway/resources
@@ -98,7 +101,9 @@ spec:
                       - '*.{{ .common.domain }}'
                       - '{{ .common.domain }}'
 
-        # Source 1: Istio Ingress Gateway Helm Chart
+        {{- if .features.ingress.enabled }}
+        # Istio Ingress Gateway Helm Chart (classic ingress, optional)
+        # Use this when you need a dedicated ingress gateway separate from Gateway API
         - repoURL: https://istio-release.storage.googleapis.com/charts
           chart: gateway
           targetRevision: {{ .istio.version }}
@@ -112,12 +117,8 @@ spec:
               service:
                 type: LoadBalancer
                 ports:
-                  # Port 15020 est le port de status par défaut pour Istio ambient mesh
-                  # (contrairement à 15021 utilisé dans sidecar mode)
-                  # Note: Le nom doit suivre le format <protocol>[-suffix] pour Kiali (KIA0601)
-                  - name: http-status
-                    port: 15020
-                    targetPort: 15020
+                  # Only expose HTTP/HTTPS traffic ports
+                  # Health check ports (15020/15021) are internal-only for K8s probes
                   - name: http2
                     port: 80
                     targetPort: 80
@@ -138,3 +139,4 @@ spec:
                 limits:
                   cpu: {{ .istio.ingressGateway.resources.limits.cpu }}
                   memory: {{ .istio.ingressGateway.resources.limits.memory }}
+        {{- end }}
