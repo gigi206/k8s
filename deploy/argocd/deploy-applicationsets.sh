@@ -377,6 +377,7 @@ FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
 FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
 FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enabled' 'false')
 FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
+FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled' 'true')
 
 log_debug "Feature flags lus:"
 log_debug "  metallb: $FEAT_METALLB"
@@ -398,6 +399,7 @@ log_debug "  neuvector: $FEAT_NEUVECTOR"
 log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
+log_debug "  cilium.ingressPolicy: $FEAT_CILIUM_INGRESS_POLICY"
 
 # =============================================================================
 # Résolution automatique des dépendances
@@ -775,35 +777,53 @@ log_success "Tous les fichiers ApplicationSets sont présents"
 # récupérer sa propre configuration (chicken-and-egg problem).
 
 apply_bootstrap_network_policies() {
-  if [[ "$FEAT_CILIUM_EGRESS_POLICY" != "true" ]]; then
-    log_debug "Cilium egress policy désactivée, pas de pré-déploiement nécessaire"
+  if [[ "$FEAT_CILIUM_EGRESS_POLICY" != "true" ]] && [[ "$FEAT_CILIUM_INGRESS_POLICY" != "true" ]]; then
+    log_debug "Cilium policies désactivées, pas de pré-déploiement nécessaire"
     return 0
   fi
 
   log_info "Pré-déploiement des CiliumNetworkPolicies pour bootstrap..."
 
-  # 1. Clusterwide policy - autorise le trafic interne pour tout le cluster
-  local clusterwide_policy="${SCRIPT_DIR}/apps/cilium/resources/default-deny-external-egress.yaml"
-  if [[ -f "$clusterwide_policy" ]]; then
-    if kubectl apply -f "$clusterwide_policy" > /dev/null 2>&1; then
-      log_success "CiliumClusterwideNetworkPolicy appliquée (trafic interne autorisé)"
+  # 1. Egress clusterwide policy - bloque le trafic externe, autorise le trafic interne
+  if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]]; then
+    local egress_policy="${SCRIPT_DIR}/apps/cilium/resources/default-deny-external-egress.yaml"
+    if [[ -f "$egress_policy" ]]; then
+      if kubectl apply -f "$egress_policy" > /dev/null 2>&1; then
+        log_success "CiliumClusterwideNetworkPolicy egress appliquée (trafic interne autorisé)"
+      else
+        log_warning "Impossible d'appliquer la CiliumClusterwideNetworkPolicy egress"
+      fi
     else
-      log_warning "Impossible d'appliquer la CiliumClusterwideNetworkPolicy"
+      log_debug "Pas de egress policy trouvée: $egress_policy"
     fi
-  else
-    log_debug "Pas de clusterwide policy trouvée: $clusterwide_policy"
   fi
 
-  # 2. ArgoCD policy - ajoute l'accès externe (GitHub, Helm)
-  local argocd_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-egress-policy.yaml"
-  if [[ -f "$argocd_policy" ]]; then
-    if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
-      log_success "CiliumNetworkPolicy ArgoCD appliquée (accès GitHub/Helm)"
+  # 2. Host ingress policy - protège les nœuds (SSH, API, HTTP/HTTPS autorisés)
+  if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]]; then
+    local ingress_policy="${SCRIPT_DIR}/apps/cilium/resources/default-deny-host-ingress.yaml"
+    if [[ -f "$ingress_policy" ]]; then
+      if kubectl apply -f "$ingress_policy" > /dev/null 2>&1; then
+        log_success "CiliumClusterwideNetworkPolicy host ingress appliquée (SSH, API, HTTP/HTTPS)"
+      else
+        log_warning "Impossible d'appliquer la CiliumClusterwideNetworkPolicy host ingress"
+      fi
     else
-      log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD"
+      log_debug "Pas de host ingress policy trouvée: $ingress_policy"
     fi
-  else
-    log_debug "Pas de network policy ArgoCD trouvée: $argocd_policy"
+  fi
+
+  # 3. ArgoCD policy - ajoute l'accès externe (GitHub, Helm)
+  if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]]; then
+    local argocd_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-egress-policy.yaml"
+    if [[ -f "$argocd_policy" ]]; then
+      if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
+        log_success "CiliumNetworkPolicy ArgoCD appliquée (accès GitHub/Helm)"
+      else
+        log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD"
+      fi
+    else
+      log_debug "Pas de network policy ArgoCD trouvée: $argocd_policy"
+    fi
   fi
 }
 
@@ -1181,6 +1201,8 @@ echo "  Storage:           $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
 echo "  Database Operator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 echo "  Monitoring:        $FEAT_MONITORING"
 echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
+echo "  Cilium Egress:     $FEAT_CILIUM_EGRESS_POLICY"
+echo "  Cilium Ingress:    $FEAT_CILIUM_INGRESS_POLICY"
 echo "  Tracing:           $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 echo "  ServiceMesh Waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"

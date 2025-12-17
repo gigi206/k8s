@@ -22,7 +22,7 @@ Cet ApplicationSet gère les ressources additionnelles pour Cilium CNI, incluant
 
 ### Feature Flags
 
-Les network policies sont contrôlées par le feature flag dans `config.yaml` :
+Les network policies sont contrôlées par les feature flags dans `config.yaml` :
 
 ```yaml
 features:
@@ -30,14 +30,18 @@ features:
     monitoring:
       enabled: true       # Wave 76: ServiceMonitors, dashboards Grafana
     egressPolicy:
-      enabled: true       # CiliumClusterwideNetworkPolicy default-deny + per-app policies
+      enabled: true       # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
+    ingressPolicy:
+      enabled: true       # CiliumClusterwideNetworkPolicy default-deny host ingress (SSH, API, HTTP/HTTPS)
 ```
 
-Les policies ne sont déployées que si `features.cilium.egressPolicy.enabled == true`.
+Les policies ne sont déployées que si `features.cilium.egressPolicy.enabled == true` OU `features.cilium.ingressPolicy.enabled == true`.
 
 ### Architecture
 
 La politique réseau suit le principe **default-deny avec exceptions par application** :
+
+#### Egress Policies (pods → external)
 
 1. **`cilium/resources/default-deny-external-egress.yaml`** - Bloque TOUT le trafic externe (cluster-wide)
 2. **Chaque application** définit sa propre `CiliumNetworkPolicy` dans son répertoire `resources/`
@@ -55,6 +59,26 @@ neuvector/
 cert-manager/
 └── resources/cilium-egress-policy.yaml           # Autorise egress cert-manager (ACME)
 ```
+
+#### Host Firewall Policies (external → nodes)
+
+1. **`cilium/resources/default-deny-host-ingress.yaml`** - Protège les nœuds Kubernetes
+
+**Ports autorisés par défaut sur les nœuds :**
+
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 22 | TCP | SSH (administration) |
+| 6443 | TCP | Kubernetes API |
+| 80 | TCP | HTTP (ingress controllers) |
+| 443 | TCP | HTTPS (ingress controllers) |
+| ICMP type 8 | - | Echo Request (ping) |
+| Cluster interne | All | Trafic cluster (pods, services, nodes) |
+
+**Trafic bloqué :**
+- Tous les autres ports depuis l'extérieur (etcd 2379, kubelet 10250, etc.)
+
+Applications nécessitant des ports host additionnels définissent leur propre `CiliumClusterwideNetworkPolicy` avec `nodeSelector`.
 
 ### Politique par défaut (default-deny)
 
@@ -119,7 +143,7 @@ spec:
 **Note** : On utilise `directory: include:` pour charger uniquement le fichier network-policy
 de manière conditionnelle, sans affecter les autres ressources du répertoire `resources/`.
 
-### Vérifier le blocage
+### Vérifier le blocage egress
 
 ```bash
 # Vérifier les policies
@@ -141,6 +165,28 @@ kubectl exec -n kube-system ds/cilium -- \
 # Observer les drops en temps réel
 kubectl exec -n kube-system ds/cilium -- \
   cilium hubble observe --verdict DROPPED --reason POLICY_DENIED -f
+```
+
+### Vérifier le Host Firewall
+
+```bash
+# Vérifier que la policy host est appliquée
+kubectl get ciliumclusterwidenetworkpolicies | grep host
+
+# Vérifier le statut du host endpoint
+CILIUM_POD=$(kubectl -n kube-system get pods -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}')
+kubectl -n kube-system exec $CILIUM_POD -- cilium-dbg endpoint list | grep reserved:host
+
+# Test depuis l'extérieur du cluster (sur la machine hôte)
+NODE_IP=<ip-du-noeud>
+curl -k https://$NODE_IP:6443/healthz      # Doit fonctionner (API K8s)
+curl http://$NODE_IP:80                     # Doit fonctionner (ingress)
+curl http://$NODE_IP:2379                   # Doit être bloqué (etcd)
+nc -zv $NODE_IP 10250                       # Doit être bloqué (kubelet)
+
+# Surveiller les policy verdicts host
+kubectl -n kube-system exec $CILIUM_POD -- \
+  cilium-dbg monitor -t policy-verdict --related-to 1
 ```
 
 ### Désactiver / Rollback
@@ -523,6 +569,7 @@ kubectl exec -n kube-system ds/cilium -- \
 - [Cilium Documentation](https://docs.cilium.io/en/stable/)
 - [Cilium Network Policies](https://docs.cilium.io/en/stable/security/policy/)
 - [CiliumClusterwideNetworkPolicy](https://docs.cilium.io/en/stable/security/policy/language/#ciliumclusterwidenetworkpolicy)
+- [Cilium Host Firewall](https://docs.cilium.io/en/stable/security/host-firewall/)
 - [Cilium Observability Metrics](https://docs.cilium.io/en/stable/observability/metrics/)
 - [Hubble Metrics](https://docs.cilium.io/en/stable/observability/metrics/#hubble-metrics)
 - [Prometheus Operator ServiceMonitor](https://prometheus-operator.dev/docs/operator/design/#servicemonitor)
