@@ -2,17 +2,17 @@
 
 Infrastructure Kubernetes gérée via ArgoCD ApplicationSets avec templating Go natif.
 
-## 🚀 Installation Complète (15 minutes)
+## 🚀 Installation Complète
 
 ```bash
-./install-dev.sh
+make dev-full
 ```
 
-**C'est tout !** Ce script installe automatiquement :
+**C'est tout !** Cette commande installe automatiquement :
 - ✅ Cluster Kubernetes (RKE2) via Vagrant
 - ✅ ArgoCD avec ApplicationSet controller
-- ✅ 8 ApplicationSets qui génèrent 24 Applications (dev/local/prod)
-- ✅ Applications essentielles : MetalLB, Cert-Manager, Ingress-NGINX, Longhorn, Prometheus, etc.
+- ✅ 27 ApplicationSets (une par application)
+- ✅ Applications essentielles : MetalLB, Cert-Manager, Istio, Longhorn, Prometheus, Keycloak, etc.
 
 ## 📝 Mise à jour des applications
 
@@ -20,34 +20,28 @@ Toute la configuration est dans Git. Pour modifier :
 
 ```bash
 # 1. Modifier la configuration d'un environnement
-vim argocd/config/environments/dev.yaml
+vim deploy/argocd/config/config.yaml
 
-# 2. Valider les changements
-cd argocd && make validate
-
-# 3. Committer et pusher
-git add argocd/config/environments/dev.yaml
+# 2. Committer et pusher
+git add deploy/argocd/config/config.yaml
 git commit -m "Update dev configuration"
 git push
 
-# 4. ArgoCD détecte et applique automatiquement (auto-sync activé en dev)
+# 3. ArgoCD détecte et applique automatiquement (auto-sync activé en dev)
 ```
 
 ## 🔧 Commandes utiles
 
 ```bash
 # Connexion au cluster
-export KUBECONFIG=vagrant/.kube/config-dev
+export KUBECONFIG=vagrant/kube.config
 kubectl get nodes
 
-# Voir les ApplicationSets (8)
+# Voir les ApplicationSets
 kubectl get applicationsets -n argo-cd
 
-# Voir les Applications générées (24: 8 apps × 3 environnements)
+# Voir les Applications générées
 kubectl get applications -n argo-cd
-
-# Surveiller le déploiement
-cd argocd && make watch
 
 # Accès ArgoCD UI
 kubectl port-forward -n argo-cd svc/argocd-server 8080:443
@@ -59,53 +53,41 @@ kubectl port-forward -n argo-cd svc/argocd-server 8080:443
 
 ```
 .
-├── install-dev.sh                           # 🚀 Installation complète
-├── Makefile                                 # Commandes alternatives
+├── Makefile                                 # Commandes principales
 ├── vagrant/                                 # Cluster Kubernetes (RKE2)
-│   └── .kube/config-dev                    # Kubeconfig
-└── argocd/
-    ├── applicationsets/                     # 📦 ApplicationSets (un par app)
-    │   ├── 00-argocd.yaml                  # Wave 0
-    │   ├── 10-metallb.yaml                 # Wave 10
-    │   ├── 20-cert-manager.yaml            # Wave 20
-    │   ├── 30-external-dns.yaml            # Wave 30
-    │   ├── 40-ingress-nginx.yaml           # Wave 40
-    │   ├── 50-longhorn.yaml                # Wave 50
-    │   ├── 60-prometheus-stack.yaml        # Wave 60
-    │   └── 61-grafana-dashboards.yaml      # Wave 61
-    │
-    ├── config/                              # ⚙️ Configuration globale
-    │   ├── common.yaml                     # Variables partagées
-    │   └── environments/                    # Config par environnement
-    │       ├── dev.yaml                    # Dev (8 apps actives)
-    │       ├── local.yaml                  # Local (minimal)
-    │       └── prod.yaml                   # Prod (8 apps avec 3 replicas)
-    │
-    └── applications/                        # 📄 Valeurs Helm par app
-        ├── argocd/
-        │   ├── values-base.yaml
-        │   ├── values-dev.yaml
-        │   └── values-prod.yaml
+│   └── kube.config                         # Kubeconfig généré
+└── deploy/argocd/
+    ├── deploy-applicationsets.sh           # 🚀 Déploiement des ApplicationSets
+    ├── config/
+    │   └── config.yaml                     # ⚙️ Configuration globale + feature flags
+    └── apps/                                # 📦 Applications (un dossier par app)
         ├── metallb/
-        ├── cert-manager/
-        └── ...
+        │   ├── applicationset.yaml         # Wave 10
+        │   ├── config/dev.yaml             # Config dev
+        │   └── resources/                  # Ressources K8s
+        ├── cert-manager/                   # Wave 20
+        ├── external-dns/                   # Wave 45
+        ├── ingress-nginx/                  # Wave 40
+        ├── argocd/                         # Wave 50
+        ├── longhorn/                       # Wave 60
+        ├── prometheus-stack/               # Wave 75
+        └── ...                             # 27 apps au total
 ```
 
 ## 🎯 Environnements disponibles
 
-| Env | Apps actives | Replicas | Auto-sync | Usage |
-|-----|--------------|----------|-----------|-------|
-| **dev** | 8 | 1 | ✅ | Développement rapide |
-| **local** | 2 | 1 | ✅ | Tests locaux (kind/k3d) |
-| **prod** | 8 | 3 | ❌ | Production (sync manuel) |
+| Env | Replicas | Auto-sync | Usage |
+|-----|----------|-----------|-------|
+| **dev** | 1 | ✅ | Développement local |
+| **prod** | 3+ | ❌ | Production (sync manuel) |
 
 ## 🏗️ Architecture ApplicationSet
 
 ```
-ApplicationSets (8)
-  └─> Lit config depuis Git
+ApplicationSets (27 apps)
+  └─> Lit config depuis Git (config.yaml + app/config/*.yaml)
        └─> Génère Applications automatiquement
-            └─> ArgoCD déploie avec auto-sync
+            └─> ArgoCD déploie avec sync waves
 ```
 
 **Avantages** :
@@ -120,34 +102,34 @@ ApplicationSets (8)
 ### Ajouter une nouvelle application
 
 ```bash
-# 1. Créer l'ApplicationSet
-cp argocd/applicationsets/TEMPLATE.yaml argocd/applicationsets/70-my-app.yaml
-vim argocd/applicationsets/70-my-app.yaml  # Adapter le template
+# 1. Créer le dossier de l'application
+mkdir -p deploy/argocd/apps/my-app/{config,resources}
 
-# 2. Ajouter la config dans tous les environnements
-vim argocd/config/environments/dev.yaml
-vim argocd/config/environments/prod.yaml
+# 2. Créer l'ApplicationSet (copier un existant comme template)
+cp deploy/argocd/apps/metallb/applicationset.yaml deploy/argocd/apps/my-app/
 
-# 3. Créer les values Helm (optionnel)
-mkdir -p argocd/applications/my-app
-touch argocd/applications/my-app/values-{base,dev,prod}.yaml
+# 3. Créer les fichiers de configuration
+vim deploy/argocd/apps/my-app/config/dev.yaml
+vim deploy/argocd/apps/my-app/config/prod.yaml
 
-# 4. Committer et pusher
-git add argocd/
+# 4. Ajouter l'app dans deploy-applicationsets.sh
+
+# 5. Committer et pusher
+git add deploy/argocd/apps/my-app/
 git commit -m "Add my-app application"
 git push
 
-# 5. ArgoCD crée automatiquement les Applications
+# 6. ArgoCD crée automatiquement les Applications
 ```
 
 ### Modifier une application existante
 
 ```bash
 # Option 1: Modifier la config globale
-vim argocd/config/environments/dev.yaml
+vim deploy/argocd/config/config.yaml
 
-# Option 2: Modifier les valeurs Helm
-vim argocd/applications/my-app/values-dev.yaml
+# Option 2: Modifier la config spécifique à l'app
+vim deploy/argocd/apps/my-app/config/dev.yaml
 
 # Dans les deux cas, commit + push = déploiement auto
 git add . && git commit -m "Update" && git push
@@ -158,8 +140,8 @@ git add . && git commit -m "Update" && git push
 ### Réinstaller proprement
 
 ```bash
-cd vagrant && K8S_ENV=dev vagrant destroy -f && cd ..
-./install-dev.sh
+make vagrant-dev-destroy
+make dev-full
 ```
 
 ### Voir les logs ArgoCD
@@ -172,19 +154,21 @@ kubectl logs -n argo-cd deployment/argocd-applicationset-controller -f
 ### Forcer un refresh
 
 ```bash
-cd argocd && make refresh-all
+kubectl -n argo-cd patch application <app-name> --type merge \
+  -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
 ### Statut des applications
 
 ```bash
-cd argocd && make status
+kubectl get applications -n argo-cd
+argocd app list  # Si argocd CLI installé
 ```
 
 ## 📌 Points importants
 
-- **1 script d'installation** : `./install-dev.sh` fait tout
-- **Configuration par environnement** : `argocd/config/environments/{env}.yaml`
+- **Configuration globale** : `deploy/argocd/config/config.yaml`
+- **Configuration par app** : `deploy/argocd/apps/<app>/config/{dev,prod}.yaml`
 - **ApplicationSets auto-générés** : Pas besoin de créer les Applications manuellement
 - **Auto-sync en dev** : Les changements Git sont appliqués automatiquement
 - **Sync manuel en prod** : Contrôle total sur les déploiements
@@ -209,9 +193,9 @@ deploy/argocd/
 
 ## 📚 Documentation détaillée
 
-- [argocd/README.md](argocd/README.md) - Documentation technique complète
+- [deploy/argocd/README.md](deploy/argocd/README.md) - Documentation technique complète
 - [CLAUDE.md](CLAUDE.md) - Instructions pour Claude Code
-- [argocd/applicationsets/TEMPLATE.yaml](argocd/applicationsets/TEMPLATE.yaml) - Template pour nouvelles apps
+- [vagrant/README.md](vagrant/README.md) - Documentation Vagrant/RKE2
 
 ## 🎓 Ressources ArgoCD
 

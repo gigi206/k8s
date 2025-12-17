@@ -83,15 +83,19 @@ Applications déployées (10 Applications)
 Les applications sont déployées dans cet ordre via les **sync waves** (définis dans chaque `applicationset.yaml`) :
 
 1. **Wave 10** : `apps/metallb/` → Load Balancer (fournit des IPs externes)
-2. **Wave 15** : `apps/kube-vip/` → Load Balancer alternatif (VIP)
-3. **Wave 15** : `apps/gateway-api-controller/` → Gateway API CRDs et Controller
+2. **Wave 15** : `apps/kube-vip/` → VIP pour l'API Kubernetes
+3. **Wave 15** : `apps/gateway-api-controller/` → Gateway API CRDs
 4. **Wave 20** : `apps/cert-manager/` → Gestion des certificats TLS
-5. **Wave 30** : `apps/external-dns/` → Synchronisation DNS automatique
-6. **Wave 40** : `apps/ingress-nginx/` → Routage HTTP/HTTPS
-7. **Wave 50** : `apps/argocd/` → GitOps Controller (se gère lui-même)
-8. **Wave 55** : `apps/csi-external-snapshotter/` → CSI Snapshot Controller
-9. **Wave 60** : `apps/longhorn/` → Stockage persistant distribué
-10. **Wave 75** : `apps/prometheus-stack/` → Monitoring (Prometheus + Grafana)
+5. **Wave 25** : `apps/external-secrets/` → Synchronisation des secrets externes
+6. **Wave 40** : `apps/istio/` → Service Mesh (si activé)
+7. **Wave 40** : `apps/ingress-nginx/` → Routage HTTP/HTTPS
+8. **Wave 45** : `apps/external-dns/` → Synchronisation DNS automatique
+9. **Wave 45** : `apps/istio-gateway/` → Gateway Istio (si activé)
+10. **Wave 50** : `apps/argocd/` → GitOps Controller (se gère lui-même)
+11. **Wave 55** : `apps/csi-external-snapshotter/` → CSI Snapshot Controller
+12. **Wave 60** : `apps/longhorn/` → Stockage persistant distribué
+13. **Wave 75** : `apps/prometheus-stack/` → Monitoring (Prometheus + Grafana)
+14. **Wave 80** : `apps/keycloak/` → Identity Provider (SSO)
 
 ## Déploiement initial
 
