@@ -18,8 +18,8 @@ ArgoCD est un outil de déploiement continu (CD) déclaratif qui suit le paradig
 ### Optionnelles
 - **Ingress-NGINX** (Wave 40): Pour accès UI/CLI via ingress
 - **Cert-Manager** (Wave 20): Pour TLS automatique sur l'ingress
-- **Prometheus Stack** (Wave 70): Pour monitoring et alerting
-- **External-DNS** (Wave 30): Pour DNS automatique
+- **Prometheus Stack** (Wave 75): Pour monitoring et alerting
+- **External-DNS** (Wave 45): Pour DNS automatique
 
 ## Architecture
 

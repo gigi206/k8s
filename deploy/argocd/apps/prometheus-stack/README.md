@@ -73,7 +73,7 @@ Kube-Prometheus-Stack est une collection complète d'outils de monitoring pour K
 ### Optionnelles
 - **Ingress-NGINX** (Wave 40): Pour accès UI via ingress
 - **Cert-Manager** (Wave 20): Pour TLS automatique
-- **External-DNS** (Wave 30): Pour DNS automatique
+- **External-DNS** (Wave 45): Pour DNS automatique
 
 ## Configuration
 

@@ -9,7 +9,7 @@ Ces composants sont déployés automatiquement dans le bon ordre grâce aux sync
 
 - **MetalLB** (Wave 10): Fournit les IPs LoadBalancer pour le service ingress-nginx
 - **Cert-Manager** (Wave 20): Génère automatiquement les certificats TLS
-- **Prometheus Stack** (Wave 70): Pour le monitoring ingress-nginx
+- **Prometheus Stack** (Wave 75): Pour le monitoring ingress-nginx
   - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
   - 5 alertes automatiques (config failed, certificate expiry, 4XX/5XX errors, metrics missing)
 
