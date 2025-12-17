@@ -183,6 +183,13 @@ make vagrant-dev-destroy         # Delete cluster
 3. Create config files (`config/dev.yaml`, `config/prod.yaml`)
 4. Add to `deploy-applicationsets.sh` if needed
 5. **Add Prometheus alerts** (see Prometheus section)
+6. **Add Renovate custom manager** in `renovate.json` (see Renovate section below)
+
+## Renovate Configuration
+
+When adding a new application:
+1. Use `helm search repo <chart>` to get the latest version
+2. Add a custom manager entry in `renovate.json` (see existing entries as reference)
 
 ## Go Template Variable Limitations
 
