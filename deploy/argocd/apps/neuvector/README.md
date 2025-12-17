@@ -47,6 +47,56 @@ The ApplicationSet automatically:
 
 A PostSync Job (`controller-ca-patch-job.yaml`) patches the controller deployment to mount the cluster CA certificate for OIDC TLS verification.
 
+## Monitoring
+
+### Prometheus Alerts
+
+14 alertes sont configurées pour NeuVector :
+
+**Controller**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| NeuVectorControllerDown | critical | Controller indisponible (5m) |
+| NeuVectorControllerHighMemory | warning | Mémoire > 90% |
+
+**Enforcer**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| NeuVectorEnforcerDown | warning | Enforcers indisponibles (10m) |
+| NeuVectorEnforcerNotRunningOnAllNodes | warning | Nodes sans enforcer (15m) |
+
+**Scanner & Manager**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| NeuVectorScannerDown | warning | Scanner indisponible (10m) |
+| NeuVectorScannerDegraded | warning | Scanner dégradé (15m) |
+| NeuVectorManagerDown | warning | Manager (UI) indisponible (5m) |
+
+**Pods**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| NeuVectorPodCrashLooping | warning | Pod en restart loop (10m) |
+| NeuVectorPodNotReady | warning | Pod non ready (10m) |
+
+**Security Events**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| NeuVectorHighCVECount | warning | > 100 CVEs HIGH détectées |
+| NeuVectorCriticalCVEDetected | critical | Nouvelles CVEs CRITICAL |
+| NeuVectorAdmissionDenied | warning | > 10 déploiements refusés/heure |
+
+**License**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| NeuVectorLicenseExpiringSoon | warning | License expire dans < 30 jours |
+| NeuVectorLicenseExpired | critical | License expirée |
+
 ## Network Policy
 
 When Cilium egress policies are enabled, NeuVector has its own `CiliumNetworkPolicy` allowing:

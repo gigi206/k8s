@@ -247,6 +247,47 @@ kubectl get gateway -n <ns> -l istio.io/waypoint-for=service
 kubectl get pods -n <ns> -l gateway.networking.k8s.io/gateway-name=waypoint
 ```
 
+## Monitoring
+
+### Prometheus Alerts
+
+9 alertes sont configurées pour Tempo :
+
+**Disponibilité**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| TempoDown | critical | Tempo indisponible (5m) |
+| TempoPodDown | critical | Pod Tempo indisponible (5m) |
+| TempoPodCrashLooping | critical | Pod en restart loop (10m) |
+| TempoPodNotReady | warning | Pod non ready (10m) |
+
+**Performance**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| TempoHighIngestionRate | warning | > 10000 spans/s (10m) |
+| TempoIngestionFailures | warning | Spans reçus mais pas de traces créées (10m) |
+| TempoHighQueryLatency | warning | Latence p99 queries > 10s (10m) |
+
+**Stockage**:
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| TempoDiskUsageHigh | warning | PVC > 80% (10m) |
+| TempoDiskAlmostFull | critical | PVC > 90% (5m) |
+
+### Métriques clés
+
+```promql
+# Ingestion
+rate(tempo_distributor_spans_received_total[5m])
+tempo_ingester_traces_created_total
+
+# Queries
+histogram_quantile(0.99, rate(tempo_query_frontend_request_duration_seconds_bucket[5m]))
+```
+
 ## Références
 
 - [Grafana Tempo Documentation](https://grafana.com/docs/tempo/latest/)

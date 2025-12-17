@@ -69,6 +69,60 @@ loki:
       bucketName: loki
 ```
 
+## Monitoring
+
+### Prometheus Alerts
+
+8 alertes sont configurées pour Loki :
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| LokiDown | critical | Loki indisponible (5m) |
+| LokiPodNotReady | critical | Pod Loki non ready (5m) |
+| LokiHighRequestLatency | high | Latence p99 > 5s (10m) |
+| LokiIngesterErrors | high | Erreurs flush ingester (5m) |
+| LokiDiskAlmostFull | warning | PVC > 80% utilisé (10m) |
+| LokiHighMemoryUsage | warning | Mémoire > 85% (10m) |
+| LokiQueryErrors | warning | Taux erreurs queries > 5% (10m) |
+| LokiIngesterStreamsLimit | medium | Limite streams > 80% (10m) |
+
+### Métriques clés
+
+```promql
+# Ingestion
+rate(loki_distributor_bytes_received_total[5m])
+loki_ingester_memory_streams
+
+# Queries
+histogram_quantile(0.99, rate(loki_request_duration_seconds_bucket[5m]))
+rate(loki_logql_querystats_latency_seconds_count[5m])
+
+# Storage
+loki_ingester_chunks_stored_total
+```
+
+## Troubleshooting
+
+### Loki ne démarre pas
+
+```bash
+kubectl get pods -n loki
+kubectl logs -n loki -l app.kubernetes.io/name=loki
+kubectl describe pod -n loki -l app.kubernetes.io/name=loki
+```
+
+### Logs non visibles dans Grafana
+
+```bash
+# Vérifier qu'Alloy envoie des logs
+kubectl logs -n alloy -l app.kubernetes.io/name=alloy | grep -i loki
+
+# Tester l'API Loki
+kubectl port-forward -n loki svc/loki 3100:3100
+curl http://localhost:3100/ready
+curl http://localhost:3100/loki/api/v1/labels
+```
+
 ## Dependencies
 
 - **monitoring**: Grafana datasource configuration
