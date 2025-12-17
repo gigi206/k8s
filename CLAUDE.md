@@ -93,7 +93,9 @@ deploy/argocd/
 
 ### Sync Wave Strategy
 
-Applications are deployed in order using ArgoCD sync waves (lower = earlier). The wave number is defined in each ApplicationSet's `argocd.argoproj.io/sync-wave` annotation.
+Applications are deployed in order using ArgoCD sync waves (lower = earlier):
+- **Inter-app**: `argocd.argoproj.io/sync-wave` annotation on ApplicationSet
+- **Intra-app**: Same annotation on individual resources (e.g., CRDs wave `-1`, CRs wave `1`)
 
 ### Feature Flags
 
@@ -256,34 +258,11 @@ Configure Istio behavior per namespace with these annotations/labels:
 
 ### Grafana Dashboard Auto-Import
 
-Dashboards are ConfigMaps with specific labels/annotations for auto-import:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  labels:
-    grafana_dashboard: "1"
-  annotations:
-    grafana_dashboard_folder: "/tmp/dashboards/MyApp"
-```
+Dashboards are ConfigMaps with labels `grafana_dashboard: "1"` and annotation `grafana_dashboard_folder: "/tmp/dashboards/MyApp"`.
 
 ### ArgoCD ignoreDifferences
 
-Common fields to ignore in ApplicationSet `spec.template.spec.ignoreDifferences`:
-
-```yaml
-ignoreDifferences:
-  - group: apps
-    kind: Deployment
-    jsonPointers:
-      - /spec/replicas  # Managed by HPA
-  - group: autoscaling
-    kind: HorizontalPodAutoscaler
-    jsonPointers:
-      - /spec/minReplicas
-      - /spec/maxReplicas
-```
+Use `spec.template.spec.ignoreDifferences` to ignore fields managed externally (e.g., `/spec/replicas` for HPA-managed Deployments).
 
 ### Go Template Validation
 
@@ -299,30 +278,7 @@ argocd appset generate apps/my-app/applicationset.yaml --dry-run
 
 ### KSOPS Secret Structure
 
-Standard structure for encrypted secrets:
-
-```yaml
-# kustomization.yaml
-generators:
-  - ksops-generator.yaml
-
-# ksops-generator.yaml
-apiVersion: viaduct.ai/v1
-kind: ksops
-metadata:
-  name: secret-generator
-files:
-  - ./secret.yaml
-
-# secret.yaml (encrypted with sops)
-apiVersion: v1
-kind: Secret
-metadata:
-  name: my-secret
-type: Opaque
-stringData:
-  key: ENC[AES256_GCM,data:...,type:str]
-```
+Structure: `kustomization.yaml` (with `generators: [ksops-generator.yaml]`) → `ksops-generator.yaml` (references `secret.yaml`) → `secret.yaml` (SOPS-encrypted).
 
 ### CiliumNetworkPolicy Pattern
 
@@ -334,85 +290,19 @@ Then each application needing external access defines its own `CiliumNetworkPoli
 
 ### HTTPRoute Structure
 
-HTTPRoutes reference a Gateway and define backends:
-
-```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: my-app
-spec:
-  parentRefs:
-    - name: default-gateway
-      namespace: istio-system
-  hostnames:
-    - "my-app.k8s.lan"
-  rules:
-    - backendRefs:
-        - name: my-app-service
-          port: 8080
-```
+HTTPRoutes reference a Gateway (`parentRefs` → `default-gateway` in `istio-system`) with `hostnames` and `backendRefs` to services.
 
 ### Multi-Source Application Pattern
 
-Combine Helm chart + Kustomize overlays in one Application:
-
-```yaml
-sources:
-  - repoURL: https://charts.example.io
-    chart: my-app
-    targetRevision: "{{ .myApp.version }}"
-    helm:
-      releaseName: my-app
-      valueFiles:
-        - $values/deploy/argocd/apps/my-app/resources/values.yaml
-  - repoURL: '{{ .git.url }}'
-    targetRevision: '{{ .git.revision }}'
-    ref: values  # Reference for $values above
-  - repoURL: '{{ .git.url }}'
-    targetRevision: '{{ .git.revision }}'
-    path: deploy/argocd/apps/my-app/kustomize/monitoring
-```
-
-### Sync Waves Intra-Application
-
-Use annotations on resources for ordering within an Application (CRDs before CRs):
-
-```yaml
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"  # CRDs first
----
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"   # CRs after
-```
+Combine Helm chart + Kustomize overlays using multiple `sources`: Helm source with `$values` reference, Git source with `ref: values`, and additional Kustomize paths.
 
 ### PVC Protection
 
-Prevent PVC deletion during sync with resource annotation:
-
-```yaml
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
-```
-
-Or exclude from pruning globally in ApplicationSet `syncPolicy.syncOptions`.
+Prevent PVC deletion with annotation `argocd.argoproj.io/sync-options: Prune=false` on the resource or globally in `syncPolicy.syncOptions`.
 
 ### ArgoCD Finalizers
 
-Control resource cleanup behavior:
-
-```yaml
-metadata:
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io  # Delete resources when App deleted
-    # Or use foreground deletion:
-    - resources-finalizer.argocd.argoproj.io/foreground
-```
-
-Without finalizer, resources are orphaned when Application is deleted.
+Add `resources-finalizer.argocd.argoproj.io` finalizer to delete resources when Application is deleted (without it, resources are orphaned).
 
 ## Troubleshooting
 
