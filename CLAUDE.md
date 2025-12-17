@@ -22,9 +22,29 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 ### ApplicationSet-Based Application Management
 
 - **One ApplicationSet per application** in `deploy/argocd/apps/<app-name>/applicationset.yaml`
-- **Native Go templating** with conditional logic (`{{ if .features.monitoring.enabled }}`)
+- **Native Go templating** with conditional logic based on `config/config.yaml` flags
 - **Per-application configuration** in `deploy/argocd/apps/<app-name>/config/{env}.yaml`
 - **Git Merge Generator** combines global + app-specific config
+
+**IMPORTANT**: Always use conditions based on `config/config.yaml` to enable optional features:
+
+| Condition | Usage |
+|-----------|-------|
+| `{{- if .features.monitoring.enabled }}` | kustomize/monitoring/, ServiceMonitor params |
+| `{{- if .features.gatewayAPI.httpRoute.enabled }}` | kustomize/httproute/ |
+| `{{- if .features.oauth2Proxy.enabled }}` | kustomize/oauth2-authz/ |
+| `{{- if .features.cilium.egressPolicy.enabled }}` | resources/cilium-egress-policy.yaml |
+| `{{- if .features.sso.enabled }}` | secrets/, ExternalSecret, KeycloakClient |
+| `{{- if .features.tracing.enabled }}` | tracing config (Tempo/Jaeger) |
+| `{{- if .features.serviceMesh.enabled }}` | service mesh integration |
+| `{{- if .features.ingress.enabled }}` | Ingress config |
+| `{{- if .features.certManager.enabled }}` | TLS annotations |
+| `{{- if .syncPolicy.automated.enabled }}` | automated sync block |
+
+**Combined conditions** (use `and`/`eq` for provider-specific logic):
+- `{{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}`
+- `{{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}`
+- `{{- if and .features.storage.enabled .persistence.enabled }}` (storage + app persistence)
 
 ### Configuration Hierarchy
 
