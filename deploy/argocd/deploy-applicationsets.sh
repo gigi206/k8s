@@ -375,7 +375,7 @@ FEAT_OAUTH2_PROXY=$(get_feature '.features.oauth2Proxy.enabled' 'true')
 FEAT_NEUVECTOR=$(get_feature '.features.neuvector.enabled' 'false')
 FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
 FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
-FEAT_TRACING_WAYPOINTS=$(get_feature '.features.tracing.waypoints.enabled' 'false')
+FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enabled' 'false')
 FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
 
 log_debug "Feature flags lus:"
@@ -395,7 +395,8 @@ log_debug "  logging: $FEAT_LOGGING (loki: $FEAT_LOGGING_LOKI, collector: $FEAT_
 log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
 log_debug "  neuvector: $FEAT_NEUVECTOR"
-log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
+log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
+log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
 
 # =============================================================================
@@ -507,7 +508,7 @@ resolve_dependencies() {
     # tracing waypoints → serviceMesh (Istio) + gatewayAPI
     # =========================================================================
     # Waypoint proxies require Istio Ambient mode for L7 tracing
-    if [[ "$FEAT_TRACING" == "true" ]] && [[ "$FEAT_TRACING_WAYPOINTS" == "true" ]]; then
+    if [[ "$FEAT_SERVICEMESH_WAYPOINTS" == "true" ]]; then
       if [[ "$FEAT_SERVICE_MESH" != "true" ]]; then
         log_info "  → Activation de serviceMesh (requis par tracing waypoints)"
         FEAT_SERVICE_MESH="true"
@@ -1180,7 +1181,8 @@ echo "  Storage:           $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
 echo "  Database Operator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 echo "  Monitoring:        $FEAT_MONITORING"
 echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
-echo "  Tracing:           $FEAT_TRACING ($FEAT_TRACING_PROVIDER, waypoints: $FEAT_TRACING_WAYPOINTS)"
+echo "  Tracing:           $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
+echo "  ServiceMesh Waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 echo "  OAuth2-Proxy:      $FEAT_OAUTH2_PROXY"
 echo "  NeuVector:         $FEAT_NEUVECTOR"
