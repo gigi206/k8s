@@ -4,3 +4,4 @@ kind: Kustomization
 
 resources:
   - prometheusrules.yaml
+  - grafana-dashboard.yaml
