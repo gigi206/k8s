@@ -411,18 +411,6 @@
         "images:\\s*\\n\\s*curl:\\s*\\n\\s*repository:\\s*(?<depName>[^\\n]+)\\s*\\n\\s*tag:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "description": "Kubectl image (registry.k8s.io/kubectl)",
-      "managerFilePatterns": [
-        "/^deploy/argocd/apps/.*\\.yaml$/"
-      ],
-      "matchStrings": [
-        "image:\\s*registry\\.k8s\\.io/kubectl:(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
-      ],
-      "depNameTemplate": "registry.k8s.io/kubectl",
-      "datasourceTemplate": "docker"
     }
   ]
 }
