@@ -210,5 +210,58 @@ See the [Istio README](../istio/README.md#distributed-tracing) for details on:
 
 When `features.monitoring.enabled: true`:
 - ServiceMonitor is created for Prometheus scraping
-- PrometheusRules are deployed from `kustomize/prometheus.yaml`
+- PrometheusRules are deployed from `kustomize/monitoring/`
 - Alloy self-metrics are exposed
+
+### Prometheus Alerts
+
+7 alertes sont configurées pour Alloy :
+
+| Alerte | Sévérité | Description |
+|--------|----------|-------------|
+| AlloyDaemonSetNotRunning | critical | DaemonSet incomplet (5m) |
+| AlloyPodNotReady | critical | Pod non ready (5m) |
+| AlloyLogDeliveryFailures | high | Échec envoi logs vers Loki (10m) |
+| AlloyPodCrashLooping | high | Pod en restart loop (10m) |
+| AlloyHighMemoryUsage | warning | Mémoire > 85% (10m) |
+| AlloyHighCPUUsage | warning | CPU > 85% (10m) |
+| AlloySlowLogProcessing | medium | Traitement p99 > 1s (15m) |
+
+### Métriques clés
+
+```promql
+# Envoi vers Loki
+rate(loki_write_sent_bytes_total{job="alloy"}[5m])
+rate(loki_write_dropped_bytes_total{job="alloy"}[5m])
+
+# Traitement
+histogram_quantile(0.99, rate(loki_process_duration_seconds_bucket{job="alloy"}[5m]))
+```
+
+## Troubleshooting
+
+### Logs non collectés
+
+```bash
+# Vérifier les pods Alloy
+kubectl get pods -n alloy
+
+# Logs Alloy
+kubectl logs -n alloy -l app.kubernetes.io/name=alloy
+
+# Vérifier la configuration
+kubectl get configmap -n alloy alloy -o yaml
+```
+
+### Erreurs d'envoi vers Loki
+
+```bash
+# Vérifier la connectivité vers Loki
+kubectl exec -n alloy -l app.kubernetes.io/name=alloy -- \
+  curl -s http://loki.loki.svc.cluster.local:3100/ready
+```
+
+## References
+
+- [Grafana Alloy Documentation](https://grafana.com/docs/alloy/latest/)
+- [Loki Log Sources](https://grafana.com/docs/alloy/latest/reference/components/loki.source.kubernetes/)
