@@ -37,6 +37,7 @@ data:
           "targets": [
             {
               "expr": "nv_summary_hosts",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -73,6 +74,7 @@ data:
           "targets": [
             {
               "expr": "nv_summary_controllers",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -109,6 +111,7 @@ data:
           "targets": [
             {
               "expr": "nv_summary_enforcers",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -145,6 +148,7 @@ data:
           "targets": [
             {
               "expr": "nv_summary_pods",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -182,6 +186,7 @@ data:
           "targets": [
             {
               "expr": "nv_summary_disconnectedEnforcers",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -271,6 +276,7 @@ data:
           "targets": [
             {
               "expr": "nv_admission_allowed",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -307,6 +313,7 @@ data:
           "targets": [
             {
               "expr": "nv_admission_denied",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -346,6 +353,7 @@ data:
           "targets": [
             {
               "expr": "nv_summary_cvedbVersion",
+              "instant": true,
               "refId": "A"
             }
           ],
@@ -383,6 +391,7 @@ data:
           "targets": [
             {
               "expr": "nv_summary_cvedbTime",
+              "instant": true,
               "refId": "A"
             }
           ],
