@@ -181,6 +181,18 @@ make vagrant-dev-destroy         # Delete cluster
 4. Add to `deploy-applicationsets.sh` if needed
 5. **Add Prometheus alerts** (see Prometheus section)
 6. **Add Renovate custom manager** in `renovate.json` (see Renovate section below)
+7. **Create `README.md`** in the app directory (see Documentation section)
+
+### Documentation Updates
+
+**MANDATORY**: Always update documentation when modifying applications.
+
+When modifying an application:
+1. **Update `apps/<app-name>/README.md`** - Document any configuration changes, new features, or breaking changes
+2. **Update `README.md` (root)** - If the change affects the project structure, available apps, or general usage
+
+When adding a new application:
+1. **Create `apps/<app-name>/README.md`** - Document purpose, configuration options, dependencies, and usage examples
 
 ## Renovate Configuration
 
