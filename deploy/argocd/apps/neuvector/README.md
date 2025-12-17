@@ -55,7 +55,7 @@ The Prometheus exporter collects metrics from NeuVector.
 
 #### Enforcer Stats (Performance Impact)
 
-By default, enforcer CPU/Memory metrics are **disabled** for performance reasons. Enable only if needed:
+By default, Controller and Enforcer CPU/Memory metrics are **disabled** for performance reasons. Enable only if needed:
 
 ```yaml
 # config/dev.yaml
@@ -65,7 +65,9 @@ neuvector:
       enabled: true  # WARNING: impacts performance
 ```
 
-When enabled, the exporter exposes `nv_enforcer_cpu` and `nv_enforcer_memory` metrics for the Grafana dashboard.
+When enabled, the exporter exposes the following metrics for the Grafana dashboard:
+- `nv_controller_cpu` / `nv_controller_memory` - Controller resource usage
+- `nv_enforcer_cpu` / `nv_enforcer_memory` - Enforcer resource usage
 
 ### Grafana Dashboard
 
