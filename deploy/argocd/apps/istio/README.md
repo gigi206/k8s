@@ -168,7 +168,7 @@ This ApplicationSet deploys 4 Istio components via separate Helm charts:
 
 ### Wave Configuration
 
-- **Wave**: 78 (after Cilium-Monitoring Wave 76)
+- **Wave**: 40 (service mesh foundation, before istio-gateway Wave 45)
 - **Namespace**: `istio-system`
 - **Dependencies**:
   - Cilium CNI (with required configuration)
