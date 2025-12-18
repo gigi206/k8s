@@ -180,6 +180,12 @@ spec:
                 # Reverse proxy mode (for ext_authz)
                 reverse-proxy: true
 
+                {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+                # CA file for TLS verification when connecting to Keycloak
+                # Required for token refresh which uses external HTTPS URL
+                provider-ca-file: "/etc/ssl/certs/root-ca.crt"
+                {{- end }}
+
               # Service for ext_authz
               service:
                 type: ClusterIP
@@ -215,6 +221,19 @@ spec:
                         sleep 5
                       done
                       echo "Keycloak OIDC discovery endpoint is available!"
+
+              # Mount root CA for TLS verification when refreshing tokens
+              # OAuth2 Proxy uses external HTTPS URLs from OIDC discovery during token refresh
+              extraVolumes:
+                - name: root-ca
+                  secret:
+                    secretName: root-ca
+
+              extraVolumeMounts:
+                - name: root-ca
+                  mountPath: /etc/ssl/certs/root-ca.crt
+                  subPath: ca.crt
+                  readOnly: true
               {{- end }}
 
               # Resources
