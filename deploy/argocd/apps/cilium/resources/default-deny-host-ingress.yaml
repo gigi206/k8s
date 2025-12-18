@@ -62,6 +62,7 @@ spec:
         - world
       icmps:
         - fields:
-            - type: 8  # Echo Request
+            - family: IPv4
+              type: 8  # Echo Request
 
     # NO other external access - applications must define their own policies
