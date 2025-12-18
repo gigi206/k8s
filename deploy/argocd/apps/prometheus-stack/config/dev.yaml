@@ -4,7 +4,7 @@ environment: dev
 appName: prometheus-stack
 
 prometheusStack:
-  version: "80.4.1"
+  version: "80.4.2"
   prometheus:
     # Persistence (requires features.storage.enabled)
     persistence:
