@@ -163,10 +163,6 @@ spec:
               controller:
                 enabled: true
                 replicas: {{ .neuvector.controller.replicas | default 1 }}
-                {{- if .neuvector.controller.strategy }}
-                strategy:
-                  type: {{ .neuvector.controller.strategy }}
-                {{- end }}
                 apisvc:
                   type: ClusterIP
                 resources:
