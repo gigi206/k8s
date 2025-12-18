@@ -23,7 +23,8 @@ ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argo-cd}"
 
 # Timeouts (configurables via variables d'environnement)
 TIMEOUT_APPSETS="${TIMEOUT_APPSETS:-120}"
-TIMEOUT_APPS_GENERATION="${TIMEOUT_APPS_GENERATION:-120}"
+# ApplicationSets have requeueAfter=3m, so we need at least 240s for generation
+TIMEOUT_APPS_GENERATION="${TIMEOUT_APPS_GENERATION:-240}"
 TIMEOUT_APPS_SYNC="${TIMEOUT_APPS_SYNC:-900}"
 TIMEOUT_API_LB="${TIMEOUT_API_LB:-60}"
 
@@ -825,9 +826,65 @@ apply_bootstrap_network_policies() {
       log_debug "Pas de network policy ArgoCD trouvée: $argocd_policy"
     fi
   fi
+
+  # 4. ArgoCD root-ca ExternalSecret - required for argocd-server to start (chicken-and-egg)
+  if [[ "$FEAT_SSO" == "true" ]]; then
+    local argocd_ca_secret="${SCRIPT_DIR}/apps/argocd/kustomize/sso/external-secret-ca.yaml"
+    if [[ -f "$argocd_ca_secret" ]]; then
+      if kubectl apply -f "$argocd_ca_secret" > /dev/null 2>&1; then
+        log_success "ExternalSecret root-ca pour ArgoCD appliqué"
+      else
+        log_warning "Impossible d'appliquer l'ExternalSecret root-ca pour ArgoCD"
+      fi
+    else
+      log_debug "Pas d'ExternalSecret CA trouvé: $argocd_ca_secret"
+    fi
+  fi
+
+  # Wait for Cilium to propagate policies to endpoints
+  log_info "Attente de la propagation des policies Cilium (10s)..."
+  sleep 10
 }
 
 apply_bootstrap_network_policies
+
+# =============================================================================
+# Attente du repo-server (requis AVANT déploiement des ApplicationSets)
+# =============================================================================
+# Les ApplicationSets utilisent un Git generator qui nécessite le repo-server.
+# Si on déploie les ApplicationSets avant que le repo-server soit prêt,
+# ils échouent et attendent 3 minutes (requeueAfter) pour réessayer.
+
+echo ""
+check_repo_server_ready() {
+  # Check pod is Ready
+  local ready
+  ready=$(kubectl get pods -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-repo-server -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+  if [[ "$ready" != "True" ]]; then
+    return 1
+  fi
+
+  # Verify the service endpoint is registered
+  local endpoints
+  endpoints=$(kubectl get endpoints -n "$ARGOCD_NAMESPACE" argocd-repo-server -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null)
+  if [[ -n "$endpoints" ]]; then
+    printf "\n"
+    log_success "ArgoCD repo-server est prêt (endpoints: $endpoints)"
+    # Wait for gRPC service to fully initialize after pod is Ready
+    log_info "Attente initialisation du service gRPC repo-server (10s)..."
+    sleep 10
+    return 0
+  fi
+
+  return 1
+}
+
+wait_for_condition \
+  "Attente du repo-server ArgoCD..." \
+  "$TIMEOUT_APPSETS" \
+  check_repo_server_ready || {
+    log_warning "repo-server non prêt - les ApplicationSets devront attendre 3min pour réconcilier"
+  }
 
 # =============================================================================
 # Déploiement des ApplicationSets (en parallèle)

@@ -12,10 +12,9 @@ neuvector:
   # Must be strong enough: 8+ chars, uppercase, lowercase, number, special char
   adminPassword: "Admin123!"
 
-  # Controller (single replica for dev)
+  # Controller (2 replicas for Consul quorum during rolling updates)
   controller:
-    replicas: 1
-    strategy: Recreate  # Avoid rolling update issues with Consul
+    replicas: 2
     resources:
       requests:
         cpu: "200m"
