@@ -181,4 +181,4 @@ features:
 
   # === Container Security ===
   neuvector:
-    enabled: true  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+    enabled: false  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
