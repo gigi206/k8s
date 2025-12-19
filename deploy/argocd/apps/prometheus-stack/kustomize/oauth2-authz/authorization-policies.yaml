@@ -25,6 +25,8 @@ spec:
         - operation:
             hosts:
               - "prometheus.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            notPaths:
+              - "/oauth2/*"  # Exclude OAuth2 flow paths (handled by HTTPRoute)
 
 ---
 # Alertmanager
@@ -46,3 +48,5 @@ spec:
         - operation:
             hosts:
               - "alertmanager.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            notPaths:
+              - "/oauth2/*"  # Exclude OAuth2 flow paths (handled by HTTPRoute)

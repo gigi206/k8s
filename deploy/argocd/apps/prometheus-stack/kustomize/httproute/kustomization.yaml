@@ -7,3 +7,4 @@ resources:
   - grafana-httproute.yaml
   - alertmanager-httproute.yaml
   - referencegrant.yaml
+  - oauth2-proxy-referencegrant.yaml

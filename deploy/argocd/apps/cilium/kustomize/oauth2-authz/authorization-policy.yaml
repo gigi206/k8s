@@ -4,6 +4,7 @@
 # =============================================================================
 # Protects Hubble UI by requiring authentication via OAuth2 Proxy
 # In Istio ambient mode, must use targetRef with Gateway instead of selector
+# Excludes /oauth2/* paths to allow OAuth2 login flow
 # =============================================================================
 
 apiVersion: security.istio.io/v1
@@ -24,3 +25,5 @@ spec:
         - operation:
             hosts:
               - "hubble.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            notPaths:
+              - "/oauth2/*"

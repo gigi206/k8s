@@ -17,6 +17,19 @@ spec:
   hostnames:
   - "alertmanager.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
   rules:
+  # Route /oauth2/* to OAuth2 Proxy for authentication flow
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /oauth2/
+    backendRefs:
+    - group: ""
+      kind: Service
+      name: oauth2-proxy
+      namespace: oauth2-proxy
+      port: 4180
+      weight: 1
+  # Route all other traffic to Alertmanager
   - matches:
     - path:
         type: PathPrefix
