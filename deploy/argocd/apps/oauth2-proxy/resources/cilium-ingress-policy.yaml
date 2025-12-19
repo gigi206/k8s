@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - OAuth2 Proxy Ingress Security
+# =============================================================================
+# Restricts access to OAuth2 Proxy to authorized sources:
+# - istio-system: ext_authz requests from Envoy sidecars/ztunnel
+# - monitoring: Prometheus metrics scraping
+# - oauth2-proxy: Internal communication
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress
+  namespace: oauth2-proxy
+spec:
+  description: "Allow ingress to OAuth2 Proxy from authorized sources"
+  endpointSelector: {}  # Applies to all pods in oauth2-proxy namespace
+
+  ingress:
+    # Allow from istio-system (ext_authz from Envoy)
+    # Envoy sidecars and ztunnel send auth requests to OAuth2 Proxy
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "4180"    # OAuth2 Proxy main port
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "44180"   # Metrics port
+              protocol: TCP
+
+    # Allow internal OAuth2 Proxy communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: oauth2-proxy
+      toPorts:
+        - ports:
+            - port: "4180"    # OAuth2 Proxy main port
+              protocol: TCP
+            - port: "44180"   # Metrics port
+              protocol: TCP

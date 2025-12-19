@@ -70,6 +70,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/external-secrets/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s

@@ -68,7 +68,7 @@ spec:
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
             include: "*.yaml"
-            exclude: "{prometheus.yaml,grafana-dashboard.yaml}"
+            exclude: "{prometheus.yaml,grafana-dashboard.yaml,cilium-*.yaml}"
 
       destination:
         server: https://kubernetes.default.svc
@@ -102,6 +102,14 @@ spec:
           path: deploy/argocd/apps/cert-manager/resources
           directory:
             include: "cilium-egress-policy.yaml"
+        {{- end }}
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cert-manager/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
         {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source 3: Prometheus monitoring (conditional) - with dynamic release label
@@ -206,4 +214,4 @@ spec:
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
             include: "*.yaml"
-            exclude: "{prometheus.yaml,grafana-dashboard.yaml}"
+            exclude: "{prometheus.yaml,grafana-dashboard.yaml,cilium-*.yaml}"
