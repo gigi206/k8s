@@ -13,8 +13,10 @@ kind: Job
 metadata:
   name: ceph-dashboard-saml-config
   namespace: rook-ceph
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
-  ttlSecondsAfterFinished: 300
   backoffLimit: 10
   template:
     spec:
