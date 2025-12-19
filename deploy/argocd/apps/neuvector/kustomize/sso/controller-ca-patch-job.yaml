@@ -16,7 +16,6 @@ metadata:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
-  ttlSecondsAfterFinished: 300
   template:
     spec:
       serviceAccountName: neuvector-controller-ca-patch
