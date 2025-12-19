@@ -82,6 +82,12 @@ spec:
           path: deploy/argocd/apps/istio-gateway/resources
           directory:
             include: "cilium-host-ingress-policy.yaml"
+        # Cilium Ingress Policy (pod-to-pod access control)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/istio-gateway/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
         {{- end }}
         # Gateway API resources (Gateway + Certificate)
         # Istio automatically creates a Deployment and LoadBalancer Service for the Gateway

@@ -87,8 +87,15 @@ spec:
           prune: {{ .syncPolicy.automated.prune }}
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
-      {{- if .features.monitoring.enabled }}
       sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         # Source 1: Chart Helm MetalLB
         - repoURL: https://metallb.github.io/metallb
           targetRevision: '{{ .metallb.version }}'
@@ -104,8 +111,9 @@ spec:
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
             include: "*.yaml"
-            exclude: "prometheus.yaml"
+            exclude: "{prometheus.yaml,cilium-ingress-policy.yaml}"
 
+        {{- if .features.monitoring.enabled }}
         # Source 3: Services pour métriques (sans label release dans selectors)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -118,4 +126,4 @@ spec:
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
-      {{- end }}
+        {{- end }}

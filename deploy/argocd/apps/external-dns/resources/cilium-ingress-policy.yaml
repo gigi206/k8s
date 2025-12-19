@@ -1,0 +1,43 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - External-DNS Ingress Security
+# =============================================================================
+# Restricts access to External-DNS to authorized sources:
+# - monitoring: Prometheus metrics scraping
+# - external-dns: Internal communication (etcd backend)
+#
+# Note: DNS traffic (port 53) is handled by cilium-host-ingress-policy.yaml
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: external-dns-ingress
+  namespace: external-dns
+spec:
+  description: "Allow ingress to External-DNS from authorized sources"
+  endpointSelector: {}  # Applies to all pods in external-dns namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "7979"    # Metrics
+              protocol: TCP
+
+    # Allow internal External-DNS communication (same namespace)
+    # CoreDNS <-> etcd backend
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: external-dns
+      toPorts:
+        - ports:
+            - port: "7979"    # Metrics
+              protocol: TCP
+            - port: "2379"    # etcd client
+              protocol: TCP
+            - port: "2380"    # etcd peer
+              protocol: TCP
