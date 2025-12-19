@@ -138,7 +138,18 @@ spec:
                 clusterWide: {{ .cnpgOperator.config.clusterWide }}
                 {{- end }}
               {{- end }}
-        # Source 3: Additional resources (ClusterImageCatalog, etc.)
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source 3: Cilium ingress policy - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cnpg-operator/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
+        # Source 4: Additional resources (ClusterImageCatalog, etc.)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cnpg-operator/resources
+          directory:
+            include: "*.yaml"
+            exclude: "cilium-*.yaml"

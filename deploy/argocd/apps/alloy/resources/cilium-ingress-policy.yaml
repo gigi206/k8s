@@ -1,0 +1,39 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Alloy Ingress Security
+# =============================================================================
+# Restricts access to Grafana Alloy to authorized sources:
+# - monitoring: Prometheus metrics scraping
+# - alloy: Internal communication
+#
+# Note: Alloy PULLS logs from pods via Kubernetes API, it does not receive
+# pushed logs. Only metrics scraping requires inbound access.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alloy-ingress
+  namespace: alloy
+spec:
+  description: "Allow ingress to Alloy for metrics scraping"
+  endpointSelector: {}  # Applies to all pods in alloy namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "12345"   # HTTP API + self-metrics
+              protocol: TCP
+
+    # Allow internal Alloy communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: alloy
+      toPorts:
+        - ports:
+            - port: "12345"   # HTTP API + self-metrics
+              protocol: TCP

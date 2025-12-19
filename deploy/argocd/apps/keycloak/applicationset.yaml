@@ -159,8 +159,17 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
 
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source 8: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
+
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 8: HTTPRoute (Gateway API) - conditional
+        # Source 9: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize/httproute
@@ -176,7 +185,7 @@ spec:
         {{- end }}
 
         {{- if .features.monitoring.enabled }}
-        # Source 9: Prometheus monitoring (conditional)
+        # Source 10: Prometheus monitoring (conditional)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize/monitoring

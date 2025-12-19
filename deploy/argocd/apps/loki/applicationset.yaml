@@ -76,12 +76,20 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 0: Namespace + CiliumNetworkPolicy
+        # Source 0: Namespace (always deployed)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/loki/resources
           directory:
-            include: "*.yaml"
+            include: "namespace.yaml"
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source 1: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loki/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
 
         {{- if and (eq .loki.storage.type "s3") (eq .features.storage.provider "rook") }}
         # Source: S3 ObjectBucketClaim (creates bucket + credentials via Rook-Ceph)

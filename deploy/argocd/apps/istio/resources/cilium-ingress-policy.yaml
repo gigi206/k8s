@@ -1,0 +1,82 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Istio Ingress Security
+# =============================================================================
+# Restricts access to Istio control plane and Kiali to authorized sources:
+# - All namespaces: xDS configuration (sidecars/ztunnel connect to istiod)
+# - monitoring: Prometheus metrics scraping
+# - istio-system: Internal communication
+# - kube-system: CNI and system components
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: istio-ingress
+  namespace: istio-system
+spec:
+  description: "Allow ingress to Istio control plane from authorized sources"
+  endpointSelector: {}  # Applies to all pods in istio-system namespace
+
+  ingress:
+    # Allow from all namespaces for xDS configuration
+    # Sidecars and ztunnel connect to istiod for service discovery and config
+    - fromEndpoints:
+        - matchExpressions:
+            - key: io.kubernetes.pod.namespace
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "15010"   # gRPC xDS (insecure)
+              protocol: TCP
+            - port: "15012"   # gRPC xDS (TLS)
+              protocol: TCP
+            - port: "15014"   # HTTP (control plane monitoring, version)
+              protocol: TCP
+            - port: "15017"   # Webhook (sidecar injection)
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "15014"   # istiod metrics
+              protocol: TCP
+            - port: "15020"   # ztunnel/proxy metrics
+              protocol: TCP
+            - port: "15090"   # Envoy admin port (metrics)
+              protocol: TCP
+            - port: "20001"   # Kiali web UI/API
+              protocol: TCP
+
+    # Allow from kube-system (CNI, kubelet probes, webhook calls)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "15017"   # Webhook (sidecar injection)
+              protocol: TCP
+
+    # Allow internal istio-system communication (Gateway, ztunnel, istiod, Kiali)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "15010"   # xDS insecure
+              protocol: TCP
+            - port: "15012"   # xDS TLS
+              protocol: TCP
+            - port: "15014"   # Control plane monitoring
+              protocol: TCP
+            - port: "15017"   # Webhook
+              protocol: TCP
+            - port: "15020"   # ztunnel metrics
+              protocol: TCP
+            - port: "15090"   # Envoy admin
+              protocol: TCP
+            - port: "20001"   # Kiali
+              protocol: TCP

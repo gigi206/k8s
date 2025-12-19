@@ -1,0 +1,67 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Longhorn Ingress Security
+# =============================================================================
+# Restricts access to Longhorn to authorized sources:
+# - monitoring: Prometheus metrics scraping
+# - longhorn-system: Internal communication between components
+# - istio-system: Gateway ingress traffic for UI
+# - kube-system: Webhook calls from kube-apiserver
+#
+# Note: CSI driver uses local Unix sockets on nodes, no network policy needed.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: longhorn-ingress
+  namespace: longhorn-system
+spec:
+  description: "Allow ingress to Longhorn from authorized sources"
+  endpointSelector: {}  # Applies to all pods in longhorn-system namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9500"    # Manager metrics
+              protocol: TCP
+
+    # Allow from istio-system (Gateway ingress for UI)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "80"      # Frontend UI
+              protocol: TCP
+
+    # Allow from kube-system (API server webhook calls)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "9443"    # Webhook validation
+              protocol: TCP
+
+    # Allow internal Longhorn communication (same namespace)
+    # Manager <-> Manager, UI <-> Manager, Operator <-> Manager
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: longhorn-system
+      toPorts:
+        - ports:
+            - port: "80"      # Frontend UI
+              protocol: TCP
+            - port: "8500"    # Manager API
+              protocol: TCP
+            - port: "9500"    # Manager metrics/communication
+              protocol: TCP
+            - port: "9501"    # Manager WebSocket
+              protocol: TCP
+            - port: "9443"    # Webhooks
+              protocol: TCP
