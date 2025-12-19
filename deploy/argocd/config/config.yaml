@@ -146,6 +146,10 @@ features:
       enabled: true     # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
     ingressPolicy:
       enabled: true     # CiliumClusterwideNetworkPolicy default-deny host ingress (SSH, API, HTTP/HTTPS)
+    defaultDenyPodIngress:
+      enabled: true     # CiliumClusterwideNetworkPolicy default-deny pod-to-pod ingress (Zero Trust)
+                        # Requires per-app CiliumNetworkPolicy to allow traffic
+                        # Excludes: kube-system (DNS, API, CNI)
 
   # === Observability: Logging ===
   logging:

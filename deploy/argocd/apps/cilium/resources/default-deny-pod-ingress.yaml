@@ -1,0 +1,61 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - Default Deny Pod Ingress (Zero Trust)
+# =============================================================================
+# This policy implements Zero Trust networking by blocking ALL pod-to-pod
+# ingress traffic by default. Only explicitly allowed traffic passes.
+#
+# BASELINE ALLOWS (minimal for cluster operation):
+# - Health probes from kubelet (host)
+# - Traffic from kube-system (DNS, metrics-server, CNI)
+#
+# EXCLUDED FROM THIS POLICY:
+# - kube-system pods: Critical system components remain unrestricted
+#
+# ALL OTHER INGRESS IS BLOCKED BY DEFAULT.
+#
+# Each application must define its own CiliumNetworkPolicy to allow:
+# - Intra-namespace traffic (pods talking to each other)
+# - Cross-namespace traffic (monitoring, mesh, etc.)
+#
+# Example per-app policy:
+#   deploy/argocd/apps/<app>/resources/cilium-ingress-policy.yaml
+#
+# WARNING: Applications without ingress policies will be isolated!
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: default-deny-pod-ingress
+spec:
+  description: "Default deny all pod ingress (Zero Trust) - baseline allows only"
+
+  # Apply to ALL pods EXCEPT those in kube-system
+  # kube-system must remain unrestricted for DNS, CNI, metrics-server
+  endpointSelector:
+    matchExpressions:
+      - key: io.kubernetes.pod.namespace
+        operator: NotIn
+        values:
+          - kube-system
+
+  ingress:
+    # Rule 1: Allow health checks from kubelet (liveness/readiness probes)
+    # Without this, all pods would fail health checks and restart
+    - fromEntities:
+        - host
+
+    # Rule 2: Allow from kube-system (essential cluster services)
+    # - CoreDNS: DNS resolution for all pods
+    # - metrics-server: kubectl top, HPA
+    # - Cilium: CNI networking
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+
+    # NO OTHER RULES = ALL OTHER INGRESS DENIED
+    # Per-app CiliumNetworkPolicy must explicitly allow:
+    # - Same namespace: fromEndpoints with io.kubernetes.pod.namespace: <ns>
+    # - Cross namespace: fromEndpoints with specific namespace labels
+    # - Specific ports: toPorts with port numbers
