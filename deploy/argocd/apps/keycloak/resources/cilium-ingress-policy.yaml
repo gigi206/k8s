@@ -65,6 +65,17 @@ spec:
             - port: "8000"    # PostgreSQL status
               protocol: TCP
 
+    # Allow from cnpg-system (CNPG operator manages PostgreSQL)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - port: "8000"    # PostgreSQL status endpoint
+              protocol: TCP
+            - port: "8080"    # PostgreSQL metrics/admin
+              protocol: TCP
+
     # Allow from istio-system (Gateway ingress)
     - fromEndpoints:
         - matchLabels:

@@ -167,18 +167,20 @@ spec:
 # PodMonitor pour le cluster PostgreSQL CNPG
 # =============================================================================
 # Note: le label 'release' est injecte via Kustomize commonLabels
+# IMPORTANT: Le nom doit etre different de "keycloak-db" (nom du cluster CNPG)
+# car CNPG supprime les PodMonitors portant le meme nom que le cluster
+# quand enablePodMonitor=false
 
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: keycloak-db
+  name: keycloak-postgresql
   namespace: keycloak
-  labels:
-    cnpg.io/cluster: keycloak-db
 spec:
   selector:
     matchLabels:
-      cnpg.io/cluster: keycloak-db
+      app.kubernetes.io/instance: keycloak-db
+      app.kubernetes.io/name: postgresql
   podMetricsEndpoints:
     - port: metrics
       metricRelabelings:
