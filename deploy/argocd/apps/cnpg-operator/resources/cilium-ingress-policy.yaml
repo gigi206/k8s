@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - CNPG Operator Ingress Security
+# =============================================================================
+# Restricts access to CloudNativePG Operator to authorized sources:
+# - kube-system: Webhook calls from kube-apiserver (Cluster CR validation)
+# - monitoring: Prometheus metrics scraping
+# - cnpg-system: Internal communication
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cnpg-operator-ingress
+  namespace: cnpg-system
+spec:
+  description: "Allow ingress to CNPG Operator from authorized sources"
+  endpointSelector: {}  # Applies to all pods in cnpg-system namespace
+
+  ingress:
+    # Allow from kube-system (API server webhook calls)
+    # kube-apiserver calls webhooks for Cluster CR validation/mutation
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "9443"    # Webhook server port
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8080"    # Metrics port
+              protocol: TCP
+
+    # Allow internal cnpg-system communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - port: "9443"    # Webhook server port
+              protocol: TCP
+            - port: "8080"    # Metrics port
+              protocol: TCP

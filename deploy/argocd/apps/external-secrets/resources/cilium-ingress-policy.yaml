@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - External Secrets Ingress Security
+# =============================================================================
+# Restricts access to External Secrets Operator to authorized sources:
+# - kube-system: Webhook calls from kube-apiserver
+# - monitoring: Prometheus metrics scraping
+# - external-secrets: Internal communication
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: external-secrets-ingress
+  namespace: external-secrets
+spec:
+  description: "Allow ingress to External Secrets from authorized sources"
+  endpointSelector: {}  # Applies to all pods in external-secrets namespace
+
+  ingress:
+    # Allow from kube-system (API server webhook calls)
+    # kube-apiserver calls webhooks for ExternalSecret conversion and validation
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "10250"   # Webhook server port
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8080"    # Metrics port
+              protocol: TCP
+
+    # Allow internal external-secrets communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: external-secrets
+      toPorts:
+        - ports:
+            - port: "10250"   # Webhook server port
+              protocol: TCP
+            - port: "8080"    # Metrics port
+              protocol: TCP

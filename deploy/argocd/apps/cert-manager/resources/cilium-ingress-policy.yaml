@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Cert-Manager Ingress Security
+# =============================================================================
+# Restricts access to Cert-Manager to authorized sources:
+# - kube-system: Webhook calls from kube-apiserver
+# - monitoring: Prometheus metrics scraping
+# - cert-manager: Internal communication
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-ingress
+  namespace: cert-manager
+spec:
+  description: "Allow ingress to Cert-Manager from authorized sources"
+  endpointSelector: {}  # Applies to all pods in cert-manager namespace
+
+  ingress:
+    # Allow from kube-system (API server webhook calls)
+    # kube-apiserver calls webhooks for Certificate conversion and validation
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "10250"   # Webhook server port (webhook)
+              protocol: TCP
+            - port: "9402"    # Webhook metrics port
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9402"    # Controller metrics port
+              protocol: TCP
+
+    # Allow internal cert-manager communication (same namespace)
+    # Controller, Webhook, CA Injector need to communicate
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cert-manager
+      toPorts:
+        - ports:
+            - port: "10250"   # Webhook server port
+              protocol: TCP
+            - port: "9402"    # Metrics port
+              protocol: TCP

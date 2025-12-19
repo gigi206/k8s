@@ -1,0 +1,66 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Prometheus Stack Ingress Security
+# =============================================================================
+# Restricts access to Prometheus/Grafana/Alertmanager to authorized sources:
+# - alloy: Remote write for self-metrics
+# - istio-system: Gateway ingress traffic for web UIs
+# - monitoring: Internal communication between components
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-stack-ingress
+  namespace: monitoring
+spec:
+  description: "Allow ingress to Prometheus stack from authorized sources"
+  endpointSelector: {}  # Applies to all pods in monitoring namespace
+
+  ingress:
+    # Allow from istio-system (Gateway ingress for Grafana, Prometheus, Alertmanager UIs)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "3000"    # Grafana web UI
+              protocol: TCP
+            - port: "9090"    # Prometheus web UI / API
+              protocol: TCP
+            - port: "9093"    # Alertmanager web UI / API
+              protocol: TCP
+
+    # Allow from alloy namespace (remote write for self-metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: alloy
+      toPorts:
+        - ports:
+            - port: "9090"    # Prometheus remote write receiver
+              protocol: TCP
+
+    # Allow from oauth2-proxy namespace (for authentication callbacks)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: oauth2-proxy
+      toPorts:
+        - ports:
+            - port: "3000"    # Grafana (OAuth callback)
+              protocol: TCP
+
+    # Allow internal monitoring communication (same namespace)
+    # Prometheus -> Alertmanager, Grafana -> Prometheus, etc.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9090"    # Prometheus
+              protocol: TCP
+            - port: "3000"    # Grafana
+              protocol: TCP
+            - port: "9093"    # Alertmanager
+              protocol: TCP
+            - port: "9094"    # Alertmanager cluster (HA)
+              protocol: TCP

@@ -91,10 +91,26 @@ spec:
             - .spec.template
 
       sources:
-        # Source 0: Base resources (Namespace, IngressClass) - always deployed
+        # Source 0: Namespace - always deployed
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "namespace.yaml"
+        # Source 0b: IngressClass - always deployed
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "ingressclass.yaml"
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source 0c: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         {{- if .features.sso.enabled }}
         # Source 1: SSO resources (ExternalSecrets, Keycloak client Job, Telemetry) - only when SSO enabled
         - repoURL: https://github.com/gigi206/k8s
