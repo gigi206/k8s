@@ -6,6 +6,14 @@ istio:
   namespace: istio-system
   version: "1.28.1"  # Latest Istio 1.28.x with improved ambient mesh support
 
+  # mTLS mode for service-to-service communication
+  # STRICT: Only mTLS traffic allowed (recommended for production)
+  # PERMISSIVE: Accept both plaintext and mTLS (default)
+  # DISABLE: No mTLS
+  mtls:
+    enabled: true
+    mode: STRICT
+
   # Istiod (Control Plane)
   pilot:
     replicas: 3  # Prod: HA with 3 replicas
