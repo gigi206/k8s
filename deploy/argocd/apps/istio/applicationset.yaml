@@ -111,6 +111,21 @@ spec:
           directory:
             include: "cilium-ingress-policy.yaml"
         {{- end }}
+        {{- if .istio.mtls.enabled }}
+        # Source 0d: mTLS PeerAuthentication - mesh-wide mTLS enforcement
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/kustomize/mtls
+          kustomize:
+            patches:
+              - target:
+                  kind: PeerAuthentication
+                  name: default
+                patch: |
+                  - op: replace
+                    path: /spec/mtls/mode
+                    value: {{ .istio.mtls.mode }}
+        {{- end }}
         {{- if .features.sso.enabled }}
         # Source 1: SSO resources (ExternalSecrets, Keycloak client Job, Telemetry) - only when SSO enabled
         - repoURL: https://github.com/gigi206/k8s

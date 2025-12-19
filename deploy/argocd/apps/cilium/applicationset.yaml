@@ -101,6 +101,14 @@ spec:
           directory:
             include: "default-deny-host-ingress.yaml"
         {{- end }}
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Source 3: Pod Ingress Policy - Zero Trust (deny all pod-to-pod except explicit allows)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "default-deny-pod-ingress.yaml"
+        {{- end }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source 3: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
