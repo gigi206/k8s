@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - hubble-httproute.yaml
   - hubble-referencegrant.yaml
+  - oauth2-proxy-referencegrant.yaml
