@@ -4,3 +4,4 @@ kind: Kustomization
 
 resources:
   - keycloak-client.yaml
+  - external-secret-ca.yaml
