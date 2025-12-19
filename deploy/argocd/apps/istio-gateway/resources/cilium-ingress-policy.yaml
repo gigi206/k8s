@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Istio Gateway Ingress Security
+# =============================================================================
+# Restricts access to Istio Gateway to authorized sources:
+# - monitoring: Prometheus metrics scraping
+# - istio-system: Internal communication (istiod, other gateways)
+#
+# Note: External traffic (world) is handled by cilium-host-ingress-policy.yaml
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: istio-gateway-ingress
+  namespace: istio-system
+spec:
+  description: "Allow ingress to Istio Gateway from authorized sources"
+  endpointSelector:
+    matchLabels:
+      istio.io/gateway-name: istio-gateway
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "15090"   # Envoy admin/metrics
+              protocol: TCP
+            - port: "15021"   # Health check
+              protocol: TCP
+
+    # Allow internal Istio communication (same namespace)
+    # istiod -> gateway, gateway <-> gateway
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "80"      # HTTP ingress
+              protocol: TCP
+            - port: "443"     # HTTPS ingress
+              protocol: TCP
+            - port: "15021"   # Health check
+              protocol: TCP
+            - port: "15090"   # Envoy admin/metrics
+              protocol: TCP

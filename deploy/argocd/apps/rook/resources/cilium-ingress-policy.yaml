@@ -1,0 +1,69 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Rook-Ceph Ingress Security
+# =============================================================================
+# Restricts access to Rook-Ceph to authorized sources:
+# - monitoring: Prometheus metrics scraping (MGR)
+# - istio-system: Gateway ingress for Dashboard and S3
+# - rook-ceph: Internal Ceph cluster communication
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: rook-ceph-ingress
+  namespace: rook-ceph
+spec:
+  description: "Allow ingress to Rook-Ceph from authorized sources"
+  endpointSelector: {}  # Applies to all pods in rook-ceph namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape MGR metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9283"    # Ceph MGR Prometheus metrics
+              protocol: TCP
+
+    # Allow from istio-system (Gateway ingress for Dashboard and S3)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "8443"    # Dashboard HTTPS
+              protocol: TCP
+            - port: "80"      # S3 Object Store (RGW)
+              protocol: TCP
+
+    # Allow internal Rook-Ceph communication (same namespace)
+    # Monitors, OSDs, MGR, MDS, RGW all communicate internally
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: rook-ceph
+      toPorts:
+        - ports:
+            - port: "3300"    # Monitor v2 protocol
+              protocol: TCP
+            - port: "6789"    # Monitor v1 protocol
+              protocol: TCP
+            - port: "6800"    # OSD/MDS communication start
+              protocol: TCP
+            - port: "6801"    # OSD/MDS communication
+              protocol: TCP
+            - port: "6802"    # OSD/MDS communication
+              protocol: TCP
+            - port: "6803"    # OSD/MDS communication
+              protocol: TCP
+            - port: "6804"    # OSD/MDS communication
+              protocol: TCP
+            - port: "6805"    # OSD/MDS communication
+              protocol: TCP
+            - port: "8443"    # Dashboard internal
+              protocol: TCP
+            - port: "9283"    # MGR metrics internal
+              protocol: TCP
+            - port: "80"      # RGW internal
+              protocol: TCP

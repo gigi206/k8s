@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - MetalLB Ingress Security
+# =============================================================================
+# Restricts access to MetalLB to authorized sources:
+# - monitoring: Prometheus metrics scraping
+# - metallb-system: Internal communication (speaker memberlist)
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: metallb-ingress
+  namespace: metallb-system
+spec:
+  description: "Allow ingress to MetalLB from authorized sources"
+  endpointSelector: {}  # Applies to all pods in metallb-system namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "7472"    # Metrics (speaker + controller)
+              protocol: TCP
+
+    # Allow internal MetalLB communication (same namespace)
+    # Speaker memberlist for leader election
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: metallb-system
+      toPorts:
+        - ports:
+            - port: "7472"    # Metrics
+              protocol: TCP
+            - port: "7946"    # Memberlist (speaker discovery)
+              protocol: TCP
+            - port: "7946"    # Memberlist (speaker discovery)
+              protocol: UDP
