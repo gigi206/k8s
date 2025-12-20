@@ -47,8 +47,9 @@ spec:
     spec:
       syncPolicy:
         syncOptions:
-          - CreateNamespace=true
-          - ServerSideApply=true
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
       {{- if .syncPolicy.automated.enabled }}
         automated:
           prune: {{ .syncPolicy.automated.prune }}
