@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Jaeger Ingress Security
+# =============================================================================
+# Restricts access to Jaeger to authorized sources:
+# - monitoring: Prometheus metrics scraping
+# - istio-system: Gateway ingress for UI + trace ingestion (Zipkin)
+# - jaeger: Internal communication
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jaeger-ingress
+  namespace: jaeger
+spec:
+  description: "Allow ingress to Jaeger from authorized sources"
+  endpointSelector: {}  # Applies to all pods in jaeger namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "14269"   # Jaeger metrics
+              protocol: TCP
+
+    # Allow from istio-system (Gateway ingress for UI)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "16686"   # Query UI
+              protocol: TCP
+            - port: "9411"    # Zipkin trace ingestion
+              protocol: TCP
+
+    # Allow internal Jaeger communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: jaeger
+      toPorts:
+        - ports:
+            - port: "16686"   # Query
+              protocol: TCP
+            - port: "9411"    # Zipkin
+              protocol: TCP
+            - port: "14269"   # Metrics
+              protocol: TCP

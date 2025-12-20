@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - Kube-VIP Host Ingress
+# =============================================================================
+# Allows external access to Kubernetes API VIP on control-plane nodes.
+# Kube-VIP provides HA virtual IP for the Kubernetes API server.
+#
+# Applied only to control-plane nodes via nodeSelector.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: kube-vip-host-ingress
+spec:
+  description: "Allow external access to Kubernetes API VIP"
+  nodeSelector:
+    matchLabels:
+      node-role.kubernetes.io/control-plane: "true"
+
+  ingress:
+    # Allow external and internal access to Kubernetes API VIP
+    - fromEntities:
+        - world
+        - cluster
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
