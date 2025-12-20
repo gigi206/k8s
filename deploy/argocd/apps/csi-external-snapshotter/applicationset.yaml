@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# CSI External Snapshotter ApplicationSet - Wave 10 (Volume Snapshots)
+# CSI External Snapshotter ApplicationSet - Wave 55 (Volume Snapshots)
 # =============================================================================
 # Déploie les CRDs CSI snapshot requis pour Longhorn
 # Docs: https://longhorn.io/docs/latest/snapshots-and-backups/csi-snapshot-support/
@@ -13,7 +13,7 @@ metadata:
   name: csi-external-snapshotter
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-wave: "55"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +42,7 @@ spec:
       name: csi-external-snapshotter
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "10"
+        argocd.argoproj.io/sync-wave: "55"
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
