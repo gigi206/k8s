@@ -74,13 +74,25 @@ spec:
           prune: {{ .syncPolicy.automated.prune }}
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
-      {{- if .features.monitoring.enabled }}
+      {{- if or .features.monitoring.enabled .features.cilium.ingressPolicy.enabled }}
       sources:
         # Source 1: Kube-VIP resources (RBAC, DaemonSet)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
+          directory:
+            exclude: "cilium-*.yaml"
 
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium host ingress policy - allows external access to API VIP
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kube-vip/resources
+          directory:
+            include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
+
+        {{- if .features.monitoring.enabled }}
         # Source 2: PrometheusRules (avec label release)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -88,4 +100,5 @@ spec:
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
+        {{- end }}
       {{- end }}
