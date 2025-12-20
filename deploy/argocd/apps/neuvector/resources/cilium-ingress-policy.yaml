@@ -1,0 +1,65 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - NeuVector Ingress Security
+# =============================================================================
+# Restricts access to NeuVector to authorized sources:
+# - neuvector: Internal pod communication (controller, scanner, enforcer, manager)
+# - monitoring: Prometheus metrics scraping
+# - istio-system: Gateway ingress traffic to manager UI
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: neuvector-ingress
+  namespace: neuvector
+spec:
+  description: "Allow ingress to NeuVector from authorized sources"
+  endpointSelector: {}  # Applies to all pods in neuvector namespace
+
+  ingress:
+    # Allow internal NeuVector communication (same namespace)
+    # Controller <-> Controller, Scanner -> Controller, Enforcer -> Controller
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: neuvector
+      toPorts:
+        - ports:
+            - port: "8443"    # Manager web UI
+              protocol: TCP
+            - port: "10443"   # Controller fed/console
+              protocol: TCP
+            - port: "18300"   # Controller cluster communication
+              protocol: TCP
+            - port: "18300"   # Controller cluster communication (UDP)
+              protocol: UDP
+            - port: "18301"   # Controller gRPC
+              protocol: TCP
+            - port: "18301"   # Controller gRPC (UDP)
+              protocol: UDP
+            - port: "18400"   # Controller internal (enforcer/scanner)
+              protocol: TCP
+            - port: "18401"   # Controller internal
+              protocol: TCP
+            - port: "18402"   # Scanner port
+              protocol: TCP
+            - port: "8068"    # Prometheus exporter
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8068"    # Prometheus exporter metrics
+              protocol: TCP
+
+    # Allow from istio-system (Gateway ingress to Manager UI)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "8443"    # Manager web UI (HTTPS)
+              protocol: TCP
