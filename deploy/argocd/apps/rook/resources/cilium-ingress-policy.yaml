@@ -18,13 +18,15 @@ spec:
   endpointSelector: {}  # Applies to all pods in rook-ceph namespace
 
   ingress:
-    # Allow from monitoring namespace (Prometheus scrape MGR metrics)
+    # Allow from monitoring namespace (Prometheus scrape MGR + Exporter metrics)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: monitoring
       toPorts:
         - ports:
             - port: "9283"    # Ceph MGR Prometheus metrics
+              protocol: TCP
+            - port: "9926"    # Rook-Ceph Exporter metrics
               protocol: TCP
 
     # Allow from istio-system (Gateway ingress for Dashboard and S3)

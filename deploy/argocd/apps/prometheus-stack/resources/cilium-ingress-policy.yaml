@@ -56,6 +56,8 @@ spec:
             io.kubernetes.pod.namespace: monitoring
       toPorts:
         - ports:
+            - port: "8080"    # Alertmanager web / kube-state-metrics
+              protocol: TCP
             - port: "9090"    # Prometheus
               protocol: TCP
             - port: "3000"    # Grafana
@@ -63,4 +65,6 @@ spec:
             - port: "9093"    # Alertmanager
               protocol: TCP
             - port: "9094"    # Alertmanager cluster (HA)
+              protocol: TCP
+            - port: "10250"   # Prometheus operator metrics
               protocol: TCP
