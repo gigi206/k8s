@@ -5,14 +5,6 @@
 # Allow external DNS traffic (port 53) to nodes for CoreDNS LoadBalancer.
 # This complements the default-deny-host-ingress policy in cilium app.
 #
-# Node Targeting:
-# - With externalTrafficPolicy: Cluster (default), all nodes need port 53 open
-# - With externalTrafficPolicy: Local, only nodes running CoreDNS pods need port
-#
-# To restrict to specific nodes, use nodeSelector with labels like:
-#   matchLabels:
-#     node-role.kubernetes.io/dns: ""
-#
 # Only needed when using external-dns with CoreDNS provider and LoadBalancer
 # service type to expose DNS to external clients.
 # =============================================================================
@@ -24,12 +16,9 @@ metadata:
 spec:
   description: "Allow DNS (53 TCP/UDP) to nodes for External-DNS CoreDNS LoadBalancer"
 
-  # Target: Only nodes labeled for DNS workloads
-  # Label your nodes with: kubectl label node <node> node-role.kubernetes.io/dns=""
-  # Combined with externalTrafficPolicy: Local, only nodes running CoreDNS pods receive traffic
+  # Apply to all nodes in the cluster
   nodeSelector:
-    matchLabels:
-      node-role.kubernetes.io/dns: ""
+    matchLabels: {}
 
   ingress:
     # DNS for External-DNS CoreDNS LoadBalancer
