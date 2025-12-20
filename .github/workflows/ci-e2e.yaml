@@ -1,0 +1,429 @@
+# =============================================================================
+# E2E Integration Tests for GitOps Infrastructure
+# =============================================================================
+# Runs on PRs to test:
+#   - ArgoCD deployment and sync status
+#   - DNS resolution (k8s.lan)
+#   - HTTP endpoints (200 responses)
+#   - Hubble network drops
+# =============================================================================
+
+name: E2E Integration Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deploy/argocd/**'
+      - '.github/workflows/ci-e2e.yaml'
+      - '.github/scripts/**'
+      - '.github/config/**'
+
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable SSH debugging (tmate)'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Cancel previous runs on same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CLUSTER_NAME: ci-cluster
+  ARGOCD_NAMESPACE: argo-cd
+  CILIUM_VERSION: "1.16.5"
+  ARGOCD_VERSION: "7.8.14"
+
+jobs:
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # ========================================================================
+      # Checkout and Setup
+      # ========================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff detection
+
+      - name: Setup tools
+        run: |
+          echo "=== Installing K3d ==="
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+
+          echo "=== Installing Helm ==="
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+          echo "=== Installing yq ==="
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+          echo "=== Installing age (for SOPS) ==="
+          sudo apt-get update && sudo apt-get install -y age
+
+          echo "=== Verifying installations ==="
+          k3d version
+          helm version --short
+          yq --version
+          age --version
+
+      # ========================================================================
+      # Validate and Detect Apps
+      # ========================================================================
+      - name: Validate ArgoCD manifests
+        id: validate
+        run: |
+          chmod +x .github/scripts/validate-argocd-manifests.sh
+          .github/scripts/validate-argocd-manifests.sh
+
+      - name: Detect apps to deploy
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          chmod +x .github/scripts/detect-apps.sh
+          .github/scripts/detect-apps.sh
+
+      # ========================================================================
+      # Storage Setup (before cluster creation)
+      # ========================================================================
+      - name: Setup storage prerequisites
+        id: storage-setup
+        if: steps.detect.outputs.storage_provider != 'none'
+        env:
+          STORAGE_PROVIDER: ${{ steps.detect.outputs.storage_provider }}
+        run: |
+          chmod +x .github/scripts/setup-storage.sh
+          .github/scripts/setup-storage.sh
+
+      # ========================================================================
+      # Create Cluster
+      # ========================================================================
+      - name: Create K3d cluster with Cilium
+        run: |
+          chmod +x .github/scripts/create-cluster.sh
+          .github/scripts/create-cluster.sh
+
+      - name: Verify cluster
+        run: |
+          echo "=== Cluster Info ==="
+          kubectl cluster-info
+          echo ""
+          echo "=== Nodes ==="
+          kubectl get nodes -o wide
+          echo ""
+          echo "=== Pods (kube-system) ==="
+          kubectl get pods -n kube-system
+
+      # ========================================================================
+      # Secrets Setup
+      # ========================================================================
+      - name: Setup SOPS AGE key
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          if [ -z "$SOPS_AGE_KEY" ]; then
+            echo "::warning::SOPS_AGE_KEY not set, secrets decryption will fail"
+            echo "Creating empty key for testing..."
+            mkdir -p ~/.config/sops/age
+            touch ~/.config/sops/age/keys.txt
+          else
+            mkdir -p ~/.config/sops/age
+            echo "$SOPS_AGE_KEY" > ~/.config/sops/age/keys.txt
+            chmod 600 ~/.config/sops/age/keys.txt
+          fi
+
+          # Create namespace and secret for ArgoCD
+          kubectl create namespace $ARGOCD_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+          if [ -s ~/.config/sops/age/keys.txt ]; then
+            kubectl create secret generic sops-age-key \
+              --namespace $ARGOCD_NAMESPACE \
+              --from-file=keys.txt=$HOME/.config/sops/age/keys.txt \
+              --dry-run=client -o yaml | kubectl apply -f -
+          fi
+
+      # ========================================================================
+      # Install ArgoCD
+      # ========================================================================
+      - name: Install ArgoCD
+        run: |
+          echo "=== Adding Helm repo ==="
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo update
+
+          echo "=== Installing ArgoCD ==="
+          helm install argocd argo/argo-cd \
+            --namespace $ARGOCD_NAMESPACE \
+            --version $ARGOCD_VERSION \
+            -f deploy/argocd/argocd-bootstrap-values.yaml \
+            --set server.service.type=ClusterIP \
+            --set "configs.params.server\\.insecure=true" \
+            --wait \
+            --timeout 10m
+
+          echo "=== Waiting for ArgoCD to be ready ==="
+          kubectl wait --for=condition=Available deployment/argocd-server \
+            -n $ARGOCD_NAMESPACE --timeout=300s
+          kubectl wait --for=condition=Available deployment/argocd-repo-server \
+            -n $ARGOCD_NAMESPACE --timeout=300s
+
+          echo "=== ArgoCD Status ==="
+          kubectl get pods -n $ARGOCD_NAMESPACE
+
+      # ========================================================================
+      # Generate CI Config and Deploy
+      # ========================================================================
+      - name: Generate CI configuration
+        env:
+          INGRESS: ${{ steps.detect.outputs.ingress }}
+          EXTRA_APPS: ${{ steps.detect.outputs.extra_apps }}
+          ALL_APPS: ${{ steps.detect.outputs.all_apps }}
+        run: |
+          chmod +x .github/scripts/generate-ci-config.sh
+          .github/scripts/generate-ci-config.sh
+
+          echo "=== Generated config ==="
+          yq '.features' deploy/argocd/config/config.yaml
+
+      - name: Deploy ApplicationSets
+        run: |
+          cd deploy/argocd
+
+          # Set CI environment variables
+          export NO_COLOR=1
+          export TIMEOUT_APPSETS=120
+          export TIMEOUT_APPS_GENERATION=300
+          export TIMEOUT_APPS_SYNC=900
+
+          # Deploy
+          bash deploy-applicationsets.sh --verbose
+
+      - name: Wait for applications to sync
+        env:
+          ARGOCD_SYNC_TIMEOUT: "900"
+        run: |
+          chmod +x .github/scripts/wait-argocd-healthy.sh
+          .github/scripts/wait-argocd-healthy.sh
+
+      # ========================================================================
+      # Test Suite
+      # ========================================================================
+      - name: Test - ArgoCD Sync Status
+        id: test-sync
+        run: |
+          echo "=== Checking ArgoCD application sync status ==="
+
+          APPS_JSON=$(kubectl get application -A -o json)
+
+          TOTAL=$(echo "$APPS_JSON" | jq '.items | length')
+          SYNCED=$(echo "$APPS_JSON" | jq '[.items[] | select(.status.sync.status=="Synced")] | length')
+          HEALTHY=$(echo "$APPS_JSON" | jq '[.items[] | select(.status.health.status=="Healthy")] | length')
+          DEGRADED=$(echo "$APPS_JSON" | jq '[.items[] | select(.status.health.status=="Degraded")] | length')
+
+          echo "Total: $TOTAL, Synced: $SYNCED, Healthy: $HEALTHY, Degraded: $DEGRADED"
+
+          if [ "$DEGRADED" -gt 0 ]; then
+            echo "=== Degraded applications ==="
+            echo "$APPS_JSON" | jq -r '.items[] | select(.status.health.status=="Degraded") | "\(.metadata.name): \(.status.health.message // "no message")"'
+          fi
+
+          if [ "$SYNCED" -lt "$TOTAL" ]; then
+            echo "::error::Not all applications are synced ($SYNCED/$TOTAL)"
+            exit 1
+          fi
+
+          echo "::notice::All $TOTAL applications are synced"
+
+      - name: Test - DNS Resolution
+        id: test-dns
+        run: |
+          chmod +x .github/scripts/test-dns.sh
+          .github/scripts/test-dns.sh
+
+      - name: Test - HTTP Endpoints
+        id: test-http
+        run: |
+          chmod +x .github/scripts/test-http-endpoints.sh
+          .github/scripts/test-http-endpoints.sh
+
+      - name: Test - Hubble Network Drops
+        id: test-hubble
+        run: |
+          chmod +x .github/scripts/test-hubble-drops.sh
+          .github/scripts/test-hubble-drops.sh
+
+      - name: Test - Storage (PVC + Snapshots)
+        id: test-storage
+        if: steps.detect.outputs.storage_provider != 'none'
+        env:
+          STORAGE_PROVIDER: ${{ steps.detect.outputs.storage_provider }}
+        run: |
+          chmod +x .github/scripts/test-storage.sh
+          .github/scripts/test-storage.sh
+
+      - name: Test - Istio Service Mesh
+        id: test-mesh
+        if: steps.detect.outputs.service_mesh_provider == 'istio'
+        env:
+          SERVICE_MESH_PROVIDER: ${{ steps.detect.outputs.service_mesh_provider }}
+        run: |
+          chmod +x .github/scripts/test-istio-mesh.sh
+          .github/scripts/test-istio-mesh.sh
+
+      - name: Test - CNPG PostgreSQL
+        id: test-cnpg
+        if: steps.detect.outputs.cnpg_enabled == 'true'
+        run: |
+          chmod +x .github/scripts/test-cnpg.sh
+          .github/scripts/test-cnpg.sh
+
+      - name: Test - Prometheus Stack
+        id: test-prometheus
+        if: steps.detect.outputs.prometheus_enabled == 'true'
+        run: |
+          chmod +x .github/scripts/test-prometheus.sh
+          .github/scripts/test-prometheus.sh
+
+      - name: Test - OAuth2 Proxy / Keycloak
+        id: test-sso
+        if: steps.detect.outputs.sso_enabled == 'true'
+        run: |
+          chmod +x .github/scripts/test-oauth2-proxy.sh
+          .github/scripts/test-oauth2-proxy.sh
+
+      - name: Test - NeuVector Security
+        id: test-neuvector
+        if: steps.detect.outputs.neuvector_enabled == 'true'
+        run: |
+          chmod +x .github/scripts/test-neuvector.sh
+          .github/scripts/test-neuvector.sh
+
+      - name: Test - ArgoCD Components
+        id: test-argocd
+        if: steps.detect.outputs.argocd_modified == 'true'
+        run: |
+          chmod +x .github/scripts/test-argocd.sh
+          .github/scripts/test-argocd.sh
+
+      # ========================================================================
+      # Debug and Artifacts
+      # ========================================================================
+      - name: Collect debug artifacts on failure
+        if: failure()
+        run: |
+          mkdir -p artifacts
+
+          # Cluster state
+          kubectl get nodes -o wide > artifacts/nodes.txt 2>&1 || true
+          kubectl get pods -A -o wide > artifacts/pods.txt 2>&1 || true
+          kubectl get svc -A > artifacts/services.txt 2>&1 || true
+          kubectl get applications -A -o yaml > artifacts/applications.yaml 2>&1 || true
+          kubectl get applicationsets -A -o yaml > artifacts/applicationsets.yaml 2>&1 || true
+          kubectl get httproute -A -o yaml > artifacts/httproutes.yaml 2>&1 || true
+
+          # Events
+          kubectl get events -A --sort-by='.lastTimestamp' > artifacts/events.txt 2>&1 || true
+
+          # ArgoCD logs
+          kubectl logs -n $ARGOCD_NAMESPACE -l app.kubernetes.io/name=argocd-server --tail=500 > artifacts/argocd-server.log 2>&1 || true
+          kubectl logs -n $ARGOCD_NAMESPACE -l app.kubernetes.io/name=argocd-repo-server --tail=500 > artifacts/argocd-repo-server.log 2>&1 || true
+          kubectl logs -n $ARGOCD_NAMESPACE -l app.kubernetes.io/name=argocd-application-controller --tail=500 > artifacts/argocd-controller.log 2>&1 || true
+
+          # Cilium status
+          CILIUM_POD=$(kubectl get pods -n kube-system -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -n "$CILIUM_POD" ]; then
+            kubectl exec -n kube-system "$CILIUM_POD" -- cilium status > artifacts/cilium-status.txt 2>&1 || true
+            kubectl exec -n kube-system "$CILIUM_POD" -- hubble observe --verdict DROPPED --last 100 -o json > artifacts/hubble-drops.json 2>&1 || true
+          fi
+
+          # Storage status (if applicable)
+          kubectl get pvc -A > artifacts/pvcs.txt 2>&1 || true
+          kubectl get pv > artifacts/pvs.txt 2>&1 || true
+          kubectl get volumesnapshot -A > artifacts/volumesnapshots.txt 2>&1 || true
+          kubectl get storageclass > artifacts/storageclasses.txt 2>&1 || true
+          kubectl get volumesnapshotclass > artifacts/volumesnapshotclasses.txt 2>&1 || true
+
+          # Istio status (if applicable)
+          kubectl get pods -n istio-system > artifacts/istio-pods.txt 2>&1 || true
+          kubectl get peerauthentication -A -o yaml > artifacts/istio-peerauthentication.yaml 2>&1 || true
+          kubectl get destinationrule -A -o yaml > artifacts/istio-destinationrules.yaml 2>&1 || true
+          kubectl get virtualservice -A -o yaml > artifacts/istio-virtualservices.yaml 2>&1 || true
+          kubectl logs -n istio-system -l app=istiod --tail=200 > artifacts/istiod.log 2>&1 || true
+
+          # Config used
+          cp deploy/argocd/config/config.yaml artifacts/config.yaml 2>&1 || true
+
+          echo "=== Artifacts collected ==="
+          ls -la artifacts/
+
+      - name: Upload artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-artifacts-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 7
+
+      - name: Setup tmate session for debugging
+        if: failure() && inputs.debug_enabled == true
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 30
+
+      # ========================================================================
+      # Cleanup
+      # ========================================================================
+      - name: Cleanup
+        if: always()
+        env:
+          LOOP_FILE: ${{ steps.storage-setup.outputs.loop_file }}
+        run: |
+          echo "=== Cleaning up K3d cluster ==="
+          k3d cluster delete $CLUSTER_NAME || true
+
+          # Clean up loop device if Rook was used
+          if [ -n "$LOOP_FILE" ] && [ -f "$LOOP_FILE" ]; then
+            echo "=== Cleaning up loop device ==="
+            LOOP_DEV=$(sudo losetup -j "$LOOP_FILE" | cut -d: -f1)
+            if [ -n "$LOOP_DEV" ]; then
+              sudo losetup -d "$LOOP_DEV" || true
+            fi
+            sudo rm -f "$LOOP_FILE" || true
+          fi
+
+      # ========================================================================
+      # Summary
+      # ========================================================================
+      - name: Post test summary
+        if: always()
+        run: |
+          echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| YAML Validation | ${{ steps.validate.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ArgoCD Sync | ${{ steps.test-sync.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| DNS Resolution | ${{ steps.test-dns.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| HTTP Endpoints | ${{ steps.test-http.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Hubble Drops | ${{ steps.test-hubble.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Storage (PVC/Snapshots) | ${{ steps.test-storage.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Istio Service Mesh | ${{ steps.test-mesh.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CNPG PostgreSQL | ${{ steps.test-cnpg.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Prometheus Stack | ${{ steps.test-prometheus.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| OAuth2 Proxy / SSO | ${{ steps.test-sso.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| NeuVector Security | ${{ steps.test-neuvector.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ArgoCD Components | ${{ steps.test-argocd.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Apps deployed:** ${{ steps.detect.outputs.all_apps || 'default' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Ingress controller:** ${{ steps.detect.outputs.ingress || 'traefik' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Storage provider:** ${{ steps.detect.outputs.storage_provider || 'none' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Service mesh:** ${{ steps.detect.outputs.service_mesh_provider || 'none' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**CNPG enabled:** ${{ steps.detect.outputs.cnpg_enabled || 'false' }}" >> $GITHUB_STEP_SUMMARY
