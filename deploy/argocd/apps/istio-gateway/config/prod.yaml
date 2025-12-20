@@ -18,10 +18,3 @@ istio:
       limits:
         cpu: "2000m"
         memory: "2Gi"
-
-# Sync policy (manual for prod)
-syncPolicy:
-  automated:
-    enabled: false
-    prune: false
-    selfHeal: false

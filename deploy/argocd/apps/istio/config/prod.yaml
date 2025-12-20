@@ -75,10 +75,3 @@ kiali:
 
   auth:
     strategy: "token"  # Prod: token-based authentication
-
-# Sync policy (manual for prod)
-syncPolicy:
-  automated:
-    enabled: false
-    prune: false
-    selfHeal: false
