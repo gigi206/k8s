@@ -4,7 +4,7 @@ environment: dev
 appName: nginx-gateway-fabric
 
 nginxGatewayFabric:
-  version: "v2.2.2"
+  version: "v2.3.0"
   replicas: 1
   serviceType: LoadBalancer
   gatewayClassName: nginx-gwf  # Différent de "nginx" pour éviter conflit avec nginx-ingress
