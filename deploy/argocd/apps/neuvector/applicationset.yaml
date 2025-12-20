@@ -138,6 +138,20 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/kustomize/istio
+
+        # Source 4b: TLS certificates (cert-manager + CA sync to istio-system)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/kustomize/certificates
+          kustomize:
+            patches:
+              - target:
+                  kind: Certificate
+                  name: neuvector-manager-tls
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames/4
+                    value: neuvector.{{ .common.domain }}
         {{- end }}
 
         {{- if .features.monitoring.enabled }}
@@ -220,6 +234,13 @@ spec:
               # Manager configuration (Web UI)
               manager:
                 enabled: true
+                {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}
+                # Use cert-manager certificate for TLS (allows Istio to validate)
+                certificate:
+                  secret: neuvector-manager-tls-cert
+                  keyFile: tls.key
+                  pemFile: tls.crt
+                {{- end }}
                 svc:
                   type: ClusterIP
                 route:

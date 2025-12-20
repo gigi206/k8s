@@ -151,6 +151,22 @@ spec:
           path: deploy/argocd/apps/rook/kustomize/monitoring-config
         {{- end }}
 
+        {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") .rook.dashboard.enabled }}
+        # Source: TLS certificates (cert-manager + CA sync to istio-system)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/kustomize/certificates
+          kustomize:
+            patches:
+              - target:
+                  kind: Certificate
+                  name: ceph-dashboard-tls
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames/4
+                    value: ceph.{{ .common.domain }}
+        {{- end }}
+
         {{- if and .features.sso.enabled .rook.dashboard.enabled }}
         # Source: SAML2 SSO configuration (Keycloak client + Ceph dashboard SSO)
         - repoURL: https://github.com/gigi206/k8s
@@ -237,6 +253,10 @@ spec:
                 dashboard:
                   enabled: {{ .rook.dashboard.enabled }}
                   ssl: true
+                  {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}
+                  # Use cert-manager certificate for TLS (allows Istio to validate)
+                  sslCertificateRef: ceph-dashboard-tls-cert
+                  {{- end }}
                 storage:
                   useAllNodes: true
                   useAllDevices: false
