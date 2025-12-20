@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Prometheus Stack External Egress
+# =============================================================================
+# Allows monitoring components to reach external services:
+# - grafana.com: Plugin downloads, manifest keys, angular patterns
+# - LoadBalancer IPs: OIDC authentication (Keycloak via istio-gateway)
+#
+# Internal cluster traffic (kube-apiserver, DNS, pod-to-pod) is already allowed
+# by the CiliumClusterwideNetworkPolicy (default-deny-external-egress).
+# This policy only adds external access for monitoring components.
+#
+# See: deploy/argocd/apps/cilium/resources/default-deny-external-egress.yaml
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-stack-allow-external-egress
+  namespace: monitoring
+spec:
+  description: "Allow monitoring to access grafana.com and LoadBalancer IPs (OIDC)"
+
+  # Apply to all pods in monitoring namespace
+  endpointSelector: {}
+
+  egress:
+    # Allow HTTPS to external services (grafana.com plugins, OIDC via LoadBalancer)
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

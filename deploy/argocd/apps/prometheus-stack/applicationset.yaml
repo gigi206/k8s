@@ -95,6 +95,14 @@ spec:
           directory:
             include: "cilium-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.cilium.egressPolicy.enabled }}
+        # Source: Cilium egress policy - allows Grafana to reach grafana.com and OIDC
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+          directory:
+            include: "cilium-egress-policy.yaml"
+        {{- end }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source: HTTPRoute (Gateway API) - conditional
         - repoURL: https://github.com/gigi206/k8s
