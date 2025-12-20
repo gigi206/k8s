@@ -40,9 +40,6 @@ spec:
     metadata:
       name: cert-manager
       namespace: argo-cd
-      # labels:
-      #   app: cert-manager
-      #   environment: '{{ .environment }}'
       annotations:
         argocd.argoproj.io/sync-wave: "20"
     spec:

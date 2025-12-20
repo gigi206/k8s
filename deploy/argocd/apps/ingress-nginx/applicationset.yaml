@@ -40,9 +40,6 @@ spec:
     metadata:
       name: ingress-nginx
       namespace: argo-cd
-      # labels:
-      #   app: ingress-nginx
-      #   environment: '{{ .environment }}'
       annotations:
         argocd.argoproj.io/sync-wave: "40"
     spec:
