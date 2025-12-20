@@ -96,7 +96,7 @@ spec:
       masquerade: false # REQUIRED for Istio Ambient (BPF masq incompatible with Istio link-local IPs)
       autoDirectNodeRoutes: true
       hostLegacyRouting: false
-    #   lbExternalClusterIP: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#external-access-to-clusterip-services
+      lbExternalClusterIP: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#external-access-to-clusterip-services (hairpin NAT for pods accessing LoadBalancer IPs)
     # authentication: # https://docs.cilium.io/en/latest/network/servicemesh/mutual-authentication/mutual-authentication/ (https://youtu.be/tE9U1gNWzqs)
     #   mutual:
     #     port: 4250
