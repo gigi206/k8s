@@ -25,6 +25,8 @@ spec:
             io.kubernetes.pod.namespace: monitoring
       toPorts:
         - ports:
+            - port: "8080"    # ApplicationSet controller metrics
+              protocol: TCP
             - port: "8082"    # Application controller metrics
               protocol: TCP
             - port: "8083"    # Server metrics
@@ -32,8 +34,6 @@ spec:
             - port: "8084"    # Repo server metrics
               protocol: TCP
             - port: "8085"    # Controller metrics
-              protocol: TCP
-            - port: "8086"    # ApplicationSet metrics
               protocol: TCP
             - port: "8087"    # Notifications metrics
               protocol: TCP

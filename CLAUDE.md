@@ -355,6 +355,16 @@ All policies use `nodeSelector` with specific labels (`node-role.kubernetes.io/i
 kubectl label node <worker> node-role.kubernetes.io/ingress=""
 ```
 
+**Troubleshooting with Hubble**: When connections fail, use Hubble to identify dropped packets:
+```bash
+# See dropped packets
+kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --last 50
+
+# Filter by namespace
+kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --to-namespace <ns>
+```
+See `apps/cilium/README.md` for detailed troubleshooting.
+
 ### HTTPRoute Structure
 
 HTTPRoutes reference a Gateway (`parentRefs` → `default-gateway` in `istio-system`) with `hostnames` and `backendRefs` to services.
