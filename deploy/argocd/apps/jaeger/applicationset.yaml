@@ -90,6 +90,15 @@ spec:
           directory:
             include: "namespace.yaml"
 
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
+
         # Source 1: Jaeger Helm Chart
         - repoURL: https://jaegertracing.github.io/helm-charts
           targetRevision: '{{ .jaeger.version }}'
