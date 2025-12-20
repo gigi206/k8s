@@ -1,0 +1,86 @@
+# =============================================================================
+# K3d Cluster Configuration for CI
+# =============================================================================
+# Configuration for creating a K3d cluster suitable for CI testing.
+# All internal K3s components are disabled - we use our own:
+#   - Cilium instead of Flannel (CNI)
+#   - MetalLB instead of ServiceLB (LoadBalancer)
+#   - Traefik/Istio instead of built-in Traefik (Ingress)
+#   - Our own storage class instead of local-storage
+# =============================================================================
+
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+
+metadata:
+  name: ci-cluster
+
+# Cluster topology
+servers: 1
+agents: 1
+
+# Kubernetes API port (random available port)
+# kubeAPI:
+#   hostPort: "6443"
+
+# Port mappings for ingress
+ports:
+  # HTTP traffic
+  - port: 80:80
+    nodeFilters:
+      - loadbalancer
+  # HTTPS traffic
+  - port: 443:443
+    nodeFilters:
+      - loadbalancer
+
+# K3s configuration
+options:
+  k3s:
+    extraArgs:
+      # Disable built-in Traefik ingress controller
+      - arg: --disable=traefik
+        nodeFilters:
+          - server:*
+      # Disable built-in ServiceLB (we use MetalLB)
+      - arg: --disable=servicelb
+        nodeFilters:
+          - server:*
+      # Disable built-in local-storage provisioner
+      - arg: --disable=local-storage
+        nodeFilters:
+          - server:*
+      # Disable Flannel CNI (we use Cilium)
+      - arg: --flannel-backend=none
+        nodeFilters:
+          - server:*
+      # Disable network policy controller (Cilium handles this)
+      - arg: --disable-network-policy
+        nodeFilters:
+          - server:*
+
+# Timeouts
+timeout: 5m
+
+# Wait for cluster to be ready
+options:
+  k3d:
+    wait: true
+    timeout: 5m
+    # Disable host IP injection for LoadBalancer IPs
+    disableLoadbalancer: false
+    # Disable rollback on failure for debugging
+    disableRollback: false
+
+# Registry configuration (optional, for local testing)
+# registries:
+#   create:
+#     name: registry.localhost
+#     host: "0.0.0.0"
+#     hostPort: "5000"
+
+# Environment variables for K3s
+# env:
+#   - envVar: K3S_DEBUG=true
+#     nodeFilters:
+#       - server:*
