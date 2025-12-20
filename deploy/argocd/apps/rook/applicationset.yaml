@@ -157,6 +157,8 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/kustomize/certificates
           kustomize:
+            images:
+              - 'rook/ceph:IMAGE_TAG=docker.io/rook/ceph:{{ .rook.operator.version }}'
             patches:
               - target:
                   kind: Certificate
@@ -253,10 +255,6 @@ spec:
                 dashboard:
                   enabled: {{ .rook.dashboard.enabled }}
                   ssl: true
-                  {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}
-                  # Use cert-manager certificate for TLS (allows Istio to validate)
-                  sslCertificateRef: ceph-dashboard-tls-cert
-                  {{- end }}
                 storage:
                   useAllNodes: true
                   useAllDevices: false

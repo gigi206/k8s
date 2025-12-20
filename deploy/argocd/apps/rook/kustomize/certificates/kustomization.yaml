@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - certificate.yaml
   - external-secret-ca-istio.yaml
+  - dashboard-cert-inject-job.yaml
