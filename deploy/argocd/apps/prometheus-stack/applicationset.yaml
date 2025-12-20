@@ -1,10 +1,10 @@
 ---
 # =============================================================================
-# Prometheus-Stack ApplicationSet - Wave 75 (Monitoring)
+# Prometheus-Stack ApplicationSet - Wave 5 (Monitoring CRDs + Stack)
 # =============================================================================
 # Déploie la stack complète de monitoring: Prometheus, Grafana, Alertmanager
 # Docs: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
-# Note: Wave 75 pour laisser le temps à Longhorn (Wave 60) de stabiliser la StorageClass
+# Note: Wave 5 pour installer les CRDs (ServiceMonitor, PrometheusRule) avant les autres apps
 # =============================================================================
 
 apiVersion: argoproj.io/v1alpha1
@@ -13,7 +13,7 @@ metadata:
   name: prometheus-stack
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "75"
+    argocd.argoproj.io/sync-wave: "5"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -45,7 +45,7 @@ spec:
       #   app: prometheus-stack
       #   environment: '{{ .environment }}'
       annotations:
-        argocd.argoproj.io/sync-wave: "75"
+        argocd.argoproj.io/sync-wave: "5"
     spec:
       project: default
 
