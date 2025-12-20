@@ -88,6 +88,14 @@ spec:
           directory:
             include: "cilium-egress-policy.yaml"
         {{- end }}
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium ingress policy - conditional
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         # Source 1: Namespace (always deployed)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
