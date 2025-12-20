@@ -3,10 +3,12 @@
 # CiliumNetworkPolicy - External-DNS Ingress Security
 # =============================================================================
 # Restricts access to External-DNS to authorized sources:
+# - world: External DNS queries via LoadBalancer (MetalLB)
 # - monitoring: Prometheus metrics scraping
 # - external-dns: Internal communication (etcd backend)
 #
-# Note: DNS traffic (port 53) is handled by cilium-host-ingress-policy.yaml
+# Note: cilium-host-ingress-policy.yaml allows traffic to the NODE.
+#       This policy allows traffic to the POD after kube-proxy routing.
 # =============================================================================
 
 apiVersion: cilium.io/v2
@@ -19,6 +21,17 @@ spec:
   endpointSelector: {}  # Applies to all pods in external-dns namespace
 
   ingress:
+    # Allow external DNS queries from world (LoadBalancer clients via MetalLB)
+    # With MetalLB L2, traffic arrives with identity "world", not "host"
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
     # Allow from monitoring namespace (Prometheus scrape)
     - fromEndpoints:
         - matchLabels:
