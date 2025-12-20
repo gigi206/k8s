@@ -3,10 +3,12 @@
 # CiliumNetworkPolicy - Istio Gateway Ingress Security
 # =============================================================================
 # Restricts access to Istio Gateway to authorized sources:
+# - world: External clients via LoadBalancer (MetalLB)
 # - monitoring: Prometheus metrics scraping
 # - istio-system: Internal communication (istiod, other gateways)
 #
-# Note: External traffic (world) is handled by cilium-host-ingress-policy.yaml
+# Note: cilium-host-ingress-policy.yaml allows traffic to the NODE.
+#       This policy allows traffic to the POD after kube-proxy routing.
 # =============================================================================
 
 apiVersion: cilium.io/v2
@@ -18,9 +20,20 @@ spec:
   description: "Allow ingress to Istio Gateway from authorized sources"
   endpointSelector:
     matchLabels:
-      istio.io/gateway-name: istio-gateway
+      gateway.networking.k8s.io/gateway-name: istio-gateway
 
   ingress:
+    # Allow external traffic from world (LoadBalancer clients via MetalLB)
+    # With MetalLB L2, traffic arrives with identity "world", not "host"
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+
     # Allow from monitoring namespace (Prometheus scrape)
     - fromEndpoints:
         - matchLabels:
