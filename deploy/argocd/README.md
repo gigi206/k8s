@@ -86,11 +86,9 @@ Les applications sont déployées dans cet ordre via les **sync waves** (défini
 |------|-------------|-------------|
 | 5 | `prometheus-stack` | CRDs Prometheus (ServiceMonitor, PrometheusRule) |
 | 10 | `metallb` | Load Balancer Layer 2 |
-| 10 | `csi-external-snapshotter` | CSI Snapshot Controller |
 | 15 | `kube-vip` | VIP pour l'API Kubernetes HA |
 | 15 | `gateway-api-controller` | Gateway API CRDs |
 | 15 | `cnpg-operator` | CloudNativePG (PostgreSQL Operator) |
-| 15 | `rook` | Stockage distribué Ceph |
 | 20 | `cert-manager` | Gestion des certificats TLS |
 | 25 | `external-secrets` | External Secrets Operator |
 | 30 | `keycloak` | Identity Provider (SSO) |
@@ -99,6 +97,8 @@ Les applications sont déployées dans cet ordre via les **sync waves** (défini
 | 45 | `external-dns` | Synchronisation DNS automatique |
 | 45 | `istio-gateway` | Gateway Istio + TLS |
 | 50 | `argocd` | GitOps Controller (self-managed) |
+| 55 | `csi-external-snapshotter` | CSI Snapshot Controller |
+| 60 | `rook` | Stockage distribué Ceph |
 | 73 | `loki` | Stockage des logs |
 | 74 | `alloy` | Collecteur de logs |
 | 76 | `cilium` | Monitoring CNI (Hubble) |
@@ -112,16 +112,14 @@ flowchart TB
         prometheus-stack["prometheus-stack<br/><i>ServiceMonitor, PrometheusRule CRDs</i>"]
     end
 
-    subgraph wave10["Wave 10 - LoadBalancer & Snapshots"]
+    subgraph wave10["Wave 10 - LoadBalancer"]
         metallb["metallb<br/><i>LoadBalancer L2</i>"]
-        csi-snapshotter["csi-external-snapshotter<br/><i>VolumeSnapshots</i>"]
     end
 
-    subgraph wave15["Wave 15 - HA, Gateway API, DB & Storage"]
+    subgraph wave15["Wave 15 - HA, Gateway API & DB Operator"]
         kube-vip["kube-vip<br/><i>VIP API HA</i>"]
         gateway-api["gateway-api-controller<br/><i>Gateway API CRDs</i>"]
         cnpg["cnpg-operator<br/><i>PostgreSQL Operator</i>"]
-        rook["rook<br/><i>Ceph Storage</i>"]
     end
 
     subgraph wave20["Wave 20 - Certificates"]
@@ -150,6 +148,11 @@ flowchart TB
         argocd["argocd<br/><i>Self-managed</i>"]
     end
 
+    subgraph wave55-60["Wave 55-60 - Storage"]
+        csi-snapshotter["csi-external-snapshotter<br/><i>VolumeSnapshots</i>"]
+        rook["rook<br/><i>Ceph Storage</i>"]
+    end
+
     subgraph wave73-77["Wave 73-77 - Observability"]
         loki["loki<br/><i>Log Storage</i>"]
         alloy["alloy<br/><i>Log Collector</i>"]
@@ -159,21 +162,17 @@ flowchart TB
 
     %% Dependencies
     prometheus-stack --> metallb
-    prometheus-stack --> csi-snapshotter
-    prometheus-stack --> cnpg
-    prometheus-stack --> rook
     prometheus-stack --> cert-manager
+    prometheus-stack --> cnpg
     prometheus-stack --> istio
     prometheus-stack --> cilium
 
     metallb --> kube-vip
-    csi-snapshotter --> rook
 
     cert-manager --> external-secrets
 
-    rook --> keycloak
-    cnpg --> keycloak
     external-secrets --> keycloak
+    cnpg --> keycloak
 
     keycloak --> oauth2-proxy
 
@@ -184,6 +183,8 @@ flowchart TB
     istio --> external-dns
 
     istio-gateway --> argocd
+
+    csi-snapshotter --> rook
 
     rook --> loki
     rook --> tempo
@@ -213,17 +214,17 @@ flowchart TB
 |-------------|-----------|--------|
 | `prometheus-stack` | ∅ | Fournit les CRDs (ServiceMonitor, PrometheusRule) |
 | `metallb` | prometheus-stack | ServiceMonitors pour métriques |
-| `csi-external-snapshotter` | prometheus-stack | ServiceMonitors pour métriques |
 | `kube-vip` | metallb | Utilise LoadBalancer pour VIP |
 | `cnpg-operator` | prometheus-stack | ServiceMonitors pour métriques |
-| `rook` | csi-external-snapshotter | VolumeSnapshot CRDs |
 | `cert-manager` | prometheus-stack | ServiceMonitors pour métriques |
 | `external-secrets` | cert-manager | CA pour ClusterSecretStore |
-| `keycloak` | rook, cnpg-operator, external-secrets | Storage + DB operator + secrets |
+| `keycloak` | cnpg-operator, external-secrets | DB operator + secrets |
 | `oauth2-proxy` | keycloak | OIDC provider |
 | `istio` | cert-manager, external-secrets | TLS + secrets OIDC |
 | `istio-gateway` | istio, cert-manager | Gateway + certificats TLS |
 | `argocd` | istio-gateway, external-secrets | Ingress + secrets OIDC |
+| `csi-external-snapshotter` | prometheus-stack | ServiceMonitors pour métriques |
+| `rook` | csi-external-snapshotter | VolumeSnapshot CRDs |
 | `loki` | rook | StorageClass pour logs |
 | `alloy` | loki | Endpoint Loki pour envoi logs |
 | `tempo` | rook, loki | Storage + corrélation logs-traces |
