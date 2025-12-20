@@ -5,14 +5,6 @@
 # Allow external HTTP/HTTPS traffic to nodes for Istio Gateway LoadBalancer.
 # This complements the default-deny-host-ingress policy in cilium app.
 #
-# Node Targeting:
-# - With externalTrafficPolicy: Cluster (default), all nodes need ports open
-# - With externalTrafficPolicy: Local, only nodes running Gateway pods need ports
-#
-# To restrict to specific nodes, use nodeSelector with labels like:
-#   matchLabels:
-#     node-role.kubernetes.io/ingress: ""
-#
 # Only enable this when using Istio as ingress controller.
 # Other ingress controllers (Traefik, nginx, etc.) should define similar
 # policies in their respective app directories.
@@ -25,12 +17,9 @@ metadata:
 spec:
   description: "Allow HTTP/HTTPS to nodes for Istio Gateway LoadBalancer"
 
-  # Target: Only nodes labeled for ingress workloads
-  # Label your worker nodes with: kubectl label node <node> node-role.kubernetes.io/ingress=""
-  # Combined with externalTrafficPolicy: Local, only nodes running Gateway pods receive traffic
+  # Apply to all nodes in the cluster
   nodeSelector:
-    matchLabels:
-      node-role.kubernetes.io/ingress: ""
+    matchLabels: {}
 
   ingress:
     # HTTP/HTTPS for Istio Gateway LoadBalancer
