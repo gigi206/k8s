@@ -82,20 +82,157 @@ Applications déployées (10 Applications)
 
 Les applications sont déployées dans cet ordre via les **sync waves** (définis dans chaque `applicationset.yaml`) :
 
-1. **Wave 10** : `apps/metallb/` → Load Balancer (fournit des IPs externes)
-2. **Wave 15** : `apps/kube-vip/` → VIP pour l'API Kubernetes
-3. **Wave 15** : `apps/gateway-api-controller/` → Gateway API CRDs
-4. **Wave 20** : `apps/cert-manager/` → Gestion des certificats TLS
-5. **Wave 25** : `apps/external-secrets/` → Synchronisation des secrets externes
-6. **Wave 40** : `apps/istio/` → Service Mesh (si activé)
-7. **Wave 40** : `apps/ingress-nginx/` → Routage HTTP/HTTPS
-8. **Wave 45** : `apps/external-dns/` → Synchronisation DNS automatique
-9. **Wave 45** : `apps/istio-gateway/` → Gateway Istio (si activé)
-10. **Wave 50** : `apps/argocd/` → GitOps Controller (se gère lui-même)
-11. **Wave 55** : `apps/csi-external-snapshotter/` → CSI Snapshot Controller
-12. **Wave 60** : `apps/longhorn/` → Stockage persistant distribué
-13. **Wave 75** : `apps/prometheus-stack/` → Monitoring (Prometheus + Grafana)
-14. **Wave 80** : `apps/keycloak/` → Identity Provider (SSO)
+| Wave | Application | Description |
+|------|-------------|-------------|
+| 5 | `prometheus-stack` | CRDs Prometheus (ServiceMonitor, PrometheusRule) |
+| 10 | `metallb` | Load Balancer Layer 2 |
+| 15 | `kube-vip` | VIP pour l'API Kubernetes HA |
+| 15 | `gateway-api-controller` | Gateway API CRDs |
+| 20 | `cert-manager` | Gestion des certificats TLS |
+| 25 | `external-secrets` | External Secrets Operator |
+| 40 | `istio` | Service Mesh (control plane) |
+| 45 | `external-dns` | Synchronisation DNS automatique |
+| 45 | `istio-gateway` | Gateway Istio + TLS |
+| 50 | `argocd` | GitOps Controller (self-managed) |
+| 55 | `csi-external-snapshotter` | CSI Snapshot Controller |
+| 60 | `rook` / `longhorn` | Stockage distribué (Ceph/Longhorn) |
+| 65 | `cnpg-operator` | CloudNativePG (PostgreSQL) |
+| 73 | `loki` | Stockage des logs |
+| 74 | `alloy` | Collecteur de logs |
+| 76 | `cilium` | Monitoring CNI (Hubble) |
+| 77 | `tempo` | Distributed Tracing |
+| 80 | `keycloak` | Identity Provider (SSO) |
+| 81 | `oauth2-proxy` | OAuth2 Proxy pour Istio |
+
+### Graphe de dépendances
+
+```mermaid
+flowchart TB
+    subgraph wave5["Wave 5 - CRDs Prometheus"]
+        prometheus-stack["prometheus-stack<br/><i>ServiceMonitor, PrometheusRule CRDs</i>"]
+    end
+
+    subgraph wave10["Wave 10 - LoadBalancer"]
+        metallb["metallb<br/><i>LoadBalancer L2</i>"]
+    end
+
+    subgraph wave15["Wave 15 - HA & Gateway API"]
+        kube-vip["kube-vip<br/><i>VIP API HA</i>"]
+        gateway-api["gateway-api-controller<br/><i>Gateway API CRDs</i>"]
+    end
+
+    subgraph wave20["Wave 20 - Certificates"]
+        cert-manager["cert-manager<br/><i>TLS, ClusterIssuer</i>"]
+    end
+
+    subgraph wave25["Wave 25 - Secrets"]
+        external-secrets["external-secrets<br/><i>ClusterSecretStore</i>"]
+    end
+
+    subgraph wave40["Wave 40 - Service Mesh"]
+        istio["istio<br/><i>Control Plane</i>"]
+    end
+
+    subgraph wave45["Wave 45 - Ingress & DNS"]
+        istio-gateway["istio-gateway<br/><i>Gateway + TLS</i>"]
+        external-dns["external-dns<br/><i>DNS automation</i>"]
+    end
+
+    subgraph wave50["Wave 50 - GitOps"]
+        argocd["argocd<br/><i>Self-managed</i>"]
+    end
+
+    subgraph wave55-60["Wave 55-60 - Storage"]
+        csi-snapshotter["csi-external-snapshotter<br/><i>VolumeSnapshots</i>"]
+        rook["rook<br/><i>Ceph Storage</i>"]
+    end
+
+    subgraph wave65["Wave 65 - Database"]
+        cnpg["cnpg-operator<br/><i>PostgreSQL</i>"]
+    end
+
+    subgraph wave73-77["Wave 73-77 - Observability"]
+        loki["loki<br/><i>Log Storage</i>"]
+        alloy["alloy<br/><i>Log Collector</i>"]
+        cilium["cilium<br/><i>CNI Monitoring</i>"]
+        tempo["tempo<br/><i>Tracing</i>"]
+    end
+
+    subgraph wave80-81["Wave 80-81 - SSO"]
+        keycloak["keycloak<br/><i>Identity Provider</i>"]
+        oauth2-proxy["oauth2-proxy<br/><i>Auth Proxy</i>"]
+    end
+
+    %% Dependencies
+    prometheus-stack --> metallb
+    prometheus-stack --> cert-manager
+    prometheus-stack --> istio
+    prometheus-stack --> cilium
+
+    metallb --> kube-vip
+
+    cert-manager --> external-secrets
+
+    external-secrets --> istio
+    external-secrets --> argocd
+    external-secrets --> keycloak
+    external-secrets --> oauth2-proxy
+
+    istio --> istio-gateway
+    istio --> external-dns
+
+    istio-gateway --> argocd
+    istio-gateway --> keycloak
+
+    csi-snapshotter --> rook
+
+    rook --> cnpg
+    rook --> loki
+    rook --> tempo
+
+    cnpg --> keycloak
+
+    loki --> alloy
+    loki --> tempo
+
+    keycloak --> oauth2-proxy
+
+    %% Styling
+    classDef crd fill:#e1f5fe,stroke:#01579b
+    classDef infra fill:#fff3e0,stroke:#e65100
+    classDef security fill:#fce4ec,stroke:#880e4f
+    classDef storage fill:#e8f5e9,stroke:#1b5e20
+    classDef observability fill:#f3e5f5,stroke:#4a148c
+    classDef mesh fill:#e0f2f1,stroke:#004d40
+
+    class prometheus-stack crd
+    class metallb,kube-vip,gateway-api infra
+    class cert-manager,external-secrets,keycloak,oauth2-proxy security
+    class csi-snapshotter,rook,cnpg storage
+    class loki,alloy,cilium,tempo observability
+    class istio,istio-gateway,argocd,external-dns mesh
+```
+
+### Légende des dépendances
+
+| Application | Dépend de | Raison |
+|-------------|-----------|--------|
+| `prometheus-stack` | ∅ | Fournit les CRDs (ServiceMonitor, PrometheusRule) |
+| `metallb` | prometheus-stack | ServiceMonitors pour métriques |
+| `kube-vip` | metallb | Utilise LoadBalancer pour VIP |
+| `cert-manager` | prometheus-stack | ServiceMonitors pour métriques |
+| `external-secrets` | cert-manager | CA pour ClusterSecretStore |
+| `istio` | cert-manager, external-secrets | TLS + secrets OIDC |
+| `istio-gateway` | istio, cert-manager | Gateway + certificats TLS |
+| `argocd` | istio-gateway, external-secrets | Ingress + secrets OIDC |
+| `rook` | csi-external-snapshotter, external-secrets | Snapshots + CA pour dashboard |
+| `cnpg-operator` | rook | StorageClass pour PostgreSQL |
+| `loki` | rook | StorageClass pour logs |
+| `alloy` | loki | Endpoint Loki pour envoi logs |
+| `tempo` | rook, loki | Storage + corrélation logs-traces |
+| `cilium` | prometheus-stack | ServiceMonitors pour Hubble |
+| `keycloak` | cnpg-operator, external-secrets, istio-gateway | DB + secrets + ingress |
+| `oauth2-proxy` | keycloak, external-secrets | OIDC provider + secrets |
 
 ## Déploiement initial
 
