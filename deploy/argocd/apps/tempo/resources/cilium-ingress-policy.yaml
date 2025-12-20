@@ -18,17 +18,19 @@ spec:
   endpointSelector: {}  # Applies to all pods in tempo namespace
 
   ingress:
-    # Allow from Istio namespace (trace push from Envoy sidecars)
+    # Allow from Istio namespace (trace push from Envoy sidecars + HBONE tunnel)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: istio-system
       toPorts:
         - ports:
-            - port: "4317"
+            - port: "4317"    # OTLP gRPC
               protocol: TCP
-            - port: "4318"
+            - port: "4318"    # OTLP HTTP
               protocol: TCP
-            - port: "9411"
+            - port: "9411"    # Zipkin
+              protocol: TCP
+            - port: "15008"   # HBONE (Istio Ambient mTLS tunnel)
               protocol: TCP
 
     # Allow from Monitoring namespace (Grafana queries + Prometheus scrape)

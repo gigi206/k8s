@@ -407,6 +407,53 @@ Les dashboards Cilium Agent/Operator sont déployés via cet ApplicationSet plut
 
 ## Dépannage
 
+### Diagnostiquer les drops avec Hubble
+
+**Lorsque des connexions échouent** (timeout, connection refused), utilisez Hubble pour identifier les paquets bloqués par les network policies :
+
+```bash
+# Voir les 50 derniers paquets droppés
+kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --last 50
+
+# Suivre les drops en temps réel
+kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED -f
+
+# Filtrer par namespace source
+kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --from-namespace argo-cd
+
+# Filtrer par namespace destination
+kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --to-namespace keycloak
+
+# Voir uniquement les drops de policy (pas les erreurs réseau)
+kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --type policy-verdict
+```
+
+**Exemple de sortie Hubble :**
+```
+Dec 20 16:07:20.543: monitoring/prometheus-0:58092 <> rook-ceph/exporter:9926 Policy denied DROPPED (TCP Flags: SYN)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^        ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^
+                     Source (namespace/pod:port)     Destination             Raison du drop
+```
+
+**Actions correctives :**
+
+1. Identifier le namespace source et destination
+2. Vérifier si une `CiliumNetworkPolicy` existe pour le namespace destination
+3. Ajouter le port manquant dans la section `ingress` de la policy
+
+**Exemple de correction :**
+```yaml
+# Dans apps/<app>/resources/cilium-ingress-policy.yaml
+ingress:
+  - fromEndpoints:
+      - matchLabels:
+          io.kubernetes.pod.namespace: monitoring  # Autoriser depuis monitoring
+    toPorts:
+      - ports:
+          - port: "9926"  # Port manquant identifié via Hubble
+            protocol: TCP
+```
+
 ### ServiceMonitors/PodMonitors non créés
 
 Vérifier si l'Application existe et est synchronisée :
