@@ -34,6 +34,17 @@ spec:
             - port: "443"
               protocol: TCP
 
+    # Allow internal cluster traffic (pods accessing services via LoadBalancer IP)
+    # Needed for hairpin NAT: pods -> *.k8s.lan -> istio-gateway -> backends
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+
     # Allow from monitoring namespace (Prometheus scrape)
     - fromEndpoints:
         - matchLabels:
