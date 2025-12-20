@@ -813,21 +813,37 @@ apply_bootstrap_network_policies() {
     fi
   fi
 
-  # 3. ArgoCD policy - ajoute l'accès externe (GitHub, Helm)
+  # 3. ArgoCD egress policy - ajoute l'accès externe (GitHub, Helm)
   if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]]; then
     local argocd_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-egress-policy.yaml"
     if [[ -f "$argocd_policy" ]]; then
       if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
-        log_success "CiliumNetworkPolicy ArgoCD appliquée (accès GitHub/Helm)"
+        log_success "CiliumNetworkPolicy ArgoCD egress appliquée (accès GitHub/Helm)"
       else
-        log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD"
+        log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD egress"
       fi
     else
-      log_debug "Pas de network policy ArgoCD trouvée: $argocd_policy"
+      log_debug "Pas de egress policy ArgoCD trouvée: $argocd_policy"
     fi
   fi
 
-  # 4. ArgoCD root-ca ExternalSecret - required for argocd-server to start (chicken-and-egg)
+  # 4. ArgoCD ingress policy - permet la communication interne ArgoCD
+  # CRITIQUE: Doit être déployé AVANT default-deny-pod-ingress pour permettre
+  # la communication controller <-> repo-server (port 8081)
+  if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]]; then
+    local argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy.yaml"
+    if [[ -f "$argocd_ingress_policy" ]]; then
+      if kubectl apply -f "$argocd_ingress_policy" > /dev/null 2>&1; then
+        log_success "CiliumNetworkPolicy ArgoCD ingress appliquée (communication interne)"
+      else
+        log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD ingress"
+      fi
+    else
+      log_debug "Pas de ingress policy ArgoCD trouvée: $argocd_ingress_policy"
+    fi
+  fi
+
+  # 5. ArgoCD root-ca ExternalSecret - required for argocd-server to start (chicken-and-egg)
   if [[ "$FEAT_SSO" == "true" ]]; then
     local argocd_ca_secret="${SCRIPT_DIR}/apps/argocd/kustomize/sso/external-secret-ca.yaml"
     if [[ -f "$argocd_ca_secret" ]]; then
