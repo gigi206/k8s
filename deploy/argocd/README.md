@@ -88,21 +88,21 @@ Les applications sont déployées dans cet ordre via les **sync waves** (défini
 | 10 | `metallb` | Load Balancer Layer 2 |
 | 15 | `kube-vip` | VIP pour l'API Kubernetes HA |
 | 15 | `gateway-api-controller` | Gateway API CRDs |
+| 15 | `cnpg-operator` | CloudNativePG (PostgreSQL Operator) |
 | 20 | `cert-manager` | Gestion des certificats TLS |
 | 25 | `external-secrets` | External Secrets Operator |
+| 30 | `keycloak` | Identity Provider (SSO) |
+| 35 | `oauth2-proxy` | OAuth2 Proxy pour Istio |
 | 40 | `istio` | Service Mesh (control plane) |
 | 45 | `external-dns` | Synchronisation DNS automatique |
 | 45 | `istio-gateway` | Gateway Istio + TLS |
 | 50 | `argocd` | GitOps Controller (self-managed) |
 | 55 | `csi-external-snapshotter` | CSI Snapshot Controller |
 | 60 | `rook` / `longhorn` | Stockage distribué (Ceph/Longhorn) |
-| 65 | `cnpg-operator` | CloudNativePG (PostgreSQL) |
 | 73 | `loki` | Stockage des logs |
 | 74 | `alloy` | Collecteur de logs |
 | 76 | `cilium` | Monitoring CNI (Hubble) |
 | 77 | `tempo` | Distributed Tracing |
-| 80 | `keycloak` | Identity Provider (SSO) |
-| 81 | `oauth2-proxy` | OAuth2 Proxy pour Istio |
 
 ### Graphe de dépendances
 
@@ -116,9 +116,10 @@ flowchart TB
         metallb["metallb<br/><i>LoadBalancer L2</i>"]
     end
 
-    subgraph wave15["Wave 15 - HA & Gateway API"]
+    subgraph wave15["Wave 15 - HA, Gateway API & DB Operator"]
         kube-vip["kube-vip<br/><i>VIP API HA</i>"]
         gateway-api["gateway-api-controller<br/><i>Gateway API CRDs</i>"]
+        cnpg["cnpg-operator<br/><i>PostgreSQL Operator</i>"]
     end
 
     subgraph wave20["Wave 20 - Certificates"]
@@ -127,6 +128,11 @@ flowchart TB
 
     subgraph wave25["Wave 25 - Secrets"]
         external-secrets["external-secrets<br/><i>ClusterSecretStore</i>"]
+    end
+
+    subgraph wave30-35["Wave 30-35 - SSO"]
+        keycloak["keycloak<br/><i>Identity Provider</i>"]
+        oauth2-proxy["oauth2-proxy<br/><i>Auth Proxy</i>"]
     end
 
     subgraph wave40["Wave 40 - Service Mesh"]
@@ -147,10 +153,6 @@ flowchart TB
         rook["rook<br/><i>Ceph Storage</i>"]
     end
 
-    subgraph wave65["Wave 65 - Database"]
-        cnpg["cnpg-operator<br/><i>PostgreSQL</i>"]
-    end
-
     subgraph wave73-77["Wave 73-77 - Observability"]
         loki["loki<br/><i>Log Storage</i>"]
         alloy["alloy<br/><i>Log Collector</i>"]
@@ -158,14 +160,10 @@ flowchart TB
         tempo["tempo<br/><i>Tracing</i>"]
     end
 
-    subgraph wave80-81["Wave 80-81 - SSO"]
-        keycloak["keycloak<br/><i>Identity Provider</i>"]
-        oauth2-proxy["oauth2-proxy<br/><i>Auth Proxy</i>"]
-    end
-
     %% Dependencies
     prometheus-stack --> metallb
     prometheus-stack --> cert-manager
+    prometheus-stack --> cnpg
     prometheus-stack --> istio
     prometheus-stack --> cilium
 
@@ -173,29 +171,27 @@ flowchart TB
 
     cert-manager --> external-secrets
 
+    external-secrets --> keycloak
+
+    cnpg --> keycloak
+
+    keycloak --> oauth2-proxy
+
     external-secrets --> istio
     external-secrets --> argocd
-    external-secrets --> keycloak
-    external-secrets --> oauth2-proxy
 
     istio --> istio-gateway
     istio --> external-dns
 
     istio-gateway --> argocd
-    istio-gateway --> keycloak
 
     csi-snapshotter --> rook
 
-    rook --> cnpg
     rook --> loki
     rook --> tempo
 
-    cnpg --> keycloak
-
     loki --> alloy
     loki --> tempo
-
-    keycloak --> oauth2-proxy
 
     %% Styling
     classDef crd fill:#e1f5fe,stroke:#01579b
@@ -220,19 +216,19 @@ flowchart TB
 | `prometheus-stack` | ∅ | Fournit les CRDs (ServiceMonitor, PrometheusRule) |
 | `metallb` | prometheus-stack | ServiceMonitors pour métriques |
 | `kube-vip` | metallb | Utilise LoadBalancer pour VIP |
+| `cnpg-operator` | prometheus-stack | ServiceMonitors pour métriques |
 | `cert-manager` | prometheus-stack | ServiceMonitors pour métriques |
 | `external-secrets` | cert-manager | CA pour ClusterSecretStore |
+| `keycloak` | cnpg-operator, external-secrets | DB operator + secrets |
+| `oauth2-proxy` | keycloak | OIDC provider |
 | `istio` | cert-manager, external-secrets | TLS + secrets OIDC |
 | `istio-gateway` | istio, cert-manager | Gateway + certificats TLS |
 | `argocd` | istio-gateway, external-secrets | Ingress + secrets OIDC |
 | `rook` | csi-external-snapshotter, external-secrets | Snapshots + CA pour dashboard |
-| `cnpg-operator` | rook | StorageClass pour PostgreSQL |
 | `loki` | rook | StorageClass pour logs |
 | `alloy` | loki | Endpoint Loki pour envoi logs |
 | `tempo` | rook, loki | Storage + corrélation logs-traces |
 | `cilium` | prometheus-stack | ServiceMonitors pour Hubble |
-| `keycloak` | cnpg-operator, external-secrets, istio-gateway | DB + secrets + ingress |
-| `oauth2-proxy` | keycloak, external-secrets | OIDC provider + secrets |
 
 ## Déploiement initial
 
