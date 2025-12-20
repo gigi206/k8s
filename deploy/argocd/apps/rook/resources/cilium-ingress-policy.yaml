@@ -35,7 +35,7 @@ spec:
         - ports:
             - port: "8443"    # Dashboard HTTPS
               protocol: TCP
-            - port: "80"      # S3 Object Store (RGW)
+            - port: "8080"    # S3 Object Store (RGW container port)
               protocol: TCP
 
     # Allow internal Rook-Ceph communication (same namespace)
@@ -65,5 +65,5 @@ spec:
               protocol: TCP
             - port: "9283"    # MGR metrics internal
               protocol: TCP
-            - port: "80"      # RGW internal
+            - port: "8080"    # RGW internal (container port)
               protocol: TCP
