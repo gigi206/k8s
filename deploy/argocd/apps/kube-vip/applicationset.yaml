@@ -81,7 +81,7 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
-            exclude: "cilium-*.yaml"
+            include: "{daemonset.yaml,rbac.yaml}"
 
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Source: Cilium host ingress policy - allows external access to API VIP

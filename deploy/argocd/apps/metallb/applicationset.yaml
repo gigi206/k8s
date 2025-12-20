@@ -110,8 +110,7 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
-            include: "*.yaml"
-            exclude: "{prometheus.yaml,cilium-ingress-policy.yaml}"
+            include: "ipaddresspool.yaml"
 
         {{- if .features.monitoring.enabled }}
         # Source 3: Services pour métriques (sans label release dans selectors)

@@ -67,8 +67,7 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
-            include: "*.yaml"
-            exclude: "{prometheus.yaml,grafana-dashboard.yaml,cilium-*.yaml}"
+            include: "{cluster-secret-store.yaml,clusterissuer-selfsigned.yaml}"
 
       destination:
         server: https://kubernetes.default.svc
@@ -213,5 +212,4 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
-            include: "*.yaml"
-            exclude: "{prometheus.yaml,grafana-dashboard.yaml,cilium-*.yaml}"
+            include: "{cluster-secret-store.yaml,clusterissuer-selfsigned.yaml}"
