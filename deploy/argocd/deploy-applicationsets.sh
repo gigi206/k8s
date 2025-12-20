@@ -843,20 +843,6 @@ apply_bootstrap_network_policies() {
     fi
   fi
 
-  # 5. ArgoCD root-ca ExternalSecret - required for argocd-server to start (chicken-and-egg)
-  if [[ "$FEAT_SSO" == "true" ]]; then
-    local argocd_ca_secret="${SCRIPT_DIR}/apps/argocd/kustomize/sso/external-secret-ca.yaml"
-    if [[ -f "$argocd_ca_secret" ]]; then
-      if kubectl apply -f "$argocd_ca_secret" > /dev/null 2>&1; then
-        log_success "ExternalSecret root-ca pour ArgoCD appliqué"
-      else
-        log_warning "Impossible d'appliquer l'ExternalSecret root-ca pour ArgoCD"
-      fi
-    else
-      log_debug "Pas d'ExternalSecret CA trouvé: $argocd_ca_secret"
-    fi
-  fi
-
   # Wait for Cilium to propagate policies to endpoints
   log_info "Attente de la propagation des policies Cilium (10s)..."
   sleep 10
