@@ -40,9 +40,6 @@ spec:
     metadata:
       name: argocd
       namespace: argo-cd
-      # labels:
-      #   app: argocd
-      #   environment: '{{ .environment }}'
       annotations:
         argocd.argoproj.io/sync-wave: "50"
     spec:
