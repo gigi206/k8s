@@ -23,6 +23,31 @@ spec:
   endpointSelector: {}
 
   egress:
+    # Allow internal NeuVector communication (same namespace)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: neuvector
+      toPorts:
+        - ports:
+            - port: "8443"    # Manager web UI
+              protocol: TCP
+            - port: "10443"   # Controller fed/console
+              protocol: TCP
+            - port: "18300"   # Controller cluster communication
+              protocol: TCP
+            - port: "18300"
+              protocol: UDP
+            - port: "18301"   # Controller gRPC
+              protocol: TCP
+            - port: "18301"
+              protocol: UDP
+            - port: "18400"   # Controller internal
+              protocol: TCP
+            - port: "18401"   # Controller internal
+              protocol: TCP
+            - port: "18402"   # Scanner port
+              protocol: TCP
+
     # Allow HTTPS to external services (CVE databases, registries)
     - toEntities:
         - world
