@@ -40,9 +40,6 @@ spec:
     metadata:
       name: longhorn
       namespace: argo-cd
-      # labels:
-      #   app: longhorn
-      #   environment: '{{ .environment }}'
       annotations:
         argocd.argoproj.io/sync-wave: "60"
     spec:
