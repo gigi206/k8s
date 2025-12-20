@@ -951,7 +951,10 @@ while true; do
   current_apps=$(kubectl get application -A --no-headers 2>/dev/null | wc -l)
 
   if [[ $current_apps -ge $EXPECTED_APPS_COUNT ]]; then
-    printf "\n"
+    # Afficher la barre de progression finale à 100%
+    printf "\r  Applications: [%-50s] %d%% (%d/%d)\n" \
+      "$(printf '#%.0s' $(seq 1 50))" \
+      100 "$current_apps" "$EXPECTED_APPS_COUNT"
     log_success "Toutes les Applications générées: $current_apps/$EXPECTED_APPS_COUNT"
     break
   fi
@@ -1024,7 +1027,16 @@ while true; do
 
   # Condition de succès: toutes les apps attendues sont synced et healthy
   if [[ $SYNCED_AND_HEALTHY -ge $EXPECTED_APPS_COUNT ]] && [[ $TOTAL_APPS -ge $EXPECTED_APPS_COUNT ]]; then
-    printf "\n"
+    # Afficher la barre de progression finale à 100%
+    if [[ $WAIT_HEALTHY -eq 1 ]]; then
+      printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy, %ds)\n" \
+        "$(printf '#%.0s' $(seq 1 50))" \
+        100 "$SYNCED_AND_HEALTHY" "$EXPECTED_APPS_COUNT" "$sync_elapsed"
+    else
+      printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy)\n" \
+        "$(printf '#%.0s' $(seq 1 50))" \
+        100 "$SYNCED_AND_HEALTHY" "$EXPECTED_APPS_COUNT"
+    fi
     log_success "Toutes les applications sont Synced + Healthy! ($SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT)"
     break
   fi
