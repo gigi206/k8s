@@ -70,6 +70,17 @@ spec:
           path: deploy/argocd/apps/apisix/resources
           directory:
             include: "cilium-host-ingress-policy.yaml"
+        # Cilium Pod Ingress Policies (allow traffic to APISIX and ETCD pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "cilium-etcd-policy.yaml"
         {{- end }}
         # Source 0: APISIX Helm Chart
         - repoURL: {{ .apisix.chart.repo }}
@@ -108,7 +119,6 @@ spec:
                 replicaCount: {{ .apisix.etcd.replicaCount }}
                 persistence:
                   enabled: {{ .apisix.etcd.persistence.enabled }}
-                  storageClass: {{ .apisix.etcd.persistence.storageClass }}
                   size: {{ .apisix.etcd.persistence.size }}
                 # Disable pre-upgrade hook that causes issues during initial installation
                 preUpgradeJob:
@@ -121,8 +131,34 @@ spec:
                 labels:
                   release: {{ .features.monitoring.release }}
 
+              # APISIX Ingress Controller (sub-chart for Gateway API support)
+              ingress-controller:
+                enabled: {{ .ingressController.enabled }}
+                deployment:
+                  resources:
+                    requests:
+                      cpu: {{ .ingressController.resources.requests.cpu }}
+                      memory: {{ .ingressController.resources.requests.memory }}
+                    limits:
+                      cpu: {{ .ingressController.resources.limits.cpu }}
+                      memory: {{ .ingressController.resources.limits.memory }}
+                config:
+                  disableGatewayAPI: false
+                gatewayProxy:
+                  createDefault: true
+                  provider:
+                    type: ControlPlane
+                    controlPlane:
+                      service:
+                        name: apisix-admin
+                        port: 9180
+                      auth:
+                        type: AdminKey
+                        adminKey:
+                          value: {{ .apisix.admin.credentials.admin }}
+
         {{- if .features.monitoring.enabled }}
-        # Source 1: Prometheus monitoring (ServiceMonitor + PrometheusRules)
+        # Prometheus monitoring (ServiceMonitor + PrometheusRules)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/apisix/kustomize/monitoring

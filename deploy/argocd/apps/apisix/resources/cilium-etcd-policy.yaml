@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - APISIX ETCD Ingress Security
+# =============================================================================
+# Allows APISIX components to communicate with embedded ETCD.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: apisix-etcd-ingress
+  namespace: apisix
+spec:
+  description: "Allow ingress to APISIX ETCD from APISIX components"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: etcd
+      app.kubernetes.io/instance: apisix
+
+  ingress:
+    # Allow from APISIX gateway pods
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: apisix
+            app.kubernetes.io/instance: apisix
+      toPorts:
+        - ports:
+            - port: "2379"   # ETCD client port
+              protocol: TCP
+
+    # Allow ETCD cluster communication (peer)
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: etcd
+            app.kubernetes.io/instance: apisix
+      toPorts:
+        - ports:
+            - port: "2379"   # ETCD client port
+              protocol: TCP
+            - port: "2380"   # ETCD peer port
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "2379"   # ETCD metrics
+              protocol: TCP

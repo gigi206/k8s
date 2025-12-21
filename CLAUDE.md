@@ -338,6 +338,11 @@ Structure: `kustomization.yaml` (with `generators: [ksops-generator.yaml]`) → 
 
 ### CiliumNetworkPolicy Pattern
 
+**Configuration flags** (`config/config.yaml`): When enabled (default), these create default-deny policies requiring per-app exceptions:
+- `features.cilium.egressPolicy.enabled` → Blocks pod → external traffic. Apps needing external access require `cilium-egress-policy.yaml`.
+- `features.cilium.ingressPolicy.enabled` → Blocks external → node traffic. LoadBalancer apps require `cilium-host-ingress-policy.yaml`.
+- `features.cilium.defaultDenyPodIngress.enabled` → Blocks pod → pod traffic (Zero Trust). All apps require `cilium-ingress-policy.yaml` to receive traffic.
+
 **Egress policies** (pod → external):
 1. **`apps/cilium/resources/default-deny-external-egress.yaml`** - `CiliumClusterwideNetworkPolicy` (blocks egress to world by default, allows internal cluster traffic)
 2. **`apps/argocd/resources/cilium-egress-policy.yaml`** - `CiliumNetworkPolicy` (allows ArgoCD to reach Git repos and Helm registries)

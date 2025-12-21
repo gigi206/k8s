@@ -49,6 +49,17 @@ apisix:
       enabled: true
       size: "2Gi"
 
+# APISIX Ingress Controller (sub-chart, for Gateway API support)
+ingressController:
+  enabled: true
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
 # Sync policy
 syncPolicy:
   automated:
