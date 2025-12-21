@@ -153,6 +153,8 @@ spec:
                 # OIDC Provider (Keycloak)
                 provider: oidc
                 provider-display-name: "Keycloak"
+                # Skip the "Sign in with Keycloak" button page
+                skip-provider-button: "true"
                 # Internal URL for OIDC discovery (server-to-server)
                 # Note: Keycloak returns HTTPS URLs in discovery, so browser redirects work correctly
                 oidc-issuer-url: "http://keycloak-service.keycloak.svc.cluster.local:8080/realms/k8s"
