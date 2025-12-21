@@ -1,0 +1,82 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - APISIX Gateway Ingress Security
+# =============================================================================
+# Restricts access to APISIX Gateway to authorized sources:
+# - world: External clients via LoadBalancer (MetalLB)
+# - cluster: Internal pods accessing via LoadBalancer IP (hairpin NAT)
+# - monitoring: Prometheus metrics scraping
+# - apisix namespace: Internal communication (admin, etcd)
+#
+# Note: cilium-host-ingress-policy.yaml allows traffic to the NODE.
+#       This policy allows traffic to the POD after kube-proxy routing.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: apisix-gateway-ingress
+  namespace: apisix
+spec:
+  description: "Allow ingress to APISIX Gateway from authorized sources"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: apisix
+
+  ingress:
+    # Allow external traffic from world (LoadBalancer clients via MetalLB)
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "9080"
+              protocol: TCP
+            - port: "9443"
+              protocol: TCP
+
+    # Allow internal cluster traffic (pods accessing services via LoadBalancer IP)
+    # Needed for hairpin NAT: pods -> *.k8s.lan -> apisix-gateway -> backends
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "9080"
+              protocol: TCP
+            - port: "9443"
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9091"   # Prometheus metrics
+              protocol: TCP
+            - port: "9080"   # Health check
+              protocol: TCP
+
+    # Allow internal APISIX namespace communication
+    # Admin API access, control plane, health checks
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: apisix
+      toPorts:
+        - ports:
+            - port: "9080"   # HTTP gateway
+              protocol: TCP
+            - port: "9443"   # HTTPS gateway
+              protocol: TCP
+            - port: "9180"   # Admin API
+              protocol: TCP
+            - port: "9090"   # Control plane
+              protocol: TCP
+
+    # Allow ingress-controller to access Admin API
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: apisix-ingress-controller
+      toPorts:
+        - ports:
+            - port: "9180"   # Admin API
+              protocol: TCP
