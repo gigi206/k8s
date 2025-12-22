@@ -122,6 +122,14 @@ spec:
           directory:
             include: "cilium-host-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Cilium Pod Ingress Policy (allow traffic to pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source 2: Prometheus monitoring + Grafana dashboard (conditional)
         - repoURL: https://github.com/gigi206/k8s

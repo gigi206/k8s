@@ -1,0 +1,69 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Ingress NGINX Ingress Security
+# =============================================================================
+# Restricts access to Ingress NGINX pods to authorized sources:
+# - world: External clients via LoadBalancer (MetalLB)
+# - cluster: Internal pods accessing via LoadBalancer IP (hairpin NAT)
+# - monitoring: Prometheus metrics scraping
+#
+# Note: cilium-host-ingress-policy.yaml allows traffic to the NODE.
+#       This policy allows traffic to the POD after kube-proxy routing.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ingress-nginx-ingress
+  namespace: ingress-nginx
+spec:
+  description: "Allow ingress to Ingress NGINX from authorized sources"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+
+  ingress:
+    # Allow external traffic from world (LoadBalancer clients via MetalLB)
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+
+    # Allow internal cluster traffic (pods accessing services via LoadBalancer IP)
+    # Needed for hairpin NAT: pods -> *.k8s.lan -> ingress-nginx -> backends
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "10254"  # Prometheus metrics + health
+              protocol: TCP
+
+    # Allow internal namespace communication
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: ingress-nginx
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+            - port: "10254"  # Prometheus metrics + health
+              protocol: TCP
+            - port: "8443"   # Admission webhook
+              protocol: TCP
