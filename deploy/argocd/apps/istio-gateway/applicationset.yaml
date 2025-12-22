@@ -100,8 +100,11 @@ spec:
             patches:
               - target:
                   kind: Gateway
-                  name: istio-gateway
+                  name: default-gateway
                 patch: |
+                  - op: replace
+                    path: /spec/gatewayClassName
+                    value: '{{ .features.gatewayAPI.controller.provider }}'
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'

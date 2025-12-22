@@ -20,7 +20,7 @@ spec:
   description: "Allow ingress to Istio Gateway from authorized sources"
   endpointSelector:
     matchLabels:
-      gateway.networking.k8s.io/gateway-name: istio-gateway
+      gateway.networking.k8s.io/gateway-name: default-gateway
 
   ingress:
     # Allow external traffic from world (LoadBalancer clients via MetalLB)
