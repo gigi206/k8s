@@ -6,7 +6,7 @@ metadata:
   namespace: jaeger
 spec:
   parentRefs:
-    - name: istio-gateway
+    - name: default-gateway
       namespace: istio-system
   hostnames:
     - jaeger.k8s.lan

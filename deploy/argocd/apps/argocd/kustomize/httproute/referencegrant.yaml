@@ -2,7 +2,7 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
 metadata:
-  name: istio-gateway-argocd-tls
+  name: gateway-argocd-tls
   namespace: argo-cd
 spec:
   from:
