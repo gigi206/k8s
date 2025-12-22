@@ -108,7 +108,7 @@ features:
     httpRoute:
       enabled: true  # Utilise HTTPRoute dans les ApplicationSets
     controller:
-      provider: "istio"  # Wave 41: istio, nginx-gateway-fabric, envoy-gateway, apisix, traefik, nginx
+      provider: "istio"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
 
   # === Legacy Ingress (déprécié) ===
   ingress:
