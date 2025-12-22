@@ -98,6 +98,14 @@ spec:
           directory:
             include: "cilium-host-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Cilium Pod Ingress Policy (allow traffic to pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/nginx-gateway-fabric/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         - repoURL: https://github.com/nginxinc/nginx-gateway-fabric
           targetRevision: '{{ .nginxGatewayFabric.version }}'
           path: charts/nginx-gateway-fabric

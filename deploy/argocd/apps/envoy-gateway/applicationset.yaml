@@ -86,6 +86,14 @@ spec:
           directory:
             include: "cilium-host-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Cilium Pod Ingress Policy (allow traffic to pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/envoy-gateway/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         # Source 0: Envoy Gateway Helm Chart (OCI)
         - repoURL: oci://docker.io/envoyproxy/gateway-helm
           chart: gateway-helm
@@ -131,6 +139,14 @@ spec:
           path: deploy/argocd/apps/envoy-gateway/resources
           directory:
             include: "cilium-host-ingress-policy.yaml"
+        {{- end }}
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Cilium Pod Ingress Policy (allow traffic to pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/envoy-gateway/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
         {{- end }}
         - repoURL: oci://docker.io/envoyproxy/gateway-helm
           chart: gateway-helm
