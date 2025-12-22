@@ -2,10 +2,6 @@
 environment: dev
 appName: istio-gateway
 
-# Git configuration (override for dev to use test branch)
-git:
-  revision: "test"
-
 istio:
   namespace: istio-system
   version: "1.28.1"  # Must match istio control plane version (used when features.ingress.enabled)
