@@ -339,11 +339,13 @@ get_feature() {
   local path="$1"
   local default="${2:-false}"
   local value
-  value=$(yq -r "$path // \"$default\"" "$CONFIG_FILE" 2>/dev/null)
+  # Ne pas utiliser // car il remplace aussi les valeurs falsy (false, 0)
+  value=$(yq -r "$path" "$CONFIG_FILE" 2>/dev/null)
   # Normaliser les valeurs booléennes
   case "$value" in
     true|True|TRUE|yes|Yes|YES|1) echo "true" ;;
-    false|False|FALSE|no|No|NO|0|null|"") echo "$default" ;;
+    false|False|FALSE|no|No|NO|0) echo "false" ;;
+    null|"") echo "$default" ;;
     *) echo "$value" ;;
   esac
 }
