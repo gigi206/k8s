@@ -166,3 +166,28 @@ spec:
             commonLabels:
               release: {{ .features.monitoring.release }}
         {{- end }}
+
+        {{- if .gatewayAPI.enabled }}
+        # Gateway API resources (GatewayClass, Gateway, Certificate)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/apisix/kustomize/gateway
+          kustomize:
+            patches:
+              - target:
+                  kind: Gateway
+                  name: default-gateway
+                patch: |
+                  - op: replace
+                    path: /spec/listeners/1/hostname
+                    value: '*.{{ .common.domain }}'
+              - target:
+                  kind: Certificate
+                  name: wildcard-k8s-local
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames
+                    value:
+                      - '*.{{ .common.domain }}'
+                      - '{{ .common.domain }}'
+        {{- end }}
