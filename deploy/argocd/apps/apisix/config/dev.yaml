@@ -49,6 +49,10 @@ apisix:
       enabled: true
       size: "2Gi"
 
+# Gateway API resources (GatewayClass, Gateway, Certificate)
+gatewayAPI:
+  enabled: true  # Deploy GatewayClass and default-gateway
+
 # APISIX Ingress Controller (sub-chart, for Gateway API support)
 ingressController:
   enabled: true
