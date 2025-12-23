@@ -121,6 +121,16 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: ceph.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-rook-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
 
         {{- if .rook.objectStore.enabled }}
         # Source: HTTPRoute (Gateway API) - S3 Object Store
@@ -136,6 +146,9 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: s3.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
         {{- end }}
 

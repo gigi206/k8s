@@ -109,6 +109,13 @@ features:
       enabled: true  # Utilise HTTPRoute dans les ApplicationSets
     controller:
       provider: "apisix"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
+      # Gateway namespace (depends on provider):
+      # - istio: istio-system
+      # - apisix: apisix
+      # - envoy: envoy-gateway-system
+      # - traefik: traefik
+      # - nginx-gwf: nginx-gateway
+      gatewayNamespace: "apisix"
 
   # === Legacy Ingress (déprécié) ===
   ingress:
