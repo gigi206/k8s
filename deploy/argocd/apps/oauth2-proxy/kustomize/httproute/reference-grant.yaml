@@ -1,10 +1,10 @@
 ---
-# Allow HTTPRoute in oauth2-proxy namespace to reference Gateway in istio-system
+# Allow HTTPRoute in oauth2-proxy namespace to reference Gateway
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
 metadata:
   name: allow-oauth2-proxy-httproute
-  namespace: istio-system
+  namespace: PLACEHOLDER_GATEWAY_NS  # Patched via Kustomize from gatewayAPI.controller.gatewayNamespace
 spec:
   from:
     - group: gateway.networking.k8s.io

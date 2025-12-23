@@ -133,6 +133,16 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: oauth2.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: allow-oauth2-proxy-httproute
+                patch: |
+                  - op: replace
+                    path: /metadata/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
         # Source 4: Helm chart
         - repoURL: https://oauth2-proxy.github.io/manifests

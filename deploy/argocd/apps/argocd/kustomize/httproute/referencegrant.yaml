@@ -8,7 +8,7 @@ spec:
   from:
   - group: gateway.networking.k8s.io
     kind: Gateway
-    namespace: istio-system
+    namespace: PLACEHOLDER_GATEWAY_NS  # Patched via Kustomize from gatewayAPI.controller.gatewayNamespace
   to:
   - group: ""
     kind: Secret
