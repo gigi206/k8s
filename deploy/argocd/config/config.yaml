@@ -92,7 +92,7 @@ features:
 
   # === Service Mesh ===
   serviceMesh:
-    enabled: true      # Wave 40: Service Mesh (control plane + data plane)
+    enabled: false      # Wave 40: Service Mesh (control plane + data plane)
     provider: "istio"  # istio, linkerd (futur)
     accessLogs:
       # Provider "access-log-json" disponible pour activation par namespace via Telemetry API
@@ -108,7 +108,7 @@ features:
     httpRoute:
       enabled: true  # Utilise HTTPRoute dans les ApplicationSets
     controller:
-      provider: "istio"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
+      provider: "apisix"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
 
   # === Legacy Ingress (déprécié) ===
   ingress:
