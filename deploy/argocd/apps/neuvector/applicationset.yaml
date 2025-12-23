@@ -139,6 +139,16 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: neuvector.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: allow-neuvector-httproute
+                patch: |
+                  - op: replace
+                    path: /metadata/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
 
         {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}

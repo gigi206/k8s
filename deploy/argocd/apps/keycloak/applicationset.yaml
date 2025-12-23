@@ -182,6 +182,9 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: keycloak.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
 
         {{- if .features.monitoring.enabled }}

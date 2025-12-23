@@ -5,4 +5,5 @@ kind: Kustomization
 resources:
   - keycloak-client-saml.yaml
   - dashboard-saml-config.yaml
-  - destination-rule.yaml
+  # Note: destination-rule.yaml is deployed separately via ApplicationSet
+  # only when serviceMesh.enabled=true and provider=istio

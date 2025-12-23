@@ -123,9 +123,19 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: hubble.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-hubble-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
-        {{- if .features.oauth2Proxy.enabled }}
-        # Source 3: AuthorizationPolicy for OAuth2 Proxy ext_authz
+        {{- if and .features.oauth2Proxy.enabled .features.serviceMesh.enabled }}
+        # Source 3: AuthorizationPolicy for OAuth2 Proxy ext_authz (Istio only)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium/kustomize/oauth2-authz
