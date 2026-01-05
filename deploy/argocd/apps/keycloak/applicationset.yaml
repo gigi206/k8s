@@ -160,12 +160,20 @@ spec:
           path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
 
         {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source 8: Cilium ingress policy - conditional
+        # Source 8: Cilium ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/resources
           directory:
-            include: "cilium-ingress-policy.yaml"
+            include: "cilium-ingress-policy-istio.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "cilium-ingress-policy-apisix.yaml"
+        {{- end }}
         {{- end }}
 
         {{- if .features.gatewayAPI.httpRoute.enabled }}
@@ -198,4 +206,20 @@ spec:
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+
+        {{- if .features.serviceMesh.enabled }}
+        # Source 11: Kiali OIDC - ClusterSecretStore for istio-system (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "cluster-secret-store-istio.yaml"
+
+        # Source 12: Kiali OIDC - ExternalSecret sync (conditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "external-secrets-kiali.yaml"
         {{- end }}

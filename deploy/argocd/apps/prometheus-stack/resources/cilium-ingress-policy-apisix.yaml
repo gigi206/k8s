@@ -1,10 +1,10 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Prometheus Stack Ingress Security
+# CiliumNetworkPolicy - Prometheus Stack Ingress Security (APISIX Gateway)
 # =============================================================================
 # Restricts access to Prometheus/Grafana/Alertmanager to authorized sources:
 # - alloy: Remote write for self-metrics
-# - istio-system: Gateway ingress traffic for web UIs
+# - apisix: Gateway ingress traffic for web UIs
 # - monitoring: Internal communication between components
 # =============================================================================
 
@@ -18,10 +18,10 @@ spec:
   endpointSelector: {}  # Applies to all pods in monitoring namespace
 
   ingress:
-    # Allow from istio-system (Gateway ingress for Grafana, Prometheus, Alertmanager UIs)
+    # Allow from APISIX Gateway (apisix namespace)
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: istio-system
+            io.kubernetes.pod.namespace: apisix
       toPorts:
         - ports:
             - port: "3000"    # Grafana web UI

@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - ArgoCD Ingress Security
+# CiliumNetworkPolicy - ArgoCD Ingress Security (Istio Gateway)
 # =============================================================================
 # Restricts access to ArgoCD to authorized sources:
 # - monitoring: Prometheus metrics scraping
@@ -42,7 +42,7 @@ spec:
             - port: "9121"    # Redis exporter metrics
               protocol: TCP
 
-    # Allow from istio-system (Gateway ingress for UI/API)
+    # Allow from Istio Gateway (istio-system namespace)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: istio-system

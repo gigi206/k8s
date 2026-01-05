@@ -100,12 +100,20 @@ spec:
             include: "cilium-egress-policy.yaml"
         {{- end }}
         {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source: Cilium ingress policy - conditional
+        # Source: Cilium ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
           directory:
-            include: "cilium-ingress-policy.yaml"
+            include: "cilium-ingress-policy-istio.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/resources
+          directory:
+            include: "cilium-ingress-policy-apisix.yaml"
+        {{- end }}
         {{- end }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source: HTTPRoute (Gateway API) - conditional
