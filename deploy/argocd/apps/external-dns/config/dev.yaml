@@ -16,12 +16,12 @@ externalDns:
   txtOwnerId: "external-dns-dev"
 
   # Sources to watch (service, ingress, crd, gateway-httproute, istio-gateway, etc.)
+  # Note: istio-gateway requires Istio Gateway CRD to be installed
   sources:
     - "service"
     - "ingress"
     - "crd"
     - "gateway-httproute"  # Gateway API HTTPRoute support
-    - "istio-gateway"      # Istio native Gateway support
 
   # Sync interval
   interval: "30s"

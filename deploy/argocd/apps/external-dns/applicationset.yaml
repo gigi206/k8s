@@ -86,7 +86,13 @@ spec:
               interval: '{{ .externalDns.interval }}'
               provider:
                 name: coredns
-              sources: {{ .externalDns.sources | toYaml | nindent 16 }}
+              sources:
+              {{- range .externalDns.sources }}
+                - {{ . }}
+              {{- end }}
+              {{- if and .features.gatewayAPI.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+                - istio-gateway
+              {{- end }}
               env:
                 - name: ETCD_URLS
                   value: "http://external-dns-etcd:2379"
@@ -171,21 +177,25 @@ spec:
           targetRevision: '{{ .externalDns.versions.chart }}'
           chart: external-dns
           helm:
-            parameters:
-              - name: provider.name
-                value: '{{ .externalDns.provider | default "cloudflare" }}'
-              - name: txtOwnerId
-                value: '{{ .externalDns.txtOwnerId | default "k8s-test" }}'
-              - name: policy
-                value: '{{ .externalDns.policy | default "sync" }}'
-              - name: interval
-                value: '{{ .externalDns.interval | default "15s" }}'
-              - name: rbac.create
-                value: '{{ .externalDns.rbac.create | default true }}'
-              - name: crd.create
-                value: '{{ .externalDns.crd.create | default true }}'
-              - name: domainFilters[0]
-                value: '{{ .common.domain }}'
+            valuesObject:
+              provider:
+                name: '{{ .externalDns.provider | default "cloudflare" }}'
+              txtOwnerId: '{{ .externalDns.txtOwnerId | default "k8s-test" }}'
+              policy: '{{ .externalDns.policy | default "sync" }}'
+              interval: '{{ .externalDns.interval | default "15s" }}'
+              rbac:
+                create: {{ .externalDns.rbac.create | default true }}
+              crd:
+                create: {{ .externalDns.crd.create | default true }}
+              domainFilters:
+                - '{{ .common.domain }}'
+              sources:
+              {{- range .externalDns.sources }}
+                - {{ . }}
+              {{- end }}
+              {{- if and .features.gatewayAPI.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+                - istio-gateway
+              {{- end }}
         {{- end }}
 
         {{- /* Monitoring - common to all providers */ -}}
