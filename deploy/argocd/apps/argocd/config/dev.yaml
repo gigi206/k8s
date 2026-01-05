@@ -17,6 +17,7 @@ argocd:
     # OIDC Configuration (Keycloak)
     # ===================
     cm: {}
+    # Note: Gateway and Keycloak health checks are built-in to ArgoCD
 
     # ===================
     # RBAC Configuration

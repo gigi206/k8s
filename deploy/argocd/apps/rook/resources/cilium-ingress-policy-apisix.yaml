@@ -1,10 +1,10 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Rook-Ceph Ingress Security
+# CiliumNetworkPolicy - Rook-Ceph Ingress Security (APISIX Gateway)
 # =============================================================================
 # Restricts access to Rook-Ceph to authorized sources:
 # - monitoring: Prometheus metrics scraping (MGR)
-# - istio-system: Gateway ingress for Dashboard and S3
+# - apisix: Gateway ingress for Dashboard and S3
 # - rook-ceph: Internal Ceph cluster communication
 # =============================================================================
 
@@ -29,10 +29,10 @@ spec:
             - port: "9926"    # Rook-Ceph Exporter metrics
               protocol: TCP
 
-    # Allow from istio-system (Gateway ingress for Dashboard and S3)
+    # Allow from APISIX Gateway (apisix namespace)
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: istio-system
+            io.kubernetes.pod.namespace: apisix
       toPorts:
         - ports:
             - port: "8443"    # Dashboard HTTPS
