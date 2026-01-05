@@ -1,0 +1,118 @@
+---
+# =============================================================================
+# CronJob - OAuth2 Forward Auth Global Rule Manager
+# =============================================================================
+# This CronJob creates/maintains an APISIX Global Rule for OAuth2 authentication.
+# Using a Global Rule instead of per-route plugins ensures the auth is not
+# overwritten by the APISIX Ingress Controller reconciliation.
+#
+# The Global Rule uses serverless-pre-function to:
+# 1. Check if the request host is in the protected list
+# 2. Skip /oauth2/* paths (OAuth2 Proxy callback routes)
+# 3. Call OAuth2 Proxy /oauth2/auth endpoint to validate authentication
+# 4. Redirect to /oauth2/start on 401 for login flow
+#
+# Protected hosts (defined in PROTECTED_HOSTS env var):
+# - prometheus.k8s.lan
+# - alertmanager.k8s.lan
+# - hubble.k8s.lan
+# - ceph.k8s.lan
+# =============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: apisix-oauth2-plugin-applicator
+  namespace: apisix
+spec:
+  schedule: "*/2 * * * *"  # Every 2 minutes
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 90
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: oauth2-plugin-applicator
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: plugin-applicator
+              image: badouralix/curl-jq:alpine
+              env:
+                - name: APISIX_ADMIN_URL
+                  value: "http://apisix-admin.apisix.svc:9180"
+                - name: APISIX_ADMIN_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: apisix-admin-credentials
+                      key: admin-key
+                      optional: true
+                - name: OAUTH2_PROXY_AUTH_URL
+                  value: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth"
+                # Hosts that require OAuth2 authentication (comma-separated)
+                - name: PROTECTED_HOSTS
+                  value: "prometheus.k8s.lan,alertmanager.k8s.lan,hubble.k8s.lan,ceph.k8s.lan"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  # Default admin key if secret not available
+                  ADMIN_KEY="${APISIX_ADMIN_KEY:-edd1c9f034335f136f87ad84b625c8f1}"
+
+                  echo "=== OAuth2 Forward Auth Global Rule Manager ==="
+
+                  # Check if APISIX Admin API is ready
+                  HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${APISIX_ADMIN_URL}/apisix/admin" -H "X-API-KEY: ${ADMIN_KEY}" 2>/dev/null || echo "000")
+                  if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "404" ]; then
+                    echo "APISIX Admin API not ready (HTTP $HTTP_CODE), skipping..."
+                    exit 0
+                  fi
+                  echo "APISIX Admin API is ready"
+
+                  # Build Lua table for protected hosts
+                  PROTECTED_LUA=""
+                  echo "$PROTECTED_HOSTS" | tr ',' '\n' | while read HOST; do
+                    [ -z "$HOST" ] && continue
+                    PROTECTED_LUA="${PROTECTED_LUA}[\"${HOST}\"]=true,"
+                  done
+
+                  # Create Global Rule with serverless-pre-function for OAuth2 auth
+                  # This function:
+                  # 1. Checks if host is in protected list
+                  # 2. Skips /oauth2/* paths (OAuth2 callback)
+                  # 3. Makes HTTP request to OAuth2 Proxy /oauth2/auth
+                  # 4. On 401, redirects to /oauth2/start with rd= parameter
+                  # 5. On success, forwards X-Auth-Request-* headers
+                  GLOBAL_RULE='{
+                    "plugins": {
+                      "serverless-pre-function": {
+                        "phase": "access",
+                        "functions": [
+                          "return function(conf, ctx) local host = ngx.var.host; local protected = {[\"prometheus.k8s.lan\"]=true, [\"alertmanager.k8s.lan\"]=true, [\"hubble.k8s.lan\"]=true, [\"ceph.k8s.lan\"]=true}; if not protected[host] then return end; if ngx.var.uri:match(\"^/oauth2/\") then return end; local cookie = ngx.var.http_cookie; if not cookie or not cookie:find(\"_oauth2_proxy=\", 1, true) then ngx.status = 302; local rd = \"https://\" .. host .. ngx.var.request_uri; ngx.header[\"Location\"] = \"/oauth2/start?rd=\" .. ngx.escape_uri(rd); return ngx.exit(302) end; local http = require(\"resty.http\"); local httpc = http.new(); local res, err = httpc:request_uri(\"'"${OAUTH2_PROXY_AUTH_URL}"'\", {method=\"GET\", headers={[\"Host\"]=host, [\"Cookie\"]=cookie, [\"X-Real-IP\"]=ngx.var.remote_addr, [\"X-Forwarded-For\"]=ngx.var.remote_addr, [\"X-Forwarded-Host\"]=host, [\"X-Forwarded-Proto\"]=\"https\", [\"X-Forwarded-Uri\"]=ngx.var.request_uri}}); if res and res.status == 200 then for k,v in pairs(res.headers) do if k:lower():match(\"^x%-auth%-request\") then ngx.req.set_header(k, v) end end; return end; ngx.status = 302; local rd = \"https://\" .. host .. ngx.var.request_uri; ngx.header[\"Location\"] = \"/oauth2/start?rd=\" .. ngx.escape_uri(rd); return ngx.exit(302) end"
+                        ]
+                      }
+                    }
+                  }'
+
+                  echo "Creating/updating OAuth2 global rule..."
+                  RESULT=$(curl -s -X PUT "${APISIX_ADMIN_URL}/apisix/admin/global_rules/oauth2-forward-auth" \
+                    -H "X-API-KEY: ${ADMIN_KEY}" \
+                    -H "Content-Type: application/json" \
+                    -d "${GLOBAL_RULE}")
+
+                  if echo "$RESULT" | jq -e '.value.plugins."serverless-pre-function"' >/dev/null 2>&1; then
+                    echo "✓ Global rule created/updated successfully"
+                    echo "Protected hosts: ${PROTECTED_HOSTS}"
+                  else
+                    echo "✗ Failed to create/update global rule"
+                    echo "Response: $(echo "$RESULT" | jq -c .)"
+                    exit 1
+                  fi
+
+                  echo ""
+                  echo "=== Complete ==="

@@ -138,7 +138,7 @@ spec:
                 type: {{ .apisix.gateway.type }}
                 {{- if .apisix.gateway.loadBalancerIP }}
                 annotations:
-                  metallb.universe.tf/loadbalancer-ips: {{ .apisix.gateway.loadBalancerIP }}
+                  metallb.universe.tf/address-pool: apisix-gateway
                 {{- end }}
                 http:
                   enabled: {{ .apisix.gateway.http.enabled }}
@@ -209,6 +209,13 @@ spec:
           kustomize:
             commonLabels:
               release: {{ .features.monitoring.release }}
+        {{- end }}
+
+        {{- if .features.oauth2Proxy.enabled }}
+        # OAuth2 Forward Auth Post-Sync Job (applies forward-auth plugin to protected services)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/apisix/kustomize/plugins
         {{- end }}
 
         {{- if .gatewayAPI.enabled }}
