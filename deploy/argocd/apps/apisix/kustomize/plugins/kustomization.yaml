@@ -1,0 +1,7 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Job to apply OAuth2 forward-auth plugin to protected services
+  - oauth2-plugin-job.yaml
