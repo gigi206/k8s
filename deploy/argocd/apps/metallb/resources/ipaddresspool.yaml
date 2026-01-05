@@ -43,6 +43,18 @@ spec:
 
 ---
 apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: apisix-gateway
+  namespace: metallb-system
+spec:
+  addresses:
+    # Pool dédié pour APISIX Gateway (réservé, auto-assign désactivé)
+    - 192.168.121.210/32
+  autoAssign: false  # Seuls les Services avec loadBalancerIP explicite peuvent utiliser ce pool
+
+---
+apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
 metadata:
   name: default-advertisement
@@ -52,3 +64,4 @@ spec:
     - default-pool
     - external-dns
     - kubernetes-api
+    - apisix-gateway
