@@ -834,11 +834,24 @@ apply_bootstrap_network_policies() {
   # 4. ArgoCD ingress policy - permet la communication interne ArgoCD
   # CRITIQUE: Doit être déployé AVANT default-deny-pod-ingress pour permettre
   # la communication controller <-> repo-server (port 8081)
+  # Les policies sont séparées par provider (istio vs apisix)
   if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]]; then
-    local argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy.yaml"
+    local argocd_ingress_policy=""
+    case "$FEAT_GATEWAY_CONTROLLER" in
+      istio)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-istio.yaml"
+        ;;
+      apisix)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-apisix.yaml"
+        ;;
+      *)
+        # Default to istio policy if no specific provider
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-istio.yaml"
+        ;;
+    esac
     if [[ -f "$argocd_ingress_policy" ]]; then
       if kubectl apply -f "$argocd_ingress_policy" > /dev/null 2>&1; then
-        log_success "CiliumNetworkPolicy ArgoCD ingress appliquée (communication interne)"
+        log_success "CiliumNetworkPolicy ArgoCD ingress appliquée ($FEAT_GATEWAY_CONTROLLER)"
       else
         log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD ingress"
       fi
