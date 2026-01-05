@@ -45,6 +45,30 @@ spec:
 
   templatePatch: |
     spec:
+      # Ignore dynamically generated resources (etcd tokens, webhook certs, helm metadata)
+      ignoreDifferences:
+        - group: ""
+          kind: Secret
+          name: apisix-etcd-jwt-token
+          jsonPointers:
+            - /data
+        - group: ""
+          kind: Secret
+          name: apisix-ingress-controller-webhook-cert
+          jsonPointers:
+            - /data
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          name: apisix-ingress-controller-webhook
+          jqPathExpressions:
+            - .webhooks[].clientConfig.caBundle
+        - group: apps
+          kind: StatefulSet
+          name: apisix-etcd
+          jsonPointers:
+            - /spec/volumeClaimTemplates/0/apiVersion
+            - /spec/volumeClaimTemplates/0/kind
+
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
@@ -101,9 +125,25 @@ spec:
                   cpu: {{ .apisix.resources.limits.cpu }}
                   memory: {{ .apisix.resources.limits.memory }}
 
+              # APISIX SSL configuration (for HTTPS listener support)
+              apisix:
+                ssl:
+                  enabled: {{ .apisix.gateway.tls.enabled }}
+                  listen:
+                    - port: 9443
+                      enable_http3: false
+
               # Service configuration
               service:
                 type: {{ .apisix.gateway.type }}
+                http:
+                  enabled: {{ .apisix.gateway.http.enabled }}
+                  servicePort: 80
+                  containerPort: 9080
+                tls:
+                  enabled: {{ .apisix.gateway.tls.enabled }}
+                  servicePort: 443
+                  containerPort: 9443
 
               # Admin API configuration
               admin:

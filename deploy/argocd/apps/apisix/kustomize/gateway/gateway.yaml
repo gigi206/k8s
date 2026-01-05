@@ -12,6 +12,12 @@ metadata:
   namespace: apisix
 spec:
   gatewayClassName: apisix
+  # Link to GatewayProxy for APISIX Ingress Controller
+  infrastructure:
+    parametersRef:
+      group: apisix.apache.org
+      kind: GatewayProxy
+      name: apisix-config
   listeners:
   # HTTP listener
   - name: http
