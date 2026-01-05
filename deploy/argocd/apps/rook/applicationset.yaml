@@ -281,7 +281,7 @@ spec:
                   allowMultiplePerNode: {{ .rook.cluster.mgr.allowMultiplePerNode }}
                 dashboard:
                   enabled: {{ .rook.dashboard.enabled }}
-                  ssl: true
+                  ssl: false
                 storage:
                   useAllNodes: true
                   useAllDevices: false
