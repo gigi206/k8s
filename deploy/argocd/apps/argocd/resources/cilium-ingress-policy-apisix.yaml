@@ -1,0 +1,91 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - ArgoCD Ingress Security (APISIX Gateway)
+# =============================================================================
+# Restricts access to ArgoCD to authorized sources:
+# - monitoring: Prometheus metrics scraping
+# - argo-cd: Internal communication between components
+# - apisix: Gateway ingress traffic for UI/API
+# - kube-system: Webhook calls from kube-apiserver
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-ingress
+  namespace: argo-cd
+spec:
+  description: "Allow ingress to ArgoCD from authorized sources"
+  endpointSelector: {}  # Applies to all pods in argo-cd namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8080"    # ApplicationSet controller metrics
+              protocol: TCP
+            - port: "8082"    # Application controller metrics
+              protocol: TCP
+            - port: "8083"    # Server metrics
+              protocol: TCP
+            - port: "8084"    # Repo server metrics
+              protocol: TCP
+            - port: "8085"    # Controller metrics
+              protocol: TCP
+            - port: "8087"    # Notifications metrics
+              protocol: TCP
+            - port: "9001"    # Notifications controller metrics
+              protocol: TCP
+            - port: "9121"    # Redis exporter metrics
+              protocol: TCP
+
+    # Allow from APISIX Gateway (apisix namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: apisix
+      toPorts:
+        - ports:
+            - port: "8080"    # HTTP UI, REST API
+              protocol: TCP
+            - port: "8443"    # gRPC (CLI, webhooks)
+              protocol: TCP
+
+    # Allow from kube-system (API server webhook calls)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "8443"    # Webhook server
+              protocol: TCP
+
+    # Allow internal ArgoCD communication (same namespace)
+    # Server <-> Repo Server <-> Controller, all -> Redis
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: argo-cd
+      toPorts:
+        - ports:
+            - port: "8080"    # Server HTTP
+              protocol: TCP
+            - port: "8443"    # Server gRPC
+              protocol: TCP
+            - port: "8081"    # Repo Server gRPC
+              protocol: TCP
+            - port: "6379"    # Redis cache
+              protocol: TCP
+            - port: "8083"    # Server metrics
+              protocol: TCP
+            - port: "8084"    # Repo server metrics
+              protocol: TCP
+            - port: "8085"    # Controller metrics
+              protocol: TCP
+            - port: "8086"    # ApplicationSet metrics
+              protocol: TCP
+            - port: "8087"    # Notifications metrics
+              protocol: TCP
+            - port: "9121"    # Redis metrics
+              protocol: TCP

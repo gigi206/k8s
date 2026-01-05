@@ -91,12 +91,20 @@ spec:
           directory:
             include: "namespace.yaml"
         {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source 2: Cilium ingress policy - conditional
+        # Source 2: Cilium ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/resources
           directory:
-            include: "cilium-ingress-policy.yaml"
+            include: "cilium-ingress-policy-istio.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/resources
+          directory:
+            include: "cilium-ingress-policy-apisix.yaml"
+        {{- end }}
         {{- end }}
         {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
         # Source 2: SSO resources (Keycloak client Job) - only when SSO enabled

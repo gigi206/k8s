@@ -1,9 +1,9 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - OAuth2 Proxy Ingress Security
+# CiliumNetworkPolicy - OAuth2 Proxy Ingress Security (APISIX Gateway)
 # =============================================================================
 # Restricts access to OAuth2 Proxy to authorized sources:
-# - istio-system: ext_authz requests from Envoy sidecars/ztunnel
+# - apisix: forward-auth requests from APISIX gateway
 # - monitoring: Prometheus metrics scraping
 # - oauth2-proxy: Internal communication
 # =============================================================================
@@ -18,11 +18,10 @@ spec:
   endpointSelector: {}  # Applies to all pods in oauth2-proxy namespace
 
   ingress:
-    # Allow from istio-system (ext_authz from Envoy)
-    # Envoy sidecars and ztunnel send auth requests to OAuth2 Proxy
+    # Allow from APISIX Gateway (forward-auth requests)
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: istio-system
+            io.kubernetes.pod.namespace: apisix
       toPorts:
         - ports:
             - port: "4180"    # OAuth2 Proxy main port

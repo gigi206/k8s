@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Keycloak Ingress Security
+# CiliumNetworkPolicy - Keycloak Ingress Security (Istio Gateway)
 # =============================================================================
 # Restricts access to Keycloak to authorized sources:
 # - All namespaces: OIDC authentication (apps need to authenticate users)
@@ -76,7 +76,7 @@ spec:
             - port: "8080"    # PostgreSQL metrics/admin
               protocol: TCP
 
-    # Allow from istio-system (Gateway ingress)
+    # Allow from Istio Gateway (istio-system namespace)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: istio-system

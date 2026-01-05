@@ -88,12 +88,20 @@ spec:
       {{- end }}
       sources:
         {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source: Cilium ingress policy - conditional
+        # Source: Cilium ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/resources
           directory:
-            include: "cilium-ingress-policy.yaml"
+            include: "cilium-ingress-policy-istio.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+          directory:
+            include: "cilium-ingress-policy-apisix.yaml"
+        {{- end }}
         {{- end }}
         {{- if .features.cilium.egressPolicy.enabled }}
         # Source: Cilium egress policy - allows Grafana to reach grafana.com and OIDC
