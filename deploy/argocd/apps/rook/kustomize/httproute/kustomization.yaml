@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - httproute.yaml
   - referencegrant.yaml
+  - oauth2-proxy-referencegrant.yaml
