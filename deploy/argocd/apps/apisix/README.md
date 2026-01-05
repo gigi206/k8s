@@ -105,6 +105,136 @@ GATEWAY_IP=$(kubectl get svc -n apisix apisix-gateway -o jsonpath='{.status.load
 curl http://$GATEWAY_IP/get
 ```
 
+## OAuth2 Authentication
+
+APISIX provides OAuth2 authentication for protected applications via a Global Rule that discovers HTTPRoutes dynamically.
+
+### How It Works
+
+1. **Label HTTPRoutes**: Add `oauth2-protected: "true"` label to HTTPRoutes that need authentication
+2. **CronJob Discovery**: A CronJob runs every 2 minutes to discover labeled HTTPRoutes
+3. **Global Rule**: APISIX Global Rule redirects unauthenticated requests to OAuth2 Proxy
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  HTTPRoute (monitoring/prometheus)                              │
+│  labels:                                                        │
+│    oauth2-protected: "true"                                     │
+│  hostnames:                                                     │
+│    - prometheus.k8s.lan                                         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  CronJob: apisix-oauth2-plugin-applicator (every 2 min)         │
+│                                                                 │
+│  kubectl get httproutes -A -l oauth2-protected=true             │
+│  → Discovers: prometheus.k8s.lan, alertmanager.k8s.lan, ...     │
+│  → Updates APISIX Global Rule                                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  APISIX Global Rule: oauth2-forward-auth                        │
+│                                                                 │
+│  1. Check if host is in protected list                          │
+│  2. Skip /oauth2/* paths (OAuth2 Proxy callback)                │
+│  3. Check for _oauth2_proxy session cookie                      │
+│  4. Redirect to /oauth2/start if no cookie                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Protecting a New Application
+
+To add OAuth2 protection to an application:
+
+1. **Add the label to HTTPRoute**:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-app
+  namespace: my-namespace
+  labels:
+    oauth2-protected: "true"  # Add this label
+spec:
+  hostnames:
+    - "my-app.k8s.lan"
+  rules:
+    # Route /oauth2/* to OAuth2 Proxy (required for login flow)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /oauth2/
+      backendRefs:
+        - name: oauth2-proxy
+          namespace: oauth2-proxy
+          port: 4180
+    # Route all other traffic to your app
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: my-app-service
+          port: 8080
+```
+
+2. **Wait for CronJob** (max 2 minutes) or trigger manually:
+
+```bash
+kubectl create job -n apisix oauth2-manual --from=cronjob/apisix-oauth2-plugin-applicator
+```
+
+3. **Verify the Global Rule**:
+
+```bash
+curl -H "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1" \
+  http://localhost:9180/apisix/admin/global_rules/oauth2-forward-auth
+```
+
+### Removing OAuth2 Protection
+
+Remove the label from the HTTPRoute:
+
+```bash
+kubectl label httproute -n my-namespace my-app oauth2-protected-
+```
+
+The CronJob will automatically update the Global Rule on its next run.
+
+### Currently Protected Applications
+
+| Application | Namespace | Hostname |
+|-------------|-----------|----------|
+| Prometheus | monitoring | prometheus.k8s.lan |
+| Alertmanager | monitoring | alertmanager.k8s.lan |
+| Hubble UI | kube-system | hubble.k8s.lan |
+| Ceph Dashboard | rook-ceph | ceph.k8s.lan |
+
+### Troubleshooting OAuth2
+
+```bash
+# Check CronJob status
+kubectl get cronjob -n apisix apisix-oauth2-plugin-applicator
+
+# View latest job logs
+kubectl logs -n apisix -l app=oauth2-plugin-applicator --tail=50
+
+# List protected HTTPRoutes
+kubectl get httproutes -A -l oauth2-protected=true
+
+# Check Global Rule
+curl -s -H "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1" \
+  http://localhost:9180/apisix/admin/global_rules/oauth2-forward-auth | jq .
+
+# Test redirect (should return 302)
+curl -s -k -o /dev/null -w "%{http_code}\n" https://prometheus.k8s.lan/
+```
+
 ## Monitoring
 
 ### Prometheus Metrics

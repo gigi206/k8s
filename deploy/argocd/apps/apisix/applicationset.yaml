@@ -212,7 +212,8 @@ spec:
         {{- end }}
 
         {{- if .features.oauth2Proxy.enabled }}
-        # OAuth2 Forward Auth Post-Sync Job (applies forward-auth plugin to protected services)
+        # OAuth2 Forward Auth - Dynamic HTTPRoute discovery
+        # The CronJob discovers HTTPRoutes with label oauth2-protected=true
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/apisix/kustomize/plugins
