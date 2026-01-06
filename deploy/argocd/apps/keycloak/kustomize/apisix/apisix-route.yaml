@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - Keycloak
+# =============================================================================
+# Routes traffic to Keycloak (Identity and Access Management)
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  ingressClassName: apisix
+  http:
+    - name: keycloak
+      match:
+        hosts:
+          - keycloak.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: keycloak-service
+          servicePort: 8080

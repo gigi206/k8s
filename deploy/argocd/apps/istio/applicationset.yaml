@@ -551,8 +551,9 @@ spec:
                       tcp: "sent"
         {{- end }}
 
+        {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source: HTTPRoute (Gateway API) - conditional
+        # Source: HTTPRoute (Gateway API standard)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/kustomize/httproute
@@ -565,6 +566,21 @@ spec:
                   - op: replace
                     path: /spec/hostnames/0
                     value: kiali.{{ .common.domain }}
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        # Source: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/kustomize/apisix
+          kustomize:
+            patches:
+              - target:
+                  kind: ApisixRoute
+                  name: kiali
+                patch: |
+                  - op: replace
+                    path: /spec/http/0/match/hosts/0
+                    value: kiali.{{ .common.domain }}
+        {{- end }}
         {{- end }}
 
         {{- if .features.monitoring.enabled }}

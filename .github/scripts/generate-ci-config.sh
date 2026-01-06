@@ -101,8 +101,9 @@ for app in $ALL_APPS; do
       # Handled by istio
       ;;
     apisix)
-      log_info "  Enabling apisix"
+      log_info "  Enabling apisix (with native CRDs)"
       yq -i '.features.gatewayAPI.controller.provider = "apisix"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.httpRoute.enabled = false' "$CONFIG_FILE"  # Use ApisixRoute instead of HTTPRoute
       ;;
     ingress-nginx)
       log_info "  Enabling ingress-nginx"

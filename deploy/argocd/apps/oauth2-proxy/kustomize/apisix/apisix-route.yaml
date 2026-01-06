@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - OAuth2 Proxy
+# =============================================================================
+# Routes traffic to OAuth2 Proxy authentication service
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  ingressClassName: apisix
+  http:
+    - name: oauth2-proxy
+      match:
+        hosts:
+          - oauth2.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: oauth2-proxy
+          servicePort: 4180

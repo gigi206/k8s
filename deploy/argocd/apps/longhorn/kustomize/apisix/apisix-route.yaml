@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - Longhorn UI
+# =============================================================================
+# Routes traffic to Longhorn storage UI
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: longhorn-ui
+  namespace: longhorn-system
+spec:
+  ingressClassName: apisix
+  http:
+    - name: longhorn
+      match:
+        hosts:
+          - longhorn.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: longhorn-frontend
+          servicePort: 80

@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - NeuVector Manager
+# =============================================================================
+# Routes HTTPS traffic to NeuVector Manager Web UI
+# Uses ApisixUpstream for HTTPS backend configuration
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: neuvector-manager
+  namespace: neuvector
+spec:
+  ingressClassName: apisix
+  http:
+    - name: manager
+      match:
+        hosts:
+          - neuvector.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      upstreams:
+        - name: neuvector-service-webui  # References ApisixUpstream for HTTPS backend

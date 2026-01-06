@@ -64,17 +64,46 @@ fi
 log_info "Using gateway IP: $GATEWAY_IP"
 
 # =============================================================================
-# Get hostnames from HTTPRoutes
+# Get hostnames from all routing resources
 # =============================================================================
+# Supports: Ingress, HTTPRoute/GRPCRoute/TLSRoute (Gateway API),
+#           ApisixRoute (APISIX), VirtualService (Istio), IngressRoute (Traefik)
 
-HOSTNAMES=$(kubectl get httproute -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]?' | sort -u | grep -v '^$' | grep -v '^null$' || true)
+HOSTNAMES=""
 
-# Also check Ingresses
-INGRESS_HOSTS=$(kubectl get ingress -A -o json 2>/dev/null | jq -r '.items[].spec.rules[]?.host' | sort -u | grep -v '^$' | grep -v '^null$' || true)
-HOSTNAMES=$(echo -e "$HOSTNAMES\n$INGRESS_HOSTS" | sort -u | grep -v '^$')
+# 1. Kubernetes Ingress (standard)
+INGRESS_HOSTS=$(kubectl get ingress -A -o json 2>/dev/null | jq -r '.items[].spec.rules[]?.host // empty' | sort -u | grep -v '^$' || true)
+[ -n "$INGRESS_HOSTS" ] && HOSTNAMES="${HOSTNAMES}${INGRESS_HOSTS}\n"
+
+# 2. Gateway API HTTPRoute
+HTTPROUTE_HOSTS=$(kubectl get httproute -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' | sort -u | grep -v '^$' || true)
+[ -n "$HTTPROUTE_HOSTS" ] && HOSTNAMES="${HOSTNAMES}${HTTPROUTE_HOSTS}\n"
+
+# 3. Gateway API GRPCRoute
+GRPCROUTE_HOSTS=$(kubectl get grpcroute -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' | sort -u | grep -v '^$' || true)
+[ -n "$GRPCROUTE_HOSTS" ] && HOSTNAMES="${HOSTNAMES}${GRPCROUTE_HOSTS}\n"
+
+# 4. Gateway API TLSRoute (SNI-based)
+TLSROUTE_HOSTS=$(kubectl get tlsroute -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' | sort -u | grep -v '^$' || true)
+[ -n "$TLSROUTE_HOSTS" ] && HOSTNAMES="${HOSTNAMES}${TLSROUTE_HOSTS}\n"
+
+# 5. APISIX CRDs - ApisixRoute
+APISIX_HOSTS=$(kubectl get apisixroute -A -o json 2>/dev/null | jq -r '.items[].spec.http[]?.match.hosts[]? // empty' | sort -u | grep -v '^$' || true)
+[ -n "$APISIX_HOSTS" ] && HOSTNAMES="${HOSTNAMES}${APISIX_HOSTS}\n"
+
+# 6. Istio VirtualService (exclude wildcard hosts)
+VIRTUALSERVICE_HOSTS=$(kubectl get virtualservice -A -o json 2>/dev/null | jq -r '.items[].spec.hosts[]? // empty' | grep -v '^\*' | sort -u | grep -v '^$' || true)
+[ -n "$VIRTUALSERVICE_HOSTS" ] && HOSTNAMES="${HOSTNAMES}${VIRTUALSERVICE_HOSTS}\n"
+
+# 7. Traefik IngressRoute (parse Host(`...`) from match rules)
+INGRESSROUTE_HOSTS=$(kubectl get ingressroute -A -o json 2>/dev/null | jq -r '.items[].spec.routes[]?.match // empty' | grep -oP 'Host\(`\K[^`]+' | sort -u || true)
+[ -n "$INGRESSROUTE_HOSTS" ] && HOSTNAMES="${HOSTNAMES}${INGRESSROUTE_HOSTS}\n"
+
+# Combine and deduplicate
+HOSTNAMES=$(echo -e "$HOSTNAMES" | grep -v '^$' | sort -u)
 
 if [ -z "$HOSTNAMES" ]; then
-  log_warning "No HTTPRoutes or Ingresses found"
+  log_warning "No routing resources found (Ingress, HTTPRoute, ApisixRoute, VirtualService, etc.)"
   log_info "Skipping HTTP tests (no endpoints to test)"
   exit 0
 fi

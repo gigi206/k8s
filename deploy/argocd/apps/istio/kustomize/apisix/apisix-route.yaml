@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - Kiali
+# =============================================================================
+# Routes traffic to Kiali (Istio service mesh dashboard)
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: kiali
+  namespace: istio-system
+spec:
+  ingressClassName: apisix
+  http:
+    - name: kiali
+      match:
+        hosts:
+          - kiali.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: kiali
+          servicePort: 20001

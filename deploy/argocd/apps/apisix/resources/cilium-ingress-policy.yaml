@@ -75,7 +75,7 @@ spec:
     # Allow ingress-controller to access Admin API
     - fromEndpoints:
         - matchLabels:
-            app.kubernetes.io/name: apisix-ingress-controller
+            app.kubernetes.io/name: ingress-controller
       toPorts:
         - ports:
             - port: "9180"   # Admin API

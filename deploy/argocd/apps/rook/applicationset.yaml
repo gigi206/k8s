@@ -115,8 +115,9 @@ spec:
             include: "cilium-ingress-policy-apisix.yaml"
         {{- end }}
         {{- end }}
+        {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source: HTTPRoute (Gateway API) - Ceph Dashboard
+        # Source: HTTPRoute (Gateway API standard) - Ceph Dashboard
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/kustomize/httproute
@@ -141,7 +142,7 @@ spec:
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
 
         {{- if .rook.objectStore.enabled }}
-        # Source: HTTPRoute (Gateway API) - S3 Object Store
+        # Source: HTTPRoute (Gateway API standard) - S3 Object Store
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/kustomize/httproute-s3
@@ -157,6 +158,29 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        # Source: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
+        # Includes ApisixUpstream with scheme: https for Ceph Dashboard HTTPS backend
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/kustomize/apisix
+          kustomize:
+            patches:
+              - target:
+                  kind: ApisixRoute
+                  name: ceph-dashboard
+                patch: |
+                  - op: replace
+                    path: /spec/http/0/match/hosts/0
+                    value: ceph.{{ .common.domain }}
+              - target:
+                  kind: ApisixRoute
+                  name: ceph-s3
+                patch: |
+                  - op: replace
+                    path: /spec/http/0/match/hosts/0
+                    value: s3.{{ .common.domain }}
         {{- end }}
         {{- end }}
 
