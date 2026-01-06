@@ -72,6 +72,83 @@ kubectl -n rook-ceph get secret rook-ceph-dashboard-password \
 
 Default username: `admin`
 
+### HTTPS Backend avec APISIX Gateway API
+
+Le Ceph Dashboard utilise SSL/TLS en interne (port 8443). Lorsqu'on expose le dashboard via APISIX Gateway API (HTTPRoute), APISIX doit savoir qu'il doit se connecter au backend en HTTPS et non HTTP.
+
+#### Problème
+
+Par défaut, APISIX utilise HTTP pour se connecter aux backends. Avec un backend HTTPS comme le dashboard Ceph, cela provoque une erreur **502 Bad Gateway** car APISIX envoie du HTTP vers un serveur qui attend du HTTPS.
+
+#### Solutions possibles
+
+| Solution | Statut | Description |
+|----------|--------|-------------|
+| `BackendTrafficPolicy` | ❌ Non fonctionnel | CRD APISIX avec `scheme: https`. L'Ingress Controller réconcilie l'upstream depuis le Service qui n'a pas `appProtocol`, donc réécrit le scheme en HTTP. |
+| `ApisixUpstream` | ❌ Incompatible | CRD APISIX natif, mais ne fonctionne qu'avec `ApisixRoute`, pas avec `HTTPRoute` (Gateway API). |
+| Désactiver SSL dashboard | ❌ Non recommandé | Connexion non chiffrée entre APISIX et le dashboard. Problèmes avec SAML2 SSO qui nécessite HTTPS. |
+| CronJob patch Admin API | ⚠️ Workaround | Patch périodique de l'upstream via l'API Admin APISIX. Fonctionnel mais l'Ingress Controller réécrit la config à chaque réconciliation. |
+| **Service avec `appProtocol`** | ✅ **Solution retenue** | Créer un Service personnalisé avec `appProtocol: https`. APISIX détecte automatiquement le scheme depuis ce champ. |
+
+#### Solution implémentée
+
+Rook operator crée et gère le Service `rook-ceph-mgr-dashboard` mais ne permet pas de configurer le champ `appProtocol` (pas de support dans le CRD CephCluster).
+
+Notre solution : créer un **Service personnalisé** `ceph-dashboard-https` avec :
+- Le même sélecteur de pods que le Service de Rook
+- Le champ `appProtocol: https` pour la détection automatique
+
+```yaml
+# kustomize/httproute/dashboard-service-https.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-dashboard-https
+  namespace: rook-ceph
+spec:
+  type: ClusterIP
+  selector:
+    app: rook-ceph-mgr
+    mgr_role: active
+    rook_cluster: rook-ceph
+  ports:
+    - name: https-dashboard
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+      appProtocol: https    # <- Clé de la solution
+```
+
+L'HTTPRoute pointe vers ce Service au lieu de `rook-ceph-mgr-dashboard` :
+
+```yaml
+# kustomize/httproute/httproute.yaml
+backendRefs:
+  - name: ceph-dashboard-https  # Notre Service personnalisé
+    port: 8443
+```
+
+#### Pourquoi Rook ne supporte pas appProtocol ?
+
+Analyse du code source Rook (`pkg/operator/ceph/cluster/mgr/spec.go`) :
+
+```go
+func (c *Cluster) makeDashboardService(name string) (*v1.Service, error) {
+    // ...
+    Ports: []v1.ServicePort{
+        {
+            Name:       portName,
+            Port:       int32(c.dashboardPublicPort()),
+            TargetPort: intstr.IntOrString{IntVal: int32(c.dashboardInternalPort())},
+            Protocol:   v1.ProtocolTCP,
+            // Pas de champ appProtocol !
+        },
+    },
+}
+```
+
+Le CRD `CephCluster` (`DashboardSpec`) ne propose aucune option pour personnaliser les annotations ou champs du Service dashboard. Une feature request pourrait être soumise au projet Rook pour ajouter cette fonctionnalité.
+
 ### SSO / Authentification
 
 #### SAML2 (actuel)

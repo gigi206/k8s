@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Rook-Ceph Ingress Security (APISIX Gateway)
+# CiliumNetworkPolicy - Rook-Ceph Network Security (APISIX Gateway)
 # =============================================================================
 # Restricts access to Rook-Ceph to authorized sources:
 # - monitoring: Prometheus metrics scraping (MGR)
@@ -14,7 +14,7 @@ metadata:
   name: rook-ceph-ingress
   namespace: rook-ceph
 spec:
-  description: "Allow ingress to Rook-Ceph from authorized sources"
+  description: "Allow ingress for Rook-Ceph"
   endpointSelector: {}  # Applies to all pods in rook-ceph namespace
 
   ingress:
@@ -30,6 +30,7 @@ spec:
               protocol: TCP
 
     # Allow from APISIX Gateway (apisix namespace)
+    # Note: APISIX connects via HTTPS using appProtocol: https on the Service
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: apisix
@@ -63,7 +64,7 @@ spec:
               protocol: TCP
             - port: "6805"    # OSD/MDS communication
               protocol: TCP
-            - port: "8443"    # Dashboard internal
+            - port: "8443"    # Dashboard HTTPS internal
               protocol: TCP
             - port: "9283"    # MGR metrics internal
               protocol: TCP
