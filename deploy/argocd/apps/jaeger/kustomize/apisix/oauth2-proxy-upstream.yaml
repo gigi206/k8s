@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# ApisixUpstream - OAuth2 Proxy
+# =============================================================================
+# Cross-namespace upstream to oauth2-proxy service
+# Used by protected routes for OAuth2 authentication flow
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: oauth2-proxy
+  namespace: jaeger
+spec:
+  externalNodes:
+    - type: Domain
+      name: oauth2-proxy.oauth2-proxy.svc.cluster.local
+      port: 4180

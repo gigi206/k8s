@@ -15,7 +15,7 @@ apisix:
   # APISIX Configuration
   gateway:
     type: LoadBalancer
-    loadBalancerIP: "192.168.121.210"  # IP fixe pour external-dns
+    # loadBalancerIP is now defined in global config: features.gatewayAPI.controller.loadBalancerIP
     http:
       enabled: true
     tls:

@@ -116,6 +116,8 @@ features:
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
       gatewayNamespace: "apisix"
+      # Gateway LoadBalancer IP (used for MetalLB pool and external-dns)
+      loadBalancerIP: "192.168.121.210"
 
   # === Legacy Ingress (déprécié) ===
   ingress:

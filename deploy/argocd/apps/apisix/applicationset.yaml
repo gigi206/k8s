@@ -132,13 +132,30 @@ spec:
                   listen:
                     - port: 9443
                       enable_http3: false
+                  ssl_verify: false  # Skip SSL verification for HTTPS backends (self-signed certs)
 
               # Service configuration
               service:
                 type: {{ .apisix.gateway.type }}
-                {{- if .apisix.gateway.loadBalancerIP }}
+                {{- if .features.gatewayAPI.controller.loadBalancerIP }}
+                loadBalancerIP: {{ .features.gatewayAPI.controller.loadBalancerIP }}
                 annotations:
-                  metallb.universe.tf/address-pool: apisix-gateway
+                  metallb.universe.tf/address-pool: gateway
+                  # External-DNS: Create DNS records for all ApisixRoute hostnames
+                  external-dns.alpha.kubernetes.io/hostname: >-
+                    argocd.{{ .common.domain }},
+                    grafana.{{ .common.domain }},
+                    prometheus.{{ .common.domain }},
+                    alertmanager.{{ .common.domain }},
+                    keycloak.{{ .common.domain }},
+                    oauth2.{{ .common.domain }},
+                    hubble.{{ .common.domain }},
+                    ceph.{{ .common.domain }},
+                    s3.{{ .common.domain }},
+                    longhorn.{{ .common.domain }},
+                    jaeger.{{ .common.domain }},
+                    kiali.{{ .common.domain }},
+                    neuvector.{{ .common.domain }}
                 {{- end }}
                 http:
                   enabled: {{ .apisix.gateway.http.enabled }}
@@ -233,11 +250,11 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
-                  {{- if .apisix.gateway.loadBalancerIP }}
+                  {{- if .features.gatewayAPI.controller.loadBalancerIP }}
                   - op: add
                     path: /metadata/annotations
                     value:
-                      external-dns.alpha.kubernetes.io/target: '{{ .apisix.gateway.loadBalancerIP }}'
+                      external-dns.alpha.kubernetes.io/target: '{{ .features.gatewayAPI.controller.loadBalancerIP }}'
                   {{- end }}
               - target:
                   kind: Certificate
