@@ -328,7 +328,14 @@ jobs:
           kubectl get svc -A > artifacts/services.txt 2>&1 || true
           kubectl get applications -A -o yaml > artifacts/applications.yaml 2>&1 || true
           kubectl get applicationsets -A -o yaml > artifacts/applicationsets.yaml 2>&1 || true
+          # Routing resources (all supported types)
           kubectl get httproute -A -o yaml > artifacts/httproutes.yaml 2>&1 || true
+          kubectl get grpcroute -A -o yaml > artifacts/grpcroutes.yaml 2>&1 || true
+          kubectl get tlsroute -A -o yaml > artifacts/tlsroutes.yaml 2>&1 || true
+          kubectl get apisixroute -A -o yaml > artifacts/apisixroutes.yaml 2>&1 || true
+          kubectl get apisixupstream -A -o yaml > artifacts/apisixupstreams.yaml 2>&1 || true
+          kubectl get virtualservice -A -o yaml > artifacts/virtualservices.yaml 2>&1 || true
+          kubectl get ingressroute -A -o yaml > artifacts/ingressroutes.yaml 2>&1 || true
 
           # Events
           kubectl get events -A --sort-by='.lastTimestamp' > artifacts/events.txt 2>&1 || true

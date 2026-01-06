@@ -91,8 +91,9 @@ spec:
           directory:
             include: "cilium-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source: HTTPRoute (Gateway API) - conditional
+        # Source: HTTPRoute (Gateway API standard)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/longhorn/kustomize/httproute
@@ -115,6 +116,21 @@ spec:
                   - op: replace
                     path: /spec/from/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        # Source: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/kustomize/apisix
+          kustomize:
+            patches:
+              - target:
+                  kind: ApisixRoute
+                  name: longhorn-ui
+                patch: |
+                  - op: replace
+                    path: /spec/http/0/match/hosts/0
+                    value: longhorn.{{ .common.domain }}
+        {{- end }}
         {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source: Prometheus monitoring + Grafana dashboard (conditional)

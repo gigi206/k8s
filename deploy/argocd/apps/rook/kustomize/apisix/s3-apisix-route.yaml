@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - Ceph S3 (Object Storage)
+# =============================================================================
+# Routes traffic to Ceph Object Storage (RGW - RADOS Gateway)
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: ceph-s3
+  namespace: rook-ceph
+spec:
+  ingressClassName: apisix
+  http:
+    - name: s3
+      match:
+        hosts:
+          - s3.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: rook-ceph-rgw-ceph-objectstore
+          servicePort: 80

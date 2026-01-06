@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# ApisixUpstream - NeuVector Manager HTTPS Backend
+# =============================================================================
+# Configures HTTPS scheme for NeuVector Manager backend
+# This is the native APISIX way to handle HTTPS backends
+# (replaces the appProtocol workaround needed with HTTPRoute)
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: neuvector-service-webui
+  namespace: neuvector
+spec:
+  scheme: https
+  portLevelSettings:
+    - port: 8443
+      scheme: https

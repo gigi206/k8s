@@ -356,6 +356,7 @@ log_info "Lecture des feature flags depuis config.yaml..."
 FEAT_METALLB=$(get_feature '.features.metallb.enabled' 'true')
 FEAT_KUBEVIP=$(get_feature '.features.kubeVip.enabled' 'true')
 FEAT_GATEWAY_API=$(get_feature '.features.gatewayAPI.enabled' 'true')
+FEAT_GATEWAY_HTTPROUTE=$(get_feature '.features.gatewayAPI.httpRoute.enabled' 'true')
 FEAT_GATEWAY_CONTROLLER=$(get_feature '.features.gatewayAPI.controller.provider' 'istio')
 FEAT_CERT_MANAGER=$(get_feature '.features.certManager.enabled' 'true')
 FEAT_EXTERNAL_SECRETS=$(get_feature '.features.externalSecrets.enabled' 'true')
@@ -385,7 +386,7 @@ FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled
 log_debug "Feature flags lus:"
 log_debug "  metallb: $FEAT_METALLB"
 log_debug "  kubeVip: $FEAT_KUBEVIP"
-log_debug "  gatewayAPI: $FEAT_GATEWAY_API (controller: $FEAT_GATEWAY_CONTROLLER)"
+log_debug "  gatewayAPI: $FEAT_GATEWAY_API (httpRoute: $FEAT_GATEWAY_HTTPROUTE, controller: $FEAT_GATEWAY_CONTROLLER)"
 log_debug "  certManager: $FEAT_CERT_MANAGER"
 log_debug "  externalSecrets: $FEAT_EXTERNAL_SECRETS"
 log_debug "  externalDns: $FEAT_EXTERNAL_DNS"
@@ -587,6 +588,12 @@ validate_dependencies() {
       errors=$((errors + 1))
       ;;
   esac
+
+  # Avertir si APISIX + HTTPRoute (sous-optimal, préférer les CRDs natifs APISIX)
+  if [[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_HTTPROUTE" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" == "apisix" ]]; then
+    log_warning "APISIX avec HTTPRoute activé - pour de meilleures performances (HTTPS backend natif),"
+    log_warning "  désactivez httpRoute.enabled et utilisez les CRDs natifs ApisixRoute/ApisixUpstream"
+  fi
 
   if [[ $errors -gt 0 ]]; then
     log_error "$errors erreur(s) de configuration détectée(s)"
@@ -1237,17 +1244,49 @@ HEALTH:.status.health.status 2>/dev/null
 
 echo ""
 
-# Services accessibles via Ingress et HTTPRoute
-INGRESS_HOSTS=$(kubectl get ingress -A -o json 2>/dev/null | jq -r '.items[].spec.rules[].host // empty' 2>/dev/null | sort -u)
-HTTPROUTE_HOSTS=$(kubectl get httproutes -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' 2>/dev/null | sort -u)
+# =============================================================================
+# Services accessibles - Détection de tous les types de routing
+# =============================================================================
+# Supporte: Ingress, HTTPRoute/GRPCRoute/TLSRoute (Gateway API),
+#           ApisixRoute (APISIX), VirtualService (Istio), IngressRoute (Traefik)
+
+ALL_HOSTS=""
+
+# 1. Kubernetes Ingress (standard)
+INGRESS_HOSTS=$(kubectl get ingress -A -o json 2>/dev/null | jq -r '.items[].spec.rules[]?.host // empty' 2>/dev/null | sort -u)
+[[ -n "$INGRESS_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${INGRESS_HOSTS}\n"
+
+# 2. Gateway API HTTPRoute
+HTTPROUTE_HOSTS=$(kubectl get httproute -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' 2>/dev/null | sort -u)
+[[ -n "$HTTPROUTE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${HTTPROUTE_HOSTS}\n"
+
+# 3. Gateway API GRPCRoute
+GRPCROUTE_HOSTS=$(kubectl get grpcroute -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' 2>/dev/null | sort -u)
+[[ -n "$GRPCROUTE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${GRPCROUTE_HOSTS}\n"
+
+# 4. Gateway API TLSRoute (SNI-based)
+TLSROUTE_HOSTS=$(kubectl get tlsroute -A -o json 2>/dev/null | jq -r '.items[].spec.hostnames[]? // empty' 2>/dev/null | sort -u)
+[[ -n "$TLSROUTE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${TLSROUTE_HOSTS}\n"
+
+# 5. APISIX CRDs - ApisixRoute
+APISIXROUTE_HOSTS=$(kubectl get apisixroute -A -o json 2>/dev/null | jq -r '.items[].spec.http[]?.match.hosts[]? // empty' 2>/dev/null | sort -u)
+[[ -n "$APISIXROUTE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${APISIXROUTE_HOSTS}\n"
+
+# 6. Istio VirtualService
+VIRTUALSERVICE_HOSTS=$(kubectl get virtualservice -A -o json 2>/dev/null | jq -r '.items[].spec.hosts[]? // empty' 2>/dev/null | grep -v '^\*' | sort -u)
+[[ -n "$VIRTUALSERVICE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${VIRTUALSERVICE_HOSTS}\n"
+
+# 7. Traefik IngressRoute
+INGRESSROUTE_HOSTS=$(kubectl get ingressroute -A -o json 2>/dev/null | jq -r '.items[].spec.routes[]?.match // empty' 2>/dev/null | grep -oP 'Host\(`\K[^`]+' | sort -u)
+[[ -n "$INGRESSROUTE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${INGRESSROUTE_HOSTS}\n"
 
 # Combiner et dédupliquer les hosts
-ALL_HOSTS=$(echo -e "${INGRESS_HOSTS}\n${HTTPROUTE_HOSTS}" | grep -v '^$' | sort -u)
+ALL_HOSTS=$(echo -e "$ALL_HOSTS" | grep -v '^$' | sort -u)
 
 if [[ -n "$ALL_HOSTS" ]]; then
   echo -e "${GREEN}🌐 Services accessibles:${RESET}"
   echo "$ALL_HOSTS" | while read -r host; do
-    echo -e "  • \033[36mhttps://${host}\033[0m"
+    [[ -n "$host" ]] && echo -e "  • \033[36mhttps://${host}\033[0m"
   done
   echo ""
 
@@ -1258,7 +1297,8 @@ if [[ -n "$ALL_HOSTS" ]]; then
   echo "  Password: $ARGOCD_PASSWORD"
   echo ""
 else
-  echo -e "${YELLOW}⚠️  Aucun Ingress ou HTTPRoute déployé${RESET}"
+  echo -e "${YELLOW}⚠️  Aucune ressource de routing déployée${RESET}"
+  echo -e "${YELLOW}   (Ingress, HTTPRoute, ApisixRoute, VirtualService, IngressRoute...)${RESET}"
   echo ""
 fi
 
@@ -1280,7 +1320,7 @@ echo ""
 echo -e "${GREEN}🔧 Configuration déployée:${RESET}"
 echo "  MetalLB:           $FEAT_METALLB"
 echo "  Kube-VIP:          $FEAT_KUBEVIP"
-echo "  Gateway API:       $FEAT_GATEWAY_API (controller: $FEAT_GATEWAY_CONTROLLER)"
+echo "  Gateway API:       $FEAT_GATEWAY_API (httpRoute: $FEAT_GATEWAY_HTTPROUTE, controller: $FEAT_GATEWAY_CONTROLLER)"
 echo "  Cert-Manager:      $FEAT_CERT_MANAGER"
 echo "  External-Secrets:  $FEAT_EXTERNAL_SECRETS"
 echo "  External-DNS:      $FEAT_EXTERNAL_DNS"

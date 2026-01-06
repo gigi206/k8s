@@ -106,7 +106,7 @@ features:
   gatewayAPI:
     enabled: true  # Wave 15: Gateway API CRDs (gateway-api-controller)
     httpRoute:
-      enabled: true  # Utilise HTTPRoute dans les ApplicationSets
+      enabled: false  # false = utilise les CRDs natifs du provider (ApisixRoute pour APISIX)
     controller:
       provider: "apisix"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
       # Gateway namespace (depends on provider):

@@ -31,7 +31,8 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 | Condition | Usage |
 |-----------|-------|
 | `{{- if .features.monitoring.enabled }}` | kustomize/monitoring/, ServiceMonitor params |
-| `{{- if .features.gatewayAPI.httpRoute.enabled }}` | kustomize/httproute/ |
+| `{{- if .features.gatewayAPI.enabled }}` | Gateway API routing (parent condition) |
+| `{{- if .features.gatewayAPI.httpRoute.enabled }}` | kustomize/httproute/ (Gateway API standard) |
 | `{{- if .features.oauth2Proxy.enabled }}` | kustomize/oauth2-authz/ |
 | `{{- if .features.cilium.egressPolicy.enabled }}` | resources/cilium-egress-policy.yaml |
 | `{{- if .features.cilium.ingressPolicy.enabled }}` | resources/default-deny-host-ingress.yaml |
@@ -46,6 +47,28 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 - `{{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}`
 - `{{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}`
 - `{{- if and .features.storage.enabled .persistence.enabled }}` (storage + app persistence)
+
+**Gateway API Routing Conditional Logic**:
+```yaml
+{{- if .features.gatewayAPI.enabled }}
+  {{- if .features.gatewayAPI.httpRoute.enabled }}
+  # HTTPRoute (Gateway API standard) - works with all providers
+  - path: deploy/argocd/apps/<app>/kustomize/httproute
+  {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+  # ApisixRoute (native CRDs) - when HTTPRoute disabled and provider is APISIX
+  - path: deploy/argocd/apps/<app>/kustomize/apisix
+  {{- end }}
+{{- end }}
+```
+
+| `gatewayAPI.enabled` | `httpRoute.enabled` | `provider` | Result |
+|---------------------|---------------------|------------|--------|
+| `false` | - | - | No routing |
+| `true` | `true` | any | HTTPRoute |
+| `true` | `false` | `apisix` | ApisixRoute |
+| `true` | `false` | other | No routing |
+
+**APISIX CRDs** support native HTTPS backend via `ApisixUpstream` with `scheme: https` (no workaround needed).
 
 ### Configuration Hierarchy
 
@@ -84,6 +107,7 @@ deploy/argocd/
     ├── kustomize/                  # Kustomize overlays (with transformations)
     │   ├── monitoring/            # PrometheusRules, ServiceMonitors, dashboards
     │   ├── httproute/             # HTTPRoute (conditional: gatewayAPI.httpRoute.enabled)
+    │   ├── apisix/                # ApisixRoute/ApisixUpstream (conditional: provider=apisix)
     │   ├── oauth2-authz/          # AuthorizationPolicy (conditional: oauth2Proxy.enabled)
     │   ├── sso/                   # ExternalSecrets, Keycloak clients (conditional: sso.enabled)
     │   ├── gateway/               # Gateway API resources (istio-gateway)

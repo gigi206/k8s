@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - ArgoCD Server
+# =============================================================================
+# Routes traffic to ArgoCD Server Web UI
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: argocd-server
+  namespace: argo-cd
+spec:
+  ingressClassName: apisix
+  http:
+    - name: argocd
+      match:
+        hosts:
+          - argocd.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: argocd-server
+          servicePort: 80

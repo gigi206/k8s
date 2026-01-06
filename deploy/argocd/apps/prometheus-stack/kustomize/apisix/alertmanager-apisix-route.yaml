@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# ApisixRoute - Alertmanager
+# =============================================================================
+# Routes traffic to Alertmanager
+# Includes OAuth2 proxy route for authentication
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  ingressClassName: apisix
+  http:
+    # Route /oauth2/* to OAuth2 Proxy for authentication flow
+    - name: alertmanager-oauth2
+      match:
+        hosts:
+          - alertmanager.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /oauth2/*
+      backends:
+        - serviceName: oauth2-proxy
+          servicePort: 4180
+          resolveGranularity: service
+      plugins:
+        - name: proxy-rewrite
+          enable: true
+          config:
+            regex_uri: ["^/oauth2/(.*)", "/$1"]
+    # Route all other traffic to Alertmanager
+    - name: alertmanager
+      match:
+        hosts:
+          - alertmanager.PLACEHOLDER_DOMAIN
+        paths:
+          - /*
+      backends:
+        - serviceName: prometheus-stack-kube-prom-alertmanager
+          servicePort: 9093
