@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# Service - NeuVector Manager with appProtocol: https
+# =============================================================================
+# Custom Service that exposes NeuVector Manager with appProtocol: https.
+# This is needed because:
+# - NeuVector Helm chart doesn't set appProtocol on its manager Service
+# - APISIX Ingress Controller uses appProtocol to determine upstream scheme
+# - The original neuvector-service-webui Service is managed by Helm
+#
+# This Service uses the same selector as the Helm-managed Service but adds
+# appProtocol: https so APISIX knows to use HTTPS for backend connections.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: neuvector-manager-https
+  namespace: neuvector
+  labels:
+    app: neuvector-manager-pod
+spec:
+  type: ClusterIP
+  selector:
+    app: neuvector-manager-pod
+  ports:
+    - name: https-manager
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+      appProtocol: https
