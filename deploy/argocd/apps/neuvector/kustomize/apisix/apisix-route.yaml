@@ -3,6 +3,10 @@
 # ApisixRoute - NeuVector Manager
 # =============================================================================
 # Routes HTTPS traffic to NeuVector Manager Web UI (HTTPS backend on port 8443)
+#
+# HTTPS Backend: Uses custom Service (neuvector-manager-https) with appProtocol: https.
+# APISIX Ingress Controller automatically detects HTTPS backend from appProtocol field.
+# This is needed because NeuVector Helm chart doesn't set appProtocol on its Service.
 # =============================================================================
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -19,10 +23,5 @@ spec:
         paths:
           - /*
       backends:
-        - serviceName: neuvector-service-webui
+        - serviceName: neuvector-manager-https
           servicePort: 8443
-      plugins:
-        - name: proxy-rewrite
-          enable: true
-          config:
-            scheme: https

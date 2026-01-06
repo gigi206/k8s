@@ -132,7 +132,6 @@ spec:
                   listen:
                     - port: 9443
                       enable_http3: false
-                  ssl_verify: false  # Skip SSL verification for HTTPS backends (self-signed certs)
 
               # Service configuration
               service:
