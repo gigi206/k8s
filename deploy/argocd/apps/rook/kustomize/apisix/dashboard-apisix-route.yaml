@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# ApisixRoute - Ceph Dashboard
+# =============================================================================
+# Routes traffic to Ceph Dashboard
+# Uses ApisixUpstream for HTTPS backend configuration
+# Note: Ceph Dashboard uses SAML2 SSO directly with Keycloak for authentication
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: ceph-dashboard
+  namespace: rook-ceph
+spec:
+  ingressClassName: apisix
+  http:
+    - name: dashboard
+      match:
+        hosts:
+          - ceph.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      upstreams:
+        - name: rook-ceph-mgr-dashboard  # References ApisixUpstream for HTTPS backend

@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# ApisixUpstream - Ceph Dashboard HTTPS Backend
+# =============================================================================
+# Configures HTTPS scheme for Ceph Dashboard backend
+# This is the native APISIX way to handle HTTPS backends
+# (replaces the appProtocol workaround needed with HTTPRoute)
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: rook-ceph-mgr-dashboard
+  namespace: rook-ceph
+spec:
+  scheme: https
+  portLevelSettings:
+    - port: 8443
+      scheme: https

@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - Grafana
+# =============================================================================
+# Routes traffic to Grafana dashboard
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  ingressClassName: apisix
+  http:
+    - name: grafana
+      match:
+        hosts:
+          - grafana.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: prometheus-stack-grafana
+          servicePort: 80

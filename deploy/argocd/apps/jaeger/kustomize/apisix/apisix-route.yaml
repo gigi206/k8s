@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - Jaeger
+# =============================================================================
+# Routes traffic to Jaeger Query UI (distributed tracing)
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: jaeger
+  namespace: jaeger
+spec:
+  ingressClassName: apisix
+  http:
+    - name: jaeger
+      match:
+        hosts:
+          - jaeger.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: jaeger-query
+          servicePort: 16686
