@@ -2,8 +2,7 @@
 # =============================================================================
 # ApisixRoute - NeuVector Manager
 # =============================================================================
-# Routes HTTPS traffic to NeuVector Manager Web UI
-# Uses ApisixUpstream for HTTPS backend configuration
+# Routes HTTPS traffic to NeuVector Manager Web UI (HTTPS backend on port 8443)
 # =============================================================================
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -19,5 +18,11 @@ spec:
           - neuvector.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
         paths:
           - /*
-      upstreams:
-        - name: neuvector-service-webui  # References ApisixUpstream for HTTPS backend
+      backends:
+        - serviceName: neuvector-service-webui
+          servicePort: 8443
+      plugins:
+        - name: proxy-rewrite
+          enable: true
+          config:
+            scheme: https

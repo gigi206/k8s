@@ -3,6 +3,7 @@
 # ApisixRoute - Jaeger
 # =============================================================================
 # Routes traffic to Jaeger Query UI (distributed tracing)
+# Includes OAuth2 proxy route for authentication
 # =============================================================================
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -12,12 +13,43 @@ metadata:
 spec:
   ingressClassName: apisix
   http:
-    - name: jaeger
+    # Route /oauth2/* to OAuth2 Proxy for authentication flow
+    - name: jaeger-oauth2
       match:
         hosts:
           - jaeger.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /oauth2/*
+      upstreams:
+        - name: oauth2-proxy
+      plugins:
+        - name: proxy-rewrite
+          enable: true
+          config:
+            regex_uri: ["^/oauth2/(.*)", "/$1"]
+    # Route all other traffic to Jaeger (protected by OAuth2)
+    - name: jaeger
+      match:
+        hosts:
+          - jaeger.PLACEHOLDER_DOMAIN
         paths:
           - /*
       backends:
         - serviceName: jaeger-query
           servicePort: 16686
+      plugins:
+        # Validate token with oauth2-proxy
+        - name: forward-auth
+          enable: true
+          config:
+            uri: http://oauth2-proxy.oauth2-proxy.svc:4180/oauth2/auth
+            request_headers: ["Authorization", "Cookie"]
+            upstream_headers: ["X-Auth-Request-User", "X-Auth-Request-Email"]
+            client_headers: ["Set-Cookie"]
+        # Convert 401 to redirect (forward-auth doesn't handle redirects)
+        - name: serverless-post-function
+          enable: true
+          config:
+            phase: header_filter
+            functions:
+              - "return function() if ngx.status == 401 then ngx.status = 302; ngx.header['Location'] = '/oauth2/start?rd=' .. ngx.escape_uri(ngx.var.scheme .. '://' .. ngx.var.host .. ngx.var.request_uri) end end"

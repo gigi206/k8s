@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# MetalLB IPAddressPool - Gateway API Controller
+# =============================================================================
+# Pool dédié pour le Gateway API controller (APISIX, Istio, Envoy, etc.)
+# L'adresse IP est patchée via Kustomize depuis config.yaml:
+#   features.gatewayAPI.controller.loadBalancerIP
+# =============================================================================
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: gateway
+  namespace: metallb-system
+spec:
+  addresses:
+    # Placeholder - patched by ApplicationSet kustomize
+    - PLACEHOLDER_GATEWAY_IP/32
+  autoAssign: false  # Seuls les Services avec loadBalancerIP explicite peuvent utiliser ce pool

@@ -461,13 +461,15 @@ resolve_dependencies() {
     fi
 
     # =========================================================================
-    # oauth2-proxy (ext_authz mode) → serviceMesh (Istio)
+    # oauth2-proxy integration mode
     # =========================================================================
-    # Note: OAuth2-Proxy peut fonctionner sans Istio (mode standalone),
-    # mais pour ext_authz, Istio est requis
+    # - HTTPRoute + Istio Gateway → ext_authz (AuthorizationPolicy)
+    # - APISIX CRDs → forward-auth plugin
     if [[ "$FEAT_OAUTH2_PROXY" == "true" ]]; then
-      if [[ "$FEAT_SERVICE_MESH" != "true" ]] || [[ "$FEAT_SERVICE_MESH_PROVIDER" != "istio" ]]; then
-        log_warning "  ⚠ OAuth2-Proxy: mode ext_authz nécessite Istio. Mode standalone utilisé."
+      if [[ "$FEAT_GATEWAY_API_HTTPROUTE" == "true" ]]; then
+        log_info "  → OAuth2-Proxy: mode ext_authz (AuthorizationPolicy Istio)"
+      elif [[ "$FEAT_GATEWAY_API_PROVIDER" == "apisix" ]]; then
+        log_info "  → OAuth2-Proxy: mode forward-auth (APISIX plugin)"
       fi
     fi
 

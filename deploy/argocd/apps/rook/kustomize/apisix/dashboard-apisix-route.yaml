@@ -2,8 +2,7 @@
 # =============================================================================
 # ApisixRoute - Ceph Dashboard
 # =============================================================================
-# Routes traffic to Ceph Dashboard
-# Uses ApisixUpstream for HTTPS backend configuration
+# Routes traffic to Ceph Dashboard (HTTPS backend on port 8443)
 # Note: Ceph Dashboard uses SAML2 SSO directly with Keycloak for authentication
 # =============================================================================
 apiVersion: apisix.apache.org/v2
@@ -20,5 +19,11 @@ spec:
           - ceph.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
         paths:
           - /*
-      upstreams:
-        - name: rook-ceph-mgr-dashboard  # References ApisixUpstream for HTTPS backend
+      backends:
+        - serviceName: rook-ceph-mgr-dashboard
+          servicePort: 8443
+      plugins:
+        - name: proxy-rewrite
+          enable: true
+          config:
+            scheme: https

@@ -58,10 +58,10 @@ spec:
               - name: speaker.frr.enabled
                 value: "false"
 
-        # Source 2: Ressources MetalLB (IPAddressPool, L2Advertisement)
+        # Source 2: IPAddressPool & L2Advertisement
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: 'deploy/argocd/apps/{{ .appName }}/resources'
+          path: deploy/argocd/apps/metallb/kustomize/ipaddresspool
 
       destination:
         server: https://kubernetes.default.svc
@@ -105,12 +105,19 @@ spec:
               - name: speaker.frr.enabled
                 value: "false"
 
-        # Source 2: Ressources MetalLB (IPAddressPool, L2Advertisement)
+        # Source 2: IPAddressPool & L2Advertisement (avec patch pour Gateway API controller IP)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: 'deploy/argocd/apps/{{ .appName }}/resources'
-          directory:
-            include: "ipaddresspool.yaml"
+          path: deploy/argocd/apps/metallb/kustomize/ipaddresspool
+          kustomize:
+            patches:
+              - target:
+                  kind: IPAddressPool
+                  name: gateway
+                patch: |
+                  - op: replace
+                    path: /spec/addresses/0
+                    value: '{{ .features.gatewayAPI.controller.loadBalancerIP }}/32'
 
         {{- if .features.monitoring.enabled }}
         # Source 3: Services pour métriques (sans label release dans selectors)
