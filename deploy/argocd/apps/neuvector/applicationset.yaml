@@ -89,12 +89,19 @@ spec:
             include: "cilium-egress-policy.yaml"
         {{- end }}
         {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source: Cilium ingress policy - conditional
+        # Source: Cilium ingress policy - conditional (kustomize for gateway namespace patch)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/neuvector/resources
-          directory:
-            include: "cilium-ingress-policy.yaml"
+          path: deploy/argocd/apps/neuvector/kustomize/cilium
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumNetworkPolicy
+                  name: neuvector-ingress
+                patch: |
+                  - op: replace
+                    path: /spec/ingress/2/fromEndpoints/0/matchLabels/io.kubernetes.pod.namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
         # Source 1: Namespace (always deployed)
         - repoURL: https://github.com/gigi206/k8s

@@ -5,7 +5,7 @@
 # Restricts access to NeuVector to authorized sources:
 # - neuvector: Internal pod communication (controller, scanner, enforcer, manager)
 # - monitoring: Prometheus metrics scraping
-# - istio-system: Gateway ingress traffic to manager UI
+# - Gateway namespace: Ingress traffic to manager UI (patched via ApplicationSet)
 # =============================================================================
 
 apiVersion: cilium.io/v2
@@ -55,10 +55,11 @@ spec:
             - port: "8068"    # Prometheus exporter metrics
               protocol: TCP
 
-    # Allow from istio-system (Gateway ingress to Manager UI)
+    # Allow from Gateway namespace (ingress to Manager UI)
+    # Namespace is patched via Kustomize from gatewayAPI.controller.gatewayNamespace
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: istio-system
+            io.kubernetes.pod.namespace: PLACEHOLDER_GATEWAY_NS
       toPorts:
         - ports:
             - port: "8443"    # Manager web UI (HTTPS)
