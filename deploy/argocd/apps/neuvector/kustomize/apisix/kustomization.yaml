@@ -4,4 +4,3 @@ kind: Kustomization
 
 resources:
   - apisix-route.yaml
-  - apisix-upstream.yaml
