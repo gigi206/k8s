@@ -439,7 +439,7 @@ spec:
                 # Mount OIDC client secret and CA certificate as files
                 extraSecretMounts:
                   - name: oidc-client-secret
-                    secretName: grafana-oidc-credentials
+                    secretName: grafana-oidc-client-secret
                     mountPath: /etc/secrets/oidc
                     readOnly: true
                   - name: root-ca
