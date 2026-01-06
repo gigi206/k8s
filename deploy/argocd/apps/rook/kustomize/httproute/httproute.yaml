@@ -6,8 +6,9 @@
 # Ceph Dashboard uses SAML2 SSO directly with Keycloak for authentication,
 # which provides proper role mapping for dashboard permissions.
 #
-# HTTPS Backend: The Service must have appProtocol: https on port 8443
-# for APISIX to use HTTPS when connecting to the backend.
+# HTTPS Backend: Uses custom Service (ceph-dashboard-https) with appProtocol: https.
+# APISIX Gateway API automatically detects HTTPS backend from appProtocol field.
+# This is needed because Rook operator doesn't set appProtocol on its Service.
 # =============================================================================
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -33,6 +34,6 @@ spec:
     backendRefs:
     - group: ""
       kind: Service
-      name: rook-ceph-mgr-dashboard
+      name: ceph-dashboard-https
       port: 8443
       weight: 1
