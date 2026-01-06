@@ -148,33 +148,32 @@ spec:
               IDP_USERNAME_ATTR="username"
               IDP_ENTITY_ID="https://keycloak.${DOMAIN}/realms/${KEYCLOAK_REALM}"
 
-              # Check if already configured with SAML2
-              if echo "$SSO_STATUS" | grep -q "SAML2"; then
-                echo "SSO already enabled with SAML2, verifying configuration..."
-              else
-                # Setup SAML2 SSO
+              # Setup SAML2 SSO if not already configured
+              if ! echo "$SSO_STATUS" | grep -q "SAML2"; then
                 echo "Configuring SAML2 SSO..."
                 ceph dashboard sso setup saml2 \
                   "$DASHBOARD_URL" \
                   "$IDP_METADATA" \
                   "$IDP_USERNAME_ATTR" \
                   "$IDP_ENTITY_ID"
-
-                # Fix authnRequestsSigned - Ceph sets it to true by default even without SP cert
-                # This causes Saml2Settings validation to fail. We need to disable it.
-                echo "Patching SSO config to disable request signing (no SP certificate)..."
-                SSO_CONFIG=$(ceph config-key get mgr/dashboard/ssodb_v1)
-                PATCHED_CONFIG=$(echo "$SSO_CONFIG" | python3 -c "import sys, json; data = json.load(sys.stdin); data['saml2']['onelogin_settings']['security']['authnRequestsSigned'] = False; print(json.dumps(data))")
-                echo "$PATCHED_CONFIG" | ceph config-key set mgr/dashboard/ssodb_v1 -i -
-                echo "SSO config patched successfully"
-
-                # Restart dashboard module to pick up the changes
-                echo "Restarting dashboard module..."
-                ceph mgr module disable dashboard
-                sleep 3
-                ceph mgr module enable dashboard
-                echo "Dashboard module restarted"
+              else
+                echo "SSO already enabled with SAML2"
               fi
+
+              # Always patch SSO config for reverse proxy compatibility
+              # This ensures HTTPS URLs are used even when dashboard runs on HTTP
+              echo "Patching SSO config for reverse proxy..."
+              SSO_CONFIG=$(ceph config-key get mgr/dashboard/ssodb_v1)
+              PATCHED_CONFIG=$(echo "$SSO_CONFIG" | python3 -c "import sys, json; data = json.load(sys.stdin); settings = data['saml2']['onelogin_settings']; settings['security']['authnRequestsSigned'] = False; sp = settings.get('sp', {}); sp['assertionConsumerService'] = {'url': '${DASHBOARD_URL}/auth/saml2', 'binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'}; sp['singleLogoutService'] = {'url': '${DASHBOARD_URL}/auth/saml2/logout', 'binding': 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect'}; sp['entityId'] = '${DASHBOARD_URL}/auth/saml2/metadata'; settings['sp'] = sp; print(json.dumps(data))")
+              echo "$PATCHED_CONFIG" | ceph config-key set mgr/dashboard/ssodb_v1 -i -
+              echo "SSO config patched successfully"
+
+              # Restart dashboard module to pick up the changes
+              echo "Restarting dashboard module..."
+              ceph mgr module disable dashboard
+              sleep 3
+              ceph mgr module enable dashboard
+              echo "Dashboard module restarted"
 
               # Verify configuration
               echo "Verifying SSO configuration..."
