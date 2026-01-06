@@ -23,6 +23,6 @@ spec:
     backendRefs:
     - group: ""
       kind: Service
-      name: neuvector-service-webui
+      name: neuvector-manager-https
       port: 8443
       weight: 1

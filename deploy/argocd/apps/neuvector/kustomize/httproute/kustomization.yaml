@@ -5,3 +5,4 @@ kind: Kustomization
 resources:
   - neuvector-httproute.yaml
   - reference-grant.yaml
+  - neuvector-service-https.yaml
