@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Prometheus Stack Ingress from Traefik Gateway
+# =============================================================================
+# Allows access to Prometheus/Grafana/Alertmanager web UIs from Traefik Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-stack-ingress-traefik
+  namespace: monitoring
+spec:
+  description: "Allow ingress to Prometheus stack from Traefik Gateway"
+  endpointSelector: {}  # Applies to all pods in monitoring namespace
+
+  ingress:
+    # Allow from Traefik Gateway (traefik namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - port: "3000"    # Grafana web UI
+              protocol: TCP
+            - port: "9090"    # Prometheus web UI / API
+              protocol: TCP
+            - port: "9093"    # Alertmanager web UI / API
+              protocol: TCP

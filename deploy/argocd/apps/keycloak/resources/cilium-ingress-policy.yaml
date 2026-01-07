@@ -1,0 +1,72 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Keycloak Internal Ingress
+# =============================================================================
+# Allows internal communication within keycloak namespace and from
+# dependent namespaces (monitoring for metrics, cnpg for DB management,
+# all namespaces for OIDC authentication)
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-internal
+  namespace: keycloak
+spec:
+  description: "Allow internal ingress to Keycloak"
+  endpointSelector: {}  # Applies to all pods in keycloak namespace
+
+  ingress:
+    # Allow from all namespaces for OIDC authentication
+    - fromEndpoints:
+        - matchExpressions:
+            - key: io.kubernetes.pod.namespace
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "8080"    # HTTP (used internally)
+              protocol: TCP
+            - port: "8443"    # HTTPS (main OIDC endpoint)
+              protocol: TCP
+            - port: "9000"    # Management/metrics
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape PostgreSQL metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"    # PostgreSQL metrics (CNPG exporter)
+              protocol: TCP
+            - port: "8000"    # PostgreSQL status
+              protocol: TCP
+
+    # Allow internal Keycloak communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: keycloak
+      toPorts:
+        - ports:
+            - port: "8080"    # Keycloak HTTP
+              protocol: TCP
+            - port: "8443"    # Keycloak HTTPS
+              protocol: TCP
+            - port: "9000"    # Keycloak management/metrics
+              protocol: TCP
+            - port: "5432"    # PostgreSQL
+              protocol: TCP
+            - port: "9187"    # PostgreSQL metrics
+              protocol: TCP
+            - port: "8000"    # PostgreSQL status
+              protocol: TCP
+
+    # Allow from cnpg-system (CNPG operator manages PostgreSQL)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - port: "8000"    # PostgreSQL status endpoint
+              protocol: TCP
+            - port: "8080"    # PostgreSQL metrics/admin
+              protocol: TCP
