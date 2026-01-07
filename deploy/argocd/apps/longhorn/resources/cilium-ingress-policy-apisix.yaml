@@ -1,18 +1,18 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - ArgoCD Ingress from APISIX Gateway
+# CiliumNetworkPolicy - Longhorn Ingress from APISIX Gateway
 # =============================================================================
-# Allows access to ArgoCD UI/API from APISIX Gateway
+# Allows access to Longhorn UI from APISIX Gateway
 # Internal communication is handled by cilium-ingress-policy.yaml
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: argocd-ingress-apisix
-  namespace: argo-cd
+  name: longhorn-ingress-apisix
+  namespace: longhorn-system
 spec:
-  description: "Allow ingress to ArgoCD from APISIX Gateway"
-  endpointSelector: {}  # Applies to all pods in argo-cd namespace
+  description: "Allow ingress to Longhorn from APISIX Gateway"
+  endpointSelector: {}  # Applies to all pods in longhorn-system namespace
 
   ingress:
     # Allow from APISIX Gateway (apisix namespace)
@@ -21,7 +21,5 @@ spec:
             io.kubernetes.pod.namespace: apisix
       toPorts:
         - ports:
-            - port: "8080"    # HTTP UI, REST API
-              protocol: TCP
-            - port: "8443"    # gRPC (CLI, webhooks)
+            - port: "80"      # Frontend UI
               protocol: TCP

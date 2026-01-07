@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kiali Gateway Ingress (Traefik)
+# =============================================================================
+# Allows ingress from Traefik Gateway to Kiali for external access.
+# This policy is only deployed when:
+# - features.cilium.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "traefik"
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kiali-gateway-traefik
+  namespace: istio-system
+spec:
+  description: "Allow ingress from Traefik Gateway to Kiali"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kiali
+
+  ingress:
+    # Allow from Traefik namespace (gateway ingress)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - port: "20001"   # Kiali web UI/API
+              protocol: TCP

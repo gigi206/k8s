@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Cilium/Hubble Internal Ingress Security
+# =============================================================================
+# Restricts access to Cilium/Hubble pods to authorized internal sources:
+# - monitoring: Prometheus metrics scraping
+# - kube-system: Internal pod communication (cilium, hubble, coredns, etc.)
+#
+# Gateway-specific ingress rules are in separate files:
+# - cilium-ingress-policy-traefik.yaml
+# - cilium-ingress-policy-istio.yaml
+# - cilium-ingress-policy-apisix.yaml
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-hubble-ingress
+  namespace: kube-system
+spec:
+  description: "Allow internal ingress to Cilium/Hubble from authorized sources"
+  endpointSelector:
+    matchExpressions:
+      - key: k8s-app
+        operator: In
+        values:
+          - cilium
+          - hubble-ui
+          - hubble-relay
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9962"    # Cilium agent metrics
+              protocol: TCP
+            - port: "9963"    # Cilium operator metrics
+              protocol: TCP
+            - port: "9964"    # Cilium proxy metrics
+              protocol: TCP
+            - port: "4244"    # Hubble relay (for observability)
+              protocol: TCP
+
+    # Allow internal kube-system communication
+    # Cilium agents, Hubble relay/UI, CoreDNS, etc. need to communicate
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "4244"    # Hubble relay
+              protocol: TCP
+            - port: "4245"    # Hubble peer service
+              protocol: TCP
+            - port: "80"      # Hubble UI
+              protocol: TCP
+            - port: "9962"    # Cilium metrics
+              protocol: TCP
+            - port: "9963"    # Cilium operator metrics
+              protocol: TCP

@@ -90,8 +90,16 @@ spec:
           path: deploy/argocd/apps/oauth2-proxy/resources
           directory:
             include: "namespace.yaml"
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Source: Cilium internal ingress policy (pod-to-pod communication)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
         {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source 2: Cilium ingress policy - conditional per Gateway provider
+        # Source: Cilium ingress policy - conditional per Gateway provider
         {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -104,6 +112,12 @@ spec:
           path: deploy/argocd/apps/oauth2-proxy/resources
           directory:
             include: "cilium-ingress-policy-apisix.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/resources
+          directory:
+            include: "cilium-ingress-policy-traefik.yaml"
         {{- end }}
         {{- end }}
         {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}

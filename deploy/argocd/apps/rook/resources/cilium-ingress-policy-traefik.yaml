@@ -2,11 +2,8 @@
 # =============================================================================
 # CiliumNetworkPolicy - Rook-Ceph Ingress from Traefik Gateway
 # =============================================================================
-# Allows external access to Rook-Ceph via Traefik Gateway:
-# - monitoring: Prometheus metrics scraping
-# - traefik: Gateway ingress for Dashboard and S3
-#
-# Internal rook-ceph traffic is handled by cilium-ingress-policy.yaml
+# Allows access to Rook-Ceph Dashboard and S3 from Traefik Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -14,21 +11,10 @@ metadata:
   name: rook-ceph-ingress-traefik
   namespace: rook-ceph
 spec:
-  description: "Allow ingress to Rook-Ceph from Traefik Gateway and monitoring"
+  description: "Allow ingress to Rook-Ceph from Traefik Gateway"
   endpointSelector: {}  # Applies to all pods in rook-ceph namespace
 
   ingress:
-    # Allow from monitoring namespace (Prometheus scrape MGR + Exporter metrics)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: monitoring
-      toPorts:
-        - ports:
-            - port: "9283"    # Ceph MGR Prometheus metrics
-              protocol: TCP
-            - port: "9926"    # Rook-Ceph Exporter metrics
-              protocol: TCP
-
     # Allow from Traefik Gateway (traefik namespace)
     - fromEndpoints:
         - matchLabels:

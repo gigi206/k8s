@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Hubble UI Gateway Ingress (Istio)
+# =============================================================================
+# Allows ingress from Istio Gateway to Hubble UI for external access.
+# This policy is only deployed when:
+# - features.cilium.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "istio"
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-ui-gateway-istio
+  namespace: kube-system
+spec:
+  description: "Allow ingress from Istio Gateway to Hubble UI"
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+
+  ingress:
+    # Allow from Istio namespace (gateway ingress)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "80"      # Hubble UI HTTP
+              protocol: TCP

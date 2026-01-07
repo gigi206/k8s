@@ -1,23 +1,18 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Longhorn Ingress Security
+# CiliumNetworkPolicy - Longhorn Internal Ingress
 # =============================================================================
-# Restricts access to Longhorn to authorized sources:
-# - monitoring: Prometheus metrics scraping
-# - longhorn-system: Internal communication between components
-# - istio-system: Gateway ingress traffic for UI
-# - kube-system: Webhook calls from kube-apiserver
-#
+# Allows internal communication within longhorn-system namespace and from
+# dependent namespaces (monitoring, kube-system)
 # Note: CSI driver uses local Unix sockets on nodes, no network policy needed.
 # =============================================================================
-
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: longhorn-ingress
+  name: longhorn-internal
   namespace: longhorn-system
 spec:
-  description: "Allow ingress to Longhorn from authorized sources"
+  description: "Allow internal ingress to Longhorn"
   endpointSelector: {}  # Applies to all pods in longhorn-system namespace
 
   ingress:
@@ -28,15 +23,6 @@ spec:
       toPorts:
         - ports:
             - port: "9500"    # Manager metrics
-              protocol: TCP
-
-    # Allow from istio-system (Gateway ingress for UI)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: istio-system
-      toPorts:
-        - ports:
-            - port: "80"      # Frontend UI
               protocol: TCP
 
     # Allow from kube-system (API server webhook calls)
