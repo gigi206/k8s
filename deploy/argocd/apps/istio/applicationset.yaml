@@ -144,6 +144,23 @@ spec:
                     value: {{ .common.domain }}
         {{- end }}
 
+        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled }}
+        # Source: AuthorizationPolicy for OAuth2 Proxy ext_authz (Hubble UI protection)
+        # Moved from Cilium to ensure Istio CRDs exist before AuthorizationPolicy is created
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/istio/kustomize/oauth2-authz
+          kustomize:
+            patches:
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-hubble
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: hubble.{{ .common.domain }}
+        {{- end }}
+
         # Source: Encrypted secrets (KSOPS)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}

@@ -108,6 +108,11 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
+                  - op: add
+                    path: /spec/addresses
+                    value:
+                      - type: IPAddress
+                        value: '{{ .features.gatewayAPI.controller.loadBalancerIP }}'
               - target:
                   kind: Certificate
                   name: wildcard-k8s-local
