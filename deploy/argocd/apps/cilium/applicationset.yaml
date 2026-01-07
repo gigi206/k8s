@@ -153,22 +153,11 @@ spec:
                     value: hubble.{{ .common.domain }}
         {{- end }}
         {{- end }}
-        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled }}
-        # Source 3: AuthorizationPolicy for OAuth2 Proxy ext_authz (HTTPRoute/Istio Gateway)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz
-          kustomize:
-            patches:
-              - target:
-                  kind: AuthorizationPolicy
-                  name: oauth2-proxy-hubble
-                patch: |
-                  - op: replace
-                    path: /spec/rules/0/to/0/operation/hosts/0
-                    value: hubble.{{ .common.domain }}
-        {{- end }}
-        # Source 4: Kustomize monitoring resources
+        # NOTE: AuthorizationPolicy for OAuth2 Proxy (Hubble) moved to Istio application
+        # to ensure Istio CRDs exist before the AuthorizationPolicy is created
+        # See: deploy/argocd/apps/istio/kustomize/oauth2-authz/
+
+        # Source 3: Kustomize monitoring resources
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium/kustomize/monitoring

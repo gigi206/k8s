@@ -174,13 +174,12 @@ spec:
         {{- end }}
         {{- end }}
 
-        {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}
-        # Source 4: Istio DestinationRule (TLS to NeuVector Manager backend)
+        {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+        # Source 4: Istio DestinationRule + TLS certificates (for HTTPS backend)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/kustomize/istio
 
-        # Source 4b: TLS certificates (cert-manager + CA sync to istio-system)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/kustomize/certificates
@@ -275,7 +274,7 @@ spec:
               # Manager configuration (Web UI)
               manager:
                 enabled: true
-                {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}
+                {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
                 # Use cert-manager certificate for TLS (allows Istio to validate)
                 certificate:
                   secret: neuvector-manager-tls-cert

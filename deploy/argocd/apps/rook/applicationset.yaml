@@ -202,8 +202,8 @@ spec:
           path: deploy/argocd/apps/rook/kustomize/monitoring-config
         {{- end }}
 
-        {{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") .rook.dashboard.enabled }}
-        # Source: TLS certificates (cert-manager + CA sync to istio-system)
+        {{- if and (or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio")) .rook.dashboard.enabled }}
+        # Source: TLS certificates + DestinationRule for HTTPS backend (Istio)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/kustomize/certificates

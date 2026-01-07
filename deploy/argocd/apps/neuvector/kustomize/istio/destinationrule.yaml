@@ -12,9 +12,9 @@ metadata:
   name: neuvector-manager-tls
   namespace: neuvector
 spec:
-  host: neuvector-service-webui.neuvector.svc.cluster.local
+  host: neuvector-manager-https.neuvector.svc.cluster.local
   trafficPolicy:
     tls:
       mode: SIMPLE
-      sni: neuvector-service-webui.neuvector.svc.cluster.local
+      sni: neuvector-manager-https.neuvector.svc.cluster.local
       credentialName: root-ca-neuvector

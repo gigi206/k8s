@@ -12,9 +12,9 @@ metadata:
   name: ceph-dashboard
   namespace: rook-ceph
 spec:
-  host: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
+  host: ceph-dashboard-https.rook-ceph.svc.cluster.local
   trafficPolicy:
     tls:
       mode: SIMPLE
-      sni: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
+      sni: ceph-dashboard-https.rook-ceph.svc.cluster.local
       credentialName: root-ca-rook
