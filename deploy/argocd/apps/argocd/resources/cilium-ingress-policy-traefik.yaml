@@ -1,24 +1,24 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - ArgoCD Ingress from Istio Gateway
+# CiliumNetworkPolicy - ArgoCD Ingress from Traefik Gateway
 # =============================================================================
-# Allows access to ArgoCD UI/API from Istio Gateway
+# Allows access to ArgoCD UI/API from Traefik Gateway
 # Internal communication is handled by cilium-ingress-policy.yaml
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: argocd-ingress-istio
+  name: argocd-ingress-traefik
   namespace: argo-cd
 spec:
-  description: "Allow ingress to ArgoCD from Istio Gateway"
+  description: "Allow ingress to ArgoCD from Traefik Gateway"
   endpointSelector: {}  # Applies to all pods in argo-cd namespace
 
   ingress:
-    # Allow from Istio Gateway (istio-system namespace)
+    # Allow from Traefik Gateway (traefik namespace)
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: istio-system
+            io.kubernetes.pod.namespace: traefik
       toPorts:
         - ports:
             - port: "8080"    # HTTP UI, REST API

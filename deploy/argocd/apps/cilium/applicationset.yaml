@@ -108,6 +108,34 @@ spec:
           path: deploy/argocd/apps/cilium/resources
           directory:
             include: "default-deny-pod-ingress.yaml"
+        # Source: Cilium/Hubble internal ingress policy (monitoring, kube-system)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-ingress-policy-istio.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-ingress-policy-apisix.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-ingress-policy-traefik.yaml"
+        {{- end }}
         {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}

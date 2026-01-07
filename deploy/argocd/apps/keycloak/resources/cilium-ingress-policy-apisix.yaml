@@ -1,86 +1,25 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Keycloak Ingress Security (APISIX Gateway)
+# CiliumNetworkPolicy - Keycloak Ingress from APISIX Gateway
 # =============================================================================
-# Restricts access to Keycloak to authorized sources:
-# - All namespaces: OIDC authentication (apps need to authenticate users)
-# - monitoring: Prometheus metrics scraping
-# - keycloak: Internal communication (operator, database)
-# - apisix: Gateway ingress traffic
+# Allows access to Keycloak web UI from APISIX Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
 # =============================================================================
-
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: keycloak-ingress
+  name: keycloak-ingress-apisix
   namespace: keycloak
 spec:
-  description: "Allow ingress to Keycloak from authorized sources"
+  description: "Allow ingress to Keycloak from APISIX Gateway"
   endpointSelector: {}  # Applies to all pods in keycloak namespace
 
   ingress:
-    # Allow from all namespaces for OIDC authentication
-    # Applications authenticate users via Keycloak OIDC endpoints
-    - fromEndpoints:
-        - matchExpressions:
-            - key: io.kubernetes.pod.namespace
-              operator: Exists
-      toPorts:
-        - ports:
-            - port: "8080"    # HTTP (used internally)
-              protocol: TCP
-            - port: "8443"    # HTTPS (main OIDC endpoint)
-              protocol: TCP
-            - port: "9000"    # Management/metrics
-              protocol: TCP
-
-    # Allow from monitoring namespace (Prometheus scrape PostgreSQL metrics)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: monitoring
-      toPorts:
-        - ports:
-            - port: "9187"    # PostgreSQL metrics (CNPG exporter)
-              protocol: TCP
-            - port: "8000"    # PostgreSQL status
-              protocol: TCP
-
-    # Allow internal Keycloak communication (same namespace)
-    # Operator -> Keycloak, Keycloak -> PostgreSQL
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: keycloak
-      toPorts:
-        - ports:
-            - port: "8080"    # Keycloak HTTP
-              protocol: TCP
-            - port: "8443"    # Keycloak HTTPS
-              protocol: TCP
-            - port: "9000"    # Keycloak management/metrics
-              protocol: TCP
-            - port: "5432"    # PostgreSQL
-              protocol: TCP
-            - port: "9187"    # PostgreSQL metrics
-              protocol: TCP
-            - port: "8000"    # PostgreSQL status
-              protocol: TCP
-
-    # Allow from cnpg-system (CNPG operator manages PostgreSQL)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: cnpg-system
-      toPorts:
-        - ports:
-            - port: "8000"    # PostgreSQL status endpoint
-              protocol: TCP
-            - port: "8080"    # PostgreSQL metrics/admin
-              protocol: TCP
-
     # Allow from APISIX Gateway (apisix namespace)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: apisix
       toPorts:
         - ports:
-            - port: "8443"
+            - port: "8443"    # Keycloak HTTPS
               protocol: TCP
