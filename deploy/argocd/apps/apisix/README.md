@@ -107,15 +107,100 @@ curl http://$GATEWAY_IP/get
 
 ## OAuth2 Authentication
 
-APISIX provides OAuth2 authentication for protected applications via a Global Rule that discovers HTTPRoutes dynamically.
+APISIX provides OAuth2 authentication for protected applications. The implementation differs between HTTPRoute and ApisixRoute.
 
-### How It Works
+### Summary
+
+| Route Type | OAuth2 Implementation |
+|------------|----------------------|
+| **HTTPRoute** | Label + CronJob + Global Rule |
+| **ApisixRoute** | forward-auth + serverless-post-function plugins |
+
+### ApisixRoute with forward-auth Plugin
+
+For ApisixRoute, use the `forward-auth` plugin to validate tokens with oauth2-proxy, and `serverless-post-function` to convert 401 responses to 302 redirects:
+
+```yaml
+---
+# Cross-namespace upstream to oauth2-proxy (required in each namespace)
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: oauth2-proxy
+  namespace: my-namespace
+spec:
+  externalNodes:
+    - type: Domain
+      name: oauth2-proxy.oauth2-proxy.svc.cluster.local
+      port: 4180
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: my-protected-app
+  namespace: my-namespace
+spec:
+  ingressClassName: apisix
+  http:
+    # Route /oauth2/* to OAuth2 Proxy for authentication flow
+    - name: oauth2
+      match:
+        hosts:
+          - my-app.k8s.lan
+        paths:
+          - /oauth2/*
+      upstreams:
+        - name: oauth2-proxy
+      plugins:
+        - name: proxy-rewrite
+          enable: true
+          config:
+            regex_uri: ["^/oauth2/(.*)", "/$1"]
+    # Route all other traffic (protected by OAuth2)
+    - name: main
+      match:
+        hosts:
+          - my-app.k8s.lan
+        paths:
+          - /*
+      backends:
+        - serviceName: my-app-service
+          servicePort: 8080
+      plugins:
+        # Validate token with oauth2-proxy
+        - name: forward-auth
+          enable: true
+          config:
+            uri: http://oauth2-proxy.oauth2-proxy.svc:4180/oauth2/auth
+            request_headers: ["Authorization", "Cookie"]
+            upstream_headers: ["X-Auth-Request-User", "X-Auth-Request-Email"]
+            client_headers: ["Set-Cookie"]
+        # Convert 401 to 302 redirect (forward-auth doesn't handle redirects)
+        - name: serverless-post-function
+          enable: true
+          config:
+            phase: header_filter
+            functions:
+              - "return function() if ngx.status == 401 then ngx.status = 302; ngx.header['Location'] = '/oauth2/start?rd=' .. ngx.escape_uri(ngx.var.scheme .. '://' .. ngx.var.host .. ngx.var.request_uri) end end"
+```
+
+**Key Points**:
+- Create `ApisixUpstream` for cross-namespace access to oauth2-proxy
+- Route `/oauth2/*` to oauth2-proxy with path rewrite
+- Use `forward-auth` plugin to validate session cookie
+- Use `serverless-post-function` to redirect unauthenticated users
+
+### HTTPRoute with Global Rule (Legacy)
+
+For HTTPRoute, OAuth2 protection uses a Global Rule that discovers HTTPRoutes dynamically.
+
+#### How It Works
 
 1. **Label HTTPRoutes**: Add `oauth2-protected: "true"` label to HTTPRoutes that need authentication
 2. **CronJob Discovery**: A CronJob runs every 2 minutes to discover labeled HTTPRoutes
 3. **Global Rule**: APISIX Global Rule redirects unauthenticated requests to OAuth2 Proxy
 
-### Architecture
+#### Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -146,9 +231,9 @@ APISIX provides OAuth2 authentication for protected applications via a Global Ru
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Protecting a New Application
+#### Protecting a New Application (HTTPRoute)
 
-To add OAuth2 protection to an application:
+To add OAuth2 protection to an HTTPRoute application:
 
 1. **Add the label to HTTPRoute**:
 
@@ -196,7 +281,7 @@ curl -H "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1" \
   http://localhost:9180/apisix/admin/global_rules/oauth2-forward-auth
 ```
 
-### Removing OAuth2 Protection
+#### Removing OAuth2 Protection (HTTPRoute)
 
 Remove the label from the HTTPRoute:
 
@@ -208,12 +293,16 @@ The CronJob will automatically update the Global Rule on its next run.
 
 ### Currently Protected Applications
 
-| Application | Namespace | Hostname |
-|-------------|-----------|----------|
-| Prometheus | monitoring | prometheus.k8s.lan |
-| Alertmanager | monitoring | alertmanager.k8s.lan |
-| Hubble UI | kube-system | hubble.k8s.lan |
-| Ceph Dashboard | rook-ceph | ceph.k8s.lan |
+| Application | Route Type | Namespace | Hostname |
+|-------------|------------|-----------|----------|
+| Prometheus | ApisixRoute | monitoring | prometheus.k8s.lan |
+| Alertmanager | ApisixRoute | monitoring | alertmanager.k8s.lan |
+| Hubble UI | ApisixRoute | kube-system | hubble.k8s.lan |
+| Kiali | ApisixRoute | istio-system | kiali.k8s.lan |
+| Jaeger | ApisixRoute | observability | jaeger.k8s.lan |
+| Longhorn | ApisixRoute | longhorn-system | longhorn.k8s.lan |
+
+**Note**: Ceph Dashboard and NeuVector use their own SSO integration (SAML2 with Keycloak) instead of OAuth2 Proxy.
 
 ### Troubleshooting OAuth2
 
@@ -234,6 +323,110 @@ curl -s -H "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1" \
 # Test redirect (should return 302)
 curl -s -k -o /dev/null -w "%{http_code}\n" https://prometheus.k8s.lan/
 ```
+
+## HTTPS Backends
+
+When routing to backend services that use HTTPS (e.g., Ceph Dashboard, NeuVector), APISIX needs to know the backend protocol. The configuration differs between ApisixRoute (native CRDs) and HTTPRoute (Gateway API).
+
+### Summary
+
+| Route Type | HTTPS Backend Solution | Custom Service Required |
+|------------|------------------------|------------------------|
+| **ApisixRoute** | `ApisixUpstream` with `scheme: https` | No |
+| **HTTPRoute** | `appProtocol: https` on Service | Yes (if upstream doesn't set it) |
+
+### ApisixRoute with ApisixUpstream (Recommended)
+
+For ApisixRoute, use an `ApisixUpstream` resource with `scheme: https`. The upstream name must match the Kubernetes Service name:
+
+```yaml
+---
+# ApisixUpstream must be in the same file to ensure correct ordering
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: my-https-service  # Must match Service name
+  namespace: my-namespace
+spec:
+  scheme: https
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: my-route
+  namespace: my-namespace
+spec:
+  ingressClassName: apisix
+  http:
+    - name: my-route
+      match:
+        hosts:
+          - my-app.k8s.lan
+        paths:
+          - /*
+      backends:
+        - serviceName: my-https-service  # Original Service (no appProtocol needed)
+          servicePort: 8443
+```
+
+**Important**: Place both resources in the same YAML file to ensure the `ApisixUpstream` is created before the `ApisixRoute`. This avoids timing issues during ArgoCD sync.
+
+### HTTPRoute with appProtocol
+
+For HTTPRoute (Gateway API), APISIX auto-detects the backend protocol from the Service's `appProtocol` field:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-https-service
+  namespace: my-namespace
+spec:
+  type: ClusterIP
+  selector:
+    app: my-app
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+      appProtocol: https  # Required for HTTPRoute HTTPS backends
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-route
+  namespace: my-namespace
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: default-gateway
+      namespace: apisix
+  hostnames:
+    - my-app.k8s.lan
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: my-https-service
+          port: 8443
+```
+
+**Note**: If the upstream Helm chart doesn't set `appProtocol` on its Service, you need to create a custom Service with the same selector that adds `appProtocol: https`.
+
+### BackendTrafficPolicy (Not Recommended)
+
+APISIX provides a `BackendTrafficPolicy` CRD with `scheme: https`, but testing shows it doesn't work reliably with internal Services. Use `appProtocol` instead for HTTPRoute.
+
+### Current HTTPS Backend Applications
+
+| Application | Route Type | Solution |
+|-------------|------------|----------|
+| Ceph Dashboard | ApisixRoute | ApisixUpstream (scheme: https) |
+| NeuVector Manager | ApisixRoute | ApisixUpstream (scheme: https) |
 
 ## Monitoring
 
