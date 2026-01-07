@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# Wildcard Certificate for Traefik Gateway
+# =============================================================================
+# Creates a TLS certificate for *.common.domain via cert-manager
+# The secret is referenced by the Gateway's HTTPS listener
+# =============================================================================
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-k8s-local
+  namespace: traefik
+spec:
+  secretName: wildcard-k8s-local-tls
+  issuerRef:
+    name: selfsigned-cluster-issuer  # Patched via common.clusterIssuer if needed
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+    - "PLACEHOLDER.example.com"

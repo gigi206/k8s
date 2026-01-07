@@ -1,0 +1,44 @@
+---
+# =============================================================================
+# Gateway for Traefik (Gateway API)
+# =============================================================================
+# default-gateway is the main ingress point for HTTP/HTTPS traffic
+# HTTPRoutes from any namespace can attach to this Gateway
+#
+# Note: Unlike Istio, Traefik does NOT create a separate Deployment/Service
+# for each Gateway. It uses its existing LoadBalancer Service.
+#
+# IMPORTANT: Ports must match Traefik entryPoints (8000/8443), not exposed
+# ports (80/443). Traefik maps: web(8000)->80, websecure(8443)->443
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: default-gateway
+  namespace: traefik
+spec:
+  gatewayClassName: traefik  # Created by Traefik Helm chart
+  listeners:
+  # HTTP listener - must use entryPoint port (web: 8000)
+  - name: http
+    protocol: HTTP
+    port: 8000
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow HTTPRoute from any namespace
+
+  # HTTPS listener - must use entryPoint port (websecure: 8443)
+  - name: https
+    hostname: "*.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+    protocol: HTTPS
+    port: 8443
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow HTTPRoute from any namespace
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: wildcard-k8s-local-tls
+        # Secret in same namespace (traefik) - wildcard cert for *.common.domain
