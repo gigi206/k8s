@@ -237,8 +237,8 @@ spec:
         {{- end }}
         {{- end }}
 
-        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled }}
-        # Source 4: AuthorizationPolicy for OAuth2 Proxy ext_authz (HTTPRoute/Istio Gateway)
+        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+        # Source 4: AuthorizationPolicy for OAuth2 Proxy ext_authz (requires Istio Gateway)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/jaeger/kustomize/oauth2-authz
