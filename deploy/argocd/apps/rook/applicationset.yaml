@@ -161,7 +161,7 @@ spec:
         {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
-        # Includes Service with appProtocol: https for Ceph Dashboard HTTPS backend
+        # Includes ApisixUpstream with scheme: https for Ceph Dashboard HTTPS backend
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/kustomize/apisix
