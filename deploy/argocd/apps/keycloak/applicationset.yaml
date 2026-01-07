@@ -224,18 +224,14 @@ spec:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
 
-        {{- if .features.serviceMesh.enabled }}
+        {{- if or .features.serviceMesh.enabled (and .features.sso.enabled (eq .features.gatewayAPI.controller.provider "istio")) }}
         # Source 11: Kiali OIDC - ClusterSecretStore for istio-system (conditional)
+        # Deployed when: serviceMesh enabled OR (SSO enabled AND Istio is Gateway API provider)
+        # Note: The ExternalSecret that uses this store is now in Istio application (kustomize/sso)
+        # to ensure proper dependency ordering (Istio wave 40 > Keycloak wave 30)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/resources
           directory:
             include: "cluster-secret-store-istio.yaml"
-
-        # Source 12: Kiali OIDC - ExternalSecret sync (conditional)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "external-secrets-kiali.yaml"
         {{- end }}

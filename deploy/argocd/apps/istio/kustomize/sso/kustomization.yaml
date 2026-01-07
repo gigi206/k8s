@@ -6,5 +6,6 @@ resources:
   - external-secret-ca.yaml
   - external-secret-grafana.yaml
   - external-secret-oidc.yaml
+  - external-secret-kiali-sync.yaml  # Sync kiali-oidc-client-secret TO keycloak namespace
   - keycloak-client.yaml
   - telemetry.yaml
