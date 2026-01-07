@@ -64,6 +64,91 @@ kubectl get svc -n apisix apisix-gateway
 curl http://<LOADBALANCER-IP>
 ```
 
+### APISIX Dashboard
+
+The APISIX Dashboard provides a web-based UI for managing routes, upstreams, and plugins.
+
+**Access**: https://apisix.k8s.local
+
+**Authentication**: Keycloak OIDC via `openid-connect` plugin
+
+| Parameter | Dev | Prod |
+|-----------|-----|------|
+| Chart Version | 0.8.3 | 0.8.3 |
+| Replicas | 1 | 2 |
+| Authentication | OIDC via Keycloak | OIDC via Keycloak |
+
+> **Note**: The `apisix-dashboard` chart is marked as DEPRECATED but remains functional.
+
+#### Authentication Architecture
+
+```
+                                    ┌─────────────────────┐
+                                    │   Keycloak OIDC     │
+                                    └──────────┬──────────┘
+                                               │
+User Request ──► APISIX Gateway ──► openid-connect plugin
+                                               │
+                      ┌────────────────────────┼────────────────────────┐
+                      │                        │                        │
+                      ▼                        ▼                        ▼
+              Not authenticated        Token valid              Token invalid
+                      │                        │                        │
+                      ▼                        ▼                        ▼
+              Redirect to Keycloak    Forward to Dashboard      401 Unauthorized
+```
+
+The OIDC authentication happens **at the APISIX Gateway level** (via `openid-connect` plugin on the ApisixRoute), **before** requests reach the dashboard. This means:
+- The dashboard never receives unauthenticated requests
+- The dashboard's internal authentication is never used
+- Local credentials are purely for chart compatibility
+
+#### Secrets Management (SOPS)
+
+All dashboard credentials are encrypted with SOPS and injected via a PostSync Job:
+
+```
+secrets/dev/secret.yaml (SOPS encrypted)
+├── apisix-dashboard-oidc-client-secret  → namespace: keycloak (for Keycloak client)
+│   ├── client-secret
+│   └── session-secret
+└── apisix-dashboard-auth                → namespace: apisix (for dashboard config)
+    ├── jwt-secret
+    └── admin-password
+```
+
+**How it works**:
+1. KSOPS decrypts `secrets/dev/secret.yaml` and creates K8s Secrets
+2. PostSync Job `apisix-dashboard-configmap-patch` reads the Secret
+3. Job patches the dashboard ConfigMap with the decrypted credentials
+4. Dashboard deployment is restarted to pick up new config
+
+This approach keeps credentials encrypted in Git while satisfying the chart's requirement for authentication config.
+
+#### Troubleshooting Dashboard
+
+```bash
+# Check dashboard pods
+kubectl get pods -n apisix -l app.kubernetes.io/name=apisix-dashboard
+
+# Check dashboard logs
+kubectl logs -n apisix -l app.kubernetes.io/name=apisix-dashboard
+
+# Check ConfigMap patch Job
+kubectl get jobs -n apisix -l job-name=apisix-dashboard-configmap-patch
+kubectl logs -n apisix -l job-name=apisix-dashboard-configmap-patch
+
+# Verify secrets exist
+kubectl get secret -n apisix apisix-dashboard-auth
+kubectl get secret -n keycloak apisix-dashboard-oidc-client-secret
+
+# Verify OIDC configuration
+curl -sk https://keycloak.k8s.local/realms/k8s/.well-known/openid-configuration | jq .
+
+# Check Keycloak client exists (requires admin access)
+# The client "apisix-dashboard" should be created by the PostSync Job
+```
+
 ### Admin API
 
 The Admin API is available as ClusterIP service. Use port-forward for access:

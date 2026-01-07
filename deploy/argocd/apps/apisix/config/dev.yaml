@@ -54,6 +54,29 @@ apisix:
 gatewayAPI:
   enabled: true  # Deploy GatewayClass and default-gateway
 
+# APISIX Dashboard configuration
+dashboard:
+  enabled: true
+  chart:
+    repo: https://charts.apiseven.com
+    name: apisix-dashboard
+    version: "0.8.3"
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  config:
+    listen:
+      host: "0.0.0.0"
+      port: 9000
+
 # APISIX Ingress Controller (sub-chart, for Gateway API support)
 ingressController:
   enabled: true
