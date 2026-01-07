@@ -1,12 +1,22 @@
 ---
 # =============================================================================
+# ApisixUpstream - NeuVector Manager HTTPS Backend
+# =============================================================================
+# Configures HTTPS scheme for the NeuVector Manager backend.
+# Must be in the same file as ApisixRoute to ensure correct ordering.
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: neuvector-service-webui
+  namespace: neuvector
+spec:
+  scheme: https
+---
+# =============================================================================
 # ApisixRoute - NeuVector Manager
 # =============================================================================
 # Routes HTTPS traffic to NeuVector Manager Web UI (HTTPS backend on port 8443)
-#
-# HTTPS Backend: Uses custom Service (neuvector-manager-https) with appProtocol: https.
-# APISIX Ingress Controller automatically detects HTTPS backend from appProtocol field.
-# This is needed because NeuVector Helm chart doesn't set appProtocol on its Service.
 # =============================================================================
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -23,5 +33,5 @@ spec:
         paths:
           - /*
       backends:
-        - serviceName: neuvector-manager-https
+        - serviceName: neuvector-service-webui
           servicePort: 8443

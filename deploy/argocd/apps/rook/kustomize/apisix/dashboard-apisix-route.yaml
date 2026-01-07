@@ -1,13 +1,23 @@
 ---
 # =============================================================================
+# ApisixUpstream - Ceph Dashboard HTTPS Backend
+# =============================================================================
+# Configures HTTPS scheme for the Ceph Dashboard backend.
+# Must be in the same file as ApisixRoute to ensure correct ordering.
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: rook-ceph-mgr-dashboard
+  namespace: rook-ceph
+spec:
+  scheme: https
+---
+# =============================================================================
 # ApisixRoute - Ceph Dashboard
 # =============================================================================
 # Routes traffic to Ceph Dashboard (HTTPS backend on port 8443)
 # Note: Ceph Dashboard uses SAML2 SSO directly with Keycloak for authentication
-#
-# HTTPS Backend: Uses custom Service (ceph-dashboard-https) with appProtocol: https.
-# APISIX Ingress Controller automatically detects HTTPS backend from appProtocol field.
-# This is needed because Rook operator doesn't set appProtocol on its Service.
 # =============================================================================
 apiVersion: apisix.apache.org/v2
 kind: ApisixRoute
@@ -24,5 +34,5 @@ spec:
         paths:
           - /*
       backends:
-        - serviceName: ceph-dashboard-https
+        - serviceName: rook-ceph-mgr-dashboard
           servicePort: 8443
