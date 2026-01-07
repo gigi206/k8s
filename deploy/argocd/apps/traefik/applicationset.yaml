@@ -149,6 +149,34 @@ spec:
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
+        {{- if .features.gatewayAPI.enabled }}
+        # Gateway API resources (Gateway + Certificate)
+        # Traefik uses its existing LoadBalancer Service (no separate Gateway deployment)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/kustomize/gateway
+          kustomize:
+            patches:
+              - target:
+                  kind: Gateway
+                  name: default-gateway
+                patch: |
+                  - op: replace
+                    path: /spec/listeners/1/hostname
+                    value: '*.{{ .common.domain }}'
+              - target:
+                  kind: Certificate
+                  name: wildcard-k8s-local
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames
+                    value:
+                      - '*.{{ .common.domain }}'
+                      - '{{ .common.domain }}'
+                  - op: replace
+                    path: /spec/issuerRef/name
+                    value: '{{ .common.clusterIssuer }}'
+        {{- end }}
         # Source 1: Helm chart with dynamic parameters
         - repoURL: https://traefik.github.io/charts
           targetRevision: '{{ .traefik.version }}'
