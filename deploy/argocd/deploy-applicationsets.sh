@@ -382,6 +382,7 @@ FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
 FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enabled' 'false')
 FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
 FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled' 'true')
+FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.cilium.defaultDenyPodIngress.enabled' 'true')
 
 log_debug "Feature flags lus:"
 log_debug "  metallb: $FEAT_METALLB"
@@ -843,7 +844,19 @@ apply_bootstrap_network_policies() {
   # 4. ArgoCD ingress policy - permet la communication interne ArgoCD
   # CRITIQUE: Doit être déployé AVANT default-deny-pod-ingress pour permettre
   # la communication controller <-> repo-server (port 8081)
-  # Les policies sont séparées par provider (istio vs apisix)
+  # Policy interne (pod-to-pod dans argo-cd namespace)
+  if [[ "$FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS" == "true" ]]; then
+    local argocd_internal_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy.yaml"
+    if [[ -f "$argocd_internal_policy" ]]; then
+      if kubectl apply -f "$argocd_internal_policy" > /dev/null 2>&1; then
+        log_success "CiliumNetworkPolicy ArgoCD ingress appliquée (internal)"
+      else
+        log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD ingress (internal)"
+      fi
+    fi
+  fi
+
+  # Policy gateway (external access) - séparée par provider
   if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]]; then
     local argocd_ingress_policy=""
     case "$FEAT_GATEWAY_CONTROLLER" in
@@ -853,19 +866,19 @@ apply_bootstrap_network_policies() {
       apisix)
         argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-apisix.yaml"
         ;;
+      traefik)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-traefik.yaml"
+        ;;
       *)
-        # Default to istio policy if no specific provider
-        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-istio.yaml"
+        log_warning "Provider Gateway inconnu: $FEAT_GATEWAY_CONTROLLER - pas de policy gateway ArgoCD"
         ;;
     esac
-    if [[ -f "$argocd_ingress_policy" ]]; then
+    if [[ -n "$argocd_ingress_policy" && -f "$argocd_ingress_policy" ]]; then
       if kubectl apply -f "$argocd_ingress_policy" > /dev/null 2>&1; then
         log_success "CiliumNetworkPolicy ArgoCD ingress appliquée ($FEAT_GATEWAY_CONTROLLER)"
       else
-        log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD ingress"
+        log_warning "Impossible d'appliquer la CiliumNetworkPolicy ArgoCD ingress ($FEAT_GATEWAY_CONTROLLER)"
       fi
-    else
-      log_debug "Pas de ingress policy ArgoCD trouvée: $argocd_ingress_policy"
     fi
   fi
 
