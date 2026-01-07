@@ -154,7 +154,8 @@ spec:
                     longhorn.{{ .common.domain }},
                     jaeger.{{ .common.domain }},
                     kiali.{{ .common.domain }},
-                    neuvector.{{ .common.domain }}
+                    neuvector.{{ .common.domain }},
+                    apisix.{{ .common.domain }}
                 {{- end }}
                 http:
                   enabled: {{ .apisix.gateway.http.enabled }}
@@ -264,4 +265,114 @@ spec:
                     value:
                       - '*.{{ .common.domain }}'
                       - '{{ .common.domain }}'
+        {{- end }}
+
+        {{- if .dashboard.enabled }}
+        # =====================================================================
+        # APISIX Dashboard
+        # =====================================================================
+
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium Pod Ingress Policy for Dashboard (allow traffic from APISIX Gateway)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "cilium-dashboard-policy.yaml"
+        {{- end }}
+
+        # APISIX Dashboard Helm Chart
+        - repoURL: {{ .dashboard.chart.repo }}
+          chart: {{ .dashboard.chart.name }}
+          targetRevision: {{ .dashboard.chart.version }}
+          helm:
+            releaseName: apisix-dashboard
+            valuesObject:
+              replicaCount: {{ .dashboard.replicaCount }}
+
+              image:
+                repository: apache/apisix-dashboard
+                tag: "3.0.0-alpine"
+
+              service:
+                type: {{ .dashboard.service.type }}
+                port: {{ .dashboard.service.port }}
+
+              resources:
+                requests:
+                  cpu: {{ .dashboard.resources.requests.cpu }}
+                  memory: {{ .dashboard.resources.requests.memory }}
+                limits:
+                  cpu: {{ .dashboard.resources.limits.cpu }}
+                  memory: {{ .dashboard.resources.limits.memory }}
+
+              config:
+                conf:
+                  listen:
+                    host: {{ .dashboard.config.listen.host | quote }}
+                    port: {{ .dashboard.config.listen.port }}
+                  etcd:
+                    endpoints:
+                      - "apisix-etcd:2379"
+                    prefix: "/apisix"
+                  log:
+                    accessLog:
+                      filePath: "/dev/stdout"
+                    errorLog:
+                      filePath: "/dev/stderr"
+                      level: warn
+                # Authentication disabled - using OIDC via APISIX openid-connect plugin
+                # These values are required by the chart but never used (OIDC blocks unauthenticated access)
+                authentication:
+                  secret: "internal-jwt-not-used-oidc-only"
+                  expireTime: 3600
+                  users:
+                    - username: "disabled"
+                      password: "oidc-authentication-only"
+
+        # Dashboard ApisixRoute with OIDC protection
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/apisix/kustomize/dashboard
+          kustomize:
+            patches:
+              - target:
+                  kind: ApisixRoute
+                  name: apisix-dashboard
+                patch: |
+                  - op: replace
+                    path: /spec/http/0/match/hosts/0
+                    value: apisix.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/http/0/plugins/0/config/discovery
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/.well-known/openid-configuration
+                  - op: replace
+                    path: /spec/http/0/plugins/0/config/redirect_uri
+                    value: https://apisix.{{ .common.domain }}/apisix-dashboard-callback
+                  - op: replace
+                    path: /spec/http/0/plugins/0/config/post_logout_redirect_uri
+                    value: https://apisix.{{ .common.domain }}/
+
+        # Encrypted secrets (KSOPS) - Dashboard auth + OIDC client secret
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/apisix/secrets/{{ .environment }}
+
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # SSO resources: Keycloak client Job + ExternalSecrets
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/apisix/kustomize/sso
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: apisix-dashboard-keycloak-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+        {{- end }}
         {{- end }}

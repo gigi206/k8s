@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# ApisixRoute - APISIX Dashboard
+# =============================================================================
+# Routes traffic to APISIX Dashboard with OIDC protection via openid-connect plugin
+# Authentication via Keycloak OIDC provider
+#
+# Note: client_secret uses APISIX secret reference syntax:
+# $secret://kubernetes/{namespace}/{secret-name}/{key}
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: apisix-dashboard
+  namespace: apisix
+spec:
+  ingressClassName: apisix
+  http:
+    # Main route - protected by openid-connect plugin
+    - name: dashboard
+      match:
+        hosts:
+          - apisix.PLACEHOLDER_DOMAIN  # Patched via Kustomize
+        paths:
+          - /*
+      backends:
+        - serviceName: apisix-dashboard
+          servicePort: 80
+      plugins:
+        - name: openid-connect
+          enable: true
+          config:
+            # Keycloak OIDC configuration
+            client_id: apisix-dashboard
+            # Secret reference - APISIX reads from Kubernetes secret
+            client_secret: "$secret://kubernetes/apisix/apisix-dashboard-oidc/client-secret"
+            # Discovery URL - patched via Kustomize
+            discovery: "https://keycloak.PLACEHOLDER_DOMAIN/realms/k8s/.well-known/openid-configuration"
+
+            # Redirect configuration - patched via Kustomize
+            redirect_uri: "https://apisix.PLACEHOLDER_DOMAIN/apisix-dashboard-callback"
+            logout_path: "/logout"
+            post_logout_redirect_uri: "https://apisix.PLACEHOLDER_DOMAIN/"
+
+            # Session configuration
+            session:
+              secret: "$secret://kubernetes/apisix/apisix-dashboard-oidc/session-secret"
+
+            # Authentication flow
+            bearer_only: false
+            realm: k8s
+            scope: "openid profile email"
+
+            # Pass user info to upstream
+            set_userinfo_header: true
+            set_id_token_header: true
+            set_access_token_header: true
+
+            # Token introspection
+            introspection_endpoint_auth_method: client_secret_basic
+
+            # Unauth action - redirect to login
+            unauth_action: auth

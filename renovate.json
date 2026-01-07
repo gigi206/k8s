@@ -278,10 +278,24 @@
         "/^deploy/argocd/apps/apisix/config/.*\\.yaml$/"
       ],
       "matchStrings": [
-        "chart:\\s*\\n\\s*repo:[^\\n]*\\n\\s*name:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+        "apisix:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*chart:\\s*\\n\\s*repo:[^\\n]*\\n\\s*name:\\s*apisix\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "apisix",
       "packageNameTemplate": "apisix",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.apiseven.com"
+    },
+    {
+      "customType": "regex",
+      "description": "APISIX Dashboard Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/apisix/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "dashboard:\\s*\\n\\s*enabled:[^\\n]*\\n\\s*chart:\\s*\\n\\s*repo:[^\\n]*\\n\\s*name:\\s*apisix-dashboard\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "apisix-dashboard",
+      "packageNameTemplate": "apisix-dashboard",
       "datasourceTemplate": "helm",
       "registryUrlTemplate": "https://charts.apiseven.com"
     },
