@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Allow internal traffic within rook-ceph namespace
+# =============================================================================
+# Rook/Ceph requires extensive internal communication between components:
+# - Operator -> Mon, Mgr, OSD (management)
+# - Mon <-> Mon (quorum)
+# - OSD <-> OSD (replication)
+# - CSI plugins -> Mon, OSD (storage operations)
+# - All components -> Mon (cluster coordination)
+#
+# This policy allows all pods in rook-ceph namespace to communicate freely.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-rook-internal
+  namespace: rook-ceph
+spec:
+  description: "Allow all internal traffic within rook-ceph namespace"
+  endpointSelector: {}  # Applies to all pods in namespace
+  ingress:
+    # Allow traffic from any pod in the same namespace
+    - fromEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": rook-ceph
+  egress:
+    # Allow traffic to any pod in the same namespace
+    - toEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": rook-ceph
