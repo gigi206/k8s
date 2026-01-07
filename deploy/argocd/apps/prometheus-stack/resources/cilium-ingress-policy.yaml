@@ -1,0 +1,53 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Prometheus Stack Internal Ingress
+# =============================================================================
+# Allows internal communication within monitoring namespace and from
+# dependent namespaces (alloy, oauth2-proxy)
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-stack-internal
+  namespace: monitoring
+spec:
+  description: "Allow internal ingress to Prometheus stack"
+  endpointSelector: {}  # Applies to all pods in monitoring namespace
+
+  ingress:
+    # Allow from alloy namespace (remote write for self-metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: alloy
+      toPorts:
+        - ports:
+            - port: "9090"    # Prometheus remote write receiver
+              protocol: TCP
+
+    # Allow from oauth2-proxy namespace (for authentication callbacks)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: oauth2-proxy
+      toPorts:
+        - ports:
+            - port: "3000"    # Grafana (OAuth callback)
+              protocol: TCP
+
+    # Allow internal monitoring communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8080"    # kube-state-metrics
+              protocol: TCP
+            - port: "9090"    # Prometheus
+              protocol: TCP
+            - port: "3000"    # Grafana
+              protocol: TCP
+            - port: "9093"    # Alertmanager
+              protocol: TCP
+            - port: "9094"    # Alertmanager cluster (HA)
+              protocol: TCP
+            - port: "10250"   # Prometheus operator metrics
+              protocol: TCP
