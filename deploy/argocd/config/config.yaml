@@ -94,13 +94,14 @@ features:
   serviceMesh:
     enabled: true      # Wave 40: Service Mesh (control plane + data plane)
     provider: "istio"  # istio, linkerd (futur)
-    accessLogs:
-      # Provider "access-log-json" disponible pour activation par namespace via Telemetry API
-      # Format JSON avec trace_id pour corrélation log-trace
-      # Pour activer sur un namespace: créer Telemetry avec providers: [{name: access-log-json}]
-      providerName: "access-log-json"  # Nom du provider à utiliser dans Telemetry
-    waypoints:
-      enabled: false   # Istio Waypoint proxies pour L7 (requiert istio.io/dataplane-mode=ambient sur les namespaces)
+    istio:
+      accessLogs:
+        # Provider "access-log-json" disponible pour activation par namespace via Telemetry API
+        # Format JSON avec trace_id pour corrélation log-trace
+        # Pour activer sur un namespace: créer Telemetry avec providers: [{name: access-log-json}]
+        providerName: "access-log-json"  # Nom du provider à utiliser dans Telemetry
+      waypoints:
+        enabled: false   # Istio Waypoint proxies pour L7 (requiert istio.io/dataplane-mode=ambient sur les namespaces)
 
   # === Gateway API ===
   gatewayAPI:
