@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - NeuVector Gateway Ingress (Istio)
+# =============================================================================
+# Allows ingress from Istio Gateway to NeuVector Manager for external access.
+# This policy is only deployed when:
+# - features.cilium.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "istio"
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: neuvector-gateway-istio
+  namespace: neuvector
+spec:
+  description: "Allow ingress from Istio Gateway to NeuVector Manager"
+  endpointSelector:
+    matchLabels:
+      app: neuvector-manager-pod
+
+  ingress:
+    # Allow from Istio namespace (gateway ingress)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "8443"    # Manager web UI (HTTPS)
+              protocol: TCP

@@ -1,36 +1,21 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Rook-Ceph Network Security (APISIX Gateway)
+# CiliumNetworkPolicy - Rook-Ceph Ingress from APISIX Gateway
 # =============================================================================
-# Restricts access to Rook-Ceph to authorized sources:
-# - monitoring: Prometheus metrics scraping (MGR)
-# - apisix: Gateway ingress for Dashboard and S3
-# - rook-ceph: Internal Ceph cluster communication
+# Allows access to Rook-Ceph Dashboard and S3 from APISIX Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
 # =============================================================================
-
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: rook-ceph-ingress
+  name: rook-ceph-ingress-apisix
   namespace: rook-ceph
 spec:
-  description: "Allow ingress for Rook-Ceph"
+  description: "Allow ingress to Rook-Ceph from APISIX Gateway"
   endpointSelector: {}  # Applies to all pods in rook-ceph namespace
 
   ingress:
-    # Allow from monitoring namespace (Prometheus scrape MGR + Exporter metrics)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: monitoring
-      toPorts:
-        - ports:
-            - port: "9283"    # Ceph MGR Prometheus metrics
-              protocol: TCP
-            - port: "9926"    # Rook-Ceph Exporter metrics
-              protocol: TCP
-
     # Allow from APISIX Gateway (apisix namespace)
-    # Note: APISIX connects via HTTPS using appProtocol: https on the Service
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: apisix
@@ -39,34 +24,4 @@ spec:
             - port: "8443"    # Dashboard HTTPS
               protocol: TCP
             - port: "8080"    # S3 Object Store (RGW container port)
-              protocol: TCP
-
-    # Allow internal Rook-Ceph communication (same namespace)
-    # Monitors, OSDs, MGR, MDS, RGW all communicate internally
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: rook-ceph
-      toPorts:
-        - ports:
-            - port: "3300"    # Monitor v2 protocol
-              protocol: TCP
-            - port: "6789"    # Monitor v1 protocol
-              protocol: TCP
-            - port: "6800"    # OSD/MDS communication start
-              protocol: TCP
-            - port: "6801"    # OSD/MDS communication
-              protocol: TCP
-            - port: "6802"    # OSD/MDS communication
-              protocol: TCP
-            - port: "6803"    # OSD/MDS communication
-              protocol: TCP
-            - port: "6804"    # OSD/MDS communication
-              protocol: TCP
-            - port: "6805"    # OSD/MDS communication
-              protocol: TCP
-            - port: "8443"    # Dashboard HTTPS internal
-              protocol: TCP
-            - port: "9283"    # MGR metrics internal
-              protocol: TCP
-            - port: "8080"    # RGW internal (container port)
               protocol: TCP

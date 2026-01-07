@@ -90,13 +90,35 @@ spec:
           directory:
             include: "namespace.yaml"
 
-        {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source: Cilium ingress policy - conditional
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Source: Cilium internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/jaeger/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+        {{- end }}
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Source: Cilium ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/resources
+          directory:
+            include: "cilium-ingress-policy-istio.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/resources
+          directory:
+            include: "cilium-ingress-policy-apisix.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/resources
+          directory:
+            include: "cilium-ingress-policy-traefik.yaml"
+        {{- end }}
         {{- end }}
 
         # Source 1: Jaeger Helm Chart

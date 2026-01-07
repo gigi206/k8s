@@ -1,25 +1,25 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Keycloak Ingress from Istio Gateway
+# CiliumNetworkPolicy - Longhorn Ingress from Traefik Gateway
 # =============================================================================
-# Allows access to Keycloak web UI from Istio Gateway
+# Allows access to Longhorn UI from Traefik Gateway
 # Internal communication is handled by cilium-ingress-policy.yaml
 # =============================================================================
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: keycloak-ingress-istio
-  namespace: keycloak
+  name: longhorn-ingress-traefik
+  namespace: longhorn-system
 spec:
-  description: "Allow ingress to Keycloak from Istio Gateway"
-  endpointSelector: {}  # Applies to all pods in keycloak namespace
+  description: "Allow ingress to Longhorn from Traefik Gateway"
+  endpointSelector: {}  # Applies to all pods in longhorn-system namespace
 
   ingress:
-    # Allow from Istio Gateway (istio-system namespace)
+    # Allow from Traefik Gateway (traefik namespace)
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: istio-system
+            io.kubernetes.pod.namespace: traefik
       toPorts:
         - ports:
-            - port: "8443"    # Keycloak HTTPS
+            - port: "80"      # Frontend UI
               protocol: TCP

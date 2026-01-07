@@ -1,11 +1,15 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - NeuVector Ingress Security
+# CiliumNetworkPolicy - NeuVector Internal Ingress Security
 # =============================================================================
-# Restricts access to NeuVector to authorized sources:
+# Restricts access to NeuVector pods to authorized internal sources:
 # - neuvector: Internal pod communication (controller, scanner, enforcer, manager)
 # - monitoring: Prometheus metrics scraping
-# - Gateway namespace: Ingress traffic to manager UI (patched via ApplicationSet)
+#
+# Gateway-specific ingress rules are in separate files:
+# - cilium-ingress-policy-traefik.yaml
+# - cilium-ingress-policy-istio.yaml
+# - cilium-ingress-policy-apisix.yaml
 # =============================================================================
 
 apiVersion: cilium.io/v2
@@ -14,7 +18,7 @@ metadata:
   name: neuvector-ingress
   namespace: neuvector
 spec:
-  description: "Allow ingress to NeuVector from authorized sources"
+  description: "Allow internal ingress to NeuVector from authorized sources"
   endpointSelector: {}  # Applies to all pods in neuvector namespace
 
   ingress:
@@ -53,14 +57,4 @@ spec:
       toPorts:
         - ports:
             - port: "8068"    # Prometheus exporter metrics
-              protocol: TCP
-
-    # Allow from Gateway namespace (ingress to Manager UI)
-    # Namespace is patched via Kustomize from gatewayAPI.controller.gatewayNamespace
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: PLACEHOLDER_GATEWAY_NS
-      toPorts:
-        - ports:
-            - port: "8443"    # Manager web UI (HTTPS)
               protocol: TCP
