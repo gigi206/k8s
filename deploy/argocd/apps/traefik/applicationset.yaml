@@ -56,6 +56,8 @@ spec:
           targetRevision: '{{ .traefik.version }}'
           chart: traefik
           helm:
+            # Skip CRDs - Gateway API CRDs are managed by gateway-api-controller
+            skipCrds: true
             parameters:
               # Deployment kind
               - name: deployment.kind
@@ -189,6 +191,8 @@ spec:
           targetRevision: '{{ .traefik.version }}'
           chart: traefik
           helm:
+            # Skip CRDs - Gateway API CRDs are managed by gateway-api-controller
+            skipCrds: true
             parameters:
             # Base parameters
             - name: deployment.kind
