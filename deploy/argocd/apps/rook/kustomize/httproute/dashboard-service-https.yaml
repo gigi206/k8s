@@ -21,7 +21,7 @@ metadata:
     rook_cluster: rook-ceph
   annotations:
     # Reference ServersTransport for Traefik to skip TLS verification on backend
-    traefik.io/service.serverstransport: rook-ceph-ceph-dashboard-transport@kubernetescrd
+    traefik.ingress.kubernetes.io/service.serverstransport: rook-ceph-ceph-dashboard-transport@kubernetescrd
 spec:
   type: ClusterIP
   selector:
