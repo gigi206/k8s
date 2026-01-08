@@ -1,0 +1,14 @@
+---
+# =============================================================================
+# ServersTransport - Traefik Backend TLS Configuration
+# =============================================================================
+# Configures Traefik to accept self-signed certificates from Ceph Dashboard.
+# Required because Ceph Dashboard uses HTTPS with a self-signed certificate.
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: ceph-dashboard-transport
+  namespace: rook-ceph
+spec:
+  insecureSkipVerify: true
