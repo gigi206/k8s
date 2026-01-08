@@ -270,3 +270,8 @@ spec:
             - name: logs.access.enabled
               value: "{{ .traefik.logs.accessLogs | default false }}"
             {{- end }}
+
+            # ServersTransport - Skip TLS verification for HTTPS backends (self-signed certs)
+            # Required for backends like Ceph Dashboard that use self-signed certificates
+            - name: additionalArguments[0]
+              value: "--serversTransport.insecureSkipVerify=true"
