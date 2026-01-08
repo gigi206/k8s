@@ -1,0 +1,148 @@
+---
+# =============================================================================
+# OAuth2 Auth Redirect Service for Traefik forwardAuth
+# =============================================================================
+# This nginx acts as an auth proxy that:
+# 1. Checks authentication via oauth2-proxy /oauth2/auth
+# 2. If authenticated (202), returns 200 to allow request through
+# 3. If not authenticated (401), returns 302 redirect to /oauth2/start
+#
+# This solves the Traefik limitation where forwardAuth returns 401 directly
+# instead of redirecting to the login page.
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-auth-redirect-config
+  namespace: oauth2-proxy
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+    http {
+      server {
+        listen 8080;
+
+        # Resolver for dynamic DNS resolution (Kubernetes CoreDNS)
+        resolver 10.43.0.10 valid=5s;
+
+        # OAuth2 Proxy endpoint variable (for dynamic resolution)
+        set $oauth2_proxy "oauth2-proxy.oauth2-proxy.svc.cluster.local:4180";
+
+        # Health check endpoint
+        location /healthz {
+          return 200 'OK';
+          add_header Content-Type text/plain;
+        }
+
+        # Auth check endpoint - called by Traefik forwardAuth
+        # Proxies to oauth2-proxy and intercepts 401 to return 302 redirect
+        location /auth {
+          # Proxy to oauth2-proxy auth endpoint
+          proxy_pass http://$oauth2_proxy/oauth2/auth;
+          proxy_pass_request_body off;
+          proxy_set_header Content-Length "";
+          proxy_set_header X-Forwarded-Host $http_x_forwarded_host;
+          proxy_set_header X-Forwarded-Uri $http_x_forwarded_uri;
+          proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+          proxy_set_header X-Real-IP $http_x_real_ip;
+          proxy_set_header X-Forwarded-For $http_x_forwarded_for;
+
+          # Intercept errors from upstream
+          proxy_intercept_errors on;
+
+          # On 401, redirect to login
+          error_page 401 = @error401;
+        }
+
+        # Error handler - redirect to oauth2 login
+        location @error401 {
+          # Build redirect URL from X-Forwarded headers
+          set $rd_proto $http_x_forwarded_proto;
+          set $rd_host $http_x_forwarded_host;
+          set $rd_uri $http_x_forwarded_uri;
+
+          # Default to https if proto not set
+          if ($rd_proto = '') {
+            set $rd_proto 'https';
+          }
+
+          # Build the full redirect URL (original request URL)
+          set $rd_url "${rd_proto}://${rd_host}${rd_uri}";
+
+          # Redirect to oauth2 start on the same host (Traefik will route to oauth2-proxy)
+          # The /oauth2/start path is handled by the HTTPRoute rule for /oauth2/*
+          return 302 ${rd_proto}://${rd_host}/oauth2/start?rd=$rd_url;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-auth-redirect
+  namespace: oauth2-proxy
+  labels:
+    app: oauth2-auth-redirect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-auth-redirect
+  template:
+    metadata:
+      labels:
+        app: oauth2-auth-redirect
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: oauth2-auth-redirect-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-auth-redirect
+  namespace: oauth2-proxy
+  labels:
+    app: oauth2-auth-redirect
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: oauth2-auth-redirect

@@ -1,0 +1,19 @@
+---
+# =============================================================================
+# Traefik Middleware - OAuth2 Proxy Auth (jaeger namespace)
+# =============================================================================
+# Chain middleware that references the oauth2-proxy forward-auth middleware.
+# The forward-auth middleware uses oauth2-auth-redirect service which handles
+# both authentication check and redirect to login page internally.
+# =============================================================================
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-auth
+  namespace: jaeger
+spec:
+  chain:
+    middlewares:
+      - name: forward-auth
+        namespace: oauth2-proxy

@@ -153,6 +153,16 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: traefik.io
+                          kind: Middleware
+                          name: oauth2-proxy-auth
+                  {{- end }}
               - target:
                   kind: HTTPRoute
                   name: alertmanager
@@ -163,6 +173,16 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: traefik.io
+                          kind: Middleware
+                          name: oauth2-proxy-auth
+                  {{- end }}
               - target:
                   kind: ReferenceGrant
                   name: gateway-monitoring-tls
@@ -227,6 +247,12 @@ spec:
                   - op: replace
                     path: /spec/rules/0/to/0/operation/hosts/0
                     value: alertmanager.{{ .common.domain }}
+        {{- end }}
+        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+        # Source: Traefik Middleware for OAuth2 Proxy forwardAuth
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-traefik
         {{- end }}
         {{- if .features.sso.enabled }}
         # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
