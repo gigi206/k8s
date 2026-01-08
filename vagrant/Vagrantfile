@@ -55,7 +55,8 @@ Vagrant.configure("2") do |config|
       master.vm.box = $vm_box
       master.vm.box_check_update = $box_check_update
       master.vm.hostname = "k8s-#{$cluster_name}-m#{i}"
-      master.vm.network "private_network", ip: "#{$network_prefix}.1#{i}"
+      # IP fixe dans la plage .50-.59 (évite conflit avec MetalLB .200-.250)
+      master.vm.network "private_network", ip: "#{$network_prefix}.#{50 + i - 1}"
 
       master.vm.provider "libvirt" do |domain|
         domain.default_prefix = ""
@@ -134,7 +135,8 @@ Vagrant.configure("2") do |config|
       worker.vm.box = $vm_box
       worker.vm.box_check_update = $box_check_update
       worker.vm.hostname = "k8s-#{$cluster_name}-w#{i}"
-      worker.vm.network "private_network", ip: "#{$network_prefix}.10#{i}"
+      # IP fixe dans la plage .60-.99 (évite conflit avec MetalLB .200-.250)
+      worker.vm.network "private_network", ip: "#{$network_prefix}.#{60 + i - 1}"
 
       worker.vm.provider "libvirt" do |domain|
         domain.default_prefix = ""
