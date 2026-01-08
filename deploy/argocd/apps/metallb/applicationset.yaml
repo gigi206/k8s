@@ -118,6 +118,13 @@ spec:
                   - op: replace
                     path: /spec/addresses/0
                     value: '{{ .features.gatewayAPI.controller.loadBalancerIP }}/32'
+              - target:
+                  kind: IPAddressPool
+                  name: external-dns
+                patch: |
+                  - op: replace
+                    path: /spec/addresses/0
+                    value: '{{ .features.externalDns.loadBalancerIP }}/32'
 
         {{- if .features.monitoring.enabled }}
         # Source 3: Services pour métriques (sans label release dans selectors)

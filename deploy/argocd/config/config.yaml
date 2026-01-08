@@ -88,6 +88,7 @@ features:
   # === DNS ===
   externalDns:
     enabled: true  # Wave 30: Automation DNS
+    loadBalancerIP: "192.168.121.201"  # MetalLB IP for external-dns CoreDNS
     # provider: "coredns"  # ou: aws, google, azure, cloudflare, etc.
 
   # === Service Mesh ===
