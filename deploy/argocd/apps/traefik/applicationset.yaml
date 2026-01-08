@@ -109,6 +109,14 @@ spec:
 
   templatePatch: |
     spec:
+      # Ignore Gateway API CRDs (managed by gateway-api-controller)
+      ignoreDifferences:
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: "*gateway.networking.k8s.io"
+          jsonPointers:
+            - /metadata/annotations
+            - /metadata/labels
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
