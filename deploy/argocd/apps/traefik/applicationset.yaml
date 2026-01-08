@@ -51,11 +51,19 @@ spec:
       project: default
 
       sources:
+        # Source 0: Traefik CRDs (IngressRoute, Middleware, etc.)
+        - repoURL: https://traefik.github.io/charts
+          targetRevision: '{{ .traefik.crdsVersion | default "1.13.1" }}'
+          chart: traefik-crds
+
         # Source 1: Helm chart traefik
         - repoURL: https://traefik.github.io/charts
           targetRevision: '{{ .traefik.version }}'
           chart: traefik
           helm:
+            # Skip CRDs - Gateway API CRDs are managed by gateway-api-controller
+            # Traefik CRDs are installed via traefik-crds chart above
+            skipCrds: true
             parameters:
               # Deployment kind
               - name: deployment.kind
@@ -127,6 +135,10 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        # Traefik CRDs (IngressRoute, Middleware, etc.)
+        - repoURL: https://traefik.github.io/charts
+          targetRevision: '{{ .traefik.crdsVersion | default "1.13.1" }}'
+          chart: traefik-crds
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
         - repoURL: https://github.com/gigi206/k8s
@@ -189,6 +201,9 @@ spec:
           targetRevision: '{{ .traefik.version }}'
           chart: traefik
           helm:
+            # Skip CRDs - Gateway API CRDs are managed by gateway-api-controller
+            # Traefik CRDs are installed via traefik-crds chart above
+            skipCrds: true
             parameters:
             # Base parameters
             - name: deployment.kind
