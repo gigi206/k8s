@@ -25,8 +25,8 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    # Pool dédié pour external-dns CoreDNS (réservé, auto-assign désactivé)
-    - 192.168.121.201/32
+    # Pool dédié pour external-dns CoreDNS (valeur écrasée par kustomize patch depuis config.yaml)
+    - PLACEHOLDER_EXTERNAL_DNS_IP/32
   autoAssign: false  # Seuls les Services avec loadBalancerIP explicite peuvent utiliser ce pool
 
 ---
