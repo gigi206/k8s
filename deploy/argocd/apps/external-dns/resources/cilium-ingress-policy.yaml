@@ -25,6 +25,7 @@ spec:
     # With MetalLB L2, traffic arrives with identity "world", not "host"
     - fromEntities:
         - world
+        - cluster  # Allow cluster-internal DNS queries
       toPorts:
         - ports:
             - port: "53"
