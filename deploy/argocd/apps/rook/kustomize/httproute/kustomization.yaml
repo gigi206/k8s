@@ -6,6 +6,5 @@ resources:
   - httproute.yaml
   - referencegrant.yaml
   - dashboard-service-https.yaml
-  - serverstransport.yaml
   # Note: oauth2-proxy-referencegrant.yaml removed - Ceph uses SAML2 SSO, not OAuth2 Proxy
   # Note: Custom Service with appProtocol: https enables APISIX to detect HTTPS backend automatically
