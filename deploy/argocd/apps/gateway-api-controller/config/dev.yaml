@@ -13,11 +13,11 @@ syncPolicy:
     enabled: true
     prune: true
     selfHeal: true
-  # Override global ServerSideApply=true due to Gateway API CRDs being too large
-  # (annotation exceeds 256KB limit)
+  # Gateway API CRDs are too large for client-side apply (annotation > 256KB)
+  # ServerSideApply=true avoids creating last-applied-configuration annotation
   syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=false
+    - ServerSideApply=true
     - PruneLast=true
     - SkipDryRunOnMissingResource=true
     - RespectIgnoreDifferences=true
