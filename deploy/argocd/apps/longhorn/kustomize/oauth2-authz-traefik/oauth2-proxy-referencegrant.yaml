@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# ReferenceGrant - Allow longhorn HTTPRoutes to reference oauth2-proxy Service
+# =============================================================================
+# Grants longhorn-system namespace permission to reference oauth2-proxy service
+# for the /oauth2/* routes in HTTPRoutes.
+# =============================================================================
+
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-longhorn-oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: longhorn-system
+  to:
+  - group: ""
+    kind: Service
+    name: oauth2-proxy

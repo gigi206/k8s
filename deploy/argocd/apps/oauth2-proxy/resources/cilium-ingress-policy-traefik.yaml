@@ -15,11 +15,13 @@ spec:
   endpointSelector: {}  # Applies to all pods in oauth2-proxy namespace
 
   ingress:
-    # Allow from Traefik Gateway (forward-auth requests)
+    # Allow from Traefik Gateway (forward-auth requests and error handling)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: traefik
       toPorts:
         - ports:
             - port: "4180"    # OAuth2 Proxy main port
+              protocol: TCP
+            - port: "8080"    # Error handler (redirect to login)
               protocol: TCP

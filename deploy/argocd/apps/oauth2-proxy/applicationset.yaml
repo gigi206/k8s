@@ -182,6 +182,12 @@ spec:
                     value: oauth2.{{ .common.domain }}
         {{- end }}
         {{- end }}
+        {{- if eq .features.gatewayAPI.controller.provider "traefik" }}
+        # Source: Traefik Middleware for ForwardAuth (oauth2-proxy ext_authz)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/kustomize/traefik-middleware
+        {{- end }}
         # Source 4: Helm chart
         - repoURL: https://oauth2-proxy.github.io/manifests
           targetRevision: '{{ .oauth2Proxy.version }}'

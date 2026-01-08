@@ -1,0 +1,38 @@
+---
+# =============================================================================
+# Traefik Middleware for OAuth2 Proxy Authentication
+# =============================================================================
+# ForwardAuth middleware that uses oauth2-auth-redirect service.
+# This service:
+# 1. Checks authentication via oauth2-proxy /oauth2/auth
+# 2. If authenticated (202), returns 200 to allow request
+# 3. If not authenticated (401), returns 302 redirect to /oauth2/start
+#
+# Usage in HTTPRoute:
+#   filters:
+#     - type: ExtensionRef
+#       extensionRef:
+#         group: traefik.io
+#         kind: Middleware
+#         name: forward-auth
+#
+# For cross-namespace, create a chain middleware in your namespace that
+# references this with namespace: oauth2-proxy
+# =============================================================================
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: forward-auth
+  namespace: oauth2-proxy
+spec:
+  forwardAuth:
+    # Auth redirect service - handles auth check + redirect to login
+    address: http://oauth2-auth-redirect.oauth2-proxy.svc.cluster.local:8080/auth
+    # Trust X-Forwarded-* headers from the Gateway
+    trustForwardHeader: true
+    # Headers to pass from auth response to the backend
+    authResponseHeaders:
+      - X-Auth-Request-User
+      - X-Auth-Request-Email
+      - X-Auth-Request-Groups

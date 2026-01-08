@@ -155,6 +155,16 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: traefik.io
+                          kind: Middleware
+                          name: oauth2-proxy-auth
+                  {{- end }}
               - target:
                   kind: ReferenceGrant
                   name: gateway-hubble-tls
@@ -162,6 +172,12 @@ spec:
                   - op: replace
                     path: /spec/from/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+        # Source: Traefik Middleware for OAuth2 Proxy forwardAuth (Hubble)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-traefik
+        {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source 3: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
         - repoURL: https://github.com/gigi206/k8s
