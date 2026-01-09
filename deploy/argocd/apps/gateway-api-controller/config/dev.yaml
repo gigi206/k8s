@@ -13,11 +13,12 @@ syncPolicy:
     enabled: true
     prune: true
     selfHeal: true
-  # Gateway API CRDs are too large for client-side apply (annotation > 256KB)
-  # ServerSideApply=true avoids creating last-applied-configuration annotation
+  # Gateway API CRDs conflict with apisix-ingress-controller CRDs
+  # Replace=true forces replacement to resolve storedVersions conflicts
   syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=true
+    - ServerSideApply=false
+    - Replace=true
     - PruneLast=true
     - SkipDryRunOnMissingResource=true
     - RespectIgnoreDifferences=true
