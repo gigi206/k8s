@@ -241,11 +241,52 @@ spec:
 
 ## Dashboard
 
-En dev, le dashboard Traefik est accessible via port-forward :
+### Accès via HTTPRoute (recommandé)
+
+Quand `traefik.dashboard.expose: true` et `features.gatewayAPI.enabled: true`, le dashboard est exposé via HTTPRoute :
+
+- **URL** : https://traefik.k8s.lan/dashboard/
+- **Redirection automatique** : `/` -> `/dashboard/`
+- **Protection OAuth2** : Authentification via Keycloak (si `features.oauth2Proxy.enabled: true`)
+
+### Structure des fichiers
+
+```
+kustomize/httproute/
+  - httproute.yaml       # HTTPRoute avec 3 règles (redirect, oauth2, backend)
+  - service.yaml         # Service exposant l'API dashboard (port 8080)
+  - referencegrant.yaml  # Autorise référence cross-namespace vers oauth2-proxy
+
+kustomize/oauth2-authz/
+  - middleware.yaml      # Middleware chain vers oauth2-proxy forward-auth
+```
+
+### ReferenceGrant
+
+Le `ReferenceGrant` permet à l'HTTPRoute (namespace `traefik`) de référencer le service `oauth2-proxy` (namespace `oauth2-proxy`) pour le callback OAuth2 :
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-traefik-to-oauth2-proxy
+  namespace: oauth2-proxy
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: traefik
+  to:
+    - group: ""
+      kind: Service
+      name: oauth2-proxy
+```
+
+### Accès via port-forward (alternatif)
 
 ```bash
-kubectl port-forward -n traefik svc/traefik 9000:9000
-# Ouvrir http://localhost:9000/dashboard/
+kubectl port-forward -n traefik svc/traefik 8080:8080
+# Ouvrir http://localhost:8080/dashboard/
 ```
 
 ## Verification
@@ -369,10 +410,19 @@ kubectl exec -n traefik -l app.kubernetes.io/name=traefik -- wget -q -O- http://
 # Vérifier que le dashboard est activé
 kubectl get deployment -n traefik traefik -o yaml | grep dashboard
 
-# Port-forward direct
-kubectl port-forward -n traefik svc/traefik 9000:9000
+# Vérifier l'HTTPRoute
+kubectl get httproute -n traefik traefik-dashboard
+kubectl describe httproute -n traefik traefik-dashboard
 
-# Ouvrir http://localhost:9000/dashboard/
+# Vérifier le service API
+kubectl get svc -n traefik traefik-api
+
+# Vérifier le ReferenceGrant (pour OAuth2 callback)
+kubectl get referencegrant -n oauth2-proxy
+
+# Port-forward direct (bypass HTTPRoute)
+kubectl port-forward -n traefik svc/traefik 8080:8080
+# Ouvrir http://localhost:8080/dashboard/
 ```
 
 ## Documentation
