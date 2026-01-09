@@ -139,8 +139,8 @@ spec:
             - name: prometheus.servicemonitor.labels.release
               value: '{{ .features.monitoring.release }}'
 
-            # Gateway API support (since v1.15+, no longer experimental)
-            {{- if .certManager.gatewayAPI.enabled }}
+            # Gateway API support - disabled when provider is APISIX (manages its own Gateway API)
+            {{- if and .certManager.gatewayAPI.enabled (ne .features.gatewayAPI.controller.provider "apisix") }}
             - name: config.enableGatewayAPI
               value: "true"
             {{- end }}
