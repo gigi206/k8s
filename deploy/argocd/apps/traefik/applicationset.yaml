@@ -51,19 +51,11 @@ spec:
       project: default
 
       sources:
-        # Source 0: Traefik CRDs (IngressRoute, Middleware, etc.)
-        - repoURL: https://traefik.github.io/charts
-          targetRevision: '{{ .traefik.crdsVersion | default "1.13.1" }}'
-          chart: traefik-crds
-
         # Source 1: Helm chart traefik
         - repoURL: https://traefik.github.io/charts
           targetRevision: '{{ .traefik.version }}'
           chart: traefik
           helm:
-            # Skip CRDs - Gateway API CRDs are managed by gateway-api-controller
-            # Traefik CRDs are installed via traefik-crds chart above
-            skipCrds: true
             parameters:
               # Deployment kind
               - name: deployment.kind
@@ -117,13 +109,45 @@ spec:
 
   templatePatch: |
     spec:
-      # Ignore Gateway API CRDs metadata (managed by gateway-api-controller)
+      # Ignore Gateway API CRDs entirely (managed by gateway-api-controller)
+      # These CRDs are bundled in both Traefik and gateway-api-controller
       ignoreDifferences:
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
+          name: backendtlspolicies.gateway.networking.k8s.io
           jsonPointers:
-            - /metadata/annotations
-            - /metadata/labels
+            - /metadata
+            - /spec
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: gatewayclasses.gateway.networking.k8s.io
+          jsonPointers:
+            - /metadata
+            - /spec
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: gateways.gateway.networking.k8s.io
+          jsonPointers:
+            - /metadata
+            - /spec
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: grpcroutes.gateway.networking.k8s.io
+          jsonPointers:
+            - /metadata
+            - /spec
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: httproutes.gateway.networking.k8s.io
+          jsonPointers:
+            - /metadata
+            - /spec
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: referencegrants.gateway.networking.k8s.io
+          jsonPointers:
+            - /metadata
+            - /spec
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
@@ -135,10 +159,6 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Traefik CRDs (IngressRoute, Middleware, etc.)
-        - repoURL: https://traefik.github.io/charts
-          targetRevision: '{{ .traefik.crdsVersion | default "1.13.1" }}'
-          chart: traefik-crds
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
         - repoURL: https://github.com/gigi206/k8s
@@ -196,14 +216,43 @@ spec:
                     path: /spec/issuerRef/name
                     value: '{{ .common.clusterIssuer }}'
         {{- end }}
+        {{- if and .features.gatewayAPI.enabled (index .traefik.dashboard "expose" | default true) }}
+        # Dashboard HTTPRoute (traefik.k8s.lan)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/kustomize/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: traefik-dashboard
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames
+                    value:
+                      - 'traefik.{{ .common.domain }}'
+                  {{- if .features.oauth2Proxy.enabled }}
+                  - op: add
+                    path: /spec/rules/2/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: traefik.io
+                          kind: Middleware
+                          name: oauth2-proxy-auth
+                  {{- end }}
+        {{- end }}
+        {{- if and .features.gatewayAPI.enabled .features.oauth2Proxy.enabled (index .traefik.dashboard "expose" | default true) }}
+        # OAuth2 Proxy Middleware for dashboard protection
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/kustomize/oauth2-authz
+        {{- end }}
         # Source 1: Helm chart with dynamic parameters
         - repoURL: https://traefik.github.io/charts
           targetRevision: '{{ .traefik.version }}'
           chart: traefik
           helm:
-            # Skip CRDs - Gateway API CRDs are managed by gateway-api-controller
-            # Traefik CRDs are installed via traefik-crds chart above
-            skipCrds: true
             parameters:
             # Base parameters
             - name: deployment.kind

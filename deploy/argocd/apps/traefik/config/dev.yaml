@@ -50,6 +50,8 @@ traefik:
   # Dashboard (dev: enabled for debugging)
   dashboard:
     enabled: true
+    # Expose dashboard via HTTPRoute (traefik.k8s.lan)
+    expose: true
 
   # Logs (dev: more verbose)
   logs:
@@ -61,3 +63,8 @@ syncPolicy:
     enabled: true
     prune: true
     selfHeal: true
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=false
+    - Replace=true
+    - PruneLast=true
