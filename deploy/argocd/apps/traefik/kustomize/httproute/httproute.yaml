@@ -1,0 +1,43 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: traefik-dashboard
+  namespace: traefik
+spec:
+  parentRefs:
+    - name: default-gateway
+      namespace: traefik
+      sectionName: https
+  hostnames:
+    - "traefik.k8s.lan"
+  rules:
+    # Rule 0: Redirect / -> /dashboard/
+    - matches:
+        - path:
+            type: Exact
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /dashboard/
+            statusCode: 302
+    # Rule 1: OAuth2 callback (NO auth filter - must be accessible)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /oauth2/
+      backendRefs:
+        - name: oauth2-proxy
+          namespace: oauth2-proxy
+          port: 4180
+    # Rule 2: Backend for /dashboard and /api (protected by OAuth2)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: traefik-api
+          port: 8080

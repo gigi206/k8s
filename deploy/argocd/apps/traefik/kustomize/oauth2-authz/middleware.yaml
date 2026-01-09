@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# Traefik Middleware - OAuth2 Proxy Auth (traefik namespace)
+# =============================================================================
+# Chain middleware that references the oauth2-proxy forward-auth middleware.
+# Protects Traefik dashboard with OAuth2 authentication.
+# =============================================================================
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-auth
+  namespace: traefik
+spec:
+  chain:
+    middlewares:
+      - name: forward-auth
+        namespace: oauth2-proxy
