@@ -112,6 +112,7 @@ spec:
           targetRevision: {{ .apisix.chart.version }}
           helm:
             releaseName: apisix
+            # CRDs managed by apisix-ingress-controller sub-chart
             valuesObject:
               # Replica count
               replicaCount: {{ .apisix.replicaCount }}

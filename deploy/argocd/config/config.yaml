@@ -108,16 +108,16 @@ features:
   gatewayAPI:
     enabled: true  # Wave 15: Gateway API CRDs (gateway-api-controller)
     httpRoute:
-      enabled: true  # true = utilise HTTPRoute standard (Gateway API)
+      enabled: false  # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "traefik"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
+      provider: "apisix"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
       # - envoy: envoy-gateway-system
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
-      gatewayNamespace: "traefik"
+      gatewayNamespace: "apisix"
       # Gateway LoadBalancer IP (used for MetalLB pool and external-dns)
       loadBalancerIP: "192.168.121.210"
 

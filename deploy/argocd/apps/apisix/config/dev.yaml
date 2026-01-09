@@ -78,6 +78,7 @@ dashboard:
       port: 9000
 
 # APISIX Ingress Controller (sub-chart, for Gateway API support)
+# Manages Gateway API CRDs and processes Gateway/HTTPRoute resources
 ingressController:
   enabled: true
   resources:
@@ -96,8 +97,10 @@ syncPolicy:
     selfHeal: true
   syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=true
+    - ServerSideApply=false
+    - Replace=true
     - RespectIgnoreDifferences=true
+    - SkipSchemaValidation=true
   retry:
     limit: 10
     backoff:
