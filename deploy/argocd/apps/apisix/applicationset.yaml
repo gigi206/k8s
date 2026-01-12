@@ -5,7 +5,7 @@ metadata:
   name: apisix
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "42"  # After istio-gateway (wave 41), before prometheus-stack (wave 75)
+    argocd.argoproj.io/sync-wave: "65"  # After rook-ceph (wave 60), before prometheus-stack (wave 75)
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -36,7 +36,7 @@ spec:
         app: apisix
         environment: '{{ .environment }}'
       annotations:
-        argocd.argoproj.io/sync-wave: "42"
+        argocd.argoproj.io/sync-wave: "65"
     spec:
       project: default
       destination:
@@ -224,11 +224,12 @@ spec:
                   enabled: false
 
               # Enable ServiceMonitor for Prometheus
-              serviceMonitor:
-                enabled: {{ .apisix.serviceMonitor.enabled }}
-                interval: {{ .apisix.serviceMonitor.interval }}
-                labels:
-                  release: {{ .features.monitoring.release }}
+              metrics:
+                serviceMonitor:
+                  enabled: {{ .apisix.serviceMonitor.enabled }}
+                  interval: {{ .apisix.serviceMonitor.interval }}
+                  labels:
+                    release: {{ .features.monitoring.release }}
 
               # APISIX Ingress Controller (sub-chart for Gateway API support)
               ingress-controller:
