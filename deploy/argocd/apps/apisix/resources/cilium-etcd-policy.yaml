@@ -28,6 +28,16 @@ spec:
             - port: "2379"   # ETCD client port
               protocol: TCP
 
+    # Allow from APISIX dashboard pods
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: apisix-dashboard
+            app.kubernetes.io/instance: apisix-dashboard
+      toPorts:
+        - ports:
+            - port: "2379"   # ETCD client port
+              protocol: TCP
+
     # Allow ETCD cluster communication (peer)
     - fromEndpoints:
         - matchLabels:

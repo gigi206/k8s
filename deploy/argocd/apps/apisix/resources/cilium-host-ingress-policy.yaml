@@ -27,3 +27,8 @@ spec:
               protocol: TCP
             - port: "443"
               protocol: TCP
+            # Stream proxy ports (Layer 4 - TCPRoute/UDPRoute)
+            - port: "9100"
+              protocol: TCP
+            - port: "9200"
+              protocol: UDP

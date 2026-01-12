@@ -16,6 +16,9 @@ metadata:
 spec:
   backoffLimit: 5
   template:
+    metadata:
+      labels:
+        app: apisix-dashboard-keycloak-client
     spec:
       restartPolicy: OnFailure
       containers:
