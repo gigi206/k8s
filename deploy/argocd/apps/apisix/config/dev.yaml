@@ -110,9 +110,7 @@ syncPolicy:
     selfHeal: true
   syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=true
     - RespectIgnoreDifferences=true
-    - SkipSchemaValidation=true
   retry:
     limit: 10
     backoff:
