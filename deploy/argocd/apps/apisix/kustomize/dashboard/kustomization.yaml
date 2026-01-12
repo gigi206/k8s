@@ -4,4 +4,5 @@ kind: Kustomization
 
 resources:
   - apisix-route.yaml
-  - configmap-patch-job.yaml
+  - secret-generator-rbac.yaml
+  - secret-generator-job.yaml

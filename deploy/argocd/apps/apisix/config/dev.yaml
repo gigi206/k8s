@@ -42,6 +42,14 @@ apisix:
       cpu: "100m"
       memory: "128Mi"
 
+  # Stream proxy (Layer 4 - TCP/UDP) for TCPRoute/UDPRoute Gateway API
+  stream_proxy:
+    enabled: true
+    tcp:
+      - 9100
+    udp:
+      - 9200
+
   # ETCD configuration (embedded for dev)
   etcd:
     enabled: true
@@ -55,8 +63,9 @@ gatewayAPI:
   enabled: true  # Deploy GatewayClass and default-gateway
 
 # APISIX Dashboard configuration
+# Note: Using embedded dashboard (Admin API /ui/) instead of standalone chart
 dashboard:
-  enabled: true
+  enabled: false  # Standalone chart disabled - using embedded dashboard
   chart:
     repo: https://charts.apiseven.com
     name: apisix-dashboard
@@ -76,6 +85,10 @@ dashboard:
     listen:
       host: "0.0.0.0"
       port: 9000
+
+# Embedded Dashboard (Admin API /ui/) - OIDC protected via ApisixRoute
+embeddedDashboard:
+  enabled: true
 
 # APISIX Ingress Controller (sub-chart, for Gateway API support)
 # Manages Gateway API CRDs and processes Gateway/HTTPRoute resources
@@ -97,8 +110,7 @@ syncPolicy:
     selfHeal: true
   syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=false
-    - Replace=true
+    - ServerSideApply=true
     - RespectIgnoreDifferences=true
     - SkipSchemaValidation=true
   retry:

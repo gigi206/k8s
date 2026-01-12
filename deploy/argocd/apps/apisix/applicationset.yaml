@@ -106,6 +106,20 @@ spec:
           directory:
             include: "cilium-etcd-policy.yaml"
         {{- end }}
+        # PostSync Job: Patch ConfigMap with secret manager config
+        # Required for $secret://kubernetes/... URIs in ApisixRoute plugins
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "configmap-patch-job.yaml"
+        # RBAC: Allow APISIX to read Kubernetes Secrets
+        # Required for secret manager to fetch secrets
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "secret-reader-rbac.yaml"
         # Source 0: APISIX Helm Chart
         - repoURL: {{ .apisix.chart.repo }}
           chart: {{ .apisix.chart.name }}
@@ -133,6 +147,17 @@ spec:
                   listen:
                     - port: 9443
                       enable_http3: false
+                {{- if .apisix.stream_proxy.enabled }}
+                stream_proxy:
+                  tcp:
+                  {{- range .apisix.stream_proxy.tcp }}
+                    - {{ . }}
+                  {{- end }}
+                  udp:
+                  {{- range .apisix.stream_proxy.udp }}
+                    - {{ . }}
+                  {{- end }}
+                {{- end }}
 
               # Service configuration
               service:
@@ -166,6 +191,18 @@ spec:
                   enabled: {{ .apisix.gateway.tls.enabled }}
                   servicePort: 443
                   containerPort: 9443
+                {{- if .apisix.stream_proxy.enabled }}
+                stream:
+                  enabled: true
+                  tcp:
+                  {{- range .apisix.stream_proxy.tcp }}
+                    - {{ . }}
+                  {{- end }}
+                  udp:
+                  {{- range .apisix.stream_proxy.udp }}
+                    - {{ . }}
+                  {{- end }}
+                {{- end }}
 
               # Admin API configuration
               admin:
@@ -268,70 +305,14 @@ spec:
                       - '{{ .common.domain }}'
         {{- end }}
 
-        {{- if .dashboard.enabled }}
+        {{- if .embeddedDashboard.enabled }}
         # =====================================================================
-        # APISIX Dashboard
+        # APISIX Embedded Dashboard (Admin API /ui/)
         # =====================================================================
+        # Uses the built-in dashboard at apisix-admin:9180/ui/
+        # Protected by openid-connect plugin for Keycloak SSO
 
-        {{- if .features.cilium.ingressPolicy.enabled }}
-        # Cilium Pod Ingress Policy for Dashboard (allow traffic from APISIX Gateway)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/apisix/resources
-          directory:
-            include: "cilium-dashboard-policy.yaml"
-        {{- end }}
-
-        # APISIX Dashboard Helm Chart
-        - repoURL: {{ .dashboard.chart.repo }}
-          chart: {{ .dashboard.chart.name }}
-          targetRevision: {{ .dashboard.chart.version }}
-          helm:
-            releaseName: apisix-dashboard
-            valuesObject:
-              replicaCount: {{ .dashboard.replicaCount }}
-
-              image:
-                repository: apache/apisix-dashboard
-                tag: "3.0.0-alpine"
-
-              service:
-                type: {{ .dashboard.service.type }}
-                port: {{ .dashboard.service.port }}
-
-              resources:
-                requests:
-                  cpu: {{ .dashboard.resources.requests.cpu }}
-                  memory: {{ .dashboard.resources.requests.memory }}
-                limits:
-                  cpu: {{ .dashboard.resources.limits.cpu }}
-                  memory: {{ .dashboard.resources.limits.memory }}
-
-              config:
-                conf:
-                  listen:
-                    host: {{ .dashboard.config.listen.host | quote }}
-                    port: {{ .dashboard.config.listen.port }}
-                  etcd:
-                    endpoints:
-                      - "apisix-etcd:2379"
-                    prefix: "/apisix"
-                  log:
-                    accessLog:
-                      filePath: "/dev/stdout"
-                    errorLog:
-                      filePath: "/dev/stderr"
-                      level: warn
-                # Authentication disabled - using OIDC via APISIX openid-connect plugin
-                # These values are required by the chart but never used (OIDC blocks unauthenticated access)
-                authentication:
-                  secret: "internal-jwt-not-used-oidc-only"
-                  expireTime: 3600
-                  users:
-                    - username: "disabled"
-                      password: "oidc-authentication-only"
-
-        # Dashboard ApisixRoute with OIDC protection
+        # Dashboard ApisixRoute with openid-connect plugin + Secret generator Job
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/apisix/kustomize/dashboard
@@ -349,12 +330,18 @@ spec:
                     value: https://keycloak.{{ .common.domain }}/realms/k8s/.well-known/openid-configuration
                   - op: replace
                     path: /spec/http/0/plugins/0/config/redirect_uri
-                    value: https://apisix.{{ .common.domain }}/apisix-dashboard-callback
+                    value: https://apisix.{{ .common.domain }}/ui/callback
                   - op: replace
                     path: /spec/http/0/plugins/0/config/post_logout_redirect_uri
-                    value: https://apisix.{{ .common.domain }}/
+                    value: https://apisix.{{ .common.domain }}/ui/
+                  - op: replace
+                    path: /spec/http/0/plugins/1/config/headers/set/X-API-KEY
+                    value: {{ .apisix.admin.credentials.admin }}
+                  - op: replace
+                    path: /spec/http/1/match/hosts/0
+                    value: apisix.{{ .common.domain }}
 
-        # Encrypted secrets (KSOPS) - Dashboard auth + OIDC client secret
+        # Encrypted secrets (KSOPS) - OIDC client secret
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/apisix/secrets/{{ .environment }}
