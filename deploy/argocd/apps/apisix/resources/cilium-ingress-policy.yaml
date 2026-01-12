@@ -33,6 +33,11 @@ spec:
               protocol: TCP
             - port: "9443"
               protocol: TCP
+            # Stream proxy ports (Layer 4 - TCPRoute/UDPRoute)
+            - port: "9100"
+              protocol: TCP
+            - port: "9200"
+              protocol: UDP
 
     # Allow internal cluster traffic (pods accessing services via LoadBalancer IP)
     # Needed for hairpin NAT: pods -> *.k8s.lan -> apisix-gateway -> backends
@@ -44,6 +49,11 @@ spec:
               protocol: TCP
             - port: "9443"
               protocol: TCP
+            # Stream proxy ports (Layer 4 - TCPRoute/UDPRoute)
+            - port: "9100"
+              protocol: TCP
+            - port: "9200"
+              protocol: UDP
 
     # Allow from monitoring namespace (Prometheus scrape)
     - fromEndpoints:

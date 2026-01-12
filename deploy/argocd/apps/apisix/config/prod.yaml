@@ -39,6 +39,14 @@ apisix:
       cpu: "500m"
       memory: "512Mi"
 
+  # Stream proxy (Layer 4 - TCP/UDP) for TCPRoute/UDPRoute Gateway API
+  stream_proxy:
+    enabled: true
+    tcp:
+      - 9100
+    udp:
+      - 9200
+
   # ETCD configuration (HA setup)
   etcd:
     enabled: true

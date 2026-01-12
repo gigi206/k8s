@@ -1,0 +1,102 @@
+---
+# =============================================================================
+# Job: Patch APISIX ConfigMap with Secret Manager Configuration
+# =============================================================================
+# This job patches the APISIX ConfigMap to add the secret.kubernetes section
+# required for $secret://kubernetes/... URIs in ApisixRoute plugins.
+#
+# The APISIX helm chart doesn't expose this configuration option directly,
+# so we patch it post-deployment.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apisix-configmap-secret-patch
+  namespace: apisix
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      labels:
+        app: apisix-configmap-secret-patch
+    spec:
+      serviceAccountName: apisix-configmap-patcher
+      restartPolicy: OnFailure
+      containers:
+        - name: patch-configmap
+          image: bitnami/kubectl:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "=== Patching APISIX ConfigMap with secret manager config ==="
+
+              # Get current config
+              echo "Reading current configuration..."
+              kubectl get configmap apisix -n apisix -o jsonpath='{.data.config\.yaml}' > /tmp/config.yaml
+
+              # Check if secret section already exists
+              if grep -q "^secret:" /tmp/config.yaml; then
+                echo "Secret section already exists, skipping patch"
+                exit 0
+              fi
+
+              # Add secret section at the end
+              echo "Adding secret manager configuration..."
+              cat >> /tmp/config.yaml << 'EOF'
+
+              secret:
+                kubernetes:
+                  namespace: apisix
+              EOF
+
+              # Patch the ConfigMap
+              echo "Applying patched configuration..."
+              kubectl create configmap apisix \
+                --from-file=config.yaml=/tmp/config.yaml \
+                -n apisix \
+                --dry-run=client -o yaml | \
+                kubectl apply -f -
+
+              # Restart APISIX to pick up new config
+              echo "Restarting APISIX deployment..."
+              kubectl rollout restart deployment/apisix -n apisix
+
+              echo "=== ConfigMap patched successfully ==="
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apisix-configmap-patcher
+  namespace: apisix
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apisix-configmap-patcher
+  namespace: apisix
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "patch", "create", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apisix-configmap-patcher
+  namespace: apisix
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apisix-configmap-patcher
+subjects:
+  - kind: ServiceAccount
+    name: apisix-configmap-patcher
+    namespace: apisix
