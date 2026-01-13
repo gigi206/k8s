@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kiali Gateway Ingress (NGINX Gateway Fabric)
+# =============================================================================
+# Allows ingress from NGINX Gateway Fabric to Kiali for external access.
+# This policy is only deployed when:
+# - features.cilium.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "nginx-gwf"
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kiali-gateway-nginx-gwf
+  namespace: istio-system
+spec:
+  description: "Allow ingress from NGINX Gateway Fabric to Kiali"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kiali
+
+  ingress:
+    # Allow from nginx-gateway namespace (gateway ingress)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "20001"   # Kiali web UI/API
+              protocol: TCP

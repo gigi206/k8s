@@ -585,7 +585,7 @@ validate_dependencies() {
 
   # Vérifier que le gateway controller est supporté
   case "$FEAT_GATEWAY_CONTROLLER" in
-    istio|nginx-gateway-fabric|envoy-gateway|apisix|traefik|nginx|"") ;;  # OK
+    istio|nginx-gateway-fabric|nginx-gwf|envoy-gateway|apisix|traefik|nginx|"") ;;  # OK
     *)
       log_error "Gateway controller '$FEAT_GATEWAY_CONTROLLER' non supporté"
       errors=$((errors + 1))
@@ -652,7 +652,7 @@ if [[ -n "$FEAT_GATEWAY_CONTROLLER" ]]; then
         log_warning "gatewayAPI.controller.provider=istio nécessite serviceMesh.enabled=true"
       fi
       ;;
-    nginx-gateway-fabric)
+    nginx-gateway-fabric|nginx-gwf)
       APPLICATIONSETS+=("apps/nginx-gateway-fabric/applicationset.yaml")
       ;;
     envoy-gateway)
@@ -868,6 +868,9 @@ apply_bootstrap_network_policies() {
         ;;
       traefik)
         argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-traefik.yaml"
+        ;;
+      nginx-gateway-fabric|nginx-gwf)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-nginx-gwf.yaml"
         ;;
       *)
         log_warning "Provider Gateway inconnu: $FEAT_GATEWAY_CONTROLLER - pas de policy gateway ArgoCD"

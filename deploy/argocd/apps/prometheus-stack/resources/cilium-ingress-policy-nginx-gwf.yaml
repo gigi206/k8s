@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Prometheus Stack Ingress from NGINX Gateway Fabric
+# =============================================================================
+# Allows access to Prometheus/Grafana/Alertmanager web UIs from NGINX Gateway Fabric
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-stack-ingress-nginx-gwf
+  namespace: monitoring
+spec:
+  description: "Allow ingress to Prometheus stack from NGINX Gateway Fabric"
+  endpointSelector: {}  # Applies to all pods in monitoring namespace
+
+  ingress:
+    # Allow from NGINX Gateway Fabric (nginx-gateway namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "3000"    # Grafana web UI
+              protocol: TCP
+            - port: "9090"    # Prometheus web UI / API
+              protocol: TCP
+            - port: "9093"    # Alertmanager web UI / API
+              protocol: TCP

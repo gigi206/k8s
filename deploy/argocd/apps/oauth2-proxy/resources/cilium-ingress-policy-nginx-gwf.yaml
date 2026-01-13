@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - OAuth2 Proxy Ingress from NGINX Gateway Fabric
+# =============================================================================
+# Allows forward-auth requests from NGINX Gateway Fabric
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress-nginx-gwf
+  namespace: oauth2-proxy
+spec:
+  description: "Allow ingress to OAuth2 Proxy from NGINX Gateway Fabric"
+  endpointSelector: {}  # Applies to all pods in oauth2-proxy namespace
+
+  ingress:
+    # Allow from NGINX Gateway Fabric (forward-auth requests and error handling)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "4180"    # OAuth2 Proxy main port
+              protocol: TCP
+            - port: "8080"    # Error handler (redirect to login)
+              protocol: TCP

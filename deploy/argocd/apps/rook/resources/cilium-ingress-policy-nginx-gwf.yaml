@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Rook-Ceph Ingress from NGINX Gateway Fabric
+# =============================================================================
+# Allows access to Rook-Ceph Dashboard and S3 from NGINX Gateway Fabric
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: rook-ceph-ingress-nginx-gwf
+  namespace: rook-ceph
+spec:
+  description: "Allow ingress to Rook-Ceph from NGINX Gateway Fabric"
+  endpointSelector: {}  # Applies to all pods in rook-ceph namespace
+
+  ingress:
+    # Allow from NGINX Gateway Fabric (nginx-gateway namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "8443"    # Dashboard HTTPS
+              protocol: TCP
+            - port: "8080"    # S3 Object Store (RGW container port)
+              protocol: TCP
