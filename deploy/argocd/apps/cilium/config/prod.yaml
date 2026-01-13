@@ -12,3 +12,8 @@ syncPolicy:
     enabled: false
     prune: false
     selfHeal: false
+
+# Tetragon - eBPF-based security observability and runtime enforcement
+tetragon:
+  enabled: false
+  version: "1.6.0"

@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Tetragon ServiceMonitor for Prometheus
+# =============================================================================
+# Enables Prometheus to scrape Tetragon metrics
+# Docs: https://tetragon.io/docs/installation/metrics/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+#       from features.monitoring.release in config.yaml
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tetragon
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tetragon
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
