@@ -26,5 +26,5 @@ spec:
             io.kubernetes.pod.namespace: apisix
       toPorts:
         - ports:
-            - port: "80"      # Hubble UI HTTP
+            - port: "8081"    # Hubble UI targetPort (APISIX uses pod IP directly)
               protocol: TCP
