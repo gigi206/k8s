@@ -121,7 +121,7 @@
     },
     {
       "customType": "regex",
-      "description": "Etcd Helm chart (for External-DNS)",
+      "description": "CloudPirates etcd OCI Helm chart (External-DNS)",
       "managerFilePatterns": [
         "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
       ],
@@ -129,9 +129,21 @@
         "etcd:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "etcd",
-      "packageNameTemplate": "etcd",
-      "datasourceTemplate": "helm",
-      "registryUrlTemplate": "https://groundhog2k.github.io/helm-charts"
+      "packageNameTemplate": "ghcr.io/cloudpirates-io/helm-charts/etcd",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "CloudPirates etcd OCI Helm chart (APISIX)",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/apisix/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "external:\\s*\\n[^}]*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "etcd",
+      "packageNameTemplate": "ghcr.io/cloudpirates-io/helm-charts/etcd",
+      "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",

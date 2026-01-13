@@ -47,13 +47,17 @@ apisix:
     udp:
       - 9200
 
-  # ETCD configuration (HA setup)
+  # ETCD configuration - External etcd (CloudPirates OCI chart)
   etcd:
-    enabled: true
-    replicaCount: 3
-    persistence:
+    # Disable embedded Bitnami etcd (deprecated)
+    builtin:
+      enabled: false
+    # External etcd (CloudPirates - quay.io/coreos/etcd)
+    external:
       enabled: true
-      size: "10Gi"
+      host: "http://apisix-etcd:2379"
+      replicas: 3  # HA setup
+      version: "0.4.0"
 
 # Gateway API resources (GatewayClass, Gateway, Certificate)
 gatewayAPI:

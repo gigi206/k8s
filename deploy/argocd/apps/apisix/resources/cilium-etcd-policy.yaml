@@ -15,7 +15,8 @@ spec:
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: etcd
-      app.kubernetes.io/instance: apisix
+      # CloudPirates etcd uses release name as instance (apisix-etcd)
+      app.kubernetes.io/instance: apisix-etcd
 
   ingress:
     # Allow from APISIX gateway pods
@@ -42,7 +43,7 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/name: etcd
-            app.kubernetes.io/instance: apisix
+            app.kubernetes.io/instance: apisix-etcd
       toPorts:
         - ports:
             - port: "2379"   # ETCD client port
