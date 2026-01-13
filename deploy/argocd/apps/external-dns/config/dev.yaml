@@ -7,7 +7,7 @@ externalDns:
   versions:
     chart: "1.19.0"
     coredns: "1.45.0"
-    etcd: "1.1.4"
+    etcd: "0.4.0"  # CloudPirates OCI (was groundhog2k 1.1.4)
   # Provider: cloudflare, aws, google, coredns, etc.
   # Use "coredns" for local DNS with etcd backend
   provider: "coredns"
