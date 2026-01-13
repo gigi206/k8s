@@ -60,6 +60,15 @@ spec:
 
   templatePatch: |
     spec:
+      # Ignore fields set by API server but not in Helm charts
+      ignoreDifferences:
+        - group: apps
+          kind: StatefulSet
+          name: external-dns-etcd
+          jqPathExpressions:
+            - .spec.persistentVolumeClaimRetentionPolicy
+            - .spec.volumeClaimTemplates
+            - .status
       sources:
         {{- /* Cilium policies - common to all providers */ -}}
         {{- if .features.cilium.ingressPolicy.enabled }}
@@ -158,16 +167,15 @@ spec:
                   path /skydns
                   endpoint http://external-dns-etcd:2379
         {{- if .externalDns.etcd.enabled }}
-        # etcd backend for CoreDNS
-        - repoURL: https://groundhog2k.github.io/helm-charts
+        # etcd backend for CoreDNS (CloudPirates OCI - quay.io/coreos/etcd)
+        - repoURL: ghcr.io/cloudpirates-io/helm-charts
           targetRevision: '{{ .externalDns.versions.etcd }}'
           chart: etcd
           helm:
-            parameters:
-              - name: fullnameOverride
-                value: external-dns-etcd
-              - name: replicas
-                value: '{{ .externalDns.etcd.replicas | default 1 }}'
+            releaseName: external-dns-etcd
+            valuesObject:
+              fullnameOverride: external-dns-etcd
+              replicaCount: {{ .externalDns.etcd.replicas | default 1 }}
         {{- end }}
 
         {{- /* Standard provider mode (cloudflare, etc.) */ -}}
