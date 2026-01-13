@@ -200,6 +200,37 @@ spec:
         # NOTE: AuthorizationPolicy for OAuth2 Proxy (Hubble) moved to Istio application
         # to ensure Istio CRDs exist before the AuthorizationPolicy is created
         # See: deploy/argocd/apps/istio/kustomize/oauth2-authz/
+        {{- if .tetragon.enabled }}
+        # Source: Tetragon Helm chart - eBPF-based security observability and runtime enforcement
+        - repoURL: https://helm.cilium.io
+          chart: tetragon
+          targetRevision: '{{ .tetragon.version }}'
+          helm:
+            releaseName: tetragon
+            valuesObject:
+              tetragon:
+                prometheus:
+                  enabled: true
+                  port: 2114  # Changed from 2112 to avoid conflict with kube-vip
+        # Source: Tetragon monitoring resources (ServiceMonitor, dashboards)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/tetragon
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Source: Tetragon ingress policy (allows Prometheus scraping)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-ingress-policy-tetragon.yaml"
+        {{- end }}
+        {{- end }}
 
         # Source 3: Kustomize monitoring resources
         - repoURL: https://github.com/gigi206/k8s
