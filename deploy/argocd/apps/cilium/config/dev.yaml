@@ -15,5 +15,5 @@ syncPolicy:
 
 # Tetragon - eBPF-based security observability and runtime enforcement
 tetragon:
-  enabled: true
+  enabled: false
   version: "1.6.0"
