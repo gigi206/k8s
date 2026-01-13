@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Hubble UI Gateway Ingress (NGINX Gateway Fabric)
+# =============================================================================
+# Allows ingress from NGINX Gateway Fabric to Hubble UI for external access.
+# This policy is only deployed when:
+# - features.cilium.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "nginx-gwf"
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-ui-gateway-nginx-gwf
+  namespace: kube-system
+spec:
+  description: "Allow ingress from NGINX Gateway Fabric to Hubble UI"
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+
+  ingress:
+    # Allow from nginx-gateway namespace (gateway ingress)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "8081"    # Hubble UI HTTP (pod targetPort)
+              protocol: TCP

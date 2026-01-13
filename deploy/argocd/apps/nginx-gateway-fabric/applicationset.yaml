@@ -146,3 +146,33 @@ spec:
               - name: metrics.port
                 value: "9113"
               {{- end }}
+        # Gateway and Certificate resources
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/nginx-gateway-fabric/kustomize/gateway
+          kustomize:
+            patches:
+              - target:
+                  kind: Gateway
+                  name: default-gateway
+                patch: |
+                  - op: replace
+                    path: /spec/gatewayClassName
+                    value: '{{ .nginxGatewayFabric.gatewayClassName | default "nginx-gwf" }}'
+                  - op: replace
+                    path: /spec/listeners/1/hostname
+                    value: '*.{{ .common.domain }}'
+                  - op: add
+                    path: /spec/addresses
+                    value:
+                      - type: IPAddress
+                        value: '{{ .features.gatewayAPI.controller.loadBalancerIP }}'
+              - target:
+                  kind: Certificate
+                  name: wildcard-k8s-local
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames
+                    value:
+                      - '*.{{ .common.domain }}'
+                      - '{{ .common.domain }}'

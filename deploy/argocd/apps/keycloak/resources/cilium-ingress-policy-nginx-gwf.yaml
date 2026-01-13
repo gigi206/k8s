@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Keycloak Ingress from NGINX Gateway Fabric
+# =============================================================================
+# Allows access to Keycloak web UI from NGINX Gateway Fabric
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-ingress-nginx-gwf
+  namespace: keycloak
+spec:
+  description: "Allow ingress to Keycloak from NGINX Gateway Fabric"
+  endpointSelector: {}  # Applies to all pods in keycloak namespace
+
+  ingress:
+    # Allow from NGINX Gateway Fabric (nginx-gateway namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "8443"    # Keycloak HTTPS
+              protocol: TCP
