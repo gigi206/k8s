@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Tetragon Ingress Security
+# =============================================================================
+# Allows Prometheus to scrape Tetragon metrics on port 2114
+# Deployed conditionally when tetragon.enabled=true
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tetragon-ingress
+  namespace: kube-system
+spec:
+  description: "Allow Prometheus to scrape Tetragon metrics"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: tetragon
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "2114"    # Tetragon metrics (changed from 2112 to avoid kube-vip conflict)
+              protocol: TCP

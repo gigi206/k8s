@@ -439,6 +439,20 @@
         "images:\\s*\\n\\s*curl:\\s*\\n\\s*repository:\\s*(?<depName>[^\\n]+)\\s*\\n\\s*tag:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Tetragon Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/cilium/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "tetragon:\\s*\\n\\s*enabled:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "tetragon",
+      "packageNameTemplate": "tetragon",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://helm.cilium.io"
     }
   ]
 }
