@@ -115,6 +115,12 @@ spec:
           path: deploy/argocd/apps/prometheus-stack/resources
           directory:
             include: "cilium-ingress-policy-traefik.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+          directory:
+            include: "cilium-ingress-policy-nginx-gwf.yaml"
         {{- end }}
         {{- end }}
         {{- if .features.cilium.egressPolicy.enabled }}

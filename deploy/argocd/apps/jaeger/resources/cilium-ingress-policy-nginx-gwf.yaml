@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Jaeger Ingress from NGINX Gateway Fabric
+# =============================================================================
+# Allows access to Jaeger Query UI from NGINX Gateway Fabric
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jaeger-ingress-nginx-gwf
+  namespace: jaeger
+spec:
+  description: "Allow ingress to Jaeger from NGINX Gateway Fabric"
+  endpointSelector: {}  # Applies to all pods in jaeger namespace
+
+  ingress:
+    # Allow from NGINX Gateway Fabric (nginx-gateway namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "16686"   # Query UI
+              protocol: TCP

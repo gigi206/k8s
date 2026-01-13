@@ -20,7 +20,7 @@ spec:
   description: "Allow ingress to NGINX Gateway Fabric from authorized sources"
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: nginx-gateway
+      app.kubernetes.io/instance: nginx-gateway-fabric
 
   ingress:
     # Allow external traffic from world (LoadBalancer clients via MetalLB)
@@ -54,6 +54,7 @@ spec:
               protocol: TCP
 
     # Allow internal namespace communication
+    # Gateway data plane <-> Controller communication on port 8443
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: nginx-gateway
@@ -62,6 +63,8 @@ spec:
             - port: "80"
               protocol: TCP
             - port: "443"
+              protocol: TCP
+            - port: "8443"  # Controller API (data plane <-> control plane)
               protocol: TCP
             - port: "9113"  # Prometheus metrics
               protocol: TCP
