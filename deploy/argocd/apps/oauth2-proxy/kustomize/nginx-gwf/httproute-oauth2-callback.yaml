@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# HTTPRoute - OAuth2 Proxy Callback Routes
+# =============================================================================
+# Routes /oauth2/* paths to oauth2-proxy for authentication callbacks.
+# This route handles:
+#   - /oauth2/auth - Internal auth check endpoint
+#   - /oauth2/start - Initiate OAuth2 flow
+#   - /oauth2/callback - OIDC callback from Keycloak
+#   - /oauth2/sign_out - Logout endpoint
+# =============================================================================
+
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: oauth2-callback
+  namespace: oauth2-proxy
+spec:
+  parentRefs:
+    - name: default-gateway
+      namespace: nginx-gateway
+  hostnames:
+    - "*.k8s.lan"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /oauth2/
+      backendRefs:
+        - name: oauth2-proxy
+          port: 4180

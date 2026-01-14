@@ -170,6 +170,15 @@ spec:
                           group: traefik.io
                           kind: Middleware
                           name: oauth2-proxy-auth
+                  {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: gateway.nginx.org
+                          kind: SnippetsFilter
+                          name: oauth2-auth
                   {{- end }}
               - target:
                   kind: ReferenceGrant
@@ -183,6 +192,11 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-traefik
+        {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+        # Source: NGINX Gateway Fabric SnippetsFilter for OAuth2 auth_request (Hubble)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-nginx-gwf
         {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source 3: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)

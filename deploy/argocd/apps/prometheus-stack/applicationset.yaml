@@ -168,6 +168,15 @@ spec:
                           group: traefik.io
                           kind: Middleware
                           name: oauth2-proxy-auth
+                  {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: gateway.nginx.org
+                          kind: SnippetsFilter
+                          name: oauth2-auth
                   {{- end }}
               - target:
                   kind: HTTPRoute
@@ -188,6 +197,15 @@ spec:
                           group: traefik.io
                           kind: Middleware
                           name: oauth2-proxy-auth
+                  {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: gateway.nginx.org
+                          kind: SnippetsFilter
+                          name: oauth2-auth
                   {{- end }}
               - target:
                   kind: ReferenceGrant
@@ -259,6 +277,11 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-traefik
+        {{- else if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+        # Source: ReferenceGrant for NGINX Gateway Fabric OAuth2 SnippetsFilter
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-nginx-gwf
         {{- end }}
         {{- if .features.sso.enabled }}
         # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
