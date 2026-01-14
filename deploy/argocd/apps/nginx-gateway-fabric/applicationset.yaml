@@ -146,6 +146,12 @@ spec:
               - name: metrics.port
                 value: "9113"
               {{- end }}
+
+              # Enable SnippetsFilter for OAuth2 auth_request support
+              {{- if .features.oauth2Proxy.enabled }}
+              - name: nginxGateway.snippetsFilters.enable
+                value: "true"
+              {{- end }}
         # Gateway and Certificate resources
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
