@@ -161,6 +161,13 @@ spec:
                     path: /spec/from/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
 
+        {{- if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+        # Source: BackendTLSPolicy for nginx-gateway-fabric (HTTPS backend)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/kustomize/httproute-nginx-gwf
+        {{- end }}
+
         {{- if .rook.objectStore.enabled }}
         # Source: HTTPRoute (Gateway API standard) - S3 Object Store
         - repoURL: https://github.com/gigi206/k8s
