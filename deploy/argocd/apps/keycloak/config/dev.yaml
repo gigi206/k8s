@@ -8,7 +8,7 @@ dashboard:
   folder: "Keycloak"
 
 keycloak:
-  operatorVersion: "26.4.7"
+  operatorVersion: "26.5.1"
   # Single instance for dev
   instances: 1
   # hostname construit dynamiquement via {{ .common.domain }} dans ApplicationSet
