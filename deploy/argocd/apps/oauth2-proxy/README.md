@@ -4,7 +4,11 @@ OAuth2 Proxy fournit une authentification OIDC centralisée via Keycloak pour le
 
 ## Architecture
 
-OAuth2 Proxy est utilisé en mode **ext_authz** avec Istio :
+OAuth2 Proxy supporte plusieurs modes selon le Gateway API controller utilisé :
+
+### Mode ext_authz (Istio)
+
+Utilisé avec Istio via `AuthorizationPolicy` :
 - **Authentification seulement** : ne proxifie pas le trafic
 - **Istio Gateway** : intercepte les requêtes et délègue l'auth à OAuth2 Proxy
 - **AuthorizationPolicy** : chaque application gère sa propre policy (pattern décentralisé)
@@ -23,6 +27,52 @@ OAuth2 Proxy est utilisé en mode **ext_authz** avec Istio :
                     └──────────────┘
 ```
 
+### Mode auth_request (nginx-gateway-fabric)
+
+Utilisé avec nginx-gateway-fabric via `SnippetsFilter` :
+- **Directive NGINX native** : `auth_request` pour l'authentification
+- **SnippetsFilter** : injecte la configuration NGINX dans le Gateway
+- **HTTPRoute filter** : chaque application référence le SnippetsFilter partagé
+
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Client    │────▶│ NGINX Gateway    │────▶│ OAuth2 Proxy    │
+└─────────────┘     │ (auth_request)   │     │ (auth check)    │
+                    └──────────────────┘     └─────────────────┘
+                           │                      │
+                           │ ◀── 200 OK ──────────┘
+                           ▼
+                    ┌──────────────┐
+                    │  Backend App │
+                    │ (prometheus) │
+                    └──────────────┘
+```
+
+> **Note** : nginx-gateway-fabric n'a pas de support ext_authz natif (prévu v2.7.0). Le SnippetsFilter est utilisé comme workaround.
+
+### Mode forward-auth (APISIX)
+
+Utilisé avec APISIX via le plugin `forward-auth` :
+- **Plugin natif APISIX** : `forward-auth` pour valider les sessions
+- **ApisixUpstream** : accès cross-namespace à oauth2-proxy
+- **serverless-post-function** : convertit les réponses 401 en redirections 302
+
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Client    │────▶│ APISIX Gateway   │────▶│ OAuth2 Proxy    │
+└─────────────┘     │ (forward-auth)   │     │ (auth check)    │
+                    └──────────────────┘     └─────────────────┘
+                           │                      │
+                           │ ◀── 200 OK ──────────┘
+                           ▼
+                    ┌──────────────┐
+                    │  Backend App │
+                    │ (prometheus) │
+                    └──────────────┘
+```
+
+> **Voir** : Documentation complète dans `apps/apisix/README.md` section "OAuth2 Authentication".
+
 ## Dépendances
 
 ### Automatiques (via ApplicationSets)
@@ -31,20 +81,46 @@ OAuth2 Proxy est utilisé en mode **ext_authz** avec Istio :
   - Client `oauth2-proxy` créé automatiquement
   - Realm `k8s` avec utilisateurs/groupes
 
-- **Istio** (Wave 40) : Service mesh avec ext_authz
-  - ExtensionProvider `oauth2-proxy` configuré dans le mesh
+- **Gateway Controller** (selon provider) :
+  - **Istio** (Wave 40) : Service mesh avec ext_authz
+    - ExtensionProvider `oauth2-proxy` configuré dans le mesh
+  - **nginx-gateway-fabric** (Wave 41) : Gateway API avec SnippetsFilter
+    - SnippetsFilter `oauth2-auth` déployé dans le namespace gateway
+  - **APISIX** (Wave 40) : API Gateway avec forward-auth plugin
+    - Plugin `forward-auth` + `serverless-post-function` configuré par route
 
 - **Cert-Manager** (Wave 20) : Certificats TLS
 
 ### Applications protégées
 
-Chaque application gère sa propre `AuthorizationPolicy` dans son dossier `oauth2-authz/` :
+Chaque application gère sa propre configuration OAuth2 selon le provider :
+
+**Avec Istio** (`oauth2-authz/`) :
 
 | Application | AuthorizationPolicy | Condition |
 |-------------|---------------------|-----------|
 | prometheus-stack | `oauth2-proxy-prometheus`, `oauth2-proxy-alertmanager` | `features.oauth2Proxy.enabled` |
 | cilium | `oauth2-proxy-hubble` | `features.oauth2Proxy.enabled` |
 | longhorn | `oauth2-proxy-longhorn` | `features.oauth2Proxy.enabled` |
+
+**Avec nginx-gateway-fabric** (`oauth2-authz-nginx-gwf/`) :
+
+| Application | Ressources | Condition |
+|-------------|------------|-----------|
+| prometheus-stack | ReferenceGrant, HTTPRoute patches | `features.oauth2Proxy.enabled` + provider `nginx-gwf` |
+| cilium | ReferenceGrant, HTTPRoute patches | `features.oauth2Proxy.enabled` + provider `nginx-gwf` |
+
+**Avec APISIX** (`apisix/`) :
+
+| Application | Ressources | Condition |
+|-------------|------------|-----------|
+| prometheus-stack | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| cilium | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| longhorn | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| jaeger | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| istio (kiali) | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+
+> **Voir** : Configuration détaillée dans `apps/apisix/README.md` section "OAuth2 Authentication".
 
 ## Configuration
 
@@ -113,7 +189,9 @@ Le cookie utilise le domaine parent (`.k8s.lan`) pour le SSO :
 
 ## Ajouter une nouvelle application protégée
 
-1. Créer `apps/<app>/oauth2-authz/kustomization.yaml` :
+### Avec Istio (AuthorizationPolicy)
+
+1. Créer `apps/<app>/kustomize/oauth2-authz/kustomization.yaml` :
 ```yaml
 ---
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -122,7 +200,7 @@ resources:
   - authorization-policy.yaml
 ```
 
-2. Créer `apps/<app>/oauth2-authz/authorization-policy.yaml` :
+2. Créer `apps/<app>/kustomize/oauth2-authz/authorization-policy.yaml` :
 ```yaml
 ---
 apiVersion: security.istio.io/v1
@@ -151,7 +229,7 @@ spec:
 # Source: AuthorizationPolicy for OAuth2 Proxy ext_authz
 - repoURL: https://github.com/gigi206/k8s
   targetRevision: '{{ .git.revision }}'
-  path: deploy/argocd/apps/<app>/oauth2-authz
+  path: deploy/argocd/apps/<app>/kustomize/oauth2-authz
   kustomize:
     patches:
       - target:
@@ -162,6 +240,63 @@ spec:
             path: /spec/rules/0/to/0/operation/hosts/0
             value: <app>.{{ .common.domain }}
 {{- end }}
+```
+
+### Avec nginx-gateway-fabric (SnippetsFilter)
+
+1. Créer `apps/<app>/kustomize/oauth2-authz-nginx-gwf/kustomization.yaml` :
+```yaml
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - referencegrant.yaml
+```
+
+2. Créer `apps/<app>/kustomize/oauth2-authz-nginx-gwf/referencegrant.yaml` :
+```yaml
+---
+# Permet aux HTTPRoutes de ce namespace de référencer le SnippetsFilter oauth2-auth
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-nginx-gateway-snippets
+  namespace: nginx-gateway
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: <app-namespace>  # Namespace de l'application
+  to:
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+```
+
+3. Ajouter le SnippetsFilter à l'HTTPRoute de l'application via un patch dans l'ApplicationSet :
+```yaml
+{{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+# Source: ReferenceGrant for OAuth2 SnippetsFilter
+- repoURL: https://github.com/gigi206/k8s
+  targetRevision: '{{ .git.revision }}'
+  path: deploy/argocd/apps/<app>/kustomize/oauth2-authz-nginx-gwf
+{{- end }}
+```
+
+4. Modifier l'HTTPRoute pour ajouter le filter (via patch kustomize dans l'ApplicationSet) :
+```yaml
+# Dans la section kustomize.patches de l'HTTPRoute source :
+- target:
+    kind: HTTPRoute
+    name: <app>
+  patch: |
+    - op: add
+      path: /spec/rules/0/filters
+      value:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: oauth2-auth
 ```
 
 ## Vérification
@@ -184,6 +319,19 @@ kubectl logs -n oauth2-proxy deployment/oauth2-proxy
 ```bash
 # Vérifier la config mesh
 kubectl get configmap istio -n istio-system -o yaml | grep -A10 oauth2-proxy
+```
+
+### nginx-gateway-fabric SnippetsFilter
+
+```bash
+# Vérifier le SnippetsFilter
+kubectl get snippetsfilter -n nginx-gateway
+
+# Vérifier les ReferenceGrants
+kubectl get referencegrant -A | grep nginx-gateway
+
+# Vérifier les HTTPRoutes avec le filter
+kubectl get httproute -A -o yaml | grep -A5 "extensionRef"
 ```
 
 ### Test d'authentification
