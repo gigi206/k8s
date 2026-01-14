@@ -166,6 +166,21 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/kustomize/httproute-nginx-gwf
+        # Source: TLS certificates for HTTPS backend (nginx-gateway-fabric)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/kustomize/certificates-nginx-gwf
+          kustomize:
+            images:
+              - 'rook/ceph:IMAGE_TAG=docker.io/rook/ceph:{{ .rook.operator.version }}'
+            patches:
+              - target:
+                  kind: Certificate
+                  name: ceph-dashboard-tls
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames/4
+                    value: ceph.{{ .common.domain }}
         {{- end }}
 
         {{- if .rook.objectStore.enabled }}
