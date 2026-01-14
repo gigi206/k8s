@@ -73,6 +73,14 @@ spec:
           jqPathExpressions:
             - .spec.data[].remoteRef
             - .spec.target
+        - group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          jqPathExpressions:
+            - .spec.parentRefs[].group
+            - .spec.parentRefs[].kind
+            - .spec.rules[].backendRefs[].group
+            - .spec.rules[].backendRefs[].kind
+            - .spec.rules[].backendRefs[].weight
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
@@ -165,6 +173,17 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+                  {{- if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+                  # Add SnippetsFilter reference to inject OAuth2 locations at http.server level
+                  - op: add
+                    path: /spec/rules/0/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: gateway.nginx.org
+                          kind: SnippetsFilter
+                          name: oauth2-server-locations
+                  {{- end }}
               - target:
                   kind: ReferenceGrant
                   name: allow-oauth2-proxy-httproute
@@ -193,6 +212,12 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/kustomize/traefik-middleware
+        {{- else if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+        # Source: NGINX Gateway Fabric SnippetsFilter for OAuth2 auth_request
+        # Creates internal /oauth2/auth location and /oauth2/* proxy locations at http.server level
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/kustomize/nginx-gwf
         {{- end }}
         # Source 4: Helm chart
         - repoURL: https://oauth2-proxy.github.io/manifests

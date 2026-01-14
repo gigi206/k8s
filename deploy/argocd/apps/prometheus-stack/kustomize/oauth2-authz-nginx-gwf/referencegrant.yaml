@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# ReferenceGrant - Allow monitoring HTTPRoutes to use OAuth2 SnippetsFilter
+# =============================================================================
+# Grants HTTPRoutes in the monitoring namespace permission to reference
+# the oauth2-auth SnippetsFilter in the nginx-gateway namespace.
+# =============================================================================
+
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-monitoring-oauth2-snippets
+  namespace: nginx-gateway
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: monitoring
+  to:
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
