@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# ReferenceGrant - Allow kube-system HTTPRoutes to use OAuth2 SnippetsFilter
+# =============================================================================
+# Grants HTTPRoutes in the kube-system namespace permission to reference
+# the oauth2-auth SnippetsFilter in the nginx-gateway namespace.
+# Used for Hubble UI OAuth2 protection.
+# =============================================================================
+
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-kube-system-oauth2-snippets
+  namespace: nginx-gateway
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: kube-system
+  to:
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
