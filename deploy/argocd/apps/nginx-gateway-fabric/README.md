@@ -112,6 +112,218 @@ spec:
       port: 8080
 ```
 
+## OAuth2 Authentication (SnippetsFilter)
+
+nginx-gateway-fabric ne supporte pas nativement `ext_authz` (prévu pour v2.7.0). Un workaround utilisant `SnippetsFilter` avec la directive `auth_request` de NGINX est implémenté.
+
+### Architecture
+
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Client    │────▶│ NGINX Gateway    │────▶│ OAuth2 Proxy    │
+└─────────────┘     │ (auth_request)   │     │ (auth check)    │
+                    └──────────────────┘     └─────────────────┘
+                           │                      │
+                           │ ◀── 200 OK ──────────┘
+                           ▼
+                    ┌──────────────┐
+                    │  Backend App │
+                    │ (prometheus) │
+                    └──────────────┘
+```
+
+### Configuration
+
+1. **SnippetsFilter** (oauth2-proxy namespace) : Définit la directive `auth_request`
+2. **ReferenceGrant** (nginx-gateway namespace) : Autorise les HTTPRoutes à référencer le SnippetsFilter
+3. **HTTPRoute filter** : Ajoute le SnippetsFilter via `ExtensionRef`
+
+### SnippetsFilter
+
+```yaml
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: oauth2-auth
+  namespace: nginx-gateway
+spec:
+  snippets:
+    - context: http.server.location
+      value: |
+        auth_request /oauth2/auth;
+        auth_request_set $user $upstream_http_x_auth_request_user;
+        auth_request_set $email $upstream_http_x_auth_request_email;
+        error_page 401 = /oauth2/start?rd=$scheme://$host$request_uri;
+```
+
+### ReferenceGrant
+
+Permet aux HTTPRoutes d'autres namespaces de référencer le SnippetsFilter :
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-nginx-gateway-snippets
+  namespace: nginx-gateway
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: monitoring  # Namespace de l'application
+  to:
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+```
+
+### HTTPRoute avec OAuth2
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-protected-app
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: default-gateway
+      namespace: nginx-gateway
+  hostnames:
+    - "my-app.k8s.lan"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: oauth2-auth
+      backendRefs:
+        - name: my-app-service
+          port: 8080
+```
+
+### Applications protégées
+
+| Application | Namespace | Hostname |
+|-------------|-----------|----------|
+| Prometheus | monitoring | prometheus.k8s.lan |
+| Alertmanager | monitoring | alertmanager.k8s.lan |
+| Hubble UI | kube-system | hubble.k8s.lan |
+
+### Vérification
+
+```bash
+# SnippetsFilter créé
+kubectl get snippetsfilter -n nginx-gateway
+
+# ReferenceGrants créés
+kubectl get referencegrant -A | grep nginx-gateway
+
+# Test accès (doit rediriger vers Keycloak)
+curl -k -I https://prometheus.k8s.lan
+```
+
+> **Voir aussi** : `apps/oauth2-proxy/README.md` pour la documentation complète.
+
+## HTTPS Backends (BackendTLSPolicy)
+
+Certaines applications (Ceph Dashboard, NeuVector) exposent leur interface en HTTPS. nginx-gateway-fabric utilise `BackendTLSPolicy` pour se connecter aux backends HTTPS.
+
+### Architecture
+
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Client    │────▶│ NGINX Gateway    │────▶│ Backend HTTPS   │
+└─────────────┘     │ (BackendTLSPolicy│     │ (Ceph Dashboard)│
+                    │  + CA validation)│     │ port 8443       │
+                    └──────────────────┘     └─────────────────┘
+```
+
+### Configuration
+
+1. **BackendTLSPolicy** : Configure la validation TLS vers le backend
+2. **ExternalSecret** : Synchronise le CA du cluster pour la validation
+3. **Certificate** : (optionnel) Émet un certificat pour le backend
+
+### BackendTLSPolicy
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: ceph-dashboard-tls
+  namespace: rook-ceph
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: ceph-dashboard-https
+  validation:
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: ceph-dashboard-backend-ca
+    hostname: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
+```
+
+### ExternalSecret pour CA
+
+nginx-gateway-fabric requiert un Secret de type `kubernetes.io/tls` avec la clé `ca.crt` :
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: ceph-dashboard-backend-ca
+  namespace: rook-ceph
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cert-manager-ca-secrets
+  target:
+    name: ceph-dashboard-backend-ca
+    template:
+      type: kubernetes.io/tls
+  data:
+    - secretKey: ca.crt
+      remoteRef:
+        key: root-ca-secret
+        property: tls.crt
+    - secretKey: tls.crt
+      remoteRef:
+        key: root-ca-secret
+        property: tls.crt
+    - secretKey: tls.key
+      remoteRef:
+        key: root-ca-secret
+        property: tls.key
+```
+
+### Applications HTTPS Backend
+
+| Application | Namespace | Port | Documentation |
+|-------------|-----------|------|---------------|
+| Ceph Dashboard | rook-ceph | 8443 | `apps/rook/README.md` |
+
+### Vérification
+
+```bash
+# BackendTLSPolicy créé
+kubectl get backendtlspolicy -n rook-ceph
+
+# Secret CA syncé
+kubectl get secret -n rook-ceph ceph-dashboard-backend-ca
+
+# Test accès
+curl -k https://ceph.k8s.lan
+```
+
+> **Voir aussi** : `apps/rook/README.md` section "HTTPS Backend avec nginx-gateway-fabric".
+
 ## Exemples avancés
 
 ### Weighted routing (Canary)
