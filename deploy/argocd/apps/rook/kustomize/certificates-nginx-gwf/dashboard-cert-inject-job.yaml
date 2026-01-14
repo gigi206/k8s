@@ -1,0 +1,156 @@
+---
+# =============================================================================
+# Job - Inject cert-manager TLS certificate into Ceph Dashboard
+# =============================================================================
+# Ceph Dashboard generates its own self-signed certificate by default.
+# This Job injects a cert-manager issued certificate so Istio can validate TLS.
+# Uses the same pattern as dashboard-saml-config.yaml for Ceph CLI access.
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ceph-dashboard-cert-inject
+  namespace: rook-ceph
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-mon-endpoints
+          image: rook/ceph:IMAGE_TAG
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "Waiting for mon-endpoints to be populated..."
+              for i in $(seq 1 120); do
+                MON_DATA=$(cat /etc/rook/mon-endpoints 2>/dev/null || echo "")
+                if echo "$MON_DATA" | grep -qE "=[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+"; then
+                  echo "Mon endpoints are ready: $MON_DATA"
+                  exit 0
+                fi
+                echo "Attempt $i/120 - Mon endpoints not ready yet, waiting..."
+                sleep 5
+              done
+              echo "ERROR: Timeout waiting for mon-endpoints"
+              exit 1
+          volumeMounts:
+            - name: mon-endpoint-volume
+              mountPath: /etc/rook
+        - name: config-init
+          image: rook/ceph:IMAGE_TAG
+          command: ["/usr/local/bin/toolbox.sh"]
+          args: ["--skip-watch"]
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ROOK_CEPH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: rook-ceph-mon
+                  key: ceph-username
+          volumeMounts:
+            - mountPath: /etc/ceph
+              name: ceph-config
+            - name: mon-endpoint-volume
+              mountPath: /etc/rook
+            - name: ceph-admin-secret
+              mountPath: /var/lib/rook-ceph-mon
+            - name: rook-config-override
+              mountPath: /etc/rook-config-override
+              readOnly: true
+      containers:
+        - name: inject-cert
+          image: rook/ceph:IMAGE_TAG
+          volumeMounts:
+            - mountPath: /etc/ceph
+              name: ceph-config
+              readOnly: true
+            - mountPath: /etc/tls
+              name: tls-cert
+              readOnly: true
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "=== Ceph Dashboard TLS Certificate Injection ==="
+
+              # Wait for valid Ceph configuration
+              echo "Waiting for valid Ceph configuration..."
+              for i in $(seq 1 60); do
+                MON_HOST=$(grep -E "^mon_host = " /etc/ceph/ceph.conf 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+                if [ -n "$MON_HOST" ]; then
+                  echo "Ceph config is valid: mon_host = $MON_HOST"
+                  break
+                fi
+                echo "Attempt $i/60 - ceph.conf not ready, waiting..."
+                sleep 5
+              done
+
+              if [ -z "$MON_HOST" ]; then
+                echo "ERROR: ceph.conf has empty mon_host"
+                exit 1
+              fi
+
+              # Wait for Ceph cluster to be healthy
+              echo "Waiting for Ceph cluster to be ready..."
+              for i in $(seq 1 120); do
+                HEALTH=$(ceph health 2>/dev/null || echo "ERROR")
+                if echo "$HEALTH" | grep -qE "HEALTH_OK|HEALTH_WARN"; then
+                  echo "Ceph cluster is ready: $HEALTH"
+                  break
+                fi
+                echo "Attempt $i/120 - Ceph not ready ($HEALTH), waiting..."
+                sleep 10
+              done
+
+              if ! ceph health 2>/dev/null | grep -qE "HEALTH_OK|HEALTH_WARN"; then
+                echo "ERROR: Ceph cluster not accessible"
+                exit 1
+              fi
+
+              # Check if certificate files exist
+              if [ ! -f /etc/tls/tls.crt ] || [ ! -f /etc/tls/tls.key ]; then
+                echo "ERROR: TLS certificate files not found in /etc/tls/"
+                ls -la /etc/tls/ || echo "Directory does not exist"
+                exit 1
+              fi
+
+              echo "Injecting cert-manager TLS certificate..."
+              ceph dashboard set-ssl-certificate -i /etc/tls/tls.crt
+              ceph dashboard set-ssl-certificate-key -i /etc/tls/tls.key
+
+              echo "Restarting dashboard module to apply certificate..."
+              ceph mgr module disable dashboard
+              sleep 3
+              ceph mgr module enable dashboard
+
+              echo "=== TLS Certificate Injection Complete ==="
+      volumes:
+        - name: ceph-admin-secret
+          secret:
+            secretName: rook-ceph-mon
+            optional: false
+            items:
+              - key: ceph-secret
+                path: secret.keyring
+        - name: mon-endpoint-volume
+          configMap:
+            name: rook-ceph-mon-endpoints
+            items:
+              - key: data
+                path: mon-endpoints
+        - name: rook-config-override
+          configMap:
+            name: rook-config-override
+            optional: true
+        - name: ceph-config
+          emptyDir: {}
+        - name: tls-cert
+          secret:
+            secretName: ceph-dashboard-tls-cert
