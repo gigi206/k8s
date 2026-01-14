@@ -5,8 +5,8 @@
 # Configures nginx-gateway-fabric to use TLS when connecting to the Ceph
 # Dashboard backend. Required because the dashboard uses HTTPS on port 8443.
 #
-# The CA certificate is extracted from the running Ceph dashboard by the
-# backend-ca-configmap-job and stored in a ConfigMap.
+# The CA certificate is synced from cert-manager via ExternalSecret.
+# The Ceph Dashboard certificate is signed by the cluster CA (cert-manager).
 # =============================================================================
 apiVersion: gateway.networking.k8s.io/v1
 kind: BackendTLSPolicy
@@ -21,6 +21,6 @@ spec:
   validation:
     caCertificateRefs:
       - group: ""
-        kind: ConfigMap
+        kind: Secret
         name: ceph-dashboard-backend-ca
-    hostname: ceph-dashboard
+    hostname: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
