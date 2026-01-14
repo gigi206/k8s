@@ -149,6 +149,176 @@ func (c *Cluster) makeDashboardService(name string) (*v1.Service, error) {
 
 Le CRD `CephCluster` (`DashboardSpec`) ne propose aucune option pour personnaliser les annotations ou champs du Service dashboard. Une feature request pourrait être soumise au projet Rook pour ajouter cette fonctionnalité.
 
+### HTTPS Backend avec nginx-gateway-fabric
+
+Avec nginx-gateway-fabric, l'approche est différente : on utilise `BackendTLSPolicy` (Gateway API standard) pour configurer la validation TLS du backend.
+
+#### Problème
+
+nginx-gateway-fabric ne supporte pas `appProtocol: https` sur les Services. Sans configuration spécifique, le gateway envoie du HTTP vers le dashboard Ceph qui attend du HTTPS, provoquant une erreur **502 Bad Gateway**.
+
+#### Solution : BackendTLSPolicy + Certificats
+
+La solution utilise trois composants :
+
+| Composant | Rôle |
+|-----------|------|
+| `BackendTLSPolicy` | Configure nginx-gateway-fabric pour se connecter en HTTPS au backend |
+| `ExternalSecret` | Synchronise le CA du cluster (cert-manager) vers le namespace rook-ceph |
+| `Certificate` | Émet un certificat TLS pour le dashboard signé par le CA du cluster |
+| `Job` | Injecte le certificat dans la configuration du dashboard Ceph |
+
+#### Fichiers créés
+
+```
+kustomize/
+├── httproute-nginx-gwf/
+│   ├── kustomization.yaml
+│   ├── backend-tls-policy.yaml    # BackendTLSPolicy pour HTTPS backend
+│   └── external-secret-ca.yaml    # Sync CA depuis cert-manager
+└── certificates-nginx-gwf/
+    ├── kustomization.yaml
+    ├── certificate.yaml           # Certificate cert-manager pour le dashboard
+    └── dashboard-cert-inject-job.yaml  # Job pour injecter le cert dans Ceph
+```
+
+#### BackendTLSPolicy
+
+```yaml
+# kustomize/httproute-nginx-gwf/backend-tls-policy.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: ceph-dashboard-tls
+  namespace: rook-ceph
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: ceph-dashboard-https
+  validation:
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: ceph-dashboard-backend-ca  # CA syncé via ExternalSecret
+    hostname: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
+```
+
+#### ExternalSecret (CA)
+
+Le CA du cluster est syncé depuis cert-manager via un `ClusterSecretStore` :
+
+```yaml
+# kustomize/httproute-nginx-gwf/external-secret-ca.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: ceph-dashboard-backend-ca
+  namespace: rook-ceph
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cert-manager-ca-secrets
+  target:
+    name: ceph-dashboard-backend-ca
+    template:
+      type: kubernetes.io/tls  # Requis par nginx-gateway-fabric
+  data:
+    - secretKey: ca.crt        # Clé utilisée par BackendTLSPolicy
+      remoteRef:
+        key: root-ca-secret
+        property: tls.crt
+    - secretKey: tls.crt
+      remoteRef:
+        key: root-ca-secret
+        property: tls.crt
+    - secretKey: tls.key
+      remoteRef:
+        key: root-ca-secret
+        property: tls.key
+```
+
+> **Note** : nginx-gateway-fabric requiert un Secret de type `kubernetes.io/tls` avec les clés `ca.crt`, `tls.crt` et `tls.key`.
+
+#### Certificate (Dashboard TLS)
+
+Le certificat du dashboard est signé par le CA du cluster :
+
+```yaml
+# kustomize/certificates-nginx-gwf/certificate.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ceph-dashboard-tls
+  namespace: rook-ceph
+spec:
+  secretName: ceph-dashboard-tls
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - rook-ceph-mgr-dashboard
+    - rook-ceph-mgr-dashboard.rook-ceph
+    - rook-ceph-mgr-dashboard.rook-ceph.svc
+    - rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
+    - ceph.k8s.lan  # Domaine externe (patché via ApplicationSet)
+```
+
+#### Injection du certificat
+
+Un Job injecte le certificat dans la configuration du dashboard Ceph :
+
+```bash
+# Commandes exécutées par le Job
+ceph dashboard set-ssl-certificate -i /certs/tls.crt
+ceph dashboard set-ssl-certificate-key -i /certs/tls.key
+```
+
+#### Condition dans ApplicationSet
+
+```yaml
+{{- if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+# Source: BackendTLSPolicy for nginx-gateway-fabric (HTTPS backend)
+- repoURL: https://github.com/gigi206/k8s
+  targetRevision: '{{ .git.revision }}'
+  path: deploy/argocd/apps/rook/kustomize/httproute-nginx-gwf
+# Source: TLS certificates for HTTPS backend (nginx-gateway-fabric)
+- repoURL: https://github.com/gigi206/k8s
+  targetRevision: '{{ .git.revision }}'
+  path: deploy/argocd/apps/rook/kustomize/certificates-nginx-gwf
+  kustomize:
+    images:
+      - 'rook/ceph:IMAGE_TAG=docker.io/rook/ceph:{{ .rook.operator.version }}'
+    patches:
+      - target:
+          kind: Certificate
+          name: ceph-dashboard-tls
+        patch: |
+          - op: replace
+            path: /spec/dnsNames/4
+            value: ceph.{{ .common.domain }}
+{{- end }}
+```
+
+#### Vérification
+
+```bash
+# BackendTLSPolicy créé
+kubectl get backendtlspolicy -n rook-ceph
+
+# Secret CA syncé
+kubectl get secret -n rook-ceph ceph-dashboard-backend-ca
+
+# Certificate émis
+kubectl get certificate -n rook-ceph ceph-dashboard-tls
+
+# Job d'injection terminé
+kubectl get job -n rook-ceph -l app=ceph-dashboard-cert-inject
+
+# Test accès dashboard
+curl -k https://ceph.k8s.lan
+```
+
 ### SSO / Authentification
 
 #### SAML2 (actuel)
