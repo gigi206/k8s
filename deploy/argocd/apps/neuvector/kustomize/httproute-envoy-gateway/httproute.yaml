@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# HTTPRoute - NeuVector Manager (Envoy Gateway)
+# =============================================================================
+# Routes traffic to NeuVector Manager via Envoy Gateway's Backend CRD.
+# Uses Backend instead of Service to enable HTTP/1.1 via alpnProtocols.
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: neuvector-manager
+  namespace: neuvector
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: default-gateway
+      namespace: PLACEHOLDER_GATEWAY_NS  # Patched via Kustomize
+      sectionName: https
+  hostnames:
+    - "neuvector.PLACEHOLDER.example.com"  # Patched via Kustomize
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: neuvector-manager-backend
+          port: 8443
+          weight: 1
