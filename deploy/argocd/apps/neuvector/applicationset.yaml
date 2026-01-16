@@ -122,6 +122,12 @@ spec:
           path: deploy/argocd/apps/neuvector/resources
           directory:
             include: "cilium-ingress-policy-nginx-gwf.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/resources
+          directory:
+            include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- end }}
         {{- end }}
         # Source 1: Namespace (always deployed)
@@ -155,7 +161,27 @@ spec:
 
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 3: HTTPRoute (Gateway API standard)
+        {{- if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
+        # Source 3: Backend + HTTPRoute for envoy-gateway (HTTP/1.1 required by NeuVector)
+        # NeuVector Manager only supports HTTP/1.1, but Envoy uses HTTP/2 by default via ALPN.
+        # The Backend CRD with alpnProtocols: ["http/1.1"] forces HTTP/1.1 negotiation.
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/kustomize/httproute-envoy-gateway
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: neuvector-manager
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: neuvector.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- else }}
+        # Source 3: HTTPRoute (Gateway API standard) - for non-envoy-gateway providers
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/kustomize/httproute
@@ -178,6 +204,7 @@ spec:
                   - op: replace
                     path: /metadata/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source 3: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
         - repoURL: https://github.com/gigi206/k8s
@@ -196,11 +223,15 @@ spec:
         {{- end }}
 
         {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
-        # Source 4: Istio DestinationRule + TLS certificates (for HTTPS backend)
+        # Source 4a: Istio DestinationRule (only for Istio/service mesh)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/kustomize/istio
+        {{- end }}
 
+        {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
+        # Source 4b: TLS certificates (for HTTPS backend validation)
+        # Used by Istio and Envoy Gateway to validate NeuVector Manager TLS
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/kustomize/certificates
@@ -295,8 +326,8 @@ spec:
               # Manager configuration (Web UI)
               manager:
                 enabled: true
-                {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
-                # Use cert-manager certificate for TLS (allows Istio to validate)
+                {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
+                # Use cert-manager certificate for TLS (allows Istio/Envoy Gateway to validate)
                 certificate:
                   secret: neuvector-manager-tls-cert
                   keyFile: tls.key
