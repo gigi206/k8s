@@ -1,0 +1,32 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: default-gateway
+  namespace: envoy-gateway-system
+spec:
+  gatewayClassName: PLACEHOLDER_GATEWAY_CLASS  # Patched via Kustomize
+  listeners:
+  # HTTP listener
+  - name: http
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow HTTPRoute from any namespace
+
+  # HTTPS listener
+  - name: https
+    hostname: "*.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+    protocol: HTTPS
+    port: 443
+    allowedRoutes:
+      namespaces:
+        from: All  # Allow HTTPRoute from any namespace
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: wildcard-k8s-local-tls
+        # Secret in same namespace (envoy-gateway-system) - wildcard cert for *.common.domain
