@@ -194,6 +194,12 @@ spec:
           path: deploy/argocd/apps/keycloak/resources
           directory:
             include: "cilium-ingress-policy-nginx-gwf.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- end }}
         {{- end }}
 

@@ -37,7 +37,8 @@ spec:
             redirect_uri: "https://apisix.PLACEHOLDER_DOMAIN/ui/callback"
             logout_path: "/ui/logout"
             post_logout_redirect_uri: "https://apisix.PLACEHOLDER_DOMAIN/ui/"
-            ssl_verify: false
+            ssl_verify: true
+            ssl_ca_cert_path: /etc/apisix/ssl/ca.crt
             use_pkce: true
             session:
               secret: "SESSION_SECRET_PLACEHOLDER"
