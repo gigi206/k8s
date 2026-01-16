@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# SecurityPolicy - OIDC Authentication (Envoy Gateway)
+# =============================================================================
+# Protects Longhorn UI using Envoy Gateway's native OIDC.
+# Automatically redirects unauthenticated users to Keycloak for login.
+#
+# Requirements:
+# - Backend 'backend-keycloak' for TLS connection to Keycloak
+# - Secret 'oidc-client-secret' with key 'client-secret' in longhorn-system namespace
+# - Keycloak client 'oauth2-proxy' with redirect URIs configured
+# =============================================================================
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: oidc-longhorn
+  namespace: longhorn-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: longhorn-ui
+  oidc:
+    provider:
+      backendRefs:
+      - group: gateway.envoyproxy.io
+        kind: Backend
+        name: backend-keycloak
+        port: 443
+      issuer: "https://keycloak.PLACEHOLDER.example.com/realms/k8s"  # Patched via Kustomize
+      authorizationEndpoint: "https://keycloak.PLACEHOLDER.example.com/realms/k8s/protocol/openid-connect/auth"
+      tokenEndpoint: "https://keycloak.PLACEHOLDER.example.com/realms/k8s/protocol/openid-connect/token"
+    clientID: "oauth2-proxy"
+    clientSecret:
+      name: "oidc-client-secret"
+    redirectURL: "https://longhorn.PLACEHOLDER.example.com/oauth2/callback"  # Patched via Kustomize
+    logoutPath: "/oauth2/sign_out"

@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Jaeger Ingress from Envoy Gateway
+# =============================================================================
+# Allows access to Jaeger Query UI from Envoy Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jaeger-ingress-envoy-gateway
+  namespace: jaeger
+spec:
+  description: "Allow ingress to Jaeger from Envoy Gateway"
+  endpointSelector: {}  # Applies to all pods in jaeger namespace
+
+  ingress:
+    # Allow from Envoy Gateway (envoy-gateway-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "16686"   # Query UI
+              protocol: TCP
