@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# Backend - NeuVector Manager HTTPS (Envoy Gateway)
+# =============================================================================
+# Defines the backend for NeuVector Manager with HTTP/1.1 protocol.
+# NeuVector Manager only supports HTTP/1.1, but Envoy Gateway uses HTTP/2
+# by default via ALPN for TLS backends. This causes:
+#   "upstream connect error or disconnect/reset before headers"
+#
+# Solution: Use alpnProtocols: ["http/1.1"] to force HTTP/1.1 negotiation.
+#
+# Uses caCertificateRefs to validate the NeuVector certificate against
+# the cluster CA (synced via ExternalSecret from cert-manager).
+# =============================================================================
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: neuvector-manager-backend
+  namespace: neuvector
+spec:
+  endpoints:
+    - fqdn:
+        hostname: neuvector-service-webui.neuvector.svc.cluster.local
+        port: 8443
+  tls:
+    # Validate certificate using cert-manager CA
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: neuvector-backend-ca
+    sni: neuvector-service-webui.neuvector.svc.cluster.local
+    # Force HTTP/1.1 - NeuVector doesn't support HTTP/2
+    alpnProtocols:
+      - "http/1.1"

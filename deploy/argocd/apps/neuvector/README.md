@@ -217,6 +217,28 @@ kubectl get svc -n neuvector neuvector-service-webui
 kubectl port-forward -n neuvector svc/neuvector-service-webui 8443:8443
 ```
 
+### Envoy Gateway: upstream connect error
+
+Si vous utilisez Envoy Gateway et obtenez cette erreur:
+```
+upstream connect error or disconnect/reset before headers. reset reason: connection termination
+```
+
+**Cause**: NeuVector Manager ne supporte que HTTP/1.1, mais Envoy Gateway utilise HTTP/2 par defaut via ALPN pour les backends TLS.
+
+**Solution**: Un `Backend` CRD specifique avec `alpnProtocols: ["http/1.1"]` est utilise automatiquement quand `features.gatewayAPI.controller.provider = "envoy-gateway"`.
+
+```bash
+# Verifier que le Backend est deploye
+kubectl get backend -n neuvector neuvector-manager-backend -o yaml
+
+# Verifier les logs Envoy
+kubectl logs -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=default-gateway
+
+# Test direct HTTP/1.1 depuis un pod
+kubectl run -it --rm curl --image=curlimages/curl -- curl -k --http1.1 https://neuvector-service-webui.neuvector.svc.cluster.local:8443
+```
+
 ## References
 
 - [NeuVector Documentation](https://open-docs.neuvector.com/)
