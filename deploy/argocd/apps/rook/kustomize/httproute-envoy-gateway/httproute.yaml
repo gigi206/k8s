@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# HTTPRoute - Ceph Dashboard (Envoy Gateway)
+# =============================================================================
+# Routes traffic to Ceph Dashboard via Envoy Gateway's Backend CRD.
+# Uses Backend instead of Service to enable TLS 1.3 configuration.
+#
+# Note: This HTTPRoute does NOT use OAuth2 Proxy protection.
+# Ceph Dashboard uses SAML2 SSO directly with Keycloak for authentication.
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ceph-dashboard
+  namespace: rook-ceph
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: default-gateway
+      namespace: PLACEHOLDER_GATEWAY_NS  # Patched via Kustomize
+      sectionName: https
+  hostnames:
+    - "ceph.PLACEHOLDER.example.com"  # Patched via Kustomize
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: ceph-dashboard-backend
+          port: 8443
+          weight: 1

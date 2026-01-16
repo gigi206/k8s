@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Rook-Ceph Ingress from Envoy Gateway
+# =============================================================================
+# Allows access to Rook-Ceph Dashboard and S3 from Envoy Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: rook-ceph-ingress-envoy-gateway
+  namespace: rook-ceph
+spec:
+  description: "Allow ingress to Rook-Ceph from Envoy Gateway"
+  endpointSelector: {}  # Applies to all pods in rook-ceph namespace
+
+  ingress:
+    # Allow from Envoy Gateway (envoy-gateway-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "8443"    # Dashboard HTTPS
+              protocol: TCP
+            - port: "8080"    # S3 Object Store (RGW container port)
+              protocol: TCP
