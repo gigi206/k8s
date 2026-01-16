@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# Backend - Keycloak OIDC Provider (Envoy Gateway)
+# =============================================================================
+# Defines the backend for Keycloak OIDC provider with TLS configuration.
+# Uses the cluster CA certificate for TLS validation.
+# =============================================================================
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: backend-keycloak
+  namespace: monitoring
+spec:
+  endpoints:
+  - fqdn:
+      hostname: 'keycloak.PLACEHOLDER.example.com'  # Patched via Kustomize
+      port: 443
+  tls:
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: keycloak-backend-ca
