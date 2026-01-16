@@ -140,6 +140,18 @@ spec:
                   cpu: {{ .apisix.resources.limits.cpu }}
                   memory: {{ .apisix.resources.limits.memory }}
 
+              {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+              # Mount root CA for TLS verification of OIDC endpoints (Keycloak)
+              extraVolumes:
+                - name: root-ca
+                  secret:
+                    secretName: root-ca
+              extraVolumeMounts:
+                - name: root-ca
+                  mountPath: /etc/apisix/ssl
+                  readOnly: true
+              {{- end }}
+
               # APISIX SSL configuration (for HTTPS listener support)
               apisix:
                 ssl:

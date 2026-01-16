@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Keycloak Ingress from Envoy Gateway
+# =============================================================================
+# Allows access to Keycloak web UI from Envoy Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-ingress-envoy-gateway
+  namespace: keycloak
+spec:
+  description: "Allow ingress to Keycloak from Envoy Gateway"
+  endpointSelector: {}  # Applies to all pods in keycloak namespace
+
+  ingress:
+    # Allow from Envoy Gateway (envoy-gateway-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "8443"    # Keycloak HTTPS
+              protocol: TCP
