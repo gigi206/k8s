@@ -1,47 +1,36 @@
 ---
 # =============================================================================
-# CiliumNetworkPolicy - Envoy Gateway Ingress Security
+# CiliumNetworkPolicy - Envoy Gateway Controller Ingress
 # =============================================================================
-# Restricts access to Envoy Gateway pods to authorized sources:
-# - world: External clients via LoadBalancer (MetalLB)
-# - cluster: Internal pods accessing via LoadBalancer IP (hairpin NAT)
-# - monitoring: Prometheus metrics scraping
-#
-# Note: cilium-host-ingress-policy.yaml allows traffic to the NODE.
-#       This policy allows traffic to the POD after kube-proxy routing.
+# Allows traffic to the Envoy Gateway controller:
+# - xDS from proxy pods (18000/18001)
+# - Prometheus metrics (19001)
 # =============================================================================
-
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: envoy-gateway-ingress
+  name: envoy-gateway-controller-ingress
   namespace: envoy-gateway-system
 spec:
-  description: "Allow ingress to Envoy Gateway from authorized sources"
+  description: "Allow ingress to Envoy Gateway controller"
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: envoy-gateway
+      app.kubernetes.io/name: gateway-helm
 
   ingress:
-    # Allow external traffic from world (LoadBalancer clients via MetalLB)
-    - fromEntities:
-        - world
+    # Allow xDS from proxy pods within namespace
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
       toPorts:
         - ports:
-            - port: "80"
+            - port: "18000"  # xDS server
               protocol: TCP
-            - port: "443"
+            - port: "18001"  # xDS server (TLS)
               protocol: TCP
-
-    # Allow internal cluster traffic (pods accessing services via LoadBalancer IP)
-    # Needed for hairpin NAT: pods -> *.k8s.lan -> envoy-gateway -> backends
-    - fromEntities:
-        - cluster
-      toPorts:
-        - ports:
-            - port: "80"
+            - port: "18002"  # xDS server
               protocol: TCP
-            - port: "443"
+            - port: "9443"   # Webhook
               protocol: TCP
 
     # Allow from monitoring namespace (Prometheus scrape)
@@ -53,19 +42,60 @@ spec:
             - port: "19001"  # Envoy admin/metrics
               protocol: TCP
 
-    # Allow internal namespace communication (control plane)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: envoy-gateway-system
+---
+# =============================================================================
+# CiliumNetworkPolicy - Envoy Proxy Ingress
+# =============================================================================
+# Allows traffic to Envoy proxy pods:
+# - External clients via LoadBalancer (80/443)
+# - Internal cluster traffic (hairpin NAT)
+# - Prometheus metrics (19001)
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: envoy-gateway-proxy-ingress
+  namespace: envoy-gateway-system
+spec:
+  description: "Allow ingress to Envoy proxy pods"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: envoy
+
+  ingress:
+    # Allow external traffic from world (LoadBalancer clients via MetalLB)
+    - fromEntities:
+        - world
       toPorts:
         - ports:
             - port: "80"
               protocol: TCP
             - port: "443"
               protocol: TCP
+            - port: "10080"  # Alternative HTTP
+              protocol: TCP
+            - port: "10443"  # Alternative HTTPS
+              protocol: TCP
+
+    # Allow internal cluster traffic (pods accessing services via LoadBalancer IP)
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+            - port: "10080"
+              protocol: TCP
+            - port: "10443"
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
             - port: "19001"  # Envoy admin/metrics
-              protocol: TCP
-            - port: "18000"  # xDS server
-              protocol: TCP
-            - port: "18001"  # xDS server (TLS)
               protocol: TCP

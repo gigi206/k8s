@@ -1,0 +1,14 @@
+---
+# EnvoyProxy configuration for MetalLB integration
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: envoy-proxy-config
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        annotations:
+          metallb.universe.tf/address-pool: gateway
