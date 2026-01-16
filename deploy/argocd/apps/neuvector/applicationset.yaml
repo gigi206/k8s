@@ -246,6 +246,13 @@ spec:
                     value: neuvector.{{ .common.domain }}
         {{- end }}
 
+        {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+        # Source 4c: Istio CA ExternalSecret (sync CA to istio-system for DestinationRule)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/kustomize/certificates-istio
+        {{- end }}
+
         {{- if .features.monitoring.enabled }}
         # Source 5: PrometheusRules
         - repoURL: https://github.com/gigi206/k8s
