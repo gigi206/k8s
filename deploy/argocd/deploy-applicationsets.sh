@@ -872,6 +872,9 @@ apply_bootstrap_network_policies() {
       nginx-gateway-fabric|nginx-gwf)
         argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-nginx-gwf.yaml"
         ;;
+      envoy-gateway)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-envoy-gateway.yaml"
+        ;;
       *)
         log_warning "Provider Gateway inconnu: $FEAT_GATEWAY_CONTROLLER - pas de policy gateway ArgoCD"
         ;;

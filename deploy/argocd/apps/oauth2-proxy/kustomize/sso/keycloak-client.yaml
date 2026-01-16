@@ -92,6 +92,7 @@ spec:
                 "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}")
 
               # Client payload - OAuth2 Proxy needs specific redirect URIs
+              # Also includes redirect URIs for Envoy Gateway native OIDC
               CLIENT_PAYLOAD=$(cat <<EOF
               {
                 "clientId": "${CLIENT_ID}",
@@ -101,7 +102,12 @@ spec:
                 "clientAuthenticatorType": "client-secret",
                 "secret": "${CLIENT_SECRET}",
                 "redirectUris": [
-                  "https://oauth2.${DOMAIN}/oauth2/callback"
+                  "https://oauth2.${DOMAIN}/oauth2/callback",
+                  "https://prometheus.${DOMAIN}/oauth2/callback",
+                  "https://alertmanager.${DOMAIN}/oauth2/callback",
+                  "https://hubble.${DOMAIN}/oauth2/callback",
+                  "https://longhorn.${DOMAIN}/oauth2/callback",
+                  "https://jaeger.${DOMAIN}/oauth2/callback"
                 ],
                 "webOrigins": [
                   "https://prometheus.${DOMAIN}",

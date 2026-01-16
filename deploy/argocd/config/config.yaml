@@ -110,14 +110,14 @@ features:
     httpRoute:
       enabled: true  # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "nginx-gwf"  # Wave 41: istio, apisix, nginx-gwf, envoy, traefik
+      provider: "envoy-gateway"  # Wave 41: istio, apisix, nginx-gwf, envoy-gateway, traefik
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
-      # - envoy: envoy-gateway-system
+      # - envoy-gateway: envoy-gateway-system
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
-      gatewayNamespace: "nginx-gateway"
+      gatewayNamespace: "envoy-gateway-system"
       # Gateway LoadBalancer IP (used for MetalLB pool and external-dns)
       loadBalancerIP: "192.168.121.210"
 

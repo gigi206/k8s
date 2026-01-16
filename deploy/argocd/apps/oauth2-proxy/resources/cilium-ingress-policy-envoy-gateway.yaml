@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - OAuth2 Proxy Ingress from Envoy Gateway
+# =============================================================================
+# Allows ext_authz requests from Envoy Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress-envoy-gateway
+  namespace: oauth2-proxy
+spec:
+  description: "Allow ingress to OAuth2 Proxy from Envoy Gateway"
+  endpointSelector: {}  # Applies to all pods in oauth2-proxy namespace
+
+  ingress:
+    # Allow from Envoy Gateway (ext_authz from Envoy)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "4180"    # OAuth2 Proxy main port
+              protocol: TCP
