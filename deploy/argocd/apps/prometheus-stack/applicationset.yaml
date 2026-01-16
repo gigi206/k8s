@@ -121,6 +121,12 @@ spec:
           path: deploy/argocd/apps/prometheus-stack/resources
           directory:
             include: "cilium-ingress-policy-nginx-gwf.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+          directory:
+            include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- end }}
         {{- end }}
         {{- if .features.cilium.egressPolicy.enabled }}
@@ -282,6 +288,55 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-nginx-gwf
+        {{- else if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
+        # Source: SecurityPolicy for Envoy Gateway native OIDC
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-envoy-gateway
+          kustomize:
+            patches:
+              - target:
+                  group: gateway.envoyproxy.io
+                  kind: Backend
+                  name: backend-keycloak
+                patch: |
+                  - op: replace
+                    path: /spec/endpoints/0/fqdn/hostname
+                    value: keycloak.{{ .common.domain }}
+              - target:
+                  group: gateway.envoyproxy.io
+                  kind: SecurityPolicy
+                  name: oidc-prometheus
+                patch: |
+                  - op: replace
+                    path: /spec/oidc/provider/issuer
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s
+                  - op: replace
+                    path: /spec/oidc/provider/authorizationEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/auth
+                  - op: replace
+                    path: /spec/oidc/provider/tokenEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/token
+                  - op: replace
+                    path: /spec/oidc/redirectURL
+                    value: https://prometheus.{{ .common.domain }}/oauth2/callback
+              - target:
+                  group: gateway.envoyproxy.io
+                  kind: SecurityPolicy
+                  name: oidc-alertmanager
+                patch: |
+                  - op: replace
+                    path: /spec/oidc/provider/issuer
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s
+                  - op: replace
+                    path: /spec/oidc/provider/authorizationEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/auth
+                  - op: replace
+                    path: /spec/oidc/provider/tokenEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/token
+                  - op: replace
+                    path: /spec/oidc/redirectURL
+                    value: https://alertmanager.{{ .common.domain }}/oauth2/callback
         {{- end }}
         {{- if .features.sso.enabled }}
         # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled

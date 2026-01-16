@@ -117,6 +117,12 @@ spec:
           path: deploy/argocd/apps/longhorn/resources
           directory:
             include: "cilium-ingress-policy-nginx-gwf.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/resources
+          directory:
+            include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- end }}
         {{- end }}
         {{- if .features.gatewayAPI.enabled }}
@@ -174,6 +180,38 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/longhorn/kustomize/oauth2-authz-traefik
+        {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
+        # Source: SecurityPolicy for Envoy Gateway native OIDC
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/kustomize/oauth2-authz-envoy-gateway
+          kustomize:
+            patches:
+              - target:
+                  group: gateway.envoyproxy.io
+                  kind: Backend
+                  name: backend-keycloak
+                patch: |
+                  - op: replace
+                    path: /spec/endpoints/0/fqdn/hostname
+                    value: keycloak.{{ .common.domain }}
+              - target:
+                  group: gateway.envoyproxy.io
+                  kind: SecurityPolicy
+                  name: oidc-longhorn
+                patch: |
+                  - op: replace
+                    path: /spec/oidc/provider/issuer
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s
+                  - op: replace
+                    path: /spec/oidc/provider/authorizationEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/auth
+                  - op: replace
+                    path: /spec/oidc/provider/tokenEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/token
+                  - op: replace
+                    path: /spec/oidc/redirectURL
+                    value: https://longhorn.{{ .common.domain }}/oauth2/callback
         {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)

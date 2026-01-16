@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Hubble UI Gateway Ingress (Envoy Gateway)
+# =============================================================================
+# Allows ingress from Envoy Gateway to Hubble UI for external access.
+# This policy is only deployed when:
+# - features.cilium.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "envoy-gateway"
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-ui-gateway-envoy-gateway
+  namespace: kube-system
+spec:
+  description: "Allow ingress from Envoy Gateway to Hubble UI"
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+
+  ingress:
+    # Allow from Envoy Gateway namespace (gateway ingress)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "8081"    # Hubble UI HTTP (container port)
+              protocol: TCP
