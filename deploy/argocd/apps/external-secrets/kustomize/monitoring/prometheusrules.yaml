@@ -7,6 +7,9 @@ metadata:
   labels:
     prometheus: external-secrets
     role: alert-rules
+  annotations:
+    # Sync after prometheus-stack (wave 5) installs the PrometheusRule CRD
+    argocd.argoproj.io/sync-wave: "10"
 spec:
   groups:
     - name: external-secrets.rules

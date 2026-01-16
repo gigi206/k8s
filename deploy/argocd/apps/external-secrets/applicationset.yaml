@@ -1,8 +1,10 @@
 ---
 # =============================================================================
-# External-Secrets ApplicationSet - Wave 25 (Secret Management)
+# External-Secrets ApplicationSet - Wave 3 (Secret Management CRDs)
 # =============================================================================
 # Déploie External Secrets Operator pour synchroniser les secrets entre namespaces
+# IMPORTANT: Wave 3 pour installer les CRDs (ExternalSecret, SecretStore) avant
+# prometheus-stack (wave 5) qui en dépend
 # Docs: https://external-secrets.io/
 # =============================================================================
 
@@ -12,7 +14,7 @@ metadata:
   name: external-secrets
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "25"
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -41,7 +43,7 @@ spec:
       name: external-secrets
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "25"
+        argocd.argoproj.io/sync-wave: "3"
     spec:
       project: default
 
@@ -70,6 +72,12 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        # Source: PostSync job to verify webhook readiness
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/external-secrets/resources
+          directory:
+            include: "webhook-readiness-check.yaml"
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Source: Cilium ingress policy - conditional
         - repoURL: https://github.com/gigi206/k8s
