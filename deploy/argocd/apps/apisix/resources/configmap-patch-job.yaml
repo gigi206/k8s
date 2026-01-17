@@ -1,12 +1,12 @@
 ---
 # =============================================================================
-# Job: Patch APISIX ConfigMap with Secret Manager Configuration
+# Job: Patch APISIX ConfigMap
 # =============================================================================
-# This job patches the APISIX ConfigMap to add the secret.kubernetes section
-# required for $secret://kubernetes/... URIs in ApisixRoute plugins.
+# This job patches the APISIX ConfigMap to add:
+# 1. secret.kubernetes section for $secret://kubernetes/... URIs in plugins
+# 2. ssl_trusted_certificate in apisix.ssl for OIDC plugin TLS verification
 #
-# The APISIX helm chart doesn't expose this configuration option directly,
-# so we patch it post-deployment.
+# The APISIX helm chart doesn't expose these options directly.
 # =============================================================================
 apiVersion: batch/v1
 kind: Job
@@ -33,40 +33,52 @@ spec:
           args:
             - |
               set -e
-              echo "=== Patching APISIX ConfigMap with secret manager config ==="
+              echo "=== Patching APISIX ConfigMap ==="
 
               # Get current config
               echo "Reading current configuration..."
               kubectl get configmap apisix -n apisix -o jsonpath='{.data.config\.yaml}' > /tmp/config.yaml
 
-              # Check if secret section already exists
-              if grep -q "^secret:" /tmp/config.yaml; then
-                echo "Secret section already exists, skipping patch"
-                exit 0
+              CHANGED=false
+
+              # Add secret section if missing
+              if ! grep -q "^secret" /tmp/config.yaml; then
+                echo "Adding secret manager configuration..."
+                printf '\nsecret:\n  kubernetes:\n    namespace: apisix\n' >> /tmp/config.yaml
+                CHANGED=true
+              else
+                echo "Secret section already exists"
               fi
 
-              # Add secret section at the end
-              echo "Adding secret manager configuration..."
-              cat >> /tmp/config.yaml << 'EOF'
+              # Add ssl_trusted_certificate in apisix.ssl section (for OIDC TLS verification)
+              if ! grep -q "ssl_trusted_certificate" /tmp/config.yaml; then
+                echo "Adding ssl_trusted_certificate for OIDC TLS..."
+                # Insert after ssl_ciphers line in the apisix.ssl section
+                LINE=$(grep -n "ssl_ciphers" /tmp/config.yaml | head -1 | cut -d":" -f1)
+                if [ -n "$LINE" ]; then
+                  sed -i "${LINE}a\\    ssl_trusted_certificate: /etc/apisix/ssl/ca.crt" /tmp/config.yaml
+                fi
+                CHANGED=true
+              else
+                echo "ssl_trusted_certificate already configured"
+              fi
 
-              secret:
-                kubernetes:
-                  namespace: apisix
-              EOF
+              if [ "$CHANGED" = "true" ]; then
+                echo "Applying patched configuration..."
+                kubectl create configmap apisix \
+                  --from-file=config.yaml=/tmp/config.yaml \
+                  -n apisix \
+                  --dry-run=client -o yaml | \
+                  kubectl apply -f -
 
-              # Patch the ConfigMap
-              echo "Applying patched configuration..."
-              kubectl create configmap apisix \
-                --from-file=config.yaml=/tmp/config.yaml \
-                -n apisix \
-                --dry-run=client -o yaml | \
-                kubectl apply -f -
+                echo "Restarting APISIX deployment..."
+                kubectl rollout restart deployment/apisix -n apisix
+                kubectl rollout status deployment/apisix -n apisix --timeout=120s
+              else
+                echo "No changes needed"
+              fi
 
-              # Restart APISIX to pick up new config
-              echo "Restarting APISIX deployment..."
-              kubectl rollout restart deployment/apisix -n apisix
-
-              echo "=== ConfigMap patched successfully ==="
+              echo "=== ConfigMap patch complete ==="
 ---
 apiVersion: v1
 kind: ServiceAccount
