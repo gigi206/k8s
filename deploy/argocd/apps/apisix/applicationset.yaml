@@ -45,7 +45,7 @@ spec:
 
   templatePatch: |
     spec:
-      # Ignore dynamically generated resources (webhook certs, helm metadata)
+      # Ignore dynamically generated resources (webhook certs, helm metadata, PostSync patches)
       ignoreDifferences:
         - group: ""
           kind: Secret
@@ -57,6 +57,12 @@ spec:
           name: apisix-ingress-controller-webhook
           jqPathExpressions:
             - .webhooks[].clientConfig.caBundle
+        # Ignore ConfigMap changes from PostSync configmap-patch-job (adds secret.kubernetes section)
+        - group: ""
+          kind: ConfigMap
+          name: apisix
+          jsonPointers:
+            - /data
 
       syncPolicy:
         syncOptions:
@@ -159,6 +165,10 @@ spec:
                   listen:
                     - port: 9443
                       enable_http3: false
+                  {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+                  # Trust cluster CA for OIDC plugin TLS verification (Keycloak)
+                  ssl_trusted_certificate: /etc/apisix/ssl/ca.crt
+                  {{- end }}
                 {{- if .apisix.stream_proxy.enabled }}
                 stream_proxy:
                   tcp:
