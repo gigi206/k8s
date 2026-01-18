@@ -136,6 +136,12 @@ spec:
           path: deploy/argocd/apps/neuvector/resources
           directory:
             include: "namespace.yaml"
+        # Source: RBAC workaround for cert-manager mode
+        # Bug: chart only creates 'neuvector-binding-secret-controller' when autoGenerateCert=true
+        # But controller always verifies it exists, causing startup failure
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/kustomize/rbac
         {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
         # Source 2: SSO resources (ExternalSecret, Keycloak client, CA patch) - only when SSO enabled
         - repoURL: https://github.com/gigi206/k8s
@@ -272,12 +278,32 @@ spec:
               # Bootstrap password (must match neuvector-admin-credentials secret)
               bootstrapPassword: "admin"
 
+              # RKE2/K3s runtime configuration
+              # The k3s.enabled option is deprecated in NeuVector 5.3.0+
+              # Use runtimePath directly for containerd socket access
+              runtimePath: /run/k3s/containerd/containerd.sock
+
+              # Internal certificates configuration
+              # Using cert-manager for internal certificates (avoids cert-upgrader lease issues)
+              internal:
+                certmanager:
+                  enabled: true
+                  secretname: neuvector-internal-certs
+                # Disable auto-generation when using cert-manager
+                autoGenerateCert: false
+                autoRotateCert: false
+
               # Controller configuration
               controller:
                 enabled: true
                 replicas: {{ .neuvector.controller.replicas | default 1 }}
                 apisvc:
                   type: ClusterIP
+                # Internal certificate for controller (required when certmanager.enabled=true)
+                # Bug in chart: checks internal.certmanager.enabled but uses controller.internal.certificate.secret
+                internal:
+                  certificate:
+                    secret: neuvector-internal-certs
                 resources:
                   requests:
                     cpu: {{ .neuvector.controller.resources.requests.cpu | default "100m" }}
@@ -322,6 +348,10 @@ spec:
               # Enforcer configuration (DaemonSet)
               enforcer:
                 enabled: true
+                # Internal certificate for enforcer (required when certmanager.enabled=true)
+                internal:
+                  certificate:
+                    secret: neuvector-internal-certs
                 resources:
                   requests:
                     cpu: {{ .neuvector.enforcer.resources.requests.cpu | default "100m" }}
@@ -357,6 +387,10 @@ spec:
                 scanner:
                   enabled: true
                   replicas: {{ .neuvector.scanner.replicas | default 1 }}
+                  # Internal certificate for scanner (required when certmanager.enabled=true)
+                  internal:
+                    certificate:
+                      secret: neuvector-internal-certs
                   resources:
                     requests:
                       cpu: {{ .neuvector.scanner.resources.requests.cpu | default "100m" }}
