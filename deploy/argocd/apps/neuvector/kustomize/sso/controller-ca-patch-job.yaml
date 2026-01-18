@@ -3,7 +3,10 @@
 # Job to patch NeuVector controller with CA certificate mount
 # =============================================================================
 # The CA certificate is synced by ExternalSecret (external-secret-ca.yaml).
-# This Job only patches the deployment to mount it and set SSL_CERT_FILE.
+# This Job patches the deployment to:
+#   1. Add initContainer (wait-for-ca) that waits for CA to be ready
+#   2. Mount the root-ca secret volume
+#   3. Set SSL_CERT_FILE environment variable
 #
 # Why a Job? The NeuVector Helm chart doesn't support extraVolumes/extraVolumeMounts.
 # =============================================================================
@@ -46,23 +49,44 @@ spec:
                 exit 1
               fi
 
-              # Check if deployment patch is already applied
+              # Check if deployment patch is already applied (volume + initContainer)
               EXISTING_VOL=$(kubectl get deployment neuvector-controller-pod -n neuvector \
                 -o jsonpath='{.spec.template.spec.volumes[?(@.name=="root-ca")].name}' 2>/dev/null || echo "")
+              EXISTING_INIT=$(kubectl get deployment neuvector-controller-pod -n neuvector \
+                -o jsonpath='{.spec.template.spec.initContainers[?(@.name=="wait-for-ca")].name}' 2>/dev/null || echo "")
 
-              if [ "$EXISTING_VOL" = "root-ca" ]; then
-                echo "CA volume already mounted, restarting controller to pick up any CA updates..."
+              if [ "$EXISTING_VOL" = "root-ca" ] && [ "$EXISTING_INIT" = "wait-for-ca" ]; then
+                echo "CA volume and initContainer already configured, restarting controller to pick up any CA updates..."
                 kubectl rollout restart deployment/neuvector-controller-pod -n neuvector
                 exit 0
               fi
 
-              # Apply strategic merge patch to add volume and volumeMount
+              # Apply strategic merge patch to add initContainer, volume and volumeMount
+              # The initContainer waits for the CA secret to be ready before starting the controller
               echo "Patching NeuVector controller deployment..."
               kubectl patch deployment neuvector-controller-pod -n neuvector --type=strategic -p '
               {
                 "spec": {
                   "template": {
                     "spec": {
+                      "initContainers": [
+                        {
+                          "name": "wait-for-ca",
+                          "image": "busybox:1.36",
+                          "command": [
+                            "/bin/sh",
+                            "-c",
+                            "echo Waiting for CA certificate...; until [ -f /etc/ssl/certs/root-ca/ca.crt ] && grep -q \"BEGIN CERTIFICATE\" /etc/ssl/certs/root-ca/ca.crt; do echo CA not ready, waiting...; sleep 2; done; echo CA certificate is ready!"
+                          ],
+                          "volumeMounts": [
+                            {
+                              "name": "root-ca",
+                              "mountPath": "/etc/ssl/certs/root-ca",
+                              "readOnly": true
+                            }
+                          ]
+                        }
+                      ],
                       "containers": [
                         {
                           "name": "neuvector-controller-pod",
