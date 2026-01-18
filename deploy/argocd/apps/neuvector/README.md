@@ -45,7 +45,12 @@ The ApplicationSet automatically:
 
 ### CA Certificate Injection
 
-A PostSync Job (`controller-ca-patch-job.yaml`) patches the controller deployment to mount the cluster CA certificate for OIDC TLS verification.
+A PostSync Job (`controller-ca-patch-job.yaml`) patches the controller deployment to:
+1. Add an **initContainer** (`wait-for-ca`) that waits for the CA certificate to be ready
+2. Mount the cluster CA certificate (`root-ca` secret) for OIDC TLS verification
+3. Set `SSL_CERT_FILE` environment variable
+
+**Note** : Lors d'une première installation, une erreur x509 temporaire peut apparaître car le deployment est créé par Helm avant que le PostSync Job ne puisse le patcher. Après le patch, l'initContainer garantit que les pods attendent le CA avant de démarrer.
 
 ## Monitoring
 
@@ -150,6 +155,54 @@ neuvector:
 - **externalSecrets**: CA certificate synchronization
 - **certManager**: TLS certificates
 
+## Known Issues
+
+### Bug RBAC avec cert-manager (Chart Helm 2.8.x)
+
+**Symptômes** :
+- Controller pods: `0/1 Running` (jamais Ready)
+- prometheus-exporter: `CrashLoopBackOff` (dépend du controller)
+- Logs du controller :
+  ```
+  ERRO|CTL|resource.VerifyNvRbacRoles: Cannot find Kubernetes role "neuvector-binding-secret-controller"
+  ERRO|CTL|resource.VerifyNvRbacRoleBindings: Cannot find Kubernetes rolebinding "neuvector-binding-secret-controller"
+  ```
+
+**Cause racine** : Bug dans le chart Helm NeuVector (toutes versions 2.8.x).
+
+Le chart crée le Role `neuvector-binding-secret-controller` uniquement si `internal.autoGenerateCert=true` :
+
+```yaml
+# templates/role.yaml (ligne 29)
+{{- if .Values.internal.autoGenerateCert }}
+...
+kind: Role
+metadata:
+  name: neuvector-binding-secret-controller
+...
+{{- end }}
+```
+
+Quand on utilise cert-manager (`internal.certmanager.enabled=true`), on doit désactiver `autoGenerateCert=false` pour éviter les conflits. Résultat : le Role n'est pas créé.
+
+**Mais** le controller NeuVector vérifie **toujours** l'existence de ce Role au démarrage, indépendamment de la méthode de gestion des certificats.
+
+**Workaround** : L'ApplicationSet inclut une source Kustomize (`kustomize/rbac/`) qui crée les RBAC manquants :
+- `Role/neuvector-binding-secret-controller`
+- `RoleBinding/neuvector-binding-secret-controller`
+
+**Vérification** :
+```bash
+# Les RBAC doivent exister
+kubectl get role,rolebinding -n neuvector | grep secret-controller
+# role.rbac.authorization.k8s.io/neuvector-binding-secret-controller
+# rolebinding.rbac.authorization.k8s.io/neuvector-binding-secret-controller
+```
+
+**Fix attendu upstream** : La condition devrait être `{{- if or .Values.internal.autoGenerateCert .Values.internal.certmanager.enabled }}`
+
+---
+
 ## Troubleshooting
 
 ### Controller ne démarre pas
@@ -164,6 +217,8 @@ kubectl logs -n neuvector -l app=neuvector-controller-pod
 # Events
 kubectl get events -n neuvector --sort-by='.lastTimestamp'
 ```
+
+**Si erreur RBAC** : Voir la section [Bug RBAC avec cert-manager](#bug-rbac-avec-cert-manager-chart-helm-28x) ci-dessus.
 
 ### Enforcer pas déployé sur tous les nodes
 

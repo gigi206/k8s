@@ -1,0 +1,12 @@
+# Workaround for NeuVector Helm chart bug
+# Chart conditionally creates this Role only when autoGenerateCert=true
+# But controller always verifies it exists, even with cert-manager
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: neuvector-binding-secret-controller
+  namespace: neuvector
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "update", "patch"]
