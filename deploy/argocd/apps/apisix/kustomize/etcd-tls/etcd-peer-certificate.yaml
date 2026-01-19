@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# Certificate - etcd Peer TLS
+# =============================================================================
+# Generates a TLS certificate for etcd peer-to-peer communication.
+# This certificate is used for both server and client auth between etcd nodes.
+# =============================================================================
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: apisix-etcd-peer-tls
+  namespace: apisix
+spec:
+  secretName: apisix-etcd-peer-tls
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+  commonName: apisix-etcd-peer
+  dnsNames:
+    # Headless service (StatefulSet pods)
+    - apisix-etcd-headless
+    - apisix-etcd-headless.apisix
+    - apisix-etcd-headless.apisix.svc
+    - apisix-etcd-headless.apisix.svc.cluster.local
+    # Individual pod names (for StatefulSet)
+    - "*.apisix-etcd-headless"
+    - "*.apisix-etcd-headless.apisix"
+    - "*.apisix-etcd-headless.apisix.svc"
+    - "*.apisix-etcd-headless.apisix.svc.cluster.local"
+    - localhost
+    - "127.0.0.1"
+  ipAddresses:
+    - "127.0.0.1"
+  usages:
+    - server auth
+    - client auth
+    - digital signature
+    - key encipherment
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # Renew 30 days before expiry
