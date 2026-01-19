@@ -406,6 +406,7 @@ spec:
                       - email
                       - groups
                     enablePKCEAuthentication: true
+                    enableAutoOIDCLogin: true
                   {{- end }}
 
                 {{- if .argocd.configs.rbac }}
