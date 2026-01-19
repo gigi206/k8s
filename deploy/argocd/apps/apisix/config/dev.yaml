@@ -58,9 +58,20 @@ apisix:
     # External etcd (CloudPirates - quay.io/coreos/etcd)
     external:
       enabled: true
-      host: "http://apisix-etcd:2379"
+      host: "https://apisix-etcd:2379"  # HTTPS for mTLS
       replicas: 1
       version: "0.4.0"
+      # mTLS configuration (authentication via client certificates)
+      tls:
+        enabled: true
+        serverSecret: "apisix-etcd-server-tls"
+        clientSecret: "apisix-etcd-client-tls"
+        peerSecret: "apisix-etcd-peer-tls"
+        caSecret: "apisix-etcd-ca"
+      # Persistence disabled - GitOps re-syncs from CRDs
+      persistence:
+        enabled: false
+        size: "1Gi"
 
 # Gateway API resources (GatewayClass, Gateway, Certificate)
 gatewayAPI:
