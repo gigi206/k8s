@@ -1,0 +1,23 @@
+environment: dev
+appName: reloader
+
+reloader:
+  version: "2.2.7"
+  replicas: 1
+  enableHA: false
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+syncPolicy:
+  syncOptions:
+    - CreateNamespace=false
+    - ServerSideApply=true
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

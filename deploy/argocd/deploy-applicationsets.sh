@@ -360,6 +360,7 @@ FEAT_GATEWAY_HTTPROUTE=$(get_feature '.features.gatewayAPI.httpRoute.enabled' 't
 FEAT_GATEWAY_CONTROLLER=$(get_feature '.features.gatewayAPI.controller.provider' 'istio')
 FEAT_CERT_MANAGER=$(get_feature '.features.certManager.enabled' 'true')
 FEAT_EXTERNAL_SECRETS=$(get_feature '.features.externalSecrets.enabled' 'true')
+FEAT_RELOADER=$(get_feature '.features.reloader.enabled' 'true')
 FEAT_EXTERNAL_DNS=$(get_feature '.features.externalDns.enabled' 'true')
 FEAT_SERVICE_MESH=$(get_feature '.features.serviceMesh.enabled' 'true')
 FEAT_SERVICE_MESH_PROVIDER=$(get_feature '.features.serviceMesh.provider' 'istio')
@@ -390,6 +391,7 @@ log_debug "  kubeVip: $FEAT_KUBEVIP"
 log_debug "  gatewayAPI: $FEAT_GATEWAY_API (httpRoute: $FEAT_GATEWAY_HTTPROUTE, controller: $FEAT_GATEWAY_CONTROLLER)"
 log_debug "  certManager: $FEAT_CERT_MANAGER"
 log_debug "  externalSecrets: $FEAT_EXTERNAL_SECRETS"
+log_debug "  reloader: $FEAT_RELOADER"
 log_debug "  externalDns: $FEAT_EXTERNAL_DNS"
 log_debug "  serviceMesh: $FEAT_SERVICE_MESH ($FEAT_SERVICE_MESH_PROVIDER)"
 log_debug "  storage: $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
@@ -632,6 +634,9 @@ APPLICATIONSETS=()
 
 # Wave 25: Secrets Management
 [[ "$FEAT_EXTERNAL_SECRETS" == "true" ]] && APPLICATIONSETS+=("apps/external-secrets/applicationset.yaml")
+
+# Wave 25: Configuration Reload (auto-reload pods on ConfigMap/Secret changes)
+[[ "$FEAT_RELOADER" == "true" ]] && APPLICATIONSETS+=("apps/reloader/applicationset.yaml")
 
 # Wave 30: DNS
 [[ "$FEAT_EXTERNAL_DNS" == "true" ]] && APPLICATIONSETS+=("apps/external-dns/applicationset.yaml")

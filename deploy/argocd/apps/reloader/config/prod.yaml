@@ -1,0 +1,23 @@
+environment: prod
+appName: reloader
+
+reloader:
+  version: "2.2.7"
+  replicas: 1
+  enableHA: false  # Single replica sufficient for Reloader
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+syncPolicy:
+  syncOptions:
+    - CreateNamespace=false
+    - ServerSideApply=true
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true
