@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: reloader
+  namespace: reloader
+spec:
+  groups:
+    - name: reloader
+      rules:
+        - alert: ReloaderDown
+          expr: |
+            absent(up{job="reloader-reloader"} == 1)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Reloader is down"
+            description: "Reloader has been unavailable for more than 5 minutes."
+
+        - alert: ReloaderHighRestartRate
+          expr: |
+            sum(increase(reloader_reload_executed_total[5m])) > 50
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High reload rate detected"
+            description: "Reloader has triggered more than 50 reloads in the last 5 minutes. This may indicate a configuration issue."

@@ -93,6 +93,20 @@
     },
     {
       "customType": "regex",
+      "description": "Reloader Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/reloader/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "reloader:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "reloader",
+      "packageNameTemplate": "reloader",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://stakater.github.io/stakater-charts"
+    },
+    {
+      "customType": "regex",
       "description": "External-DNS Helm chart",
       "managerFilePatterns": [
         "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
