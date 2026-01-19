@@ -85,6 +85,10 @@ features:
   externalSecrets:
     enabled: true  # Wave 25: External Secrets Operator
 
+  # === Configuration Reload ===
+  reloader:
+    enabled: true  # Wave 25: Auto-reload pods on ConfigMap/Secret changes
+
   # === DNS ===
   externalDns:
     enabled: true  # Wave 30: Automation DNS

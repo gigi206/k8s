@@ -1,0 +1,128 @@
+---
+# =============================================================================
+# Reloader ApplicationSet - Wave 25 (Config/Secret Reload Controller)
+# =============================================================================
+# Stakater Reloader watches ConfigMaps and Secrets and performs rolling
+# upgrades on Pods when their configuration changes.
+#
+# Usage: Add annotation to Deployment/StatefulSet/DaemonSet:
+#   secret.reloader.stakater.com/reload: "secret-name"
+#   configmap.reloader.stakater.com/reload: "configmap-name"
+#
+# Docs: https://github.com/stakater/Reloader
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: reloader
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "25"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/reloader/config/*.yaml
+
+  template:
+    metadata:
+      name: reloader
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "25"
+    spec:
+      project: default
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: reloader
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 1: Namespace
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/reloader/resources
+          directory:
+            include: "namespace.yaml"
+
+        {{- if .features.cilium.egressPolicy.enabled }}
+        # Source: Cilium egress policy (if needed for external access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/reloader/resources
+          directory:
+            include: "cilium-egress-policy.yaml"
+        {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source: Prometheus ServiceMonitor
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/reloader/kustomize/monitoring
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}
+
+        # Source: Reloader Helm chart
+        - repoURL: https://stakater.github.io/stakater-charts
+          targetRevision: '{{ .reloader.version }}'
+          chart: reloader
+          helm:
+            valuesObject:
+              reloader:
+                watchGlobally: true
+                logFormat: "json"
+                {{- if .reloader.enableHA }}
+                enableHA: {{ .reloader.enableHA }}
+                {{- end }}
+                deployment:
+                  replicas: {{ .reloader.replicas | default 1 }}
+                  resources:
+                    requests:
+                      cpu: {{ .reloader.resources.requests.cpu | default "10m" }}
+                      memory: {{ .reloader.resources.requests.memory | default "32Mi" }}
+                    limits:
+                      cpu: {{ .reloader.resources.limits.cpu | default "100m" }}
+                      memory: {{ .reloader.resources.limits.memory | default "128Mi" }}
+              {{- if .features.monitoring.enabled }}
+              serviceMonitor:
+                enabled: true
+                labels:
+                  release: '{{ .features.monitoring.release }}'
+              {{- end }}
