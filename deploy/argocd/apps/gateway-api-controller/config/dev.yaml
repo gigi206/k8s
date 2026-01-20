@@ -13,12 +13,11 @@ syncPolicy:
     enabled: true
     prune: true
     selfHeal: true
-  # Gateway API CRDs conflict with apisix-ingress-controller CRDs
-  # Replace=true forces replacement to resolve storedVersions conflicts
+  # ServerSideApply=true avoids "Too long" annotation errors on large CRDs
+  # ApplyOutOfSyncOnly=true prevents re-applying resources that are already in sync
   syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=false
-    - Replace=true
+    - ServerSideApply=true
+    - ApplyOutOfSyncOnly=true
     - PruneLast=true
     - SkipDryRunOnMissingResource=true
-    - RespectIgnoreDifferences=true
