@@ -57,7 +57,7 @@ apisix:
       enabled: true
       host: "https://apisix-etcd:2379"  # HTTPS for mTLS
       replicas: 3  # HA setup
-      version: "0.4.0"
+      version: "0.5.0"
       # mTLS configuration (authentication via client certificates)
       tls:
         enabled: true
