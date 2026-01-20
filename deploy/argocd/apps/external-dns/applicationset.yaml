@@ -82,6 +82,20 @@ spec:
           path: deploy/argocd/apps/external-dns/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+        {{- if .externalDns.etcd.enabled }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/external-dns/resources
+          directory:
+            include: "cilium-etcd-policy.yaml"
+        {{- end }}
+        {{- end }}
+
+        {{- /* TLS Certificates for etcd mTLS (server, client, peer) */ -}}
+        {{- if and .externalDns.etcd.enabled .externalDns.etcd.tls.enabled }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/external-dns/kustomize/etcd-tls
         {{- end }}
 
         {{- /* CoreDNS mode with etcd backend */ -}}
@@ -104,11 +118,43 @@ spec:
               {{- end }}
               env:
                 - name: ETCD_URLS
+                  {{- if .externalDns.etcd.tls.enabled }}
+                  value: "https://external-dns-etcd:2379"
+                {{- else }}
                   value: "http://external-dns-etcd:2379"
+                {{- end }}
+                {{- if .externalDns.etcd.tls.enabled }}
+                - name: ETCD_CA_FILE
+                  value: "/etc/etcd/certs/ca/ca.crt"
+                - name: ETCD_CERT_FILE
+                  value: "/etc/etcd/certs/client/tls.crt"
+                - name: ETCD_KEY_FILE
+                  value: "/etc/etcd/certs/client/tls.key"
+                {{- end }}
+              {{- if .externalDns.etcd.tls.enabled }}
+              extraVolumes:
+                - name: etcd-ca
+                  secret:
+                    secretName: {{ .externalDns.etcd.tls.caSecret }}
+                - name: etcd-client-tls
+                  secret:
+                    secretName: {{ .externalDns.etcd.tls.clientSecret }}
+              extraVolumeMounts:
+                - name: etcd-ca
+                  mountPath: /etc/etcd/certs/ca
+                  readOnly: true
+                - name: etcd-client-tls
+                  mountPath: /etc/etcd/certs/client
+                  readOnly: true
+              {{- end }}
               initContainers:
                 - name: wait-for-etcd
                   image: busybox:1.36
+                  {{- if .externalDns.etcd.tls.enabled }}
+                  command: ["sh", "-c", "echo 'Waiting for etcd TLS...'; until nc -z external-dns-etcd 2379; do sleep 2; done; echo 'etcd ready!'"]
+                  {{- else }}
                   command: ["sh", "-c", "echo 'Waiting for etcd...'; until nc -z external-dns-etcd 2379; do echo 'Waiting for etcd...'; sleep 2; done; echo 'etcd is ready!'"]
+                  {{- end }}
                   securityContext:
                     runAsNonRoot: true
                     runAsUser: 65534
@@ -117,55 +163,62 @@ spec:
           targetRevision: '{{ .externalDns.versions.coredns }}'
           chart: coredns
           helm:
-            parameters:
-              - name: replicaCount
-                value: '{{ .externalDns.coredns.replicas | default 1 }}'
-              - name: serviceType
-                value: '{{ .externalDns.coredns.serviceType | default "ClusterIP" }}'
-              - name: rbac.create
-                value: "true"
-              - name: isClusterService
-                value: "false"
+            valuesObject:
+              replicaCount: {{ .externalDns.coredns.replicas | default 1 }}
+              serviceType: '{{ .externalDns.coredns.serviceType | default "ClusterIP" }}'
+              rbac:
+                create: true
+              isClusterService: false
               {{- if .features.externalDns.loadBalancerIP }}
-              - name: service.loadBalancerIP
-                value: '{{ .features.externalDns.loadBalancerIP }}'
-              - name: service.annotations.metallb\.universe\.tf/address-pool
-                value: external-dns
+              service:
+                loadBalancerIP: '{{ .features.externalDns.loadBalancerIP }}'
+                annotations:
+                  metallb.universe.tf/address-pool: external-dns
               {{- end }}
-              - name: servers[0].zones[0].zone
-                value: '{{ .common.domain }}.'
-              - name: servers[0].port
-                value: "53"
-              - name: servers[0].plugins[0].name
-                value: errors
-              - name: servers[0].plugins[1].name
-                value: health
-              - name: servers[0].plugins[1].configBlock
-                value: "lameduck 5s"
-              - name: servers[0].plugins[2].name
-                value: ready
-              - name: servers[0].plugins[3].name
-                value: prometheus
-              - name: servers[0].plugins[3].parameters
-                value: "0.0.0.0:9153"
-              - name: servers[0].plugins[4].name
-                value: cache
-              - name: servers[0].plugins[4].parameters
-                value: "30"
-              - name: servers[0].plugins[5].name
-                value: loop
-              - name: servers[0].plugins[6].name
-                value: reload
-              - name: servers[0].plugins[7].name
-                value: loadbalance
-              - name: servers[0].plugins[8].name
-                value: etcd
-              - name: servers[0].plugins[8].parameters
-                value: '{{ .common.domain }}'
-              - name: servers[0].plugins[8].configBlock
-                value: |
-                  path /skydns
-                  endpoint http://external-dns-etcd:2379
+              {{- if .externalDns.etcd.tls.enabled }}
+              extraVolumes:
+                - name: etcd-ca
+                  secret:
+                    secretName: {{ .externalDns.etcd.tls.caSecret }}
+                - name: etcd-client-tls
+                  secret:
+                    secretName: {{ .externalDns.etcd.tls.clientSecret }}
+              extraVolumeMounts:
+                - name: etcd-ca
+                  mountPath: /etc/etcd/certs/ca
+                  readOnly: true
+                - name: etcd-client-tls
+                  mountPath: /etc/etcd/certs/client
+                  readOnly: true
+              {{- end }}
+              servers:
+                - zones:
+                    - zone: '{{ .common.domain }}.'
+                  port: 53
+                  plugins:
+                    - name: errors
+                    - name: health
+                      configBlock: "lameduck 5s"
+                    - name: ready
+                    - name: prometheus
+                      parameters: "0.0.0.0:9153"
+                    - name: cache
+                      parameters: "30"
+                    - name: loop
+                    - name: reload
+                    - name: loadbalance
+                    - name: etcd
+                      parameters: '{{ .common.domain }}'
+                      {{- if .externalDns.etcd.tls.enabled }}
+                      configBlock: |
+                        path /skydns
+                        endpoint https://external-dns-etcd:2379
+                        tls /etc/etcd/certs/client/tls.crt /etc/etcd/certs/client/tls.key /etc/etcd/certs/ca/ca.crt
+                      {{- else }}
+                      configBlock: |
+                        path /skydns
+                        endpoint http://external-dns-etcd:2379
+                      {{- end }}
         {{- if .externalDns.etcd.enabled }}
         # etcd backend for CoreDNS (CloudPirates OCI - quay.io/coreos/etcd)
         - repoURL: ghcr.io/cloudpirates-io/helm-charts
@@ -176,6 +229,15 @@ spec:
             valuesObject:
               fullnameOverride: external-dns-etcd
               replicaCount: {{ .externalDns.etcd.replicas | default 1 }}
+              {{- if .externalDns.etcd.tls.enabled }}
+              # mTLS configuration (CloudPirates etcd chart structure)
+              auth:
+                enabled: true
+                existingSecret: {{ .externalDns.etcd.tls.serverSecret }}
+                peer:
+                  enabled: true
+                  existingSecret: {{ .externalDns.etcd.tls.peerSecret }}
+              {{- end }}
         {{- end }}
 
         {{- /* Standard provider mode (cloudflare, etc.) */ -}}
