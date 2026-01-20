@@ -102,7 +102,7 @@ spec:
         {{- if and (eq .externalDns.provider "coredns") .externalDns.coredns.enabled }}
         # External-DNS configured for CoreDNS
         - repoURL: https://kubernetes-sigs.github.io/external-dns
-          targetRevision: '{{ .externalDns.versions.chart }}'
+          targetRevision: '{{ .externalDns.version }}'
           chart: external-dns
           helm:
             valuesObject:
@@ -160,7 +160,7 @@ spec:
                     runAsUser: 65534
         # CoreDNS server
         - repoURL: https://coredns.github.io/helm
-          targetRevision: '{{ .externalDns.versions.coredns }}'
+          targetRevision: '{{ .externalDns.coredns.version }}'
           chart: coredns
           helm:
             valuesObject:
@@ -222,7 +222,7 @@ spec:
         {{- if .externalDns.etcd.enabled }}
         # etcd backend for CoreDNS (CloudPirates OCI - quay.io/coreos/etcd)
         - repoURL: ghcr.io/cloudpirates-io/helm-charts
-          targetRevision: '{{ .externalDns.versions.etcd }}'
+          targetRevision: '{{ .externalDns.etcd.version }}'
           chart: etcd
           helm:
             releaseName: external-dns-etcd
@@ -244,7 +244,7 @@ spec:
         {{- else }}
         # External-DNS with standard provider
         - repoURL: https://kubernetes-sigs.github.io/external-dns
-          targetRevision: '{{ .externalDns.versions.chart }}'
+          targetRevision: '{{ .externalDns.version }}'
           chart: external-dns
           helm:
             valuesObject:

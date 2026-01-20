@@ -112,7 +112,7 @@
         "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
       ],
       "matchStrings": [
-        "externalDns:\\s*\\n\\s*versions:\\s*\\n\\s*chart:\\s*\"(?<currentValue>[^\"]+)\""
+        "externalDns:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "external-dns",
       "packageNameTemplate": "external-dns",
@@ -126,7 +126,7 @@
         "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
       ],
       "matchStrings": [
-        "coredns:\\s*\"(?<currentValue>[^\"]+)\""
+        "coredns:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "coredns",
       "packageNameTemplate": "coredns",
@@ -140,7 +140,7 @@
         "/^deploy/argocd/apps/external-dns/config/.*\\.yaml$/"
       ],
       "matchStrings": [
-        "etcd:\\s*\"(?<currentValue>[^\"]+)\""
+        "etcd:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "depNameTemplate": "etcd",
       "packageNameTemplate": "ghcr.io/cloudpirates-io/helm-charts/etcd",
