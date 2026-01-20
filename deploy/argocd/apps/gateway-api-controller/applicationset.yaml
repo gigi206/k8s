@@ -64,14 +64,15 @@ spec:
 
   templatePatch: |
     spec:
-      # Ignore only annotations on Gateway API CRDs (large last-applied-configuration)
+      # Ignore managedFields and annotations on Gateway API CRDs to avoid conflicts
+      # CRDs may be applied by multiple managers (ArgoCD, kubectl, Helm)
       # gateway-api-controller is the authoritative source for these CRDs
-      # Other providers (traefik, envoy-gateway) should NOT modify the CRD schemas
       ignoreDifferences:
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           jsonPointers:
             - /metadata/annotations
+            - /metadata/managedFields
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
