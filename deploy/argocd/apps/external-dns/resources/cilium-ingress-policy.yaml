@@ -43,15 +43,10 @@ spec:
               protocol: TCP
 
     # Allow internal External-DNS communication (same namespace)
-    # CoreDNS <-> etcd backend
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: external-dns
       toPorts:
         - ports:
             - port: "7979"    # Metrics
-              protocol: TCP
-            - port: "2379"    # etcd client
-              protocol: TCP
-            - port: "2380"    # etcd peer
               protocol: TCP

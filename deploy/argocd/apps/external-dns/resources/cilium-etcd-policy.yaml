@@ -1,0 +1,58 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - External-DNS ETCD Ingress Security
+# =============================================================================
+# Allows External-DNS components to communicate with ETCD backend.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: external-dns-etcd-ingress
+  namespace: external-dns
+spec:
+  description: "Allow ingress to External-DNS ETCD from authorized components"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: etcd
+      app.kubernetes.io/instance: external-dns-etcd
+
+  ingress:
+    # Allow from External-DNS pods
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: external-dns
+      toPorts:
+        - ports:
+            - port: "2379"
+              protocol: TCP
+
+    # Allow from CoreDNS pods
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: coredns
+      toPorts:
+        - ports:
+            - port: "2379"
+              protocol: TCP
+
+    # Allow ETCD cluster communication (peer)
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: etcd
+            app.kubernetes.io/instance: external-dns-etcd
+      toPorts:
+        - ports:
+            - port: "2379"
+              protocol: TCP
+            - port: "2380"
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "2379"
+              protocol: TCP
