@@ -11,7 +11,7 @@ externalDns:
   versions:
     chart: "1.20.0"
     coredns: "1.45.0"
-    etcd: "1.1.4"
+    etcd: "0.5.0"  # CloudPirates OCI (was groundhog2k 1.1.4)
   # Provider: cloudflare, aws, google, coredns, etc.
   # Use "coredns" for local DNS with etcd backend
   provider: "coredns"
@@ -51,6 +51,13 @@ externalDns:
   etcd:
     enabled: false
     replicas: 3
+    # mTLS configuration (authentication via client certificates)
+    tls:
+      enabled: true
+      serverSecret: "external-dns-etcd-server-tls"
+      clientSecret: "external-dns-etcd-client-tls"
+      peerSecret: "external-dns-etcd-peer-tls"
+      caSecret: "external-dns-etcd-ca"
 
 syncPolicy:
   automated:
