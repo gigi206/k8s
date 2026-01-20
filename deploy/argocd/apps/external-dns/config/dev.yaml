@@ -4,10 +4,7 @@ environment: dev
 appName: external-dns
 
 externalDns:
-  versions:
-    chart: "1.20.0"
-    coredns: "1.45.0"
-    etcd: "0.5.0"  # CloudPirates OCI (was groundhog2k 1.1.4)
+  version: "1.20.0"
   # Provider: cloudflare, aws, google, coredns, etc.
   # Use "coredns" for local DNS with etcd backend
   provider: "coredns"
@@ -39,6 +36,7 @@ externalDns:
 
   # CoreDNS configuration (only when provider=coredns)
   coredns:
+    version: "1.45.0"
     enabled: true
     replicas: 1
     serviceType: "LoadBalancer"
@@ -46,6 +44,7 @@ externalDns:
 
   # etcd configuration (only when provider=coredns)
   etcd:
+    version: "0.5.0"  # CloudPirates OCI (was groundhog2k 1.1.4)
     enabled: true
     replicas: 1
     # mTLS configuration (authentication via client certificates)
