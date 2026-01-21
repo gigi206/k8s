@@ -63,8 +63,9 @@ syncPolicy:
     enabled: true
     prune: true
     selfHeal: true
+  # ServerSideApply=true allows shared CRD management
+  # Traefik installs and manages Gateway API CRDs (standard channel)
   syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=false
-    - Replace=true
+    - ServerSideApply=true
     - PruneLast=true

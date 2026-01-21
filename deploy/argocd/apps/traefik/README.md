@@ -432,9 +432,35 @@ kubectl port-forward -n traefik svc/traefik 8080:8080
 - [Gateway API avec Traefik](https://doc.traefik.io/traefik/routing/providers/kubernetes-gateway/)
 - [Dashboard Grafana](https://grafana.com/grafana/dashboards/17347-traefik-official-kubernetes-dashboard/)
 
+## Gateway API CRDs
+
+**Traefik installe et gère les CRDs Gateway API** (standard channel) directement via son chart Helm. Cette fonctionnalité ne peut pas être désactivée.
+
+### Comportement
+
+Quand `features.gatewayAPI.enabled: true` :
+- Traefik installe automatiquement les CRDs Gateway API (standard channel)
+- Le chart Helm crée également la GatewayClass `traefik` et un Gateway `default-gateway`
+- `gateway-api-controller` n'est PAS déployé (évite les conflits de CRDs)
+
+### Vérification des CRDs
+
+```bash
+# Vérifier les CRDs installés par Traefik
+kubectl get crd | grep gateway.networking
+
+# Vérifier les annotations de version
+kubectl get crd httproutes.gateway.networking.k8s.io -o jsonpath='{.metadata.annotations}'
+# Devrait montrer bundle-version et channel: standard
+```
+
+### Coexistence avec d'autres controllers
+
+Si vous avez besoin d'utiliser un autre Gateway API controller (Istio, APISIX, etc.), ne déployez pas Traefik car il installerait ses propres CRDs qui pourraient entrer en conflit.
+
 ## Notes
 
-- Necessite `gateway-api-controller` (Wave 15) deja deploye pour les CRDs Gateway API
-- Coexiste avec nginx-ingress et istio - pas de conflit
+- **Pas besoin de `gateway-api-controller`** - Traefik installe ses propres CRDs Gateway API
+- Coexiste avec nginx-ingress et istio (pour Ingress classique) - pas de conflit
 - MetalLB assigne automatiquement une IP au service LoadBalancer
 - IngressClass `traefik` n'est PAS definie comme default (evite les conflits)
