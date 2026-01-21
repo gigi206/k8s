@@ -440,8 +440,13 @@ kubectl port-forward -n traefik svc/traefik 8080:8080
 
 Quand `features.gatewayAPI.enabled: true` :
 - Traefik installe automatiquement les CRDs Gateway API (standard channel)
-- Le chart Helm crée également la GatewayClass `traefik` et un Gateway `default-gateway`
+- Le chart Helm crée la GatewayClass `traefik`
+- Le Gateway `default-gateway` est créé via **kustomize** (pas Helm) en raison d'un bug de type dans le chart Helm (comparaison int vs string pour les ports)
 - `gateway-api-controller` n'est PAS déployé (évite les conflits de CRDs)
+
+### Pourquoi le Gateway via kustomize ?
+
+Le chart Helm Traefik (v38+) a un bug qui compare les ports des listeners Gateway (int) avec les ports des entrypoints passés via `parameters` (string), causant une erreur `incompatible types for comparison`. La solution est de désactiver le Gateway Helm (`gateway.enabled: false`) et de le créer via `kustomize/certificate/gateway.yaml`.
 
 ### Vérification des CRDs
 
@@ -452,6 +457,9 @@ kubectl get crd | grep gateway.networking
 # Vérifier les annotations de version
 kubectl get crd httproutes.gateway.networking.k8s.io -o jsonpath='{.metadata.annotations}'
 # Devrait montrer bundle-version et channel: standard
+
+# Vérifier le Gateway créé via kustomize
+kubectl get gateway -n traefik
 ```
 
 ### Coexistence avec d'autres controllers
