@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# Pod Disruption Budget for Traefik
+# =============================================================================
+# Ensures high availability during voluntary disruptions
+# (node maintenance, rolling updates, etc.)
+# =============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  # At least 2 pods must be available at all times
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
