@@ -50,6 +50,17 @@ spec:
     spec:
       project: default
 
+      # Ignore default values added by Gateway API controller on HTTPRoute
+      ignoreDifferences:
+        - group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          jqPathExpressions:
+            - .spec.rules[].backendRefs[]?.group
+            - .spec.rules[].backendRefs[]?.kind
+            - .spec.rules[].backendRefs[]?.weight
+            - .spec.parentRefs[]?.group
+            - .spec.parentRefs[]?.kind
+
       sources:
         # Source 1: Helm chart traefik
         - repoURL: https://traefik.github.io/charts
@@ -83,7 +94,7 @@ spec:
               # Gateway API - Provider (required for GatewayClass to be created)
               - name: providers.kubernetesGateway.enabled
                 value: '{{ .features.gatewayAPI.enabled }}'
-              # Disable Helm-managed Gateway (we create our own via kustomize)
+              # Disable Helm-managed Gateway (we create our own via kustomize to avoid type mismatch)
               - name: gateway.enabled
                 value: 'false'
 
@@ -109,9 +120,7 @@ spec:
 
   templatePatch: |
     spec:
-      # Note: Traefik Helm chart v3+ does NOT install Gateway API CRDs
-      # They are managed by gateway-api-controller (Wave 15)
-      # No ignoreDifferences needed for CRDs here
+      # Traefik installs and manages Gateway API CRDs (standard channel)
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
@@ -154,10 +163,10 @@ spec:
         {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         # Gateway API resources (Gateway + Certificate)
-        # Traefik uses its existing LoadBalancer Service (no separate Gateway deployment)
+        # Gateway is created via kustomize (not Helm) to avoid type mismatch issues
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/traefik/kustomize/gateway
+          path: deploy/argocd/apps/traefik/kustomize/certificate
           kustomize:
             patches:
               - target:
@@ -238,7 +247,7 @@ spec:
             # Gateway API - Provider (required for GatewayClass to be created)
             - name: providers.kubernetesGateway.enabled
               value: '{{ .features.gatewayAPI.enabled }}'
-            # Disable Helm-managed Gateway (we create our own via kustomize)
+            # Disable Helm-managed Gateway (we create our own via kustomize to avoid type mismatch)
             - name: gateway.enabled
               value: 'false'
 
@@ -297,3 +306,4 @@ spec:
             - name: logs.access.enabled
               value: "{{ .traefik.logs.accessLogs | default false }}"
             {{- end }}
+
