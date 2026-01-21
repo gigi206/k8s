@@ -58,6 +58,17 @@ traefik:
     level: "INFO"
     accessLogs: true
 
+  # High availability (dev: disabled - single replica)
+  ha:
+    hpa:
+      enabled: false
+    pdb:
+      enabled: false
+
+  # Security middlewares (dev: enabled for testing)
+  security:
+    enabled: true
+
 syncPolicy:
   automated:
     enabled: true
