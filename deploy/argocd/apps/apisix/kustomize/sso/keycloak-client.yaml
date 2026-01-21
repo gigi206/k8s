@@ -11,7 +11,7 @@ metadata:
   name: apisix-dashboard-keycloak-client
   namespace: keycloak
   annotations:
-    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
   backoffLimit: 5
