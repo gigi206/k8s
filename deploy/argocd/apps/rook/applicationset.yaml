@@ -97,17 +97,12 @@ spec:
           kind: CephCluster
           jqPathExpressions:
             - .spec.cephVersion.image
-        # Rook CSI CRDs - ignore annotations to avoid "Too long" errors
+        # Rook CSI CRDs - ignore annotations and managedFields to avoid "Too long" errors
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
-          name: operatorconfigs.csi.ceph.io
           jsonPointers:
             - /metadata/annotations
-        - group: apiextensions.k8s.io
-          kind: CustomResourceDefinition
-          name: drivers.csi.ceph.io
-          jsonPointers:
-            - /metadata/annotations
+            - /metadata/managedFields
 
       sources:
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
