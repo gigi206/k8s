@@ -61,55 +61,22 @@ spec:
             - .spec.parentRefs[]?.group
             - .spec.parentRefs[]?.kind
 
-      sources:
-        # Source 1: Helm chart traefik
-        - repoURL: https://traefik.github.io/charts
-          targetRevision: '{{ .traefik.version }}'
-          chart: traefik
-          helm:
-            parameters:
-              # Deployment kind
-              - name: deployment.kind
-                value: '{{ .traefik.deployment.kind | default "Deployment" }}'
-
-              # Replicas
-              - name: deployment.replicas
-                value: '{{ .traefik.deployment.replicas | default 1 }}'
-
-              # Service type
-              - name: service.type
-                value: '{{ .traefik.service.type | default "LoadBalancer" }}'
-
-              # IngressClass
-              - name: ingressClass.enabled
-                value: '{{ .traefik.ingressClass.enabled | default "true" }}'
-              - name: ingressClass.isDefaultClass
-                value: '{{ .traefik.ingressClass.isDefaultClass | default "false" }}'
-
-              # Gateway API - GatewayClass
-              - name: gatewayClass.enabled
-                value: '{{ .features.gatewayAPI.enabled }}'
-              - name: gatewayClass.name
-                value: '{{ .traefik.gatewayClass.name | default "traefik" }}'
-              # Gateway API - Provider (required for GatewayClass to be created)
-              - name: providers.kubernetesGateway.enabled
-                value: '{{ .features.gatewayAPI.enabled }}'
-              # Disable Helm-managed Gateway (we create our own via kustomize to avoid type mismatch)
-              - name: gateway.enabled
-                value: 'false'
-
-              # Prometheus metrics
-              - name: metrics.prometheus.enabled
-                value: '{{ .features.monitoring.enabled }}'
-              - name: metrics.prometheus.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
-              - name: metrics.prometheus.serviceMonitor.additionalLabels.release
-                value: '{{ .features.monitoring.release }}'
+      # Sources are defined in templatePatch for conditional logic
+      # This placeholder is required by ArgoCD but will be replaced
+      source:
+        repoURL: https://traefik.github.io/charts
+        targetRevision: '{{ .traefik.version }}'
+        chart: traefik
 
       destination:
         server: https://kubernetes.default.svc
         namespace: traefik
 
+      # syncPolicy defined in templatePatch for environment-specific automation
+
+  templatePatch: |
+    spec:
+      # Traefik installs and manages Gateway API CRDs (standard channel)
       syncPolicy:
         retry:
           limit: 10
@@ -117,11 +84,6 @@ spec:
             duration: 10s
             factor: 2
             maxDuration: 10m
-
-  templatePatch: |
-    spec:
-      # Traefik installs and manages Gateway API CRDs (standard channel)
-      syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
           - {{ . }}
@@ -221,7 +183,29 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/traefik/kustomize/oauth2-authz
         {{- end }}
-        # Source 1: Helm chart with dynamic parameters
+        {{- if (index .traefik "security" | default dict).enabled }}
+        # Security Middlewares (security-headers, rate-limit)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/kustomize/security
+        {{- end }}
+        {{- if (index (index .traefik "ha" | default dict) "hpa" | default dict).enabled }}
+        # HorizontalPodAutoscaler (prod only)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/resources
+          directory:
+            include: "hpa.yaml"
+        {{- end }}
+        {{- if (index (index .traefik "ha" | default dict) "pdb" | default dict).enabled }}
+        # PodDisruptionBudget (prod only)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/traefik/resources
+          directory:
+            include: "pdb.yaml"
+        {{- end }}
+        # Helm chart with dynamic parameters
         - repoURL: https://traefik.github.io/charts
           targetRevision: '{{ .traefik.version }}'
           chart: traefik

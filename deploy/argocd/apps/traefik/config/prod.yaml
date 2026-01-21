@@ -51,10 +51,21 @@ traefik:
   dashboard:
     enabled: false
 
-  # Logs (prod: minimal)
+  # Logs (prod: access logs enabled for troubleshooting)
   logs:
-    level: "ERROR"
-    accessLogs: false
+    level: "WARN"
+    accessLogs: true
+
+  # High availability (prod only)
+  ha:
+    hpa:
+      enabled: true
+    pdb:
+      enabled: true
+
+  # Security middlewares (prod: enabled)
+  security:
+    enabled: true
 
 syncPolicy:
   automated:

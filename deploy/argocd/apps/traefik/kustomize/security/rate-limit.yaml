@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# Rate Limiting Middleware
+# =============================================================================
+# Protects against DDoS and brute force attacks
+# Each router gets its own rate limiter instance
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit
+  namespace: traefik
+spec:
+  rateLimit:
+    # Average requests per second allowed
+    average: 100
+    # Time period for the average
+    period: 1s
+    # Burst size (token bucket)
+    burst: 200
+    # Source criterion for rate limiting
+    sourceCriterion:
+      ipStrategy:
+        # Depth in X-Forwarded-For header (0 = direct client, 1+ = behind proxy)
+        depth: 1
