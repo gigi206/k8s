@@ -66,3 +66,8 @@ syncPolicy:
     enabled: true
     prune: true
     selfHeal: true
+  # ServerSideApply=true avoids "Too long" annotation errors on CRDs
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - PruneLast=true
