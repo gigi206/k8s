@@ -1,0 +1,81 @@
+---
+# =============================================================================
+# Job - Create ConfigMap from CA Secret (Traefik requirement)
+# =============================================================================
+# Traefik BackendTLSPolicy only supports ConfigMaps for caCertificateRefs.
+# This Job copies the CA certificate from the ExternalSecret to a ConfigMap.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: neuvector-ca-configmap-creator
+  namespace: neuvector
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: neuvector-ca-creator
+      containers:
+        - name: create-configmap
+          image: bitnami/kubectl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for CA secret to be ready..."
+              for i in $(seq 1 60); do
+                if kubectl get secret neuvector-backend-ca-secret -n neuvector >/dev/null 2>&1; then
+                  echo "Secret found, creating ConfigMap..."
+                  break
+                fi
+                echo "Attempt $i/60 - Secret not ready, waiting..."
+                sleep 5
+              done
+
+              # Get CA cert from secret and create ConfigMap
+              CA_CERT=$(kubectl get secret neuvector-backend-ca-secret -n neuvector -o jsonpath='{.data.ca\.crt}' | base64 -d)
+
+              kubectl create configmap neuvector-backend-ca \
+                --from-literal=ca.crt="$CA_CERT" \
+                -n neuvector \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              echo "ConfigMap neuvector-backend-ca created successfully"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: neuvector-ca-creator
+  namespace: neuvector
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: neuvector-ca-creator
+  namespace: neuvector
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["neuvector-backend-ca-secret"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "update", "patch", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: neuvector-ca-creator
+  namespace: neuvector
+subjects:
+  - kind: ServiceAccount
+    name: neuvector-ca-creator
+    namespace: neuvector
+roleRef:
+  kind: Role
+  name: neuvector-ca-creator
+  apiGroup: rbac.authorization.k8s.io

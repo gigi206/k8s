@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# BackendTLSPolicy - NeuVector Manager HTTPS Backend (Traefik)
+# =============================================================================
+# Configures Traefik to use TLS when connecting to the NeuVector Manager backend.
+# Required because the manager uses HTTPS on port 8443.
+#
+# The CA certificate is synced from cert-manager via ExternalSecret.
+# The NeuVector Manager certificate is signed by the cluster CA (cert-manager).
+#
+# Requires Traefik v3.6+ for BackendTLSPolicy support.
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: neuvector-manager-tls
+  namespace: neuvector
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: neuvector-manager-https
+  validation:
+    caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: neuvector-backend-ca
+    hostname: neuvector-service-webui.neuvector.svc.cluster.local

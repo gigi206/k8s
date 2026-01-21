@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# BackendTLSPolicy - Ceph Dashboard HTTPS Backend (Traefik)
+# =============================================================================
+# Configures Traefik to use TLS when connecting to the Ceph Dashboard backend.
+# Required because the dashboard uses HTTPS on port 8443.
+#
+# The CA certificate is synced from cert-manager via ExternalSecret.
+# The Ceph Dashboard certificate is signed by the cluster CA (cert-manager).
+#
+# Requires Traefik v3.6+ for BackendTLSPolicy support.
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: ceph-dashboard-tls
+  namespace: rook-ceph
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: ceph-dashboard-https
+  validation:
+    caCertificateRefs:
+      - group: ""
+        kind: ConfigMap
+        name: ceph-dashboard-backend-ca
+    hostname: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
