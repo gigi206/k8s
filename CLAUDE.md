@@ -238,6 +238,67 @@ make vagrant-dev-destroy         # Delete cluster
 6. **Add Renovate custom manager** in `renovate.json` (see Renovate section below)
 7. **Create `README.md`** in the app directory (see Documentation section)
 
+### Helm Chart Analysis
+
+**MANDATORY**: Before configuring a new application, always analyze the Helm chart to understand its structure and available options.
+
+**Step 1 - Download the chart for in-depth analysis**:
+```bash
+# Add the repo if not already added
+helm repo add <repo-name> <repo-url>
+helm repo update
+
+# Download and extract the chart locally
+helm pull <repo-name>/<chart-name> --untar --untardir /tmp/claude
+
+# Explore the chart structure
+ls /tmp/claude/<chart-name>/
+cat /tmp/claude/<chart-name>/values.yaml      # Default values
+cat /tmp/claude/<chart-name>/Chart.yaml       # Chart metadata & dependencies
+ls /tmp/claude/<chart-name>/templates/        # All templates
+```
+
+**Step 2 - Render templates to understand generated manifests**:
+```bash
+# Basic render with default values
+helm template my-release <repo-name>/<chart-name> > /tmp/claude/rendered.yaml
+
+# Render with custom values to test configuration
+helm template my-release <repo-name>/<chart-name> \
+  --namespace my-namespace \
+  --set key1=value1 \
+  --set key2.nested=value2 \
+  -f /tmp/claude/custom-values.yaml \
+  > /tmp/claude/rendered.yaml
+
+# Render specific templates only
+helm template my-release <repo-name>/<chart-name> \
+  --show-only templates/deployment.yaml
+```
+
+**Key analysis points**:
+- **values.yaml**: Identify all configurable parameters and their defaults
+- **templates/**: Understand what Kubernetes resources are created
+- **Chart.yaml**: Check dependencies (subcharts) that may need configuration
+- **NOTES.txt**: Post-install instructions and access information
+- **CRDs**: Check `crds/` directory for Custom Resource Definitions
+
+**Example workflow for a new app**:
+```bash
+# Download and analyze cert-manager chart
+helm repo add jetstack https://charts.jetstack.io
+helm pull jetstack/cert-manager --untar --untardir /tmp/claude
+
+# Render with monitoring enabled to see ServiceMonitor
+helm template cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --set prometheus.servicemonitor.enabled=true \
+  > /tmp/claude/cert-manager-rendered.yaml
+
+# Search for specific resources
+grep -A 20 "kind: ServiceMonitor" /tmp/claude/cert-manager-rendered.yaml
+```
+
 ### Documentation Updates
 
 **MANDATORY**: Always update documentation when modifying applications.
@@ -416,6 +477,35 @@ Prevent PVC deletion with annotation `argocd.argoproj.io/sync-options: Prune=fal
 ### ArgoCD Finalizers
 
 Add `resources-finalizer.argocd.argoproj.io` finalizer to delete resources when Application is deleted (without it, resources are orphaned).
+
+## Problem Resolution Strategy
+
+When encountering issues (errors, unexpected behavior, configuration problems), follow this research strategy:
+
+### 1. Check Documentation via MCP Context7
+
+Use the Context7 MCP server to retrieve up-to-date documentation:
+```
+# First resolve the library ID
+mcp__context7__resolve-library-id(libraryName: "argocd", query: "applicationset generator")
+
+# Then query the documentation
+mcp__context7__query-docs(libraryId: "/argoproj/argo-cd", query: "how to use git generator")
+```
+
+### 2. Consult Official Documentation Online
+
+Use WebFetch or WebSearch to access the official documentation of the relevant tool/library.
+
+### 3. Search GitHub Issues
+
+Search for known issues and solutions in the project's GitHub repository using `gh search issues` or WebSearch.
+
+### 4. Search the Web
+
+For broader searches when the above don't yield results, use WebSearch.
+
+**Priority order**: Context7 docs → Official docs → GitHub issues → Web search
 
 ## Troubleshooting
 
