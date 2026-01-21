@@ -1,0 +1,84 @@
+---
+# =============================================================================
+# Job - Create ConfigMap from CA Secret (Traefik requirement)
+# =============================================================================
+# Traefik BackendTLSPolicy only supports ConfigMaps for caCertificateRefs.
+# This Job copies the CA certificate from the ExternalSecret to a ConfigMap.
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ceph-dashboard-ca-configmap-creator
+  namespace: rook-ceph
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        app: ceph-dashboard-ca-creator
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: ceph-dashboard-ca-creator
+      containers:
+        - name: create-configmap
+          image: bitnami/kubectl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for CA secret to be ready..."
+              for i in $(seq 1 60); do
+                if kubectl get secret ceph-dashboard-backend-ca-secret -n rook-ceph >/dev/null 2>&1; then
+                  echo "Secret found, creating ConfigMap..."
+                  break
+                fi
+                echo "Attempt $i/60 - Secret not ready, waiting..."
+                sleep 5
+              done
+
+              # Get CA cert from secret and create ConfigMap
+              CA_CERT=$(kubectl get secret ceph-dashboard-backend-ca-secret -n rook-ceph -o jsonpath='{.data.ca\.crt}' | base64 -d)
+
+              kubectl create configmap ceph-dashboard-backend-ca \
+                --from-literal=ca.crt="$CA_CERT" \
+                -n rook-ceph \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              echo "ConfigMap ceph-dashboard-backend-ca created successfully"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ceph-dashboard-ca-creator
+  namespace: rook-ceph
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ceph-dashboard-ca-creator
+  namespace: rook-ceph
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ceph-dashboard-backend-ca-secret"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "update", "patch", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ceph-dashboard-ca-creator
+  namespace: rook-ceph
+subjects:
+  - kind: ServiceAccount
+    name: ceph-dashboard-ca-creator
+    namespace: rook-ceph
+roleRef:
+  kind: Role
+  name: ceph-dashboard-ca-creator
+  apiGroup: rbac.authorization.k8s.io

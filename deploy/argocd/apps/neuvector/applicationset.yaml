@@ -210,6 +210,12 @@ spec:
                   - op: replace
                     path: /metadata/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- if eq .features.gatewayAPI.controller.provider "traefik" }}
+        # Source 3b: BackendTLSPolicy for Traefik (HTTPS backend validation)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/kustomize/httproute-traefik
+        {{- end }}
         {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source 3: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
@@ -235,9 +241,9 @@ spec:
           path: deploy/argocd/apps/neuvector/kustomize/istio
         {{- end }}
 
-        {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
+        {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") (eq .features.gatewayAPI.controller.provider "envoy-gateway") (eq .features.gatewayAPI.controller.provider "traefik") }}
         # Source 4b: TLS certificates (for HTTPS backend validation)
-        # Used by Istio and Envoy Gateway to validate NeuVector Manager TLS
+        # Used by Istio, Envoy Gateway, and Traefik to validate NeuVector Manager TLS
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/kustomize/certificates
@@ -363,8 +369,8 @@ spec:
               # Manager configuration (Web UI)
               manager:
                 enabled: true
-                {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
-                # Use cert-manager certificate for TLS (allows Istio/Envoy Gateway to validate)
+                {{- if or .features.serviceMesh.enabled (eq .features.gatewayAPI.controller.provider "istio") (eq .features.gatewayAPI.controller.provider "envoy-gateway") (eq .features.gatewayAPI.controller.provider "traefik") }}
+                # Use cert-manager certificate for TLS (allows Istio/Envoy Gateway/Traefik to validate)
                 certificate:
                   secret: neuvector-manager-tls-cert
                   keyFile: tls.key
