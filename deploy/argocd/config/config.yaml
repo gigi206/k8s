@@ -72,6 +72,9 @@ features:
   metallb:
     enabled: true  # Wave 10: LoadBalancer Layer 2
 
+  kataContainers:
+    enabled: false  # Wave 12: Secure container runtime (lightweight VMs)
+
   kubeVip:
     enabled: true  # Wave 15: VIP pour API Kubernetes HA
 
@@ -87,7 +90,7 @@ features:
 
   # === Configuration Reload ===
   reloader:
-    enabled: true  # Wave 25: Auto-reload pods on ConfigMap/Secret changes
+    enabled: false  # Wave 25: Auto-reload pods on ConfigMap/Secret changes
 
   # === DNS ===
   externalDns:
@@ -114,14 +117,14 @@ features:
     httpRoute:
       enabled: true  # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "envoy-gateway"  # Wave 41: istio, apisix, nginx-gwf, envoy-gateway, traefik
+      provider: "traefik"  # Wave 41: istio, apisix, nginx-gwf, envoy-gateway, traefik
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
       # - envoy-gateway: envoy-gateway-system
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
-      gatewayNamespace: "envoy-gateway-system"
+      gatewayNamespace: "traefik"
       # Gateway LoadBalancer IP (used for MetalLB pool and external-dns)
       loadBalancerIP: "192.168.121.210"
 
