@@ -479,6 +479,19 @@
       "packageNameTemplate": "tetragon",
       "datasourceTemplate": "helm",
       "registryUrlTemplate": "https://helm.cilium.io"
+    },
+    {
+      "customType": "regex",
+      "description": "Kata Containers Helm chart (OCI)",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kata-containers/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kataContainers:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "kata-deploy",
+      "packageNameTemplate": "ghcr.io/kata-containers/kata-deploy-charts/kata-deploy",
+      "datasourceTemplate": "docker"
     }
   ]
 }

@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# Kata Containers - Prod Environment Configuration
+# =============================================================================
+
+environment: prod
+appName: kata-containers
+
+kataContainers:
+  version: "3.25.0"
+  k8sDistribution: "rke2"
+  debug: false
+  createDefaultRuntimeClass: false
+  shims:
+    qemu:
+      enabled: true
+    clh:
+      enabled: true
+    fc:
+      enabled: false
+    dragonball:
+      enabled: true
+
+syncPolicy:
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

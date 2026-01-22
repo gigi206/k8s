@@ -384,6 +384,7 @@ FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enable
 FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
 FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled' 'true')
 FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.cilium.defaultDenyPodIngress.enabled' 'true')
+FEAT_KATA_CONTAINERS=$(get_feature '.features.kataContainers.enabled' 'false')
 
 log_debug "Feature flags lus:"
 log_debug "  metallb: $FEAT_METALLB"
@@ -407,6 +408,7 @@ log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
 log_debug "  cilium.ingressPolicy: $FEAT_CILIUM_INGRESS_POLICY"
+log_debug "  kataContainers: $FEAT_KATA_CONTAINERS"
 
 # =============================================================================
 # Résolution automatique des dépendances
@@ -622,6 +624,9 @@ APPLICATIONSETS=()
 
 # Wave 10: Load Balancer
 [[ "$FEAT_METALLB" == "true" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
+
+# Wave 12: Kata Containers (hardware isolation via micro-VMs)
+[[ "$FEAT_KATA_CONTAINERS" == "true" ]] && APPLICATIONSETS+=("apps/kata-containers/applicationset.yaml")
 
 # Wave 15: API HA + Gateway API CRDs
 [[ "$FEAT_KUBEVIP" == "true" ]] && APPLICATIONSETS+=("apps/kube-vip/applicationset.yaml")
