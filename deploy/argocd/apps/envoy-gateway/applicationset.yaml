@@ -64,28 +64,25 @@ spec:
 
   templatePatch: |
     spec:
-      # Ignore large CRDs to avoid "Too long" errors and conflicts with gateway-api-controller
+      # Ignore CRD annotations to avoid "Too long" errors (large last-applied-configuration)
       ignoreDifferences:
         # Gateway API CRDs - already managed by gateway-api-controller (Wave 15)
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           name: httproutes.gateway.networking.k8s.io
           jsonPointers:
-            - /metadata
-            - /spec
+            - /metadata/annotations
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           name: gateways.gateway.networking.k8s.io
           jsonPointers:
-            - /metadata
-            - /spec
+            - /metadata/annotations
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           name: grpcroutes.gateway.networking.k8s.io
           jsonPointers:
-            - /metadata
-            - /spec
-        # Envoy-specific CRDs - only ignore annotations (large last-applied-configuration)
+            - /metadata/annotations
+        # Envoy-specific CRDs
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           name: envoyproxies.gateway.envoyproxy.io
