@@ -625,9 +625,9 @@ APPLICATIONSETS=()
 
 # Wave 15: API HA + Gateway API CRDs
 [[ "$FEAT_KUBEVIP" == "true" ]] && APPLICATIONSETS+=("apps/kube-vip/applicationset.yaml")
-# gateway-api-controller installe les CRDs Gateway API, sauf si apisix ou traefik est le provider
-# (apisix et traefik incluent leurs propres CRDs Gateway API dans leur chart Helm)
-[[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "apisix" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "traefik" ]] && APPLICATIONSETS+=("apps/gateway-api-controller/applicationset.yaml")
+# gateway-api-controller installe les CRDs Gateway API, sauf si apisix, traefik ou envoy-gateway est le provider
+# (ces controllers incluent leurs propres CRDs Gateway API dans leur chart Helm)
+[[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "apisix" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "traefik" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "envoy-gateway" ]] && APPLICATIONSETS+=("apps/gateway-api-controller/applicationset.yaml")
 
 # Wave 20: Certificates
 [[ "$FEAT_CERT_MANAGER" == "true" ]] && APPLICATIONSETS+=("apps/cert-manager/applicationset.yaml")
