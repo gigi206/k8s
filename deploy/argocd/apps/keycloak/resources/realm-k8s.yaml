@@ -19,6 +19,10 @@ kind: KeycloakRealmImport
 metadata:
   name: k8s-realm
   namespace: keycloak
+  annotations:
+    # Sync after secrets (wave 0) to ensure keycloak-admin-credentials exists
+    # for placeholder substitution
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   keycloakCRName: keycloak
   realm:
