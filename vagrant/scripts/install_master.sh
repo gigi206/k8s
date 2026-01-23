@@ -9,6 +9,23 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 
 curl -sfL https://get.rke2.io | sh -
 mkdir -p /etc/rancher/rke2
+
+# Read CIS configuration from central config.yaml
+CONFIG_FILE="/vagrant/deploy/argocd/config/config.yaml"
+CIS_ENABLED=$(grep -A2 "^rke2:" "$CONFIG_FILE" | grep -A1 "cis:" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
+CIS_PROFILE=$(grep -A3 "^rke2:" "$CONFIG_FILE" | grep -A2 "cis:" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
+
+# CIS Hardening: Apply required kernel parameters if enabled
+# https://docs.rke2.io/security/hardening_guide
+if [ "$CIS_ENABLED" = "true" ]; then
+  echo "CIS Hardening enabled with profile: ${CIS_PROFILE:-cis}"
+  if [ -f /usr/local/share/rke2/rke2-cis-sysctl.conf ]; then
+    cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+  elif [ -f /usr/share/rke2/rke2-cis-sysctl.conf ]; then
+    cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
+  fi
+  systemctl restart systemd-sysctl
+fi
 # test -d /etc/sysconfig && CONFIG_PATH="/etc/sysconfig/rke2-server" || CONFIG_PATH="/etc/default/rke2-server"
 # echo "RKE2_CNI=calico" >> /usr/local/lib/systemd/system/rke2-server.env
 # echo "RKE2_CNI=calico" >> "${CONFIG_PATH}"
@@ -24,7 +41,6 @@ echo "disable:
 disable-kube-proxy: true
 # kube-controller-manager-arg:
 #   - feature-gates=TopologyAwareHints=true
-# profile: cis-1.23
 # cluster-cidr: 10.220.0.0/16
 # service-cidr: 10.221.0.0/16
 # node-label:
@@ -59,6 +75,11 @@ etcd-expose-metrics: true
 # etcd-s3-access-key: **************************
 # etcd-s3-secret-key: **************************" \
 >>/etc/rancher/rke2/config.yaml
+
+# Add CIS profile if enabled in config.yaml
+if [ "$CIS_ENABLED" = "true" ]; then
+  echo "profile: ${CIS_PROFILE:-cis}" >> /etc/rancher/rke2/config.yaml
+fi
 
 # echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
 # echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
