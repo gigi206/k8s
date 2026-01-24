@@ -1,0 +1,34 @@
+---
+# Kubescape exceptions for Rook-Ceph
+# Reason: CSI drivers and OSD pods require privileged access for disk operations
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rook-ceph-kubescape-exceptions
+  namespace: rook-ceph
+  labels:
+    custom-object: exceptions
+data:
+  exceptions.json: |
+    [
+      {
+        "name": "rook-ceph-osd-privileged",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "rook-ceph"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"},
+          {"controlID": "C-0017"},
+          {"controlID": "C-0016"},
+          {"controlID": "C-0055"},
+          {"controlID": "C-0086"},
+          {"controlID": "C-0057"},
+          {"controlID": "C-0046"}
+        ]
+      }
+    ]

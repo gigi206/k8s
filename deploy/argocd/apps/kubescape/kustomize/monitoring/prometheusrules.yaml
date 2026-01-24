@@ -1,0 +1,266 @@
+---
+# =============================================================================
+# Kubescape PrometheusRules - Security Scanning Alerts
+# =============================================================================
+# Alerts for Kubescape security scanning platform health and findings.
+# ServiceMonitor is created by the Kubescape Helm chart when enabled.
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubescape-prometheus-rules
+  namespace: kubescape
+  labels:
+    prometheus: kubescape
+    role: alert-rules
+spec:
+  groups:
+    # =========================================================================
+    # Component Health Alerts
+    # =========================================================================
+    - name: kubescape.health.rules
+      interval: 30s
+      rules:
+        - alert: KubescapeScannerDown
+          annotations:
+            description: |
+              Kubescape scanner deployment has no available replicas for 5 minutes.
+              Security configuration scanning is not operational.
+            summary: Kubescape scanner is down.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="kubescape",
+              namespace="kubescape"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: KubescapeOperatorDown
+          annotations:
+            description: |
+              Kubescape operator deployment has no available replicas for 5 minutes.
+              Scheduled scans and automation are not functioning.
+            summary: Kubescape operator is down.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="operator",
+              namespace="kubescape"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: KubescapeKubevulnDown
+          annotations:
+            description: |
+              Kubescape vulnerability scanner (kubevuln) has no available replicas.
+              Image vulnerability scanning is not operational.
+            summary: Kubescape vulnerability scanner is down.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="kubevuln",
+              namespace="kubescape"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: KubescapeStorageDown
+          annotations:
+            description: |
+              Kubescape storage service has no available replicas.
+              Scan results cannot be stored or retrieved.
+            summary: Kubescape storage is down.
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="storage",
+              namespace="kubescape"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+
+    # =========================================================================
+    # Node Agent (DaemonSet) Alerts
+    # =========================================================================
+    - name: kubescape.nodeagent.rules
+      interval: 30s
+      rules:
+        - alert: KubescapeNodeAgentDown
+          annotations:
+            description: |
+              {{ $value }} Kubescape node-agent pods are unavailable.
+              Some nodes lack runtime observability.
+            summary: Kubescape node-agent pods unavailable.
+          expr: |
+            kube_daemonset_status_number_unavailable{
+              daemonset="node-agent",
+              namespace="kubescape"
+            } > 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: KubescapeNodeAgentNotRunningOnAllNodes
+          annotations:
+            description: |
+              {{ $value }} nodes are missing Kubescape node-agent.
+              Runtime observability and SBOM generation is incomplete.
+            summary: Kubescape node-agent not running on all nodes.
+          expr: |
+            kube_daemonset_status_desired_number_scheduled{
+              daemonset="node-agent",
+              namespace="kubescape"
+            }
+            -
+            kube_daemonset_status_number_ready{
+              daemonset="node-agent",
+              namespace="kubescape"
+            } > 0
+          for: 15m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Pod Health Alerts
+    # =========================================================================
+    - name: kubescape.pods.rules
+      interval: 30s
+      rules:
+        - alert: KubescapePodCrashLooping
+          annotations:
+            description: |
+              Kubescape pod {{ $labels.pod }} has been restarting frequently.
+              Check pod logs for errors.
+            summary: Kubescape pod is crash looping.
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"kubescape.*|operator.*|kubevuln.*|storage.*|node-agent.*|synchronizer.*",
+              namespace="kubescape"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: KubescapePodNotReady
+          annotations:
+            description: |
+              Kubescape pod {{ $labels.pod }} is not ready.
+              The container may be failing health checks.
+            summary: Kubescape pod is not ready.
+          expr: |
+            kube_pod_status_ready{
+              pod=~"kubescape.*|operator.*|kubevuln.*|storage.*|synchronizer.*",
+              namespace="kubescape",
+              condition="true"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Resource Alerts
+    # =========================================================================
+    - name: kubescape.resources.rules
+      interval: 60s
+      rules:
+        - alert: KubescapeKubevulnHighMemory
+          annotations:
+            description: |
+              Kubescape kubevuln memory usage is above 85% ({{ $value | printf "%.1f" }}%).
+              Risk of OOMKill during large image scans.
+            summary: Kubescape kubevuln high memory usage.
+          expr: |
+            (
+              sum(container_memory_working_set_bytes{
+                pod=~"kubevuln.*",
+                namespace="kubescape",
+                container!=""
+              }) by (pod)
+              /
+              sum(kube_pod_container_resource_limits{
+                pod=~"kubevuln.*",
+                namespace="kubescape",
+                resource="memory"
+              }) by (pod)
+            ) * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+
+        - alert: KubescapeStorageHighMemory
+          annotations:
+            description: |
+              Kubescape storage memory usage is above 85% ({{ $value | printf "%.1f" }}%).
+              Risk of OOMKill affecting scan result storage.
+            summary: Kubescape storage high memory usage.
+          expr: |
+            (
+              sum(container_memory_working_set_bytes{
+                pod=~"storage.*",
+                namespace="kubescape",
+                container!=""
+              }) by (pod)
+              /
+              sum(kube_pod_container_resource_limits{
+                pod=~"storage.*",
+                namespace="kubescape",
+                resource="memory"
+              }) by (pod)
+            ) * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+
+    # =========================================================================
+    # Scan Results Alerts (if Prometheus exporter metrics available)
+    # =========================================================================
+    - name: kubescape.scans.rules
+      interval: 300s
+      rules:
+        - alert: KubescapeScanJobFailed
+          annotations:
+            description: |
+              Kubescape scheduled scan job has failed.
+              Check CronJob logs for details.
+            summary: Kubescape scan job failed.
+          expr: |
+            kube_job_status_failed{
+              job_name=~"kubescape-scheduler.*|kubevuln-scheduler.*",
+              namespace="kubescape"
+            } > 0
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: KubescapeNoRecentConfigScan
+          annotations:
+            description: |
+              No Kubescape configuration scan has completed in the last 26 hours.
+              Scheduled scanning may be failing.
+            summary: No recent Kubescape configuration scan.
+          expr: |
+            time() - max(kube_job_status_completion_time{
+              job_name=~"kubescape-scheduler.*",
+              namespace="kubescape"
+            }) > 93600
+          for: 1h
+          labels:
+            severity: warning
+
+        - alert: KubescapeNoRecentVulnScan
+          annotations:
+            description: |
+              No Kubescape vulnerability scan has completed in the last 26 hours.
+              Scheduled vulnerability scanning may be failing.
+            summary: No recent Kubescape vulnerability scan.
+          expr: |
+            time() - max(kube_job_status_completion_time{
+              job_name=~"kubevuln-scheduler.*",
+              namespace="kubescape"
+            }) > 93600
+          for: 1h
+          labels:
+            severity: warning

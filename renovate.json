@@ -504,6 +504,20 @@
       "depNameTemplate": "kata-deploy",
       "packageNameTemplate": "ghcr.io/kata-containers/kata-deploy-charts/kata-deploy",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Kubescape Operator Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kubescape/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kubescape:\\s*\\n\\s*#[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "kubescape-operator",
+      "packageNameTemplate": "kubescape-operator",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://kubescape.github.io/helm-charts"
     }
   ]
 }

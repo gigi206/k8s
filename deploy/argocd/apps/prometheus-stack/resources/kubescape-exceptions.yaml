@@ -1,0 +1,50 @@
+---
+# Kubescape exceptions for prometheus-stack
+# Reason: node-exporter requires hostNetwork, hostPID, hostPath for node metrics collection
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-stack-kubescape-exceptions
+  namespace: monitoring
+  labels:
+    custom-object: exceptions
+data:
+  exceptions.json: |
+    [
+      {
+        "name": "prometheus-stack-node-exporter",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "monitoring",
+            "kind": "DaemonSet",
+            "name": "prometheus-stack-prometheus-node-exporter"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"},
+          {"controlID": "C-0017"},
+          {"controlID": "C-0016"},
+          {"controlID": "C-0055"},
+          {"controlID": "C-0086"}
+        ]
+      },
+      {
+        "name": "prometheus-stack-kube-state-metrics",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "monitoring",
+            "kind": "Deployment",
+            "name": "prometheus-stack-kube-state-metrics"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"}
+        ]
+      }
+    ]

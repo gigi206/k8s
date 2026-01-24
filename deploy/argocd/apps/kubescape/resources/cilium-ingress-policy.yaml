@@ -1,0 +1,59 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kubescape Internal Ingress
+# =============================================================================
+# Allows incoming traffic to Kubescape pods:
+# - Prometheus scraping (monitoring namespace)
+# - Inter-component communication
+#
+# Required when features.cilium.defaultDenyPodIngress.enabled = true
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kubescape-allow-internal-ingress
+  namespace: kubescape
+spec:
+  description: "Allow ingress to Kubescape from monitoring and internal components"
+
+  # Apply to all pods in kubescape namespace
+  endpointSelector: {}
+
+  ingress:
+    # Allow Prometheus to scrape metrics
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8080"    # Kubescape metrics
+              protocol: TCP
+            - port: "8000"    # Node agent metrics
+              protocol: TCP
+
+    # Allow internal Kubescape communication
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kubescape
+      toPorts:
+        - ports:
+            - port: "8080"    # Kubescape HTTP
+              protocol: TCP
+            - port: "8443"    # Storage HTTPS
+              protocol: TCP
+            - port: "4002"    # Operator
+              protocol: TCP
+            - port: "8089"    # Synchronizer
+              protocol: TCP
+            - port: "8000"    # Node agent metrics
+              protocol: TCP
+
+    # Allow kube-system for API server communication (webhooks)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "8443"    # Admission controller webhook
+              protocol: TCP

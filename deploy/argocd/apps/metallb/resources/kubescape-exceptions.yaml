@@ -1,0 +1,48 @@
+---
+# Kubescape exceptions for MetalLB
+# Reason: speaker requires NET_RAW capability for ARP announcements (Layer 2 mode)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metallb-kubescape-exceptions
+  namespace: metallb-system
+  labels:
+    custom-object: exceptions
+data:
+  exceptions.json: |
+    [
+      {
+        "name": "metallb-speaker-net-raw",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "metallb-system",
+            "kind": "DaemonSet",
+            "name": "metallb-speaker"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"},
+          {"controlID": "C-0016"},
+          {"controlID": "C-0046"}
+        ]
+      },
+      {
+        "name": "metallb-controller",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "metallb-system",
+            "kind": "Deployment",
+            "name": "metallb-controller"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"}
+        ]
+      }
+    ]

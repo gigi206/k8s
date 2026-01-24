@@ -115,6 +115,14 @@ spec:
           directory:
             include: "namespace.yaml"
         {{- end }}
+        {{- if .features.kubescape.enabled }}
+        # Source: Kubescape exceptions for CSI privileged disk access
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/resources
+          directory:
+            include: "kubescape-exceptions.yaml"
+        {{- end }}
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
         # Source: Cilium policy for internal Rook traffic (required for pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s

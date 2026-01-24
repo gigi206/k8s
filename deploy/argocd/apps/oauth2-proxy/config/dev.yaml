@@ -21,6 +21,11 @@ oauth2Proxy:
       cpu: "100m"
       memory: "128Mi"
 
+  # Security hardening (CIS/NSA compliance)
+  serviceAccount:
+    # Disable SA token automount - oauth2-proxy doesn't need K8s API access
+    automountServiceAccountToken: false
+
 syncPolicy:
   automated:
     enabled: true

@@ -1,0 +1,51 @@
+---
+# Kubescape exceptions for Kubescape itself
+# Reason: node-agent requires eBPF kernel access for runtime observability
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubescape-kubescape-exceptions
+  namespace: kubescape
+  labels:
+    custom-object: exceptions
+data:
+  exceptions.json: |
+    [
+      {
+        "name": "kubescape-node-agent-ebpf",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "kubescape",
+            "kind": "DaemonSet",
+            "name": "node-agent"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"},
+          {"controlID": "C-0017"},
+          {"controlID": "C-0016"},
+          {"controlID": "C-0055"},
+          {"controlID": "C-0086"},
+          {"controlID": "C-0057"}
+        ]
+      },
+      {
+        "name": "kubescape-storage",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "kubescape",
+            "kind": "StatefulSet",
+            "name": "kubescape"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"}
+        ]
+      }
+    ]

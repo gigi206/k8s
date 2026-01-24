@@ -1,0 +1,32 @@
+---
+# Kubescape exceptions for Grafana Alloy
+# Reason: log collector requires hostPath access to /var/log for log collection
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-kubescape-exceptions
+  namespace: alloy
+  labels:
+    custom-object: exceptions
+data:
+  exceptions.json: |
+    [
+      {
+        "name": "alloy-log-collector",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "alloy",
+            "kind": "DaemonSet",
+            "name": "alloy"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"},
+          {"controlID": "C-0017"},
+          {"controlID": "C-0086"}
+        ]
+      }
+    ]

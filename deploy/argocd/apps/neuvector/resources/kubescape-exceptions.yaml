@@ -1,0 +1,69 @@
+---
+# Kubescape exceptions for NeuVector
+# Reason: enforcer requires privileged access for container runtime inspection and network policies
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neuvector-kubescape-exceptions
+  namespace: neuvector
+  labels:
+    custom-object: exceptions
+data:
+  exceptions.json: |
+    [
+      {
+        "name": "neuvector-enforcer-privileged",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "neuvector",
+            "kind": "DaemonSet",
+            "name": "neuvector-enforcer-pod"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"},
+          {"controlID": "C-0017"},
+          {"controlID": "C-0016"},
+          {"controlID": "C-0055"},
+          {"controlID": "C-0086"},
+          {"controlID": "C-0057"},
+          {"controlID": "C-0046"}
+        ]
+      },
+      {
+        "name": "neuvector-controller",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "neuvector",
+            "kind": "Deployment",
+            "name": "neuvector-controller-pod"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"},
+          {"controlID": "C-0017"}
+        ]
+      },
+      {
+        "name": "neuvector-scanner",
+        "policyType": "postureExceptionPolicy",
+        "actions": ["alertOnly"],
+        "resources": [{
+          "designatorType": "Attributes",
+          "attributes": {
+            "namespace": "neuvector",
+            "kind": "Deployment",
+            "name": "neuvector-scanner-pod"
+          }
+        }],
+        "posturePolicies": [
+          {"controlID": "C-0034"}
+        ]
+      }
+    ]
