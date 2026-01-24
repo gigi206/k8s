@@ -202,6 +202,9 @@ features:
     enabled: true  # Wave 81: OAuth2 Proxy pour authentification OIDC
 
   # === Container Security ===
+  kubescape:
+    enabled: true   # Wave 78: Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
+
   neuvector:
     enabled: false  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
 

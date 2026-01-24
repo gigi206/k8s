@@ -1,0 +1,226 @@
+---
+# =============================================================================
+# Kubescape ApplicationSet - Wave 78 (Kubernetes Security Scanning)
+# =============================================================================
+# Deploys Kubescape operator for comprehensive Kubernetes security:
+# - Configuration scanning (CIS, NSA, MITRE benchmarks)
+# - Vulnerability scanning (CVE detection)
+# - Runtime observability and detection
+# - Network policy generation
+# - SBOM generation
+# Docs: https://kubescape.io/docs/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: kubescape
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "78"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/kubescape/config/*.yaml
+
+  template:
+    metadata:
+      name: kubescape
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "78"
+    spec:
+      project: default
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: kubescape
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.cilium.egressPolicy.enabled }}
+        # Source: Cilium egress policy - allows external access for CVE DB updates
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kubescape/resources
+          directory:
+            include: "cilium-egress-policy.yaml"
+        {{- end }}
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Source: Cilium internal ingress policy (monitoring, kubescape namespace)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kubescape/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kubescape/resources
+          directory:
+            include: "namespace.yaml"
+        {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source: PrometheusRules for alerting
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kubescape/kustomize/monitoring
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}
+
+        # Source: Kubescape Operator Helm chart
+        - repoURL: https://kubescape.github.io/helm-charts/
+          targetRevision: '{{ .kubescape.version }}'
+          chart: kubescape-operator
+          helm:
+            valuesObject:
+              # Cluster identification
+              clusterName: '{{ .kubescape.clusterName }}'
+
+              # Namespace configuration
+              ksNamespace: kubescape
+
+              # Namespace exclusions
+              excludeNamespaces: '{{ .kubescape.excludeNamespaces }}'
+
+              # Capabilities
+              capabilities:
+                # Configuration scanning
+                configurationScan: '{{ .kubescape.capabilities.configurationScan }}'
+                continuousScan: '{{ .kubescape.capabilities.continuousScan }}'
+                nodeScan: '{{ .kubescape.capabilities.nodeScan }}'
+                # Vulnerability scanning
+                vulnerabilityScan: '{{ .kubescape.capabilities.vulnerabilityScan }}'
+                relevancy: '{{ .kubescape.capabilities.relevancy }}'
+                nodeSbomGeneration: '{{ .kubescape.capabilities.nodeSbomGeneration }}'
+                # Runtime capabilities
+                runtimeObservability: '{{ .kubescape.capabilities.runtimeObservability }}'
+                networkPolicyService: '{{ .kubescape.capabilities.networkPolicyService }}'
+                admissionController: '{{ .kubescape.capabilities.admissionController }}'
+                seccompProfileService: '{{ .kubescape.capabilities.seccompProfileService }}'
+                runtimeDetection: '{{ .kubescape.capabilities.runtimeDetection }}'
+                malwareDetection: '{{ .kubescape.capabilities.malwareDetection }}'
+                # Prometheus
+                prometheusExporter: '{{ .kubescape.capabilities.prometheusExporter }}'
+
+              # Persistence configuration
+              persistence:
+                storageClass: '{{ .kubescape.persistence.storageClass }}'
+                size:
+                  backingStorage: '{{ .kubescape.persistence.backingStorageSize }}'
+                  kubevuln: '{{ .kubescape.persistence.kubevulnSize }}'
+
+              # Kubescape scanner resources
+              kubescape:
+                resources:
+                  requests:
+                    cpu: '{{ .kubescape.kubescape.resources.requests.cpu }}'
+                    memory: '{{ .kubescape.kubescape.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kubescape.kubescape.resources.limits.cpu }}'
+                    memory: '{{ .kubescape.kubescape.resources.limits.memory }}'
+                {{- if .features.monitoring.enabled }}
+                serviceMonitor:
+                  enabled: true
+                  interval: '{{ .kubescape.serviceMonitor.interval }}'
+                  scrapeTimeout: '{{ .kubescape.serviceMonitor.scrapeTimeout }}'
+                  additionalLabels:
+                    release: '{{ .features.monitoring.release }}'
+                {{- end }}
+
+              # Operator resources
+              operator:
+                resources:
+                  requests:
+                    cpu: '{{ .kubescape.operator.resources.requests.cpu }}'
+                    memory: '{{ .kubescape.operator.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kubescape.operator.resources.limits.cpu }}'
+                    memory: '{{ .kubescape.operator.resources.limits.memory }}'
+
+              # Kubevuln (vulnerability scanner) resources
+              kubevuln:
+                resources:
+                  requests:
+                    cpu: '{{ .kubescape.kubevuln.resources.requests.cpu }}'
+                    memory: '{{ .kubescape.kubevuln.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kubescape.kubevuln.resources.limits.cpu }}'
+                    memory: '{{ .kubescape.kubevuln.resources.limits.memory }}'
+
+              # Storage resources
+              storage:
+                resources:
+                  requests:
+                    cpu: '{{ .kubescape.storage.resources.requests.cpu }}'
+                    memory: '{{ .kubescape.storage.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kubescape.storage.resources.limits.cpu }}'
+                    memory: '{{ .kubescape.storage.resources.limits.memory }}'
+
+              # Node agent resources (DaemonSet)
+              nodeAgent:
+                resources:
+                  requests:
+                    cpu: '{{ .kubescape.nodeAgent.resources.requests.cpu }}'
+                    memory: '{{ .kubescape.nodeAgent.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kubescape.nodeAgent.resources.limits.cpu }}'
+                    memory: '{{ .kubescape.nodeAgent.resources.limits.memory }}'
+                {{- if .features.monitoring.enabled }}
+                serviceMonitor:
+                  enabled: true
+                  interval: 30s
+                  scrapeTimeout: 15s
+                  additionalLabels:
+                    release: '{{ .features.monitoring.release }}'
+                {{- end }}
+
+              # Scan schedulers
+              kubescapeScheduler:
+                scanSchedule: '{{ .kubescape.scheduler.configScan }}'
+
+              kubevulnScheduler:
+                scanSchedule: '{{ .kubescape.scheduler.vulnScan }}'
+
+              registryScanScheduler:
+                scanSchedule: '{{ .kubescape.scheduler.registryScan }}'

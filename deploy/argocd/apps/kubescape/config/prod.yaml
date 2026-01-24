@@ -1,0 +1,109 @@
+---
+# Configuration Kubescape - Prod
+environment: prod
+appName: kubescape
+
+kubescape:
+  # Helm chart version (kubescape-operator)
+  version: "1.30.2"
+
+  # Cluster name for identification
+  clusterName: "prod-cluster"
+
+  # Capabilities - what features to enable
+  capabilities:
+    # Configuration scanning
+    configurationScan: enable
+    continuousScan: enable       # Continuous posture evaluation
+    nodeScan: enable             # Node configuration scanning
+
+    # Vulnerability scanning
+    vulnerabilityScan: enable
+    relevancy: enable            # Runtime relevancy analysis
+    nodeSbomGeneration: enable   # SBOM generation on nodes
+
+    # Runtime capabilities
+    runtimeObservability: enable
+    networkPolicyService: enable
+    admissionController: enable
+    seccompProfileService: enable
+
+    # Production - enable advanced security features
+    runtimeDetection: enable     # eBPF-based runtime threat detection
+    malwareDetection: disable    # Keep disabled unless needed (high resource usage)
+
+    # Prometheus integration
+    prometheusExporter: enable
+
+  # Scanning schedules (cron format)
+  scheduler:
+    configScan: "0 2 * * *"      # Daily at 2 AM UTC
+    vulnScan: "0 3 * * *"        # Daily at 3 AM UTC
+    registryScan: "0 4 * * *"    # Daily at 4 AM
+
+  # Namespace exclusions (comma-separated)
+  excludeNamespaces: "kubescape,kube-system,kube-public,kube-node-lease"
+
+  # Storage configuration
+  persistence:
+    storageClass: "-"            # Use default storage class
+    backingStorageSize: "10Gi"
+    kubevulnSize: "10Gi"
+
+  # Component resources (production sizing)
+  kubescape:
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "400Mi"
+      limits:
+        cpu: "600m"
+        memory: "1Gi"
+
+  operator:
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "100Mi"
+      limits:
+        cpu: "300m"
+        memory: "300Mi"
+
+  kubevuln:
+    resources:
+      requests:
+        cpu: "300m"
+        memory: "1Gi"
+      limits:
+        cpu: "1500m"
+        memory: "5Gi"
+
+  storage:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "400Mi"
+      limits:
+        cpu: "1500m"
+        memory: "1500Mi"
+
+  nodeAgent:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "180Mi"
+      limits:
+        cpu: "500m"
+        memory: "1400Mi"
+
+  # ServiceMonitor configuration
+  serviceMonitor:
+    enabled: true
+    interval: "200s"
+    scrapeTimeout: "150s"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false
