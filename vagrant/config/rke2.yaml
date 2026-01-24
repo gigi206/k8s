@@ -1,0 +1,30 @@
+# RKE2 Cluster Configuration
+# This file is read by install_master.sh and install_worker.sh
+
+rke2:
+  cis:
+    enabled: true       # Enable CIS benchmark hardening
+    profile: "cis"      # Generic profile (auto-adapts to K8s version)
+                        # Alternatives: cis-1.8 (K8s 1.26), cis-1.9 (K8s 1.27-1.28), cis-1.11 (K8s 1.29+)
+                        # Note: cis-1.23 is OBSOLETE (PSP removed since K8s 1.25)
+    hardening:
+      # Admission plugins (K.1.2.3, K.1.2.9)
+      admissionPlugins:
+        denyServiceExternalIPs: true    # K.1.2.3 - Block ExternalIP hijacking attacks
+        eventRateLimit: true            # K.1.2.9 - Limit API event flooding
+        alwaysPullImages: false         # DISABLED - Breaks air-gapped/offline clusters
+      # kube-apiserver args (K.1.2.21, K.1.2.22)
+      apiServer:
+        requestTimeout: "60s"           # K.1.2.21 - Limit request processing time
+        serviceAccountLookup: true      # K.1.2.22 - Validate service account tokens
+      # kubelet args (K.4.2.1, K.4.2.6, K.4.2.8, K.4.2.13)
+      kubelet:
+        anonymousAuth: false            # K.4.2.1 - Disable anonymous authentication
+        makeIptablesUtilChains: true    # K.4.2.6 - Allow kubelet to manage iptables
+        eventQps: 5                     # K.4.2.8 - Limit kubelet event rate
+        podMaxPids: 4096                # K.4.2.13 - Limit PIDs per pod (DoS protection)
+        protectKernelDefaults: true     # K.4.2.11 - Protect kernel tunable parameters
+      # File permissions fixes (K.1.1.12, K.1.1.20)
+      filePermissions:
+        fixEtcdOwnership: true          # K.1.1.12 - chown etcd:etcd on etcd data
+        fixPkiPermissions: true         # K.1.1.20 - chmod 600 on PKI private keys

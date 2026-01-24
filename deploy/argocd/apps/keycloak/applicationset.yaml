@@ -97,6 +97,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "namespace.yaml"
+        {{- end }}
         # Source 1: Keycloak Operator (CRDs + Deployment) - repo officiel
         - repoURL: https://github.com/keycloak/keycloak-k8s-resources
           targetRevision: '{{ .keycloak.operatorVersion }}'

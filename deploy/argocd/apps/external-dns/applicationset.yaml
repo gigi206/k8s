@@ -158,6 +158,12 @@ spec:
                   securityContext:
                     runAsNonRoot: true
                     runAsUser: 65534
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop: ["ALL"]
+                    seccompProfile:
+                      type: RuntimeDefault
         # CoreDNS server
         - repoURL: https://coredns.github.io/helm
           targetRevision: '{{ .externalDns.coredns.version }}'
@@ -169,6 +175,19 @@ spec:
               rbac:
                 create: true
               isClusterService: false
+              # PSA restricted compatibility
+              podSecurityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                fsGroup: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
               {{- if .features.externalDns.loadBalancerIP }}
               service:
                 loadBalancerIP: '{{ .features.externalDns.loadBalancerIP }}'
@@ -229,6 +248,19 @@ spec:
             valuesObject:
               fullnameOverride: external-dns-etcd
               replicaCount: {{ .externalDns.etcd.replicas | default 1 }}
+              # PSA restricted compatibility
+              podSecurityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                fsGroup: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              containerSecurityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: false
               {{- if .externalDns.etcd.tls.enabled }}
               # mTLS configuration (CloudPirates etcd chart structure)
               auth:

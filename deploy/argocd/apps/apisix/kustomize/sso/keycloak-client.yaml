@@ -21,9 +21,21 @@ spec:
         app: apisix-dashboard-keycloak-client
     spec:
       restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: create-client
           image: curlimages/curl:8.17.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: DOMAIN
               value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain

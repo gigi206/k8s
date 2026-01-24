@@ -130,12 +130,14 @@ spec:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- end }}
         {{- end }}
-        # Source 1: Namespace (always deployed)
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/resources
           directory:
             include: "namespace.yaml"
+        {{- end }}
         # Source: RBAC workaround for cert-manager mode
         # Bug: chart only creates 'neuvector-binding-secret-controller' when autoGenerateCert=true
         # But controller always verifies it exists, causing startup failure

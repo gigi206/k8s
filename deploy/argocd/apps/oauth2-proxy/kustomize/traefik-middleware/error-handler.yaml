@@ -18,10 +18,18 @@ metadata:
   namespace: oauth2-proxy
 data:
   nginx.conf: |
+    # Run as non-root (PSA restricted compatibility)
+    pid /tmp/nginx.pid;
     events {
       worker_connections 1024;
     }
     http {
+      # Use /tmp for temporary files (non-root writable)
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
       server {
         listen 8080;
 
@@ -96,11 +104,25 @@ spec:
       labels:
         app: oauth2-auth-redirect
     spec:
+      # PSA restricted compatibility
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: nginx
-        image: nginx:alpine
+        image: nginxinc/nginx-unprivileged:alpine3.22
         ports:
         - containerPort: 8080
+        # PSA restricted compatibility
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: false
         volumeMounts:
         - name: config
           mountPath: /etc/nginx/nginx.conf

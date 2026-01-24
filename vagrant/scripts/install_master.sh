@@ -10,21 +10,56 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 curl -sfL https://get.rke2.io | sh -
 mkdir -p /etc/rancher/rke2
 
-# Read CIS configuration from central config.yaml
-CONFIG_FILE="/vagrant/deploy/argocd/config/config.yaml"
-CIS_ENABLED=$(grep -A2 "^rke2:" "$CONFIG_FILE" | grep -A1 "cis:" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
-CIS_PROFILE=$(grep -A3 "^rke2:" "$CONFIG_FILE" | grep -A2 "cis:" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
+# Read CIS configuration from vagrant/config/rke2.yaml (structure: rke2.cis.enabled/profile)
+CONFIG_FILE="/vagrant/config/rke2.yaml"
+CIS_ENABLED=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
+CIS_PROFILE=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
 
-# CIS Hardening: Apply required kernel parameters if enabled
+# CIS Hardening: Apply required kernel parameters and create etcd user if enabled
 # https://docs.rke2.io/security/hardening_guide
 if [ "$CIS_ENABLED" = "true" ]; then
   echo "CIS Hardening enabled with profile: ${CIS_PROFILE:-cis}"
+
+  # Create etcd user/group (required by CIS profile)
+  if ! id etcd &>/dev/null; then
+    useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
+  fi
+
+  # Apply CIS sysctl parameters
   if [ -f /usr/local/share/rke2/rke2-cis-sysctl.conf ]; then
     cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
   elif [ -f /usr/share/rke2/rke2-cis-sysctl.conf ]; then
     cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
   fi
   systemctl restart systemd-sysctl
+
+  # Read CIS hardening options from config (with defaults)
+  DENY_SERVICE_EXTERNAL_IPS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "denyServiceExternalIPs:" | awk '{print $2}' | tr -d ' ')
+  EVENT_RATE_LIMIT=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "eventRateLimit:" | awk '{print $2}' | tr -d ' ')
+  ALWAYS_PULL_IMAGES=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "alwaysPullImages:" | awk '{print $2}' | tr -d ' ')
+  REQUEST_TIMEOUT=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "requestTimeout:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
+  SERVICE_ACCOUNT_LOOKUP=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "serviceAccountLookup:" | awk '{print $2}' | tr -d ' ')
+  EVENT_QPS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "eventQps:" | awk '{print $2}' | tr -d ' ')
+  POD_MAX_PIDS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "podMaxPids:" | awk '{print $2}' | tr -d ' ')
+  ANONYMOUS_AUTH=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "anonymousAuth:" | awk '{print $2}' | tr -d ' ')
+  MAKE_IPTABLES_UTIL_CHAINS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "makeIptablesUtilChains:" | awk '{print $2}' | tr -d ' ')
+  PROTECT_KERNEL_DEFAULTS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "protectKernelDefaults:" | awk '{print $2}' | tr -d ' ')
+  FIX_ETCD_OWNERSHIP=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "fixEtcdOwnership:" | awk '{print $2}' | tr -d ' ')
+  FIX_PKI_PERMISSIONS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "fixPkiPermissions:" | awk '{print $2}' | tr -d ' ')
+
+  # Set defaults if not specified
+  DENY_SERVICE_EXTERNAL_IPS=${DENY_SERVICE_EXTERNAL_IPS:-true}
+  EVENT_RATE_LIMIT=${EVENT_RATE_LIMIT:-true}
+  ALWAYS_PULL_IMAGES=${ALWAYS_PULL_IMAGES:-false}
+  REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-60s}
+  SERVICE_ACCOUNT_LOOKUP=${SERVICE_ACCOUNT_LOOKUP:-true}
+  EVENT_QPS=${EVENT_QPS:-5}
+  POD_MAX_PIDS=${POD_MAX_PIDS:-4096}
+  ANONYMOUS_AUTH=${ANONYMOUS_AUTH:-false}
+  MAKE_IPTABLES_UTIL_CHAINS=${MAKE_IPTABLES_UTIL_CHAINS:-true}
+  PROTECT_KERNEL_DEFAULTS=${PROTECT_KERNEL_DEFAULTS:-true}
+  FIX_ETCD_OWNERSHIP=${FIX_ETCD_OWNERSHIP:-true}
+  FIX_PKI_PERMISSIONS=${FIX_PKI_PERMISSIONS:-true}
 fi
 # test -d /etc/sysconfig && CONFIG_PATH="/etc/sysconfig/rke2-server" || CONFIG_PATH="/etc/default/rke2-server"
 # echo "RKE2_CNI=calico" >> /usr/local/lib/systemd/system/rke2-server.env
@@ -79,6 +114,80 @@ etcd-expose-metrics: true
 # Add CIS profile if enabled in config.yaml
 if [ "$CIS_ENABLED" = "true" ]; then
   echo "profile: ${CIS_PROFILE:-cis}" >> /etc/rancher/rke2/config.yaml
+
+  # Build admission plugins list (K.1.2.3, K.1.2.9)
+  # RKE2 CIS profile adds --enable-admission-plugins=NodeRestriction
+  # Since kube-apiserver takes only the LAST value when flag is repeated,
+  # we must include NodeRestriction in our list to avoid overwriting it
+  ADMISSION_PLUGINS="NodeRestriction"
+  if [ "$DENY_SERVICE_EXTERNAL_IPS" = "true" ]; then
+    ADMISSION_PLUGINS="${ADMISSION_PLUGINS},DenyServiceExternalIPs"
+  fi
+  if [ "$EVENT_RATE_LIMIT" = "true" ]; then
+    ADMISSION_PLUGINS="${ADMISSION_PLUGINS},EventRateLimit"
+  fi
+  if [ "$ALWAYS_PULL_IMAGES" = "true" ]; then
+    ADMISSION_PLUGINS="${ADMISSION_PLUGINS},AlwaysPullImages"
+  fi
+
+  # Add kube-apiserver args for CIS hardening
+  # Note: RKE2 CIS profile adds --admission-control-config-file=/etc/rancher/rke2/rke2-pss.yaml
+  # When EventRateLimit is enabled, we use our own config file (kube-apiserver uses the LAST value)
+  echo "kube-apiserver-arg:" >> /etc/rancher/rke2/config.yaml
+  echo "- enable-admission-plugins=$ADMISSION_PLUGINS" >> /etc/rancher/rke2/config.yaml
+  echo "- request-timeout=$REQUEST_TIMEOUT" >> /etc/rancher/rke2/config.yaml
+  echo "- service-account-lookup=$SERVICE_ACCOUNT_LOOKUP" >> /etc/rancher/rke2/config.yaml
+
+  # EventRateLimit requires admission control config
+  # Create our own file (not rke2-pss.yaml which RKE2 overwrites) with PodSecurity + EventRateLimit
+  # kube-apiserver uses the LAST --admission-control-config-file argument, so ours takes precedence
+  if [ "$EVENT_RATE_LIMIT" = "true" ]; then
+    ADMISSION_CONFIG_FILE="/etc/rancher/rke2/admission-control-config.yaml"
+    echo "- admission-control-config-file=$ADMISSION_CONFIG_FILE" >> /etc/rancher/rke2/config.yaml
+
+    # Create combined admission config with PodSecurity + EventRateLimit
+    cat > "$ADMISSION_CONFIG_FILE" <<'ADMISSIONEOF'
+apiVersion: apiserver.config.k8s.io/v1
+kind: AdmissionConfiguration
+plugins:
+- name: PodSecurity
+  configuration:
+    apiVersion: pod-security.admission.config.k8s.io/v1
+    kind: PodSecurityConfiguration
+    defaults:
+      enforce: "restricted"
+      enforce-version: "latest"
+      audit: "restricted"
+      audit-version: "latest"
+      warn: "restricted"
+      warn-version: "latest"
+    exemptions:
+      usernames: []
+      runtimeClasses: []
+      namespaces: [kube-system, cis-operator-system, tigera-operator]
+- name: EventRateLimit
+  configuration:
+    apiVersion: eventratelimit.admission.k8s.io/v1alpha1
+    kind: Configuration
+    limits:
+    - type: Namespace
+      qps: 50
+      burst: 100
+      cacheSize: 2000
+    - type: User
+      qps: 10
+      burst: 50
+ADMISSIONEOF
+    echo "Created admission config with EventRateLimit: $ADMISSION_CONFIG_FILE"
+  fi
+
+  # Add kubelet args for CIS hardening (K.4.2.1, K.4.2.6, K.4.2.8, K.4.2.11, K.4.2.13)
+  echo "kubelet-arg:" >> /etc/rancher/rke2/config.yaml
+  echo "- anonymous-auth=$ANONYMOUS_AUTH" >> /etc/rancher/rke2/config.yaml
+  echo "- make-iptables-util-chains=$MAKE_IPTABLES_UTIL_CHAINS" >> /etc/rancher/rke2/config.yaml
+  echo "- event-qps=$EVENT_QPS" >> /etc/rancher/rke2/config.yaml
+  echo "- pod-max-pids=$POD_MAX_PIDS" >> /etc/rancher/rke2/config.yaml
+  echo "- protect-kernel-defaults=$PROTECT_KERNEL_DEFAULTS" >> /etc/rancher/rke2/config.yaml
 fi
 
 # echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
@@ -90,6 +199,69 @@ fi
 /vagrant/scripts/configure_cilium.sh
 
 systemctl enable --now rke2-server.service
+
+# CIS File Permissions Fixes (K.1.1.12, K.1.1.20)
+# These must run after RKE2 creates the directories
+if [ "$CIS_ENABLED" = "true" ]; then
+  # Create permission fix script
+  cat > /usr/local/bin/rke2-cis-permissions.sh <<'PERMSCRIPT'
+#!/bin/bash
+# RKE2 CIS Permissions Fix Script
+# Fixes K.1.1.12 (etcd ownership) and K.1.1.20 (PKI permissions)
+
+# K.1.1.12 - Fix etcd data directory ownership
+ETCD_DIR="/var/lib/rancher/rke2/server/db/etcd"
+if [ -d "$ETCD_DIR" ]; then
+  chown -R etcd:etcd "$ETCD_DIR"
+  echo "Fixed etcd ownership: $ETCD_DIR"
+fi
+
+# K.1.1.20 - Fix PKI private key permissions (600 instead of 644)
+TLS_DIR="/var/lib/rancher/rke2/server/tls"
+if [ -d "$TLS_DIR" ]; then
+  find "$TLS_DIR" -name "*.key" -exec chmod 600 {} \;
+  echo "Fixed PKI key permissions in: $TLS_DIR"
+fi
+
+# Also fix etcd PKI keys
+ETCD_TLS_DIR="/var/lib/rancher/rke2/server/tls/etcd"
+if [ -d "$ETCD_TLS_DIR" ]; then
+  find "$ETCD_TLS_DIR" -name "*.key" -exec chmod 600 {} \;
+  echo "Fixed etcd PKI key permissions in: $ETCD_TLS_DIR"
+fi
+PERMSCRIPT
+  chmod +x /usr/local/bin/rke2-cis-permissions.sh
+
+  # Create systemd service to apply permissions after each boot
+  cat > /etc/systemd/system/rke2-cis-permissions.service <<'SVCEOF'
+[Unit]
+Description=RKE2 CIS Permissions Fix
+After=rke2-server.service
+Requires=rke2-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rke2-cis-permissions.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+  # Enable and run the service
+  systemctl daemon-reload
+  systemctl enable rke2-cis-permissions.service
+
+  # Wait for RKE2 to create directories, then apply permissions
+  echo "Waiting for RKE2 to initialize before applying CIS permission fixes..."
+  for i in {1..30}; do
+    if [ -d "/var/lib/rancher/rke2/server/db/etcd" ]; then
+      /usr/local/bin/rke2-cis-permissions.sh
+      break
+    fi
+    sleep 2
+  done
+fi
 
 crictl config --set runtime-endpoint=unix:///run/k3s/containerd/containerd.sock
 

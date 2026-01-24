@@ -87,6 +87,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+          directory:
+            include: "namespace.yaml"
+        {{- end }}
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
         # Source: Cilium internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
@@ -595,6 +603,22 @@ spec:
             {{- $oidcEnabled := and .features.sso.enabled .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
             valuesObject:
               grafana:
+                # PSA restricted compatibility
+                podSecurityContext:
+                  runAsNonRoot: true
+                  runAsUser: 472
+                  runAsGroup: 472
+                  fsGroup: 472
+                  seccompProfile:
+                    type: RuntimeDefault
+                containerSecurityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["ALL"]
+                  readOnlyRootFilesystem: false
+                # Disable init container running as root
+                initChownData:
+                  enabled: false
                 {{- if $oidcEnabled }}
                 # Mount OIDC client secret and CA certificate as files
                 extraSecretMounts:

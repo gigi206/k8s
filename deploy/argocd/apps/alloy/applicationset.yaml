@@ -76,12 +76,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 0: Namespace
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/alloy/resources
           directory:
             include: "namespace.yaml"
+        {{- end }}
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Source: Cilium ingress policy - conditional
         - repoURL: https://github.com/gigi206/k8s
@@ -101,7 +103,7 @@ spec:
               # Controller type (daemonset for log collection)
               controller:
                 type: '{{ .alloy.controller.type }}'
-                {{- if or .alloy.logs.journal.enabled .alloy.logs.rke2.enabled }}
+                {{- if or .alloy.logs.journal.enabled .alloy.logs.rke2.enabled (and .rke2.cis.enabled .alloy.logs.audit.enabled) }}
                 volumes:
                   extra:
                     {{- if .alloy.logs.journal.enabled }}
@@ -119,6 +121,13 @@ spec:
                       hostPath:
                         path: /var/lib/rancher/rke2/agent/containerd
                         type: Directory
+                    {{- end }}
+                    {{- if and .rke2.cis.enabled .alloy.logs.audit.enabled }}
+                    # Kubernetes API audit logs (only on control-plane nodes)
+                    - name: rke2-audit
+                      hostPath:
+                        path: /var/lib/rancher/rke2/server/logs
+                        type: DirectoryOrCreate
                     {{- end }}
                 {{- end }}
 
@@ -149,7 +158,7 @@ spec:
                     memory: '{{ .alloy.resources.limits.memory }}'
                 {{- end }}
 
-                {{- if or .alloy.logs.journal.enabled .alloy.logs.rke2.enabled }}
+                {{- if or .alloy.logs.journal.enabled .alloy.logs.rke2.enabled (and .rke2.cis.enabled .alloy.logs.audit.enabled) }}
                 # Volume mounts for node logs
                 mounts:
                   extra:
@@ -164,6 +173,12 @@ spec:
                       readOnly: true
                     - name: rke2-containerd
                       mountPath: /var/lib/rancher/rke2/agent/containerd
+                      readOnly: true
+                    {{- end }}
+                    {{- if and .rke2.cis.enabled .alloy.logs.audit.enabled }}
+                    # Kubernetes API audit logs (only present on control-plane nodes)
+                    - name: rke2-audit
+                      mountPath: /var/lib/rancher/rke2/server/logs
                       readOnly: true
                     {{- end }}
                 {{- end }}
@@ -399,6 +414,65 @@ spec:
                       stage.static_labels {
                         values = {
                           source = "rke2",
+                        }
+                      }
+                    }
+                    {{- end }}
+
+                    {{- if and .rke2.cis.enabled .alloy.logs.audit.enabled }}
+                    // =============================================================================
+                    // Kubernetes API Audit Logs (CIS compliance)
+                    // =============================================================================
+                    // Collects kube-apiserver audit logs from control-plane nodes
+                    // Path: /var/lib/rancher/rke2/server/logs/audit.log
+                    // Format: JSON (one event per line)
+                    local.file_match "audit_logs" {
+                      path_targets = [
+                        {
+                          __path__ = "/var/lib/rancher/rke2/server/logs/audit.log",
+                        },
+                      ]
+                    }
+
+                    loki.source.file "audit" {
+                      targets    = local.file_match.audit_logs.targets
+                      forward_to = [loki.process.audit.receiver]
+                    }
+
+                    loki.process "audit" {
+                      forward_to = [loki.write.default.receiver]
+
+                      // Add source label
+                      stage.static_labels {
+                        values = {
+                          source = "kubernetes-audit",
+                          job    = "audit",
+                        }
+                      }
+
+                      // Parse JSON audit log entries
+                      stage.json {
+                        expressions = {
+                          level      = "level",
+                          verb       = "verb",
+                          user       = "user.username",
+                          resource   = "objectRef.resource",
+                          namespace  = "objectRef.namespace",
+                          name       = "objectRef.name",
+                          stage      = "stage",
+                          statusCode = "responseStatus.code",
+                        }
+                      }
+
+                      // Add extracted fields as labels for querying
+                      stage.labels {
+                        values = {
+                          audit_level     = "level",
+                          audit_verb      = "verb",
+                          audit_user      = "user",
+                          audit_resource  = "resource",
+                          audit_namespace = "namespace",
+                          audit_stage     = "stage",
                         }
                       }
                     }

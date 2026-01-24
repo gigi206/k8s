@@ -105,6 +105,16 @@ spec:
             - /metadata/managedFields
 
       sources:
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        # When CIS is enabled, PSA is enforced cluster-wide in "restricted" mode.
+        # Rook requires "privileged" for Ceph OSDs (SYS_ADMIN, hostNetwork, hostPath).
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/resources
+          directory:
+            include: "namespace.yaml"
+        {{- end }}
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
         # Source: Cilium policy for internal Rook traffic (required for pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s

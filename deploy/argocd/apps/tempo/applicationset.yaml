@@ -103,8 +103,23 @@ spec:
           helm:
             releaseName: tempo
             valuesObject:
+              # PSA restricted compatibility - pod level
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 10001
+                runAsGroup: 10001
+                fsGroup: 10001
+                seccompProfile:
+                  type: RuntimeDefault
+
               # Tempo configuration
               tempo:
+                # PSA restricted compatibility - container level
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop: ["ALL"]
+                  readOnlyRootFilesystem: false
                 # OTLP receivers for traces
                 receivers:
                   otlp:
