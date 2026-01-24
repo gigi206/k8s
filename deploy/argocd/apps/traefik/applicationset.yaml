@@ -235,13 +235,15 @@ spec:
             - name: gateway.enabled
               value: 'false'
 
-            # Prometheus metrics
+            # Prometheus metrics (only when monitoring enabled - CRD required)
+            {{- if .features.monitoring.enabled }}
             - name: metrics.prometheus.enabled
-              value: '{{ .features.monitoring.enabled }}'
+              value: 'true'
             - name: metrics.prometheus.serviceMonitor.enabled
-              value: '{{ .features.monitoring.enabled }}'
+              value: 'true'
             - name: metrics.prometheus.serviceMonitor.additionalLabels.release
               value: '{{ .features.monitoring.release }}'
+            {{- end }}
 
             # Replicas
             {{- if .traefik.deployment.replicas }}
