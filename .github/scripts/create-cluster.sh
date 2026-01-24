@@ -84,16 +84,16 @@ helm install cilium cilium/cilium \
 
 log_success "Cilium installed"
 
-# Wait for nodes to be ready (now that CNI is installed)
-log_info "Waiting for nodes to be ready..."
-kubectl wait --for=condition=Ready nodes --all --timeout=120s
-log_success "Nodes ready"
-
-# Wait for Cilium pods
+# Wait for Cilium pods first (nodes need CNI to become Ready)
 log_info "Waiting for Cilium pods..."
 kubectl wait --for=condition=Ready pod -l k8s-app=cilium -n kube-system --timeout=300s
 kubectl wait --for=condition=Ready pod -l name=cilium-operator -n kube-system --timeout=300s
 log_success "Cilium pods ready"
+
+# Now wait for nodes to be ready
+log_info "Waiting for nodes to be ready..."
+kubectl wait --for=condition=Ready nodes --all --timeout=120s
+log_success "Nodes ready"
 
 # Wait for Hubble Relay
 log_info "Waiting for Hubble Relay..."
