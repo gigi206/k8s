@@ -104,6 +104,14 @@ spec:
           directory:
             include: "namespace.yaml"
         {{- end }}
+        {{- if .features.kubescape.enabled }}
+        # Source: Kubescape exceptions for speaker NET_RAW capability
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/resources
+          directory:
+            include: "kubescape-exceptions.yaml"
+        {{- end }}
         # Source 1: Chart Helm MetalLB
         - repoURL: https://metallb.github.io/metallb
           targetRevision: '{{ .metallb.version }}'

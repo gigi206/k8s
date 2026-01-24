@@ -92,6 +92,14 @@ spec:
           directory:
             include: "cilium-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.kubescape.enabled }}
+        # Source: Kubescape exceptions for log collector hostPath access
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/alloy/resources
+          directory:
+            include: "kubescape-exceptions.yaml"
+        {{- end }}
 
         # Source 1: Alloy Helm Chart
         - repoURL: https://grafana.github.io/helm-charts
