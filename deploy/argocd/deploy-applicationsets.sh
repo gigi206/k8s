@@ -984,9 +984,9 @@ if [[ -n "${CI_PATCH_APPSETS:-}" ]]; then
   MONITORING_ENABLED=$(yq '.features.monitoring.enabled' "$CONFIG_FILE" 2>/dev/null || echo "true")
   if [[ "$MONITORING_ENABLED" == "false" ]]; then
     log_info "  Removing ServiceMonitor config from templates (monitoring disabled)"
-    # Remove the entire Prometheus metrics block including its {{- end }}
-    # Use perl for multi-line matching (more reliable than sed)
-    perl -i -0pe 's/\s*# Prometheus metrics \(only when monitoring enabled.*?\{\{- end \}\}//gs' "$TEMP_MANIFEST"
+    # Remove the Prometheus metrics block (from comment to its {{- end }})
+    # Use awk for multi-line matching (POSIX compliant)
+    awk '/# Prometheus metrics \(only when monitoring enabled/ { skip=1; next } skip && /\{\{- end \}\}/ { skip=0; next } skip==0 { print }' "$TEMP_MANIFEST" > "${TEMP_MANIFEST}.tmp" && mv "${TEMP_MANIFEST}.tmp" "$TEMP_MANIFEST"
   fi
 fi
 
