@@ -55,7 +55,7 @@ validate_applicationset() {
 
   # Check YAML syntax
   if ! validate_yaml_syntax "$appset_file"; then
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
     return 1
   fi
 
@@ -64,7 +64,7 @@ validate_applicationset() {
   kind=$(yq '.kind' "$appset_file" 2>/dev/null)
   if [ "$kind" != "ApplicationSet" ]; then
     log_error "$app_name: kind must be 'ApplicationSet', got '$kind'"
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
     return 1
   fi
 
@@ -73,7 +73,7 @@ validate_applicationset() {
   name=$(yq '.metadata.name' "$appset_file" 2>/dev/null)
   if [ -z "$name" ] || [ "$name" = "null" ]; then
     log_error "$app_name: metadata.name is required"
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
     return 1
   fi
 
@@ -82,7 +82,7 @@ validate_applicationset() {
   generators=$(yq '.spec.generators | length' "$appset_file" 2>/dev/null)
   if [ "$generators" = "0" ] || [ "$generators" = "null" ]; then
     log_error "$app_name: spec.generators is required"
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
     return 1
   fi
 
@@ -91,14 +91,14 @@ validate_applicationset() {
   template=$(yq '.spec.template' "$appset_file" 2>/dev/null)
   if [ "$template" = "null" ]; then
     log_error "$app_name: spec.template is required"
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
     return 1
   fi
 
   # Check for common Go template issues
   if grep -q '{{[^}]*\.\.[^}]*}}' "$appset_file" 2>/dev/null; then
     log_warning "$app_name: Found '..' in template, may be typo"
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
   fi
 
   # Check sync-wave annotation exists
@@ -106,7 +106,7 @@ validate_applicationset() {
   sync_wave=$(yq '.spec.template.metadata.annotations."argocd.argoproj.io/sync-wave"' "$appset_file" 2>/dev/null)
   if [ -z "$sync_wave" ] || [ "$sync_wave" = "null" ]; then
     log_warning "$app_name: No sync-wave annotation defined"
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
   fi
 
   log_success "$app_name: ApplicationSet is valid"
@@ -124,7 +124,7 @@ validate_config_file() {
 
   # Check YAML syntax
   if ! validate_yaml_syntax "$config_file"; then
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
     return 1
   fi
 
@@ -138,7 +138,7 @@ validate_config_file() {
         # Validate version format (should be semver-ish)
         if [[ ! "$version" =~ ^[0-9]+\.[0-9]+ ]]; then
           log_warning "$app_name/$env: Version '$version' doesn't look like semver"
-          ((WARNINGS++))
+          WARNINGS=$((WARNINGS + 1))
         fi
       fi
     done <<< "$version_fields"
@@ -163,7 +163,7 @@ validate_helm_sources() {
         # Check if repo URL is valid format
         if [[ ! "$repo" =~ ^(https?://|oci://) ]]; then
           log_warning "$app_name: Helm repo URL looks invalid: $repo"
-          ((WARNINGS++))
+          WARNINGS=$((WARNINGS + 1))
         fi
       fi
     done <<< "$helm_repos"
