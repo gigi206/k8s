@@ -73,6 +73,64 @@ Utilisé avec APISIX via le plugin `forward-auth` :
 
 > **Voir** : Documentation complète dans `apps/apisix/README.md` section "OAuth2 Authentication".
 
+### Mode forwardAuth (Traefik)
+
+Utilisé avec Traefik via le middleware `forwardAuth` :
+- **Middleware forwardAuth** : délègue l'authentification à OAuth2 Proxy
+- **Service nginx intermédiaire** : convertit les 401 en redirections 302
+- **Middleware chain** : forwardAuth → application
+
+```
+┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Client    │────▶│ Traefik Gateway  │────▶│ nginx-unprivileged────▶│ OAuth2 Proxy    │
+└─────────────┘     │ (forwardAuth)    │     │ (401→302 convert)│     │ (auth check)    │
+                    └──────────────────┘     └─────────────────┘     └─────────────────┘
+                           │                      │
+                           │ ◀── 200 OK ──────────┘
+                           ▼                  ou 302 redirect
+                    ┌──────────────┐
+                    │  Backend App │
+                    │ (prometheus) │
+                    └──────────────┘
+```
+
+#### Pourquoi un nginx intermédiaire ?
+
+**Limitation Traefik** : Le middleware `forwardAuth` retourne le code HTTP reçu directement au client.
+Quand oauth2-proxy retourne 401 (non authentifié), Traefik passe ce 401 au navigateur au lieu de rediriger vers la page de login.
+
+**Comportement oauth2-proxy** : L'endpoint `/oauth2/auth` est conçu pour `auth_request` nginx et retourne :
+- `202 Accepted` si authentifié
+- `401 Unauthorized` si non authentifié (sans redirection)
+
+**Solution** : Le service `oauth2-auth-redirect` (nginx-unprivileged) :
+1. Proxifie les requêtes vers oauth2-proxy `/oauth2/auth`
+2. Intercepte les réponses 401
+3. Retourne une redirection 302 vers `/oauth2/start` pour initier le flow OAuth
+
+#### Pourquoi Traefik est le seul à nécessiter nginx ?
+
+| Provider | Mécanisme 401→302 | Service externe ? |
+|----------|-------------------|-------------------|
+| **Istio** | ext_authz natif | ❌ Non |
+| **nginx-gwf** | `auth_request` natif | ❌ Non |
+| **APISIX** | `serverless-post-function` plugin | ❌ Non (Lua intégré) |
+| **Envoy Gateway** | ext_authz natif | ❌ Non |
+| **Traefik** | nginx intermédiaire | ✅ **Oui** |
+
+Les autres providers ont des mécanismes natifs ou des plugins intégrés pour gérer la conversion 401→302.
+Traefik n'a pas cette fonctionnalité dans son middleware `forwardAuth`.
+
+#### Alternatives évaluées
+
+| Solution | Verdict |
+|----------|---------|
+| Traefik `errors` middleware (3.4+) | Nécessite toujours un service pour retourner la 302 |
+| forwardAuth vers `/oauth2/` (racine) | Retourne aussi 401, pas de redirection |
+| `traefik-forward-auth` | Projet alternatif dédié, moins de fonctionnalités qu'oauth2-proxy |
+
+> **Référence** : [OAuth and Traefik 2024](https://farcaller.net/2024/oauth-and-traefik-how-to-protect-your-endpoints/)
+
 ## Dépendances
 
 ### Automatiques (via ApplicationSets)
