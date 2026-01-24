@@ -187,14 +187,20 @@ jobs:
           INGRESS: ${{ steps.detect.outputs.ingress }}
           EXTRA_APPS: ${{ steps.detect.outputs.extra_apps }}
           ALL_APPS: ${{ steps.detect.outputs.all_apps }}
+          CI_GIT_BRANCH: ${{ github.head_ref }}
         run: |
           chmod +x .github/scripts/generate-ci-config.sh
           .github/scripts/generate-ci-config.sh
 
           echo "=== Generated config ==="
           yq '.features' deploy/argocd/config/config.yaml
+          echo ""
+          echo "Git revision: $(yq '.git.revision' deploy/argocd/config/config.yaml)"
 
       - name: Deploy ApplicationSets
+        env:
+          CI_GIT_BRANCH: ${{ github.head_ref }}
+          CI_PATCH_APPSETS: "true"
         run: |
           cd deploy/argocd
 

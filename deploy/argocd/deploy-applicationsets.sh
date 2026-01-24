@@ -965,6 +965,31 @@ for appset in "${APPLICATIONSETS[@]}"; do
   echo "---" >> "$TEMP_MANIFEST"
 done
 
+# CI mode: substitute git revision in generators to use PR branch
+# This ensures ArgoCD loads config from the PR branch, not main
+if [[ -n "${CI_GIT_BRANCH:-}" ]]; then
+  log_info "CI mode: substituting git revision 'HEAD' with '${CI_GIT_BRANCH}'"
+  sed -i "s/revision: 'HEAD'/revision: '${CI_GIT_BRANCH}'/g" "$TEMP_MANIFEST"
+fi
+
+# CI mode: patch ApplicationSets based on local config.yaml
+# Since ArgoCD loads config from GitHub (not local), we need to patch
+# the ApplicationSet templates to match our local config
+if [[ -n "${CI_PATCH_APPSETS:-}" ]]; then
+  log_info "CI mode: patching ApplicationSets based on local config"
+
+  CONFIG_FILE="${SCRIPT_DIR}/config/config.yaml"
+
+  # Check if monitoring is disabled
+  MONITORING_ENABLED=$(yq '.features.monitoring.enabled' "$CONFIG_FILE" 2>/dev/null || echo "true")
+  if [[ "$MONITORING_ENABLED" == "false" ]]; then
+    log_info "  Removing ServiceMonitor config from templates (monitoring disabled)"
+    # Remove the entire Prometheus metrics block including its {{- end }}
+    # Use perl for multi-line matching (more reliable than sed)
+    perl -i -0pe 's/\s*# Prometheus metrics \(only when monitoring enabled.*?\{\{- end \}\}//gs' "$TEMP_MANIFEST"
+  fi
+fi
+
 # Appliquer tous les ApplicationSets en une seule commande
 if [[ $VERBOSE -eq 1 ]]; then
   kubectl apply -f "$TEMP_MANIFEST"

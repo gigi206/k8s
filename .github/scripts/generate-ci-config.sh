@@ -217,6 +217,13 @@ yq -i '.syncPolicy.automated.enabled = true' "$CONFIG_FILE"
 yq -i '.syncPolicy.retry.limit = 3' "$CONFIG_FILE"
 yq -i '.syncPolicy.retry.backoff.maxDuration = "2m"' "$CONFIG_FILE"
 
+# Set git revision to PR branch if specified
+# This ensures ArgoCD sources use the PR branch for targetRevision
+if [ -n "${CI_GIT_BRANCH:-}" ]; then
+  log_info "Setting git.revision to: $CI_GIT_BRANCH"
+  yq -i ".git.revision = \"$CI_GIT_BRANCH\"" "$CONFIG_FILE"
+fi
+
 # =============================================================================
 # Enable Cilium firewall policies (important for proper testing)
 # =============================================================================
