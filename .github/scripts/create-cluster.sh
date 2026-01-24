@@ -66,18 +66,15 @@ helm install cilium cilium/cilium \
   --version "$CILIUM_VERSION" \
   --namespace kube-system \
   --set operator.replicas=1 \
-  --set kubeProxyReplacement=true \
-  --set k8sServiceHost="$NODE_IP" \
-  --set k8sServicePort=6443 \
-  --set hostFirewall.enabled=true \
+  --set kubeProxyReplacement=false \
+  --set hostFirewall.enabled=false \
   --set hubble.enabled=true \
   --set hubble.relay.enabled=true \
   --set hubble.ui.enabled=false \
   --set hubble.metrics.enabled="{dns,drop,tcp,flow,icmp}" \
-  --set bpf.masquerade=true \
   --set ipam.mode=kubernetes \
-  --set routingMode=native \
-  --set autoDirectNodeRoutes=true \
+  --set routingMode=tunnel \
+  --set tunnelProtocol=vxlan \
   --set l2announcements.enabled=false \
   --wait \
   --timeout 10m
