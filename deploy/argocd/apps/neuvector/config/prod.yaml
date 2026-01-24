@@ -40,15 +40,16 @@ neuvector:
         memory: "512Mi"
 
   # Scanner (HA for prod)
+  # Note: Scanner loads entire CVE database in memory - requires significant RAM
   scanner:
     replicas: 3
     resources:
       requests:
         cpu: "200m"
-        memory: "1Gi"
+        memory: "2Gi"
       limits:
         cpu: "1000m"
-        memory: "2Gi"
+        memory: "4Gi"
 
   # OIDC Configuration (Keycloak) - Native NeuVector OIDC
   oidc:
