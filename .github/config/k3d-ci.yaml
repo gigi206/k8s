@@ -34,9 +34,6 @@ ports:
     nodeFilters:
       - loadbalancer
 
-# Timeouts
-timeout: 5m
-
 # Cluster options
 options:
   # K3s configuration
