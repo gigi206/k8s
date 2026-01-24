@@ -44,15 +44,16 @@ neuvector:
         memory: "1Gi"
 
   # Scanner (single replica for dev)
+  # Note: Scanner loads entire CVE database in memory - requires significant RAM
   scanner:
     replicas: 1
     resources:
       requests:
         cpu: "200m"
-        memory: "1Gi"
+        memory: "2Gi"
       limits:
         cpu: "1000m"
-        memory: "2Gi"
+        memory: "4Gi"
 
   # Prometheus exporter settings
   exporter:
