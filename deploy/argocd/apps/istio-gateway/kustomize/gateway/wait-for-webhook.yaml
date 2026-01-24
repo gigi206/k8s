@@ -16,9 +16,21 @@ spec:
     spec:
       serviceAccountName: default
       restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: wait-for-webhook
         image: curlimages/curl:8.17.0
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
         command:
         - /bin/sh
         - -c

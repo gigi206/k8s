@@ -468,6 +468,18 @@
     },
     {
       "customType": "regex",
+      "description": "NGINX Unprivileged image (oauth2-proxy error-handler)",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/oauth2-proxy/kustomize/traefik-middleware/error-handler\\.yaml$/"
+      ],
+      "matchStrings": [
+        "image:\\s*(?<depName>nginxinc/nginx-unprivileged):(?<currentValue>alpine[0-9.]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^alpine(?<major>\\d+)\\.(?<minor>\\d+)$"
+    },
+    {
+      "customType": "regex",
       "description": "Tetragon Helm chart",
       "managerFilePatterns": [
         "/^deploy/argocd/apps/cilium/config/.*\\.yaml$/"

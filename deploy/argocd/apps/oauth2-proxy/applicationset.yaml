@@ -333,6 +333,15 @@ spec:
                         sleep 5
                       done
                       echo "Keycloak OIDC discovery endpoint is available!"
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop: ["ALL"]
+                    seccompProfile:
+                      type: RuntimeDefault
 
               # Mount root CA for TLS verification when refreshing tokens
               # OAuth2 Proxy uses external HTTPS URLs from OIDC discovery during token refresh

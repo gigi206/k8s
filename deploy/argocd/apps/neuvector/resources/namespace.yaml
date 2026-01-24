@@ -1,7 +1,21 @@
 ---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# NeuVector requires privileged access for:
+# - Enforcer DaemonSet (kernel monitoring, container inspection)
+# - Controller (network policy enforcement)
+# - Scanner (container image analysis)
+# =============================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
   name: neuvector
   labels:
     name: neuvector
+    # PSA: Allow privileged workloads (required for NeuVector security agents)
+    pod-security.kubernetes.io/enforce: privileged
+    # PSA: Warn on restricted violations (visibility into non-compliant pods)
+    pod-security.kubernetes.io/warn: restricted
+    # PSA: Audit restricted violations (for logging)
+    pod-security.kubernetes.io/audit: restricted

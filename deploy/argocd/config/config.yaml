@@ -202,13 +202,17 @@ features:
   neuvector:
     enabled: false  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
 
-# === RKE2 Cluster Configuration ===
-# Configuration du cluster RKE2 lui-même (appliquée via scripts Vagrant)
-# Note: Ces paramètres sont de la documentation centralisée. Pour activer
-# réellement le CIS, modifier aussi vagrant/scripts/install_master.sh
+# =============================================================================
+# RKE2 Cluster Configuration
+# =============================================================================
+# Configuration du cluster RKE2 (appliquée via scripts Vagrant)
+# Ces paramètres sont lus depuis vagrant/config/rke2.yaml par les scripts
+# d'installation. Cette section sert de documentation centralisée.
+# =============================================================================
+
 rke2:
   cis:
-    enabled: true       # Active le profil CIS hardening
+    enabled: true       # Active le profil CIS benchmark hardening
     profile: "cis"      # Profil générique (s'adapte automatiquement à la version K8s)
                         # Alternatives spécifiques: cis-1.8 (K8s 1.26), cis-1.9 (K8s 1.27-1.28), cis-1.11 (K8s 1.29+)
                         # Note: cis-1.23 est OBSOLÈTE (basé sur PSP supprimé depuis K8s 1.25)

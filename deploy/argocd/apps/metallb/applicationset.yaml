@@ -96,6 +96,14 @@ spec:
           directory:
             include: "cilium-ingress-policy.yaml"
         {{- end }}
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/resources
+          directory:
+            include: "namespace.yaml"
+        {{- end }}
         # Source 1: Chart Helm MetalLB
         - repoURL: https://metallb.github.io/metallb
           targetRevision: '{{ .metallb.version }}'
@@ -104,6 +112,13 @@ spec:
             parameters:
               - name: speaker.frr.enabled
                 value: "false"
+            # PSA restricted compatibility for controller
+            valuesObject:
+              controller:
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
 
         # Source 2: IPAddressPool & L2Advertisement (avec patch pour Gateway API controller IP)
         - repoURL: https://github.com/gigi206/k8s
