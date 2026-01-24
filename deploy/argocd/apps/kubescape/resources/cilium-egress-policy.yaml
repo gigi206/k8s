@@ -1,0 +1,47 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kubescape External Egress
+# =============================================================================
+# Allows Kubescape to reach external services:
+# - Vulnerability database updates (Grype DB)
+# - Control frameworks updates (CIS, NSA, MITRE)
+# - Container registry scanning
+#
+# This policy complements the cluster-wide default-deny-external-egress policy
+# defined in deploy/argocd/apps/cilium/resources/
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kubescape-allow-external-egress
+  namespace: kubescape
+spec:
+  description: "Allow Kubescape to access vulnerability databases and registries"
+
+  # Apply to all pods in kubescape namespace
+  endpointSelector: {}
+
+  egress:
+    # Allow internal Kubescape communication (same namespace)
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kubescape
+      toPorts:
+        - ports:
+            - port: "8080"    # Kubescape HTTP
+              protocol: TCP
+            - port: "8443"    # Storage HTTPS
+              protocol: TCP
+            - port: "4002"    # Operator
+              protocol: TCP
+            - port: "8089"    # Synchronizer
+              protocol: TCP
+
+    # Allow HTTPS to external services (CVE databases, registries, framework updates)
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

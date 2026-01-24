@@ -378,6 +378,7 @@ FEAT_SSO=$(get_feature '.features.sso.enabled' 'true')
 FEAT_SSO_PROVIDER=$(get_feature '.features.sso.provider' 'keycloak')
 FEAT_OAUTH2_PROXY=$(get_feature '.features.oauth2Proxy.enabled' 'true')
 FEAT_NEUVECTOR=$(get_feature '.features.neuvector.enabled' 'false')
+FEAT_KUBESCAPE=$(get_feature '.features.kubescape.enabled' 'false')
 FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
 FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
 FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enabled' 'false')
@@ -404,6 +405,7 @@ log_debug "  logging: $FEAT_LOGGING (loki: $FEAT_LOGGING_LOKI, collector: $FEAT_
 log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
 log_debug "  neuvector: $FEAT_NEUVECTOR"
+log_debug "  kubescape: $FEAT_KUBESCAPE"
 log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
@@ -756,6 +758,9 @@ fi
 
 # NeuVector (container security platform)
 [[ "$FEAT_NEUVECTOR" == "true" ]] && APPLICATIONSETS+=("apps/neuvector/applicationset.yaml")
+
+# Kubescape (Kubernetes security scanning)
+[[ "$FEAT_KUBESCAPE" == "true" ]] && APPLICATIONSETS+=("apps/kubescape/applicationset.yaml")
 
 # Calculer le nombre d'applications attendues
 # En environnement dev/local, chaque ApplicationSet génère 1 Application
@@ -1367,6 +1372,7 @@ echo "  ServiceMesh Waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 echo "  OAuth2-Proxy:      $FEAT_OAUTH2_PROXY"
 echo "  NeuVector:         $FEAT_NEUVECTOR"
+echo "  Kubescape:         $FEAT_KUBESCAPE"
 echo ""
 
 log_success "Déploiement terminé! 🎉"
