@@ -969,7 +969,8 @@ done
 # This ensures ArgoCD loads config from the PR branch, not main
 if [[ -n "${CI_GIT_BRANCH:-}" ]]; then
   log_info "CI mode: substituting git revision 'HEAD' with '${CI_GIT_BRANCH}'"
-  sed -i "s/revision: 'HEAD'/revision: '${CI_GIT_BRANCH}'/g" "$TEMP_MANIFEST"
+  # Use | as delimiter to handle branch names with / (e.g., renovate/traefik-39.x)
+  sed -i "s|revision: 'HEAD'|revision: '${CI_GIT_BRANCH}'|g" "$TEMP_MANIFEST"
 fi
 
 # CI mode: patch ApplicationSets based on local config.yaml
