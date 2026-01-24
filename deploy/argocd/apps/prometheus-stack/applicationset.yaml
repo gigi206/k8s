@@ -145,6 +145,14 @@ spec:
           directory:
             include: "cilium-egress-policy.yaml"
         {{- end }}
+        {{- if .features.kubescape.enabled }}
+        # Source: Kubescape exceptions for node-exporter privileged workloads
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+          directory:
+            include: "kubescape-exceptions.yaml"
+        {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source: HTTPRoute (Gateway API standard)

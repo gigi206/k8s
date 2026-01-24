@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# Kubescape Namespace with PSA Labels
+# =============================================================================
+# Namespace configuration for CIS benchmark compatibility.
+# The node-agent DaemonSet requires privileged access for:
+# - eBPF programs loading
+# - Host filesystem scanning
+# - Container runtime socket access
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubescape
+  labels:
+    # Pod Security Admission labels (required for CIS profile)
+    # Kubescape node-agent requires privileged access for eBPF and host scanning
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

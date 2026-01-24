@@ -138,6 +138,14 @@ spec:
           directory:
             include: "namespace.yaml"
         {{- end }}
+        {{- if .features.kubescape.enabled }}
+        # Source: Kubescape exceptions for enforcer privileged workloads
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/resources
+          directory:
+            include: "kubescape-exceptions.yaml"
+        {{- end }}
         # Source: RBAC workaround for cert-manager mode
         # Bug: chart only creates 'neuvector-binding-secret-controller' when autoGenerateCert=true
         # But controller always verifies it exists, causing startup failure

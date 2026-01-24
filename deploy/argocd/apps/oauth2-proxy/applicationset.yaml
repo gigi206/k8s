@@ -92,12 +92,6 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 1: Namespace (always deployed)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/oauth2-proxy/resources
-          directory:
-            include: "namespace.yaml"
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
         # Source: Cilium internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
@@ -365,3 +359,10 @@ spec:
                 limits:
                   cpu: {{ .oauth2Proxy.resources.limits.cpu | default "100m" }}
                   memory: {{ .oauth2Proxy.resources.limits.memory | default "128Mi" }}
+
+              # Security hardening (CIS/NSA compliance)
+              # Disable SA token automount - oauth2-proxy doesn't need K8s API access
+              {{- if .oauth2Proxy.serviceAccount }}
+              serviceAccount:
+                automountServiceAccountToken: {{ .oauth2Proxy.serviceAccount.automountServiceAccountToken | default true }}
+              {{- end }}
