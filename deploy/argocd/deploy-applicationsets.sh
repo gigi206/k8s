@@ -960,6 +960,23 @@ for appset in "${APPLICATIONSETS[@]}"; do
   echo "---" >> "$TEMP_MANIFEST"
 done
 
+# =============================================================================
+# CI Mode: Patch ApplicationSets to use local config values
+# =============================================================================
+if [[ -n "${CI_GIT_BRANCH:-}" ]]; then
+  log_info "CI mode: patching ApplicationSets for branch '${CI_GIT_BRANCH}'"
+  sed -i "s|revision: 'HEAD'|revision: '${CI_GIT_BRANCH}'|g" "$TEMP_MANIFEST"
+  sed -i "s|targetRevision: '{{ .git.revision }}'|targetRevision: '${CI_GIT_BRANCH}'|g" "$TEMP_MANIFEST"
+fi
+
+# When monitoring is disabled, remove monitoring blocks from templates
+if [[ "$FEAT_MONITORING" == "false" ]]; then
+  log_info "Stripping monitoring blocks from templates (monitoring disabled)"
+  if command -v perl &> /dev/null; then
+    perl -i -0777 -pe 's/\{\{-\s*if\s+\.features\.monitoring\.enabled\s*\}\}.*?\{\{-\s*end\s*\}\}//gs' "$TEMP_MANIFEST"
+  fi
+fi
+
 # Appliquer tous les ApplicationSets en une seule commande
 if [[ $VERBOSE -eq 1 ]]; then
   kubectl apply -f "$TEMP_MANIFEST"
