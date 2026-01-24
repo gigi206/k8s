@@ -34,8 +34,12 @@ ports:
     nodeFilters:
       - loadbalancer
 
-# K3s configuration
+# Timeouts
+timeout: 5m
+
+# Cluster options
 options:
+  # K3s configuration
   k3s:
     extraArgs:
       # Disable built-in Traefik ingress controller
@@ -58,12 +62,7 @@ options:
       - arg: --disable-network-policy
         nodeFilters:
           - server:*
-
-# Timeouts
-timeout: 5m
-
-# Wait for cluster to be ready
-options:
+  # K3d configuration
   k3d:
     wait: true
     timeout: 5m
