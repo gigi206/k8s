@@ -52,12 +52,7 @@ k3d cluster create --config "$K3D_CONFIG"
 
 log_success "K3d cluster created"
 
-# Wait for nodes to be ready
-log_info "Waiting for nodes to be ready..."
-kubectl wait --for=condition=Ready nodes --all --timeout=120s
-log_success "Nodes ready"
-
-# Get node IP for Cilium k8sServiceHost
+# Get node IP for Cilium k8sServiceHost (nodes won't be Ready yet without CNI)
 NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 log_info "Node IP: $NODE_IP"
 
@@ -71,29 +66,31 @@ helm install cilium cilium/cilium \
   --version "$CILIUM_VERSION" \
   --namespace kube-system \
   --set operator.replicas=1 \
-  --set kubeProxyReplacement=true \
-  --set k8sServiceHost="$NODE_IP" \
-  --set k8sServicePort=6443 \
-  --set hostFirewall.enabled=true \
+  --set kubeProxyReplacement=false \
+  --set hostFirewall.enabled=false \
   --set hubble.enabled=true \
   --set hubble.relay.enabled=true \
   --set hubble.ui.enabled=false \
   --set hubble.metrics.enabled="{dns,drop,tcp,flow,icmp}" \
-  --set bpf.masquerade=true \
   --set ipam.mode=kubernetes \
-  --set routingMode=native \
-  --set autoDirectNodeRoutes=true \
+  --set routingMode=tunnel \
+  --set tunnelProtocol=vxlan \
   --set l2announcements.enabled=false \
   --wait \
   --timeout 10m
 
 log_success "Cilium installed"
 
-# Wait for Cilium pods
+# Wait for Cilium pods first (nodes need CNI to become Ready)
 log_info "Waiting for Cilium pods..."
 kubectl wait --for=condition=Ready pod -l k8s-app=cilium -n kube-system --timeout=300s
 kubectl wait --for=condition=Ready pod -l name=cilium-operator -n kube-system --timeout=300s
 log_success "Cilium pods ready"
+
+# Now wait for nodes to be ready
+log_info "Waiting for nodes to be ready..."
+kubectl wait --for=condition=Ready nodes --all --timeout=120s
+log_success "Nodes ready"
 
 # Wait for Hubble Relay
 log_info "Waiting for Hubble Relay..."
