@@ -52,12 +52,7 @@ k3d cluster create --config "$K3D_CONFIG"
 
 log_success "K3d cluster created"
 
-# Wait for nodes to be ready
-log_info "Waiting for nodes to be ready..."
-kubectl wait --for=condition=Ready nodes --all --timeout=120s
-log_success "Nodes ready"
-
-# Get node IP for Cilium k8sServiceHost
+# Get node IP for Cilium k8sServiceHost (nodes won't be Ready yet without CNI)
 NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 log_info "Node IP: $NODE_IP"
 
@@ -88,6 +83,11 @@ helm install cilium cilium/cilium \
   --timeout 10m
 
 log_success "Cilium installed"
+
+# Wait for nodes to be ready (now that CNI is installed)
+log_info "Waiting for nodes to be ready..."
+kubectl wait --for=condition=Ready nodes --all --timeout=120s
+log_success "Nodes ready"
 
 # Wait for Cilium pods
 log_info "Waiting for Cilium pods..."
