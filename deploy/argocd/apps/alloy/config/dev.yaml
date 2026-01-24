@@ -41,6 +41,10 @@ alloy:
     rke2:
       enabled: true
 
+    # Kubernetes API audit logs (requires rke2.cis.enabled)
+    audit:
+      enabled: true
+
 syncPolicy:
   automated:
     enabled: true

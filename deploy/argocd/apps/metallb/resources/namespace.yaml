@@ -2,18 +2,17 @@
 # =============================================================================
 # Namespace with PSA labels for CIS profile compatibility
 # =============================================================================
-# Alloy requires privileged access for:
-# - hostPath volumes for /var/log/journal
-# - hostPath volumes for /var/lib/rancher/rke2/agent/logs
-# - hostPath volumes for /var/lib/rancher/rke2/agent/containerd
-# - hostPath volumes for /var/lib/rancher/rke2/server/logs (audit logs, CIS)
+# Deployed conditionally when rke2.cis.enabled=true
+# MetalLB requires privileged access for:
+# - speaker with hostNetwork for ARP announcements
+# - speaker with NET_RAW capability for ARP packets
 # =============================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: alloy
+  name: metallb-system
   labels:
-    # PSA: Allow privileged workloads (required for log collection via hostPath)
+    # PSA: Allow privileged workloads (required for speaker)
     pod-security.kubernetes.io/enforce: privileged
     # PSA: Warn on restricted violations (visibility into non-compliant pods)
     pod-security.kubernetes.io/warn: restricted

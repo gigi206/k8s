@@ -83,6 +83,14 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/resources
+          directory:
+            include: "namespace.yaml"
+        {{- end }}
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
         # Source: Cilium internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s

@@ -25,6 +25,15 @@ repoServer:
           echo "Installing KSOPS..."
           cp /usr/local/bin/ksops /custom-tools/ksops
           echo "Installation complete"
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
         - name: custom-tools
           mountPath: /custom-tools
