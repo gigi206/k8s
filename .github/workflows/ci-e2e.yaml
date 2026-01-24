@@ -179,6 +179,68 @@ jobs:
           echo "=== ArgoCD Status ==="
           kubectl get pods -n $ARGOCD_NAMESPACE
 
+      - name: Configure ArgoCD resource exclusions for CI
+        run: |
+          echo "=== Configuring resource exclusions for CI ==="
+          # Exclude resources that depend on CRDs not installed in CI or installed later:
+          # - monitoring.coreos.com: ServiceMonitor, PrometheusRule (prometheus-stack not deployed)
+          # - external-secrets.io: ClusterSecretStore, ExternalSecret (wave ordering issues)
+          # - gateway.networking.k8s.io: HTTPRoute, ReferenceGrant (CRDs installed by gateway-api-controller)
+          # - cert-manager.io: Certificate (CRDs installed by cert-manager)
+          # This prevents sync failures when Applications try to create resources before CRDs are ready
+          kubectl patch configmap argocd-cm -n $ARGOCD_NAMESPACE --type merge -p '
+          data:
+            resource.exclusions: |
+              - apiGroups:
+                  - monitoring.coreos.com
+                kinds:
+                  - ServiceMonitor
+                  - PodMonitor
+                  - PrometheusRule
+                  - Prometheus
+                  - Alertmanager
+                clusters:
+                  - "*"
+              - apiGroups:
+                  - external-secrets.io
+                kinds:
+                  - ClusterSecretStore
+                  - ExternalSecret
+                  - SecretStore
+                clusters:
+                  - "*"
+              - apiGroups:
+                  - gateway.networking.k8s.io
+                kinds:
+                  - HTTPRoute
+                  - GRPCRoute
+                  - TLSRoute
+                  - TCPRoute
+                  - UDPRoute
+                  - ReferenceGrant
+                  - Gateway
+                clusters:
+                  - "*"
+              - apiGroups:
+                  - cert-manager.io
+                kinds:
+                  - Certificate
+                  - CertificateRequest
+                  - Issuer
+                  - ClusterIssuer
+                clusters:
+                  - "*"
+          '
+          echo "=== Resource exclusions configured ==="
+          kubectl get configmap argocd-cm -n $ARGOCD_NAMESPACE -o yaml | grep -A50 "resource.exclusions" || true
+
+          # Restart ArgoCD components to pick up the new config
+          # Note: application-controller is a StatefulSet in recent ArgoCD versions
+          kubectl rollout restart deployment/argocd-repo-server -n $ARGOCD_NAMESPACE
+          kubectl rollout restart statefulset/argocd-application-controller -n $ARGOCD_NAMESPACE
+          kubectl rollout status deployment/argocd-repo-server -n $ARGOCD_NAMESPACE --timeout=120s
+          kubectl rollout status statefulset/argocd-application-controller -n $ARGOCD_NAMESPACE --timeout=120s
+
       # ========================================================================
       # Generate CI Config and Deploy
       # ========================================================================
@@ -195,6 +257,8 @@ jobs:
           yq '.features' deploy/argocd/config/config.yaml
 
       - name: Deploy ApplicationSets
+        env:
+          CI_GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           cd deploy/argocd
 
