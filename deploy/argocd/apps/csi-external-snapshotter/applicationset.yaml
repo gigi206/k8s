@@ -77,13 +77,12 @@ spec:
           prune: {{ .syncPolicy.automated.prune }}
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
-      {{- if .features.monitoring.enabled }}
       sources:
         # Source 1: CSI Snapshot CRDs (external repo)
         - repoURL: https://github.com/kubernetes-csi/external-snapshotter/
           targetRevision: '{{ .csiSnapshotter.version }}'
           path: client/config/crd
-
+        {{- if .features.monitoring.enabled }}
         # Source 2: PrometheusRules (avec label release)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -91,4 +90,12 @@ spec:
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
-      {{- end }}
+        {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for snapshot operations)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/csi-external-snapshotter/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}

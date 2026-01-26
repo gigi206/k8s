@@ -82,14 +82,6 @@ spec:
             include: "namespace.yaml"
         {{- end }}
 
-        {{- if .features.cilium.egressPolicy.enabled }}
-        # Source: Cilium egress policy (if needed for external access)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/reloader/resources
-          directory:
-            include: "cilium-egress-policy.yaml"
-        {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
         - repoURL: https://github.com/gigi206/k8s
