@@ -16,13 +16,14 @@ loki:
     persistence:
       enabled: true
       size: 5Gi
+    # Resources (actual: 12m/291Mi)
     resources:
       requests:
-        cpu: 100m
+        cpu: 20m
         memory: 256Mi
       limits:
         cpu: 500m
-        memory: 512Mi
+        memory: 1Gi
 
   # Stockage
   storage:
@@ -52,6 +53,26 @@ loki:
     enabled: false
   resultsCache:
     enabled: false
+
+  # Canary resources (actual: 1m/18Mi)
+  lokiCanary:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 24Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
+
+  # Sidecar resources (actual: 1m/84Mi)
+  sidecar:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 100Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
 
 # Grafana dashboard folder
 dashboard:

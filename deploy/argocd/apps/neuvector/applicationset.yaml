@@ -443,6 +443,15 @@ spec:
                 enabled: true
                 apiSvc: neuvector-svc-controller-api:10443
                 ctrlSecretName: neuvector-admin-credentials
+                {{- if .neuvector.exporter.resources }}
+                resources:
+                  requests:
+                    cpu: '{{ .neuvector.exporter.resources.requests.cpu }}'
+                    memory: '{{ .neuvector.exporter.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .neuvector.exporter.resources.limits.cpu }}'
+                    memory: '{{ .neuvector.exporter.resources.limits.memory }}'
+                {{- end }}
                 # WARNING: enforcerStats impacts performance
                 enforcerStats:
                   enabled: {{ .neuvector.exporter.enforcerStats.enabled | default false }}

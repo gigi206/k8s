@@ -383,6 +383,34 @@ spec:
               test:
                 enabled: false
 
+              # Canary resources
+              {{- if .loki.lokiCanary }}
+              {{- if .loki.lokiCanary.resources }}
+              lokiCanary:
+                resources:
+                  requests:
+                    cpu: '{{ .loki.lokiCanary.resources.requests.cpu }}'
+                    memory: '{{ .loki.lokiCanary.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .loki.lokiCanary.resources.limits.cpu }}'
+                    memory: '{{ .loki.lokiCanary.resources.limits.memory }}'
+              {{- end }}
+              {{- end }}
+
+              # Sidecar resources
+              {{- if .loki.sidecar }}
+              {{- if .loki.sidecar.resources }}
+              sidecar:
+                resources:
+                  requests:
+                    cpu: '{{ .loki.sidecar.resources.requests.cpu }}'
+                    memory: '{{ .loki.sidecar.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .loki.sidecar.resources.limits.cpu }}'
+                    memory: '{{ .loki.sidecar.resources.limits.memory }}'
+              {{- end }}
+              {{- end }}
+
         {{- if .features.monitoring.enabled }}
         # Source 2: PrometheusRules for Loki monitoring
         - repoURL: https://github.com/gigi206/k8s

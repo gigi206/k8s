@@ -34,14 +34,24 @@ externalDns:
   crd:
     create: true
 
-  # External-DNS resources (usage: 2m/22Mi)
+  # External-DNS resources (usage: 1m/20Mi)
   resources:
     requests:
       cpu: "10m"
       memory: "32Mi"
     limits:
-      cpu: "50m"
-      memory: "64Mi"
+      cpu: "200m"
+      memory: "128Mi"
+
+  # Wait-for-etcd init container resources
+  waitForEtcd:
+    resources:
+      requests:
+        cpu: "5m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
 
   # CoreDNS configuration (only when provider=coredns)
   coredns:
@@ -56,8 +66,8 @@ externalDns:
         cpu: "10m"
         memory: "24Mi"
       limits:
-        cpu: "50m"
-        memory: "48Mi"
+        cpu: "200m"
+        memory: "128Mi"
 
   # etcd configuration (only when provider=coredns)
   etcd:
@@ -77,8 +87,8 @@ externalDns:
         cpu: "10m"
         memory: "16Mi"
       limits:
-        cpu: "50m"
-        memory: "32Mi"
+        cpu: "200m"
+        memory: "128Mi"
 
 syncPolicy:
   automated:

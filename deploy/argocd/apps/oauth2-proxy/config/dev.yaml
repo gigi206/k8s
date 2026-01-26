@@ -12,14 +12,24 @@ oauth2Proxy:
   oidc:
     clientId: "oauth2-proxy"
 
-  # Resources (dev: minimal)
+  # Resources (actual: 1m/4Mi)
   resources:
     requests:
-      cpu: "50m"
-      memory: "64Mi"
+      cpu: "5m"
+      memory: "8Mi"
     limits:
       cpu: "100m"
       memory: "128Mi"
+
+  # Wait-for-keycloak init container resources
+  waitForKeycloak:
+    resources:
+      requests:
+        cpu: "5m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
 
   # Security hardening (CIS/NSA compliance)
   serviceAccount:

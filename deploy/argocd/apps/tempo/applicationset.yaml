@@ -156,14 +156,14 @@ spec:
                 # Retention
                 retention: {{ .tempo.retention }}
 
-              # Resources
-              resources:
-                requests:
-                  cpu: {{ .tempo.resources.requests.cpu }}
-                  memory: {{ .tempo.resources.requests.memory }}
-                limits:
-                  cpu: {{ .tempo.resources.limits.cpu }}
-                  memory: {{ .tempo.resources.limits.memory }}
+                # Resources
+                resources:
+                  requests:
+                    cpu: {{ .tempo.resources.requests.cpu }}
+                    memory: {{ .tempo.resources.requests.memory }}
+                  limits:
+                    cpu: {{ .tempo.resources.limits.cpu }}
+                    memory: {{ .tempo.resources.limits.memory }}
 
               # Persistence
               persistence:

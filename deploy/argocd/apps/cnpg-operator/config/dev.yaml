@@ -16,11 +16,11 @@ cnpgOperator:
   config:
     clusterWide: true
 
-  # Minimal resources for dev
+  # Resources (actual: 2m/38Mi)
   resources:
     requests:
-      cpu: "100m"
-      memory: "256Mi"
+      cpu: "5m"
+      memory: "50Mi"
     limits:
       cpu: "500m"
       memory: "512Mi"
