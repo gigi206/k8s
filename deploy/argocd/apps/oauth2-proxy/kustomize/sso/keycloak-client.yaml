@@ -83,6 +83,25 @@ spec:
               done
               echo "Keycloak is ready!"
 
+              # Wait for realm to exist (realm import happens after Keycloak starts,
+              # there is a ~60s gap between health check and realm availability)
+              echo "Waiting for realm '$REALM'..."
+              REALM_READY=false
+              for i in $(seq 1 120); do
+                if curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_URL}/realms/${REALM}/.well-known/openid-configuration" | grep -q "200"; then
+                  echo "Realm '$REALM' is ready (after $i attempts)"
+                  REALM_READY=true
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120 - Realm not ready, waiting..."
+                sleep 5
+              done
+
+              if [ "$REALM_READY" != "true" ]; then
+                echo "ERROR: Realm '$REALM' not ready after 10 minutes"
+                exit 1
+              fi
+
               # Get admin token
               echo "Getting admin token..."
               TOKEN=$(curl -sk -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
