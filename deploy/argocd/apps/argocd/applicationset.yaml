@@ -433,6 +433,14 @@ spec:
             # KSOPS Configuration (SOPS + Kustomize plugin for secrets decryption)
             # =============================================================================
             valuesObject:
+              # Disable Redis secret init PreSync hook to prevent self-sync
+              # deadlock: the Job has ttlSecondsAfterFinished=60 (hardcoded in
+              # chart), so Kubernetes deletes it while ArgoCD restarts during
+              # first self-sync, causing the sync to stall. The redis secret
+              # is already created by the initial helm install and persists.
+              redisSecretInit:
+                enabled: false
+
               # Enable Kustomize alpha plugins for KSOPS
               configs:
                 cm:
