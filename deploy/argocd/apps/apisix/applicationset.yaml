@@ -449,4 +449,12 @@ spec:
                     path: /spec/template/spec/containers/0/env/0/value
                     value: {{ .common.domain }}
         {{- end }}
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Source: Cilium Pod Ingress Policy for APISIX Dashboard
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "cilium-dashboard-policy.yaml"
+        {{- end }}
         {{- end }}

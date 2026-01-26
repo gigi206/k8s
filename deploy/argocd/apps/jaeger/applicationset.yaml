@@ -216,15 +216,6 @@ spec:
                 enabled: false  # Not needed with Istio
               {{- end }}
 
-        {{- if and .features.serviceMesh.istio.waypoints.enabled .features.serviceMesh.enabled }}
-        # Source 2: Waypoint proxies for L7 tracing
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/resources
-          directory:
-            include: "waypoints.yaml"
-        {{- end }}
-
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source 3: HTTPRoute (Gateway API standard)
