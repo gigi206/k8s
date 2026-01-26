@@ -265,50 +265,50 @@ fi
 
 crictl config --set runtime-endpoint=unix:///run/k3s/containerd/containerd.sock
 
-# Brew requirements
-apt-get install -y build-essential procps curl file git
-curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | sudo -u vagrant bash -
-echo 'eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)' >>~vagrant/.bashrc
-sed -i '1i eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)' ~/.bashrc
+# # Brew requirements
+# apt-get install -y build-essential procps curl file git
+# curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | sudo -u vagrant bash -
+# echo 'eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)' >>~vagrant/.bashrc
+# sed -i '1i eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)' ~/.bashrc
 
-# Helm
-# curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install helm'
+# # Helm
+# # curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+# sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install helm'
 
-# Krew
-# kubectl krew
-# (
-#   krew_tmp_dir="$(mktemp -d)" &&
-#     curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz" &&
-#     tar zxvf krew-linux_amd64.tar.gz &&
-#     KREW=./krew-linux_amd64 &&
-#     "${KREW}" install krew
-#   rm -fr "${krew_tmp_dir}"
-# )
-sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install krew'
-eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)
+# # Krew
+# # kubectl krew
+# # (
+# #   krew_tmp_dir="$(mktemp -d)" &&
+# #     curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/krew-linux_amd64.tar.gz" &&
+# #     tar zxvf krew-linux_amd64.tar.gz &&
+# #     KREW=./krew-linux_amd64 &&
+# #     "${KREW}" install krew
+# #   rm -fr "${krew_tmp_dir}"
+# # )
+# sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install krew'
+# eval $(/home/linuxbrew/.linuxbrew/bin/brew shellenv)
 
-export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
-# https://krew.sigs.k8s.io/plugins/
-kubectl krew install ctx           # https://artifacthub.io/packages/krew/krew-index/ctx
-kubectl krew install ns            # https://artifacthub.io/packages/krew/krew-index/ns
-kubectl krew install access-matrix # https://artifacthub.io/packages/krew/krew-index/access-matrix
-kubectl krew install get-all       # https://artifacthub.io/packages/krew/krew-index/get-all
-kubectl krew install deprecations  # https://artifacthub.io/packages/krew/krew-index/deprecations
-kubectl krew install explore       # https://artifacthub.io/packages/krew/krew-index/explore
-kubectl krew install images        # https://artifacthub.io/packages/krew/krew-index/images
-kubectl krew install neat          # https://artifacthub.io/packages/krew/krew-index/neat
-kubectl krew install pod-inspect   # https://artifacthub.io/packages/krew/krew-index/pod-inspect
-kubectl krew install pexec         # https://artifacthub.io/packages/krew/krew-index/pexec
-# echo 'source <(kpexec --completion bash)' >>~/.bashrc
+# export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+# # https://krew.sigs.k8s.io/plugins/
+# kubectl krew install ctx           # https://artifacthub.io/packages/krew/krew-index/ctx
+# kubectl krew install ns            # https://artifacthub.io/packages/krew/krew-index/ns
+# kubectl krew install access-matrix # https://artifacthub.io/packages/krew/krew-index/access-matrix
+# kubectl krew install get-all       # https://artifacthub.io/packages/krew/krew-index/get-all
+# kubectl krew install deprecations  # https://artifacthub.io/packages/krew/krew-index/deprecations
+# kubectl krew install explore       # https://artifacthub.io/packages/krew/krew-index/explore
+# kubectl krew install images        # https://artifacthub.io/packages/krew/krew-index/images
+# kubectl krew install neat          # https://artifacthub.io/packages/krew/krew-index/neat
+# kubectl krew install pod-inspect   # https://artifacthub.io/packages/krew/krew-index/pod-inspect
+# kubectl krew install pexec         # https://artifacthub.io/packages/krew/krew-index/pexec
+# # echo 'source <(kpexec --completion bash)' >>~/.bashrc
 
-# kubectl krew install outdated      # https://artifacthub.io/packages/krew/krew-index/outdated
-# kubectl krew install sniff         # https://artifacthub.io/packages/krew/krew-index/sniff
-# kubectl krew install ingress-nginx # https://artifacthub.io/packages/krew/krew-index/ingress-nginx
-# Waiting for the kubernetes API before interacting with it
+# # kubectl krew install outdated      # https://artifacthub.io/packages/krew/krew-index/outdated
+# # kubectl krew install sniff         # https://artifacthub.io/packages/krew/krew-index/sniff
+# # kubectl krew install ingress-nginx # https://artifacthub.io/packages/krew/krew-index/ingress-nginx
+# # Waiting for the kubernetes API before interacting with it
 
-# Install which linuxbrew
-sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install kustomize cilium-cli hubble k9s'
+# # Install which linuxbrew
+# sudo -u vagrant -i -- bash -c 'export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH" && brew install kustomize cilium-cli hubble k9s'
 
 while true; do
   lsof -Pni:6443 &>/dev/null && break
