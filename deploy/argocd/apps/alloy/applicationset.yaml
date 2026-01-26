@@ -116,6 +116,20 @@ spec:
           helm:
             releaseName: alloy
             valuesObject:
+              # Config reloader resources
+              {{- if .alloy.configReloader }}
+              {{- if .alloy.configReloader.resources }}
+              configReloader:
+                resources:
+                  requests:
+                    cpu: '{{ .alloy.configReloader.resources.requests.cpu }}'
+                    memory: '{{ .alloy.configReloader.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .alloy.configReloader.resources.limits.cpu }}'
+                    memory: '{{ .alloy.configReloader.resources.limits.memory }}'
+              {{- end }}
+              {{- end }}
+
               # Controller type (daemonset for log collection)
               controller:
                 type: '{{ .alloy.controller.type }}'

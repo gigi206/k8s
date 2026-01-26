@@ -50,51 +50,66 @@ kubescape:
     backingStorageSize: "5Gi"
     kubevulnSize: "5Gi"
 
-  # Component resources (reduced for dev)
+  # Component resources (right-sized from kubectl top)
   kubescape:
+    # actual: 116m/97Mi
     resources:
       requests:
-        cpu: "100m"
-        memory: "256Mi"
+        cpu: "150m"
+        memory: "128Mi"
       limits:
         cpu: "400m"
         memory: "512Mi"
 
   operator:
+    # actual: 1m/18Mi
     resources:
       requests:
-        cpu: "25m"
-        memory: "64Mi"
+        cpu: "5m"
+        memory: "24Mi"
       limits:
         cpu: "200m"
         memory: "256Mi"
 
   kubevuln:
+    # actual: 1m/247Mi (idle, spikes during scans)
     resources:
       requests:
-        cpu: "150m"
-        memory: "512Mi"
+        cpu: "5m"
+        memory: "300Mi"
       limits:
         cpu: "1000m"
         memory: "2Gi"
 
   storage:
+    # actual: 15m/106Mi
     resources:
       requests:
-        cpu: "50m"
-        memory: "256Mi"
+        cpu: "20m"
+        memory: "128Mi"
       limits:
         cpu: "500m"
         memory: "512Mi"
 
   nodeAgent:
+    # actual: 33m/286Mi
     resources:
       requests:
         cpu: "50m"
-        memory: "256Mi"
+        memory: "350Mi"
       limits:
         cpu: "300m"
         memory: "1Gi"
+
+  # Prometheus exporter (actual: 1m/12Mi)
+  prometheusExporter:
+    resources:
+      requests:
+        cpu: "5m"
+        memory: "16Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
 
   # ServiceMonitor configuration
   serviceMonitor:

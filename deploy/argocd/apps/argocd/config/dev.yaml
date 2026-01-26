@@ -38,6 +38,16 @@ argocd:
         g, readonly, role:readonly
       scopes: "[groups]"
 
+  # KSOPS init container (actual: idle, runs once at startup)
+  ksops:
+    resources:
+      requests:
+        cpu: "5m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
+
   server:
     ingress:
       enabled: false  # Disabled - using Gateway API HTTPRoute instead
@@ -45,8 +55,8 @@ argocd:
     replicas: 1
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "5m"
+        memory: "50Mi"
       limits:
         cpu: "200m"
         memory: "256Mi"
@@ -61,7 +71,7 @@ argocd:
     replicas: 1
     resources:
       requests:
-        cpu: "500m"
+        cpu: "60m"
         memory: "1Gi"
       limits:
         cpu: "2000m"
@@ -77,8 +87,8 @@ argocd:
     replicas: 1
     resources:
       requests:
-        cpu: "200m"
-        memory: "256Mi"
+        cpu: "15m"
+        memory: "128Mi"
       limits:
         cpu: "2000m"
         memory: "512Mi"
@@ -93,14 +103,14 @@ argocd:
   dex:
     enabled: false
 
-  # ApplicationSet controller (usage: 3m/52Mi)
+  # ApplicationSet controller (actual: 13m/46Mi)
   applicationSet:
     resources:
       requests:
-        cpu: "10m"
+        cpu: "15m"
         memory: "64Mi"
       limits:
-        cpu: "50m"
+        cpu: "100m"
         memory: "128Mi"
     metrics:
       serviceMonitor:
@@ -109,12 +119,12 @@ argocd:
             replacement: in-cluster
             action: replace
 
-  # Notifications controller (usage: 3m/44Mi)
+  # Notifications controller (actual: 1m/39Mi)
   notifications:
     resources:
       requests:
-        cpu: "10m"
-        memory: "64Mi"
+        cpu: "5m"
+        memory: "50Mi"
       limits:
         cpu: "50m"
         memory: "128Mi"
@@ -125,16 +135,16 @@ argocd:
             replacement: in-cluster
             action: replace
 
-  # Redis (usage: 6m/30Mi)
+  # Redis (actual: 4m/35Mi)
   redis:
     ha: false
     resources:
       requests:
         cpu: "10m"
-        memory: "32Mi"
+        memory: "45Mi"
       limits:
-        cpu: "50m"
-        memory: "64Mi"
+        cpu: "200m"
+        memory: "128Mi"
 
 syncPolicy:
   automated:

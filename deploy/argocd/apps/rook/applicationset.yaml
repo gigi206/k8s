@@ -424,6 +424,63 @@ spec:
                 {{- end }}
 
               cephClusterSpec:
+                {{- if .rook.cluster.resources }}
+                resources:
+                  {{- if .rook.cluster.resources.mon }}
+                  mon:
+                    requests:
+                      cpu: '{{ .rook.cluster.resources.mon.requests.cpu }}'
+                      memory: '{{ .rook.cluster.resources.mon.requests.memory }}'
+                    limits:
+                      cpu: '{{ .rook.cluster.resources.mon.limits.cpu }}'
+                      memory: '{{ .rook.cluster.resources.mon.limits.memory }}'
+                  {{- end }}
+                  {{- if .rook.cluster.resources.osd }}
+                  osd:
+                    requests:
+                      cpu: '{{ .rook.cluster.resources.osd.requests.cpu }}'
+                      memory: '{{ .rook.cluster.resources.osd.requests.memory }}'
+                    limits:
+                      cpu: '{{ .rook.cluster.resources.osd.limits.cpu }}'
+                      memory: '{{ .rook.cluster.resources.osd.limits.memory }}'
+                  {{- end }}
+                  {{- if .rook.cluster.resources.mgr }}
+                  mgr:
+                    requests:
+                      cpu: '{{ .rook.cluster.resources.mgr.requests.cpu }}'
+                      memory: '{{ .rook.cluster.resources.mgr.requests.memory }}'
+                    limits:
+                      cpu: '{{ .rook.cluster.resources.mgr.limits.cpu }}'
+                      memory: '{{ .rook.cluster.resources.mgr.limits.memory }}'
+                  {{- end }}
+                  {{- if .rook.cluster.resources.crashcollector }}
+                  crashcollector:
+                    requests:
+                      cpu: '{{ .rook.cluster.resources.crashcollector.requests.cpu }}'
+                      memory: '{{ .rook.cluster.resources.crashcollector.requests.memory }}'
+                    limits:
+                      cpu: '{{ .rook.cluster.resources.crashcollector.limits.cpu }}'
+                      memory: '{{ .rook.cluster.resources.crashcollector.limits.memory }}'
+                  {{- end }}
+                  {{- if .rook.cluster.resources.exporter }}
+                  exporter:
+                    requests:
+                      cpu: '{{ .rook.cluster.resources.exporter.requests.cpu }}'
+                      memory: '{{ .rook.cluster.resources.exporter.requests.memory }}'
+                    limits:
+                      cpu: '{{ .rook.cluster.resources.exporter.limits.cpu }}'
+                      memory: '{{ .rook.cluster.resources.exporter.limits.memory }}'
+                  {{- end }}
+                  {{- if .rook.cluster.resources.logcollector }}
+                  logcollector:
+                    requests:
+                      cpu: '{{ .rook.cluster.resources.logcollector.requests.cpu }}'
+                      memory: '{{ .rook.cluster.resources.logcollector.requests.memory }}'
+                    limits:
+                      cpu: '{{ .rook.cluster.resources.logcollector.limits.cpu }}'
+                      memory: '{{ .rook.cluster.resources.logcollector.limits.memory }}'
+                  {{- end }}
+                {{- end }}
                 {{- if .features.monitoring.enabled }}
                 labels:
                   monitoring:
@@ -516,6 +573,15 @@ spec:
                     gateway:
                       port: 80
                       instances: {{ .rook.objectStore.gateway.instances }}
+                      {{- if .rook.objectStore.gateway.resources }}
+                      resources:
+                        requests:
+                          cpu: '{{ .rook.objectStore.gateway.resources.requests.cpu }}'
+                          memory: '{{ .rook.objectStore.gateway.resources.requests.memory }}'
+                        limits:
+                          cpu: '{{ .rook.objectStore.gateway.resources.limits.cpu }}'
+                          memory: '{{ .rook.objectStore.gateway.resources.limits.memory }}'
+                      {{- end }}
                   storageClass:
                     enabled: true
                     name: ceph-bucket

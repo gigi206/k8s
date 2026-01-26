@@ -16,11 +16,11 @@ tempo:
   # Retention period
   retention: "24h"
 
-  # Resources
+  # Resources (actual: ~2m CPU, ~54Mi mem)
   resources:
     requests:
-      cpu: "100m"
-      memory: "256Mi"
+      cpu: "5m"
+      memory: "80Mi"
     limits:
       cpu: "500m"
       memory: "512Mi"

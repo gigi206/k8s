@@ -78,6 +78,16 @@ spec:
                             "-c",
                             "echo Waiting for CA certificate...; until [ -f /etc/ssl/certs/root-ca/ca.crt ] && grep -q \"BEGIN CERTIFICATE\" /etc/ssl/certs/root-ca/ca.crt; do echo CA not ready, waiting...; sleep 2; done; echo CA certificate is ready!"
                           ],
+                          "resources": {
+                            "requests": {
+                              "cpu": "5m",
+                              "memory": "32Mi"
+                            },
+                            "limits": {
+                              "cpu": "50m",
+                              "memory": "64Mi"
+                            }
+                          },
                           "volumeMounts": [
                             {
                               "name": "root-ca",

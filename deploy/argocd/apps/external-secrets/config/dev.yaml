@@ -8,33 +8,33 @@ externalSecrets:
   # Controller replicas (dev: 1)
   replicas: 1
 
-  # Controller resources (dev: minimal)
+  # Controller resources (actual: 1m/34Mi)
   resources:
     requests:
-      cpu: "10m"
-      memory: "64Mi"
+      cpu: "5m"
+      memory: "40Mi"
     limits:
       cpu: "100m"
       memory: "256Mi"
 
-  # Webhook configuration
+  # Webhook configuration (actual: 1m/26Mi)
   webhook:
     replicas: 1
     resources:
       requests:
-        cpu: "10m"
+        cpu: "5m"
         memory: "32Mi"
       limits:
         cpu: "50m"
         memory: "128Mi"
 
-  # Cert Controller configuration
+  # Cert Controller configuration (actual: 1m/33Mi)
   certController:
     replicas: 1
     resources:
       requests:
-        cpu: "10m"
-        memory: "32Mi"
+        cpu: "5m"
+        memory: "40Mi"
       limits:
         cpu: "50m"
         memory: "128Mi"

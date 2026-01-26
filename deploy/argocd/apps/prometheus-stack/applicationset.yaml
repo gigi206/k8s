@@ -637,12 +637,52 @@ spec:
             {{- end }}
             {{- end }}
 
+            # Node Exporter: resources
+            {{- if .prometheusStack.nodeExporter }}
+            {{- if .prometheusStack.nodeExporter.resources }}
+            - name: prometheus-node-exporter.resources.requests.cpu
+              value: '{{ .prometheusStack.nodeExporter.resources.requests.cpu }}'
+            - name: prometheus-node-exporter.resources.requests.memory
+              value: '{{ .prometheusStack.nodeExporter.resources.requests.memory }}'
+            - name: prometheus-node-exporter.resources.limits.cpu
+              value: '{{ .prometheusStack.nodeExporter.resources.limits.cpu }}'
+            - name: prometheus-node-exporter.resources.limits.memory
+              value: '{{ .prometheusStack.nodeExporter.resources.limits.memory }}'
+            {{- end }}
+            {{- end }}
+
             # Grafana: grafana.ini configuration (via valuesObject pour structure imbriquée)
             # Note: Grafana 12+ a supprimé Legacy Alerting, seul unified_alerting est disponible
             # OIDC is enabled only if both SSO feature flag AND per-app oidc.enabled are true
             {{- $oidcEnabled := and .features.sso.enabled .prometheusStack.grafana.oidc .prometheusStack.grafana.oidc.enabled }}
             valuesObject:
+              # Prometheus config-reloader resources
+              {{- if .prometheusStack.prometheusOperator.configReloader }}
+              {{- if .prometheusStack.prometheusOperator.configReloader.resources }}
+              prometheusOperator:
+                prometheusConfigReloader:
+                  resources:
+                    requests:
+                      cpu: '{{ .prometheusStack.prometheusOperator.configReloader.resources.requests.cpu }}'
+                      memory: '{{ .prometheusStack.prometheusOperator.configReloader.resources.requests.memory }}'
+                    limits:
+                      cpu: '{{ .prometheusStack.prometheusOperator.configReloader.resources.limits.cpu }}'
+                      memory: '{{ .prometheusStack.prometheusOperator.configReloader.resources.limits.memory }}'
+              {{- end }}
+              {{- end }}
+
               grafana:
+                # Grafana sidecar resources
+                {{- if .prometheusStack.grafana.sidecar.resources }}
+                sidecar:
+                  resources:
+                    requests:
+                      cpu: '{{ .prometheusStack.grafana.sidecar.resources.requests.cpu }}'
+                      memory: '{{ .prometheusStack.grafana.sidecar.resources.requests.memory }}'
+                    limits:
+                      cpu: '{{ .prometheusStack.grafana.sidecar.resources.limits.cpu }}'
+                      memory: '{{ .prometheusStack.grafana.sidecar.resources.limits.memory }}'
+                {{- end }}
                 # PSA restricted compatibility
                 podSecurityContext:
                   runAsNonRoot: true

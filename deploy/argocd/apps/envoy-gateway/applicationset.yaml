@@ -152,6 +152,17 @@ spec:
               certgen:
                 job:
                   ttlSecondsAfterFinished: ""
+                  {{- if .envoyGateway.certgen }}
+                  {{- if .envoyGateway.certgen.resources }}
+                  resources:
+                    requests:
+                      cpu: '{{ .envoyGateway.certgen.resources.requests.cpu }}'
+                      memory: '{{ .envoyGateway.certgen.resources.requests.memory }}'
+                    limits:
+                      cpu: '{{ .envoyGateway.certgen.resources.limits.cpu }}'
+                      memory: '{{ .envoyGateway.certgen.resources.limits.memory }}'
+                  {{- end }}
+                  {{- end }}
 
               # GatewayClass configuration
               config:
@@ -235,6 +246,17 @@ spec:
               certgen:
                 job:
                   ttlSecondsAfterFinished: ""
+                  {{- if .envoyGateway.certgen }}
+                  {{- if .envoyGateway.certgen.resources }}
+                  resources:
+                    requests:
+                      cpu: '{{ .envoyGateway.certgen.resources.requests.cpu }}'
+                      memory: '{{ .envoyGateway.certgen.resources.requests.memory }}'
+                    limits:
+                      cpu: '{{ .envoyGateway.certgen.resources.limits.cpu }}'
+                      memory: '{{ .envoyGateway.certgen.resources.limits.memory }}'
+                  {{- end }}
+                  {{- end }}
               config:
                 envoyGateway:
                   gateway:

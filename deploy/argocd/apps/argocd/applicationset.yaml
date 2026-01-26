@@ -516,6 +516,17 @@ spec:
                       runAsUser: 999
                       seccompProfile:
                         type: RuntimeDefault
+                    {{- if .argocd.ksops }}
+                    {{- if .argocd.ksops.resources }}
+                    resources:
+                      requests:
+                        cpu: '{{ .argocd.ksops.resources.requests.cpu }}'
+                        memory: '{{ .argocd.ksops.resources.requests.memory }}'
+                      limits:
+                        cpu: '{{ .argocd.ksops.resources.limits.cpu }}'
+                        memory: '{{ .argocd.ksops.resources.limits.memory }}'
+                    {{- end }}
+                    {{- end }}
                     volumeMounts:
                       - name: custom-tools
                         mountPath: /custom-tools

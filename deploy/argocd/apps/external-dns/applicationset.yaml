@@ -181,6 +181,17 @@ spec:
                       drop: ["ALL"]
                     seccompProfile:
                       type: RuntimeDefault
+                  {{- if .externalDns.waitForEtcd }}
+                  {{- if .externalDns.waitForEtcd.resources }}
+                  resources:
+                    requests:
+                      cpu: '{{ .externalDns.waitForEtcd.resources.requests.cpu }}'
+                      memory: '{{ .externalDns.waitForEtcd.resources.requests.memory }}'
+                    limits:
+                      cpu: '{{ .externalDns.waitForEtcd.resources.limits.cpu }}'
+                      memory: '{{ .externalDns.waitForEtcd.resources.limits.memory }}'
+                  {{- end }}
+                  {{- end }}
         # CoreDNS server
         - repoURL: https://coredns.github.io/helm
           targetRevision: '{{ .externalDns.coredns.version }}'
