@@ -100,6 +100,14 @@ spec:
           directory:
             include: "kubescape-exceptions.yaml"
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/alloy/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
 
         # Source 1: Alloy Helm Chart
         - repoURL: https://grafana.github.io/helm-charts

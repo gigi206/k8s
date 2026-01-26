@@ -132,6 +132,14 @@ spec:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- end }}
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
 
         # Source 1: Jaeger Helm Chart
         - repoURL: https://jaegertracing.github.io/helm-charts
@@ -150,6 +158,9 @@ spec:
               allInOne:
                 enabled: true
                 replicas: {{ .jaeger.allInOne.replicas }}
+                # Disable SA token automount (not needed - Jaeger doesn't use K8s API)
+                serviceAccount:
+                  automountServiceAccountToken: false
                 resources:
                   requests:
                     cpu: {{ .jaeger.allInOne.resources.requests.cpu }}

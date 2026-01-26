@@ -96,6 +96,14 @@ spec:
           directory:
             include: "cilium-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
         {{- if .rke2.cis.enabled }}
         # Source: Namespace with PSA labels for CIS profile compatibility
         - repoURL: https://github.com/gigi206/k8s
@@ -127,6 +135,25 @@ spec:
                   runAsNonRoot: true
                   seccompProfile:
                     type: RuntimeDefault
+                {{- if .metallb.controller.resources }}
+                resources:
+                  requests:
+                    cpu: '{{ .metallb.controller.resources.requests.cpu }}'
+                    memory: '{{ .metallb.controller.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .metallb.controller.resources.limits.cpu }}'
+                    memory: '{{ .metallb.controller.resources.limits.memory }}'
+                {{- end }}
+              {{- if .metallb.speaker.resources }}
+              speaker:
+                resources:
+                  requests:
+                    cpu: '{{ .metallb.speaker.resources.requests.cpu }}'
+                    memory: '{{ .metallb.speaker.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .metallb.speaker.resources.limits.cpu }}'
+                    memory: '{{ .metallb.speaker.resources.limits.memory }}'
+              {{- end }}
 
         # Source 2: IPAddressPool & L2Advertisement (avec patch pour Gateway API controller IP)
         - repoURL: https://github.com/gigi206/k8s

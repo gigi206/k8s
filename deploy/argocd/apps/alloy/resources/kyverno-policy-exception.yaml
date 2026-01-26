@@ -1,0 +1,26 @@
+---
+# PolicyException for Alloy - requires K8s API for pod discovery and log collection
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: alloy-automount-sa-token
+  namespace: alloy
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - alloy
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

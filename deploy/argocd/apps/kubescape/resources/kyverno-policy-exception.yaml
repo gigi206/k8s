@@ -1,0 +1,26 @@
+---
+# PolicyException for Kubescape - requires K8s API for security scanning
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: kubescape-automount-sa-token
+  namespace: kubescape
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - kubescape
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

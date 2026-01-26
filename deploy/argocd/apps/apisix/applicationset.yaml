@@ -101,6 +101,14 @@ spec:
           directory:
             include: "cilium-etcd-policy.yaml"
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
         {{- if and .apisix.etcd.external.enabled .apisix.etcd.external.tls.enabled }}
         # TLS Certificates for etcd mTLS (server, client, peer)
         - repoURL: https://github.com/gigi206/k8s

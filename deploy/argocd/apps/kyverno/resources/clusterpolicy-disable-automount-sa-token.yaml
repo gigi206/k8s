@@ -1,0 +1,60 @@
+---
+# =============================================================================
+# ClusterPolicy: Disable ServiceAccount Token Automount
+# =============================================================================
+# Mutates all pods to set automountServiceAccountToken: false by default.
+# Applications that need K8s API access must create a PolicyException.
+#
+# CIS Kubernetes Benchmark 5.1.6:
+# "Ensure that Service Account Tokens are only mounted where necessary"
+#
+# Pattern: Each app that needs K8s API access creates its own PolicyException
+# in its resources/ directory (e.g., kyverno-policy-exception.yaml)
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disable-automount-sa-token
+  annotations:
+    policies.kyverno.io/title: Disable Automount ServiceAccount Token
+    policies.kyverno.io/category: Security Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Kubernetes automatically mounts ServiceAccount tokens in pods, which can
+      be exploited if a pod is compromised. This policy mutates pods to disable
+      automatic token mounting for workloads that don't need Kubernetes API access.
+      Applications requiring K8s API access must define a PolicyException.
+spec:
+  # Kyverno defaults (explicit to avoid OutOfSync)
+  admission: true
+  emitWarning: false
+  validationFailureAction: Audit
+  # Mutate existing resources on policy update
+  mutateExistingOnPolicyUpdate: false
+  # Apply to new pods only (not existing)
+  background: false
+  rules:
+    - name: disable-automount-sa-token
+      skipBackgroundRequests: true
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          # === System namespaces (always need API access - cannot be excepted) ===
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+          # === Policy engine itself (must be excluded - cannot use PolicyException) ===
+          - resources:
+              namespaces:
+                - kyverno
+      mutate:
+        patchStrategicMerge:
+          spec:
+            automountServiceAccountToken: false

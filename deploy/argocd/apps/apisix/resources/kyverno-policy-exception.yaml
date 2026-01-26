@@ -1,0 +1,26 @@
+---
+# PolicyException for APISIX - requires K8s API for gateway management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: apisix-automount-sa-token
+  namespace: apisix
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - apisix
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

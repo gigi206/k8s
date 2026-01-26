@@ -153,6 +153,14 @@ spec:
           directory:
             include: "kubescape-exceptions.yaml"
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source: HTTPRoute (Gateway API standard)
@@ -460,6 +468,30 @@ spec:
               value: "true"
             - name: prometheusOperator.admissionWebhooks.certManager.admissionCert.duration
               value: "8760h"
+
+            # Prometheus Operator: resources
+            {{- if .prometheusStack.prometheusOperator.resources }}
+            - name: prometheusOperator.resources.requests.cpu
+              value: '{{ .prometheusStack.prometheusOperator.resources.requests.cpu }}'
+            - name: prometheusOperator.resources.requests.memory
+              value: '{{ .prometheusStack.prometheusOperator.resources.requests.memory }}'
+            - name: prometheusOperator.resources.limits.cpu
+              value: '{{ .prometheusStack.prometheusOperator.resources.limits.cpu }}'
+            - name: prometheusOperator.resources.limits.memory
+              value: '{{ .prometheusStack.prometheusOperator.resources.limits.memory }}'
+            {{- end }}
+
+            # Kube State Metrics: resources
+            {{- if .prometheusStack.kubeStateMetrics.resources }}
+            - name: kube-state-metrics.resources.requests.cpu
+              value: '{{ .prometheusStack.kubeStateMetrics.resources.requests.cpu }}'
+            - name: kube-state-metrics.resources.requests.memory
+              value: '{{ .prometheusStack.kubeStateMetrics.resources.requests.memory }}'
+            - name: kube-state-metrics.resources.limits.cpu
+              value: '{{ .prometheusStack.kubeStateMetrics.resources.limits.cpu }}'
+            - name: kube-state-metrics.resources.limits.memory
+              value: '{{ .prometheusStack.kubeStateMetrics.resources.limits.memory }}'
+            {{- end }}
 
             # Prometheus: replicas and resources
             {{- if .prometheusStack.prometheus.replicas }}

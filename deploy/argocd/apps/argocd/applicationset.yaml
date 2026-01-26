@@ -135,6 +135,14 @@ spec:
             include: "cilium-ingress-policy-nginx-gwf.yaml"
         {{- end }}
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
         # Source: HTTPRoute (Gateway API standard)
@@ -368,6 +376,42 @@ spec:
               - name: redis-ha.haproxy.enabled
                 value: "true"
               {{- end }}
+              {{- end }}
+
+            # ApplicationSet resources
+              {{- if .argocd.applicationSet.resources }}
+              - name: applicationSet.resources.requests.cpu
+                value: '{{ .argocd.applicationSet.resources.requests.cpu }}'
+              - name: applicationSet.resources.requests.memory
+                value: '{{ .argocd.applicationSet.resources.requests.memory }}'
+              - name: applicationSet.resources.limits.cpu
+                value: '{{ .argocd.applicationSet.resources.limits.cpu }}'
+              - name: applicationSet.resources.limits.memory
+                value: '{{ .argocd.applicationSet.resources.limits.memory }}'
+              {{- end }}
+
+            # Notifications resources
+              {{- if .argocd.notifications.resources }}
+              - name: notifications.resources.requests.cpu
+                value: '{{ .argocd.notifications.resources.requests.cpu }}'
+              - name: notifications.resources.requests.memory
+                value: '{{ .argocd.notifications.resources.requests.memory }}'
+              - name: notifications.resources.limits.cpu
+                value: '{{ .argocd.notifications.resources.limits.cpu }}'
+              - name: notifications.resources.limits.memory
+                value: '{{ .argocd.notifications.resources.limits.memory }}'
+              {{- end }}
+
+            # Redis resources
+              {{- if .argocd.redis.resources }}
+              - name: redis.resources.requests.cpu
+                value: '{{ .argocd.redis.resources.requests.cpu }}'
+              - name: redis.resources.requests.memory
+                value: '{{ .argocd.redis.resources.requests.memory }}'
+              - name: redis.resources.limits.cpu
+                value: '{{ .argocd.redis.resources.limits.cpu }}'
+              - name: redis.resources.limits.memory
+                value: '{{ .argocd.redis.resources.limits.memory }}'
               {{- end }}
 
             # Dex (OIDC/SSO) - disabled by default

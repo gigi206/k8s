@@ -1,0 +1,33 @@
+---
+# PolicyException for Keycloak namespace - Keycloak itself doesn't need K8s API
+# but the namespace may have jobs/operators that do
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: keycloak-automount-sa-token
+  namespace: keycloak
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - keycloak
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
+          selector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: NotIn
+                values:
+                  - keycloak

@@ -1,0 +1,26 @@
+---
+# PolicyException for Ingress NGINX - requires K8s API for ingress controller operations
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: ingress-nginx-automount-sa-token
+  namespace: ingress-nginx
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - ingress-nginx
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
