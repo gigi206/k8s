@@ -10,6 +10,26 @@ metallb:
       addresses:
         - 192.168.121.220-192.168.121.250
 
+  # Controller (usage: 2m/64Mi)
+  controller:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "64Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
+
+  # Speaker (usage: 3m/24Mi)
+  speaker:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
+
 syncPolicy:
   automated:
     enabled: true
