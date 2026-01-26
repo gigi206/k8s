@@ -126,14 +126,19 @@ spec:
               # Wait for Keycloak SAML metadata to be available (use internal URL for cluster access)
               echo "Waiting for Keycloak SAML metadata..."
               KEYCLOAK_SAML_URL_INTERNAL="https://${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}/protocol/saml/descriptor"
-              for i in $(seq 1 60); do
+              for i in $(seq 1 240); do
                 if curl -sk -o /dev/null -w "%{http_code}" "$KEYCLOAK_SAML_URL_INTERNAL" | grep -q "200"; then
-                  echo "Keycloak SAML metadata is available"
+                  echo "Keycloak SAML metadata is available (after $i attempts)"
                   break
                 fi
-                echo "Attempt $i/60 - Keycloak SAML not ready, waiting..."
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/240 - Keycloak SAML not ready, waiting..."
                 sleep 5
               done
+
+              if ! curl -sk -o /dev/null -w "%{http_code}" "$KEYCLOAK_SAML_URL_INTERNAL" | grep -q "200"; then
+                echo "ERROR: Keycloak SAML metadata not available after 20 minutes"
+                exit 1
+              fi
 
               # Check current SSO status
               echo "Checking current SSO status..."
