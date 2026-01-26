@@ -65,9 +65,10 @@ spec:
               set -e
               echo "=== Creating OAuth2 Proxy client in Keycloak ==="
 
-              # Wait for Keycloak to be ready (max 5 minutes)
+              # Wait for Keycloak to be ready (up to 20 min - keycloak depends on
+              # cnpg, external-secrets, cert-manager and can take ~13 min to start)
               echo "Waiting for Keycloak to be ready..."
-              MAX_RETRIES=60
+              MAX_RETRIES=240
               RETRY_INTERVAL=5
               RETRY_COUNT=0
 
@@ -77,7 +78,7 @@ spec:
                   echo "ERROR: Keycloak not ready after $((MAX_RETRIES * RETRY_INTERVAL)) seconds"
                   exit 1
                 fi
-                echo "Keycloak not ready yet, waiting ${RETRY_INTERVAL}s... (attempt ${RETRY_COUNT}/${MAX_RETRIES})"
+                [ $((RETRY_COUNT % 12)) -eq 0 ] && echo "Keycloak not ready yet (attempt ${RETRY_COUNT}/${MAX_RETRIES})"
                 sleep $RETRY_INTERVAL
               done
               echo "Keycloak is ready!"

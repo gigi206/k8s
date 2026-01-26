@@ -70,16 +70,24 @@ spec:
               echo "Realm: $REALM"
               echo "Client ID: $CLIENT_ID"
 
-              # Wait for Keycloak to be ready
+              # Wait for Keycloak to be ready (up to 20 min - keycloak depends on
+              # cnpg, external-secrets, cert-manager and can take ~13 min to start)
               echo "Waiting for Keycloak..."
-              for i in $(seq 1 60); do
+              KEYCLOAK_READY=false
+              for i in $(seq 1 240); do
                 if curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_HEALTH_URL}/health/ready" | grep -q "200"; then
-                  echo "Keycloak is ready"
+                  echo "Keycloak is ready (after $i attempts)"
+                  KEYCLOAK_READY=true
                   break
                 fi
-                echo "Attempt $i/60 - Keycloak not ready, waiting..."
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/240 - Keycloak not ready, waiting..."
                 sleep 5
               done
+
+              if [ "$KEYCLOAK_READY" != "true" ]; then
+                echo "ERROR: Keycloak not ready after 20 minutes"
+                exit 1
+              fi
 
               # Get admin token from master realm
               echo "Getting admin token..."
