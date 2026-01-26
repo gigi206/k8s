@@ -354,6 +354,7 @@ log_info "Lecture des feature flags depuis config.yaml..."
 
 # Lecture des feature flags
 FEAT_METALLB=$(get_feature '.features.metallb.enabled' 'true')
+FEAT_KYVERNO=$(get_feature '.features.kyverno.enabled' 'true')
 FEAT_KUBEVIP=$(get_feature '.features.kubeVip.enabled' 'true')
 FEAT_GATEWAY_API=$(get_feature '.features.gatewayAPI.enabled' 'true')
 FEAT_GATEWAY_HTTPROUTE=$(get_feature '.features.gatewayAPI.httpRoute.enabled' 'true')
@@ -389,6 +390,7 @@ FEAT_KATA_CONTAINERS=$(get_feature '.features.kataContainers.enabled' 'false')
 
 log_debug "Feature flags lus:"
 log_debug "  metallb: $FEAT_METALLB"
+log_debug "  kyverno: $FEAT_KYVERNO"
 log_debug "  kubeVip: $FEAT_KUBEVIP"
 log_debug "  gatewayAPI: $FEAT_GATEWAY_API (httpRoute: $FEAT_GATEWAY_HTTPROUTE, controller: $FEAT_GATEWAY_CONTROLLER)"
 log_debug "  certManager: $FEAT_CERT_MANAGER"
@@ -636,6 +638,12 @@ APPLICATIONSETS=()
 # (ces controllers incluent leurs propres CRDs Gateway API dans leur chart Helm)
 [[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "apisix" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "traefik" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "envoy-gateway" ]] && APPLICATIONSETS+=("apps/gateway-api-controller/applicationset.yaml")
 
+# Wave 18: Policy Engine (deployed separately in Phase 1 to avoid chicken-and-egg
+# problem: Kyverno mutates pods before PolicyExceptions are deployed, which can
+# block apps with PreSync hook Jobs due to immutable spec.template)
+KYVERNO_APPSET=""
+[[ "$FEAT_KYVERNO" == "true" ]] && KYVERNO_APPSET="apps/kyverno/applicationset.yaml"
+
 # Wave 20: Certificates
 [[ "$FEAT_CERT_MANAGER" == "true" ]] && APPLICATIONSETS+=("apps/cert-manager/applicationset.yaml")
 
@@ -766,10 +774,13 @@ fi
 # En environnement dev/local, chaque ApplicationSet génère 1 Application
 # En environnement prod, certains ApplicationSets peuvent générer plusieurs Applications (HA)
 EXPECTED_APPS_COUNT=${#APPLICATIONSETS[@]}
+# Include Kyverno in the count (deployed separately in Phase 1)
+[[ -n "$KYVERNO_APPSET" ]] && EXPECTED_APPS_COUNT=$((EXPECTED_APPS_COUNT + 1))
 log_debug "Nombre d'Applications attendues: $EXPECTED_APPS_COUNT"
 
 # Afficher la liste finale
 log_info "ApplicationSets à déployer (${#APPLICATIONSETS[@]}):"
+[[ -n "$KYVERNO_APPSET" ]] && log_debug "  - $KYVERNO_APPSET (Phase 1)"
 for appset in "${APPLICATIONSETS[@]}"; do
   log_debug "  - $appset"
 done
@@ -949,38 +960,117 @@ wait_for_condition \
   }
 
 # =============================================================================
-# Déploiement des ApplicationSets (en parallèle)
+# Helper: Apply CI patches and strip monitoring blocks from a manifest file
 # =============================================================================
+apply_manifest_patches() {
+  local manifest_file="$1"
 
-echo ""
-log_info "Déploiement des ApplicationSets..."
+  if [[ -n "${CI_GIT_BRANCH:-}" ]]; then
+    log_info "CI mode: patching for branch '${CI_GIT_BRANCH}'"
+    sed -i "s|revision: 'HEAD'|revision: '${CI_GIT_BRANCH}'|g" "$manifest_file"
+    sed -i "s|targetRevision: '{{ .git.revision }}'|targetRevision: '${CI_GIT_BRANCH}'|g" "$manifest_file"
+  fi
 
-# Créer un fichier temporaire avec tous les ApplicationSets
+  if [[ "$FEAT_MONITORING" == "false" ]]; then
+    log_info "Stripping monitoring blocks from templates (monitoring disabled)"
+    if command -v perl &> /dev/null; then
+      perl -i -0777 -pe 's/\{\{-\s*if\s+\.features\.monitoring\.enabled\s*\}\}.*?\{\{-\s*end\s*\}\}//gs' "$manifest_file"
+    fi
+  fi
+}
+
+# =============================================================================
+# Phase 1: Deploy Kyverno first + pre-apply PolicyExceptions
+# =============================================================================
+# Kyverno mutates pods to set automountServiceAccountToken=false. Apps have
+# PolicyExceptions to opt out, but the exceptions must exist BEFORE Kyverno
+# processes app resources. Without this, PreSync hook Jobs get mutated and
+# become stuck (spec.template is immutable on Jobs, so ArgoCD can't update them).
+
 TEMP_MANIFEST=$(mktemp)
 trap "rm -f $TEMP_MANIFEST" EXIT
 
+if [[ -n "$KYVERNO_APPSET" ]]; then
+  echo ""
+  log_info "Phase 1: Déploiement de Kyverno (policy engine)..."
+
+  # Deploy Kyverno ApplicationSet
+  cat "${SCRIPT_DIR}/${KYVERNO_APPSET}" > "$TEMP_MANIFEST"
+  apply_manifest_patches "$TEMP_MANIFEST"
+
+  if [[ $VERBOSE -eq 1 ]]; then
+    kubectl apply -f "$TEMP_MANIFEST"
+  else
+    kubectl apply -f "$TEMP_MANIFEST" > /dev/null
+  fi
+  log_success "ApplicationSet Kyverno déployé"
+
+  # Wait for Kyverno to be Healthy (not Synced - ServiceMonitor CRDs may not exist yet)
+  check_kyverno_healthy() {
+    local health
+    health=$(kubectl get application kyverno -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
+    if [[ "$health" == "Healthy" ]]; then
+      printf "\n"
+      log_success "Kyverno est Healthy"
+      return 0
+    fi
+    return 1
+  }
+
+  wait_for_condition \
+    "Attente de Kyverno (Healthy)..." \
+    "$TIMEOUT_APPS_SYNC" \
+    check_kyverno_healthy || {
+      log_warning "Kyverno non Healthy - les PolicyExceptions pourraient ne pas fonctionner"
+    }
+
+  # Pre-apply all PolicyExceptions for apps that will be deployed
+  log_info "Pré-déploiement des PolicyExceptions..."
+  pe_count=0
+
+  for appset in "${APPLICATIONSETS[@]}"; do
+    app_dir="${SCRIPT_DIR}/$(dirname "$appset")"
+    pe_file="${app_dir}/resources/kyverno-policy-exception.yaml"
+
+    if [[ -f "$pe_file" ]]; then
+      pe_ns=$(yq -r '.metadata.namespace' "$pe_file" 2>/dev/null)
+
+      if [[ -n "$pe_ns" ]] && [[ "$pe_ns" != "null" ]]; then
+        # Create namespace if it doesn't exist
+        if ! kubectl get namespace "$pe_ns" &> /dev/null; then
+          kubectl create namespace "$pe_ns" > /dev/null 2>&1 || true
+          log_debug "  Namespace créé: $pe_ns"
+        fi
+
+        if kubectl apply -f "$pe_file" > /dev/null 2>&1; then
+          pe_count=$((pe_count + 1))
+          log_debug "  PolicyException: $pe_ns"
+        else
+          log_warning "  Échec PolicyException: $pe_file"
+        fi
+      fi
+    fi
+  done
+
+  log_success "PolicyExceptions pré-déployées: $pe_count"
+fi
+
+# =============================================================================
+# Phase 2: Deploy remaining ApplicationSets
+# =============================================================================
+
+echo ""
+log_info "Phase 2: Déploiement des ApplicationSets..."
+
+# Build manifest with all remaining ApplicationSets
+> "$TEMP_MANIFEST"
 for appset in "${APPLICATIONSETS[@]}"; do
   appset_path="${SCRIPT_DIR}/${appset}"
   cat "$appset_path" >> "$TEMP_MANIFEST"
   echo "---" >> "$TEMP_MANIFEST"
 done
 
-# =============================================================================
-# CI Mode: Patch ApplicationSets to use local config values
-# =============================================================================
-if [[ -n "${CI_GIT_BRANCH:-}" ]]; then
-  log_info "CI mode: patching ApplicationSets for branch '${CI_GIT_BRANCH}'"
-  sed -i "s|revision: 'HEAD'|revision: '${CI_GIT_BRANCH}'|g" "$TEMP_MANIFEST"
-  sed -i "s|targetRevision: '{{ .git.revision }}'|targetRevision: '${CI_GIT_BRANCH}'|g" "$TEMP_MANIFEST"
-fi
-
-# When monitoring is disabled, remove monitoring blocks from templates
-if [[ "$FEAT_MONITORING" == "false" ]]; then
-  log_info "Stripping monitoring blocks from templates (monitoring disabled)"
-  if command -v perl &> /dev/null; then
-    perl -i -0777 -pe 's/\{\{-\s*if\s+\.features\.monitoring\.enabled\s*\}\}.*?\{\{-\s*end\s*\}\}//gs' "$TEMP_MANIFEST"
-  fi
-fi
+apply_manifest_patches "$TEMP_MANIFEST"
 
 # Appliquer tous les ApplicationSets en une seule commande
 if [[ $VERBOSE -eq 1 ]]; then
@@ -998,9 +1088,9 @@ log_success "ApplicationSets déployés"
 echo ""
 check_appsets_created() {
   local current=$(kubectl get applicationset -n "$ARGOCD_NAMESPACE" --no-headers 2>/dev/null | wc -l)
-  local expected=${#APPLICATIONSETS[@]}
+  local expected=$EXPECTED_APPS_COUNT
 
-  if [[ $current -eq $expected ]]; then
+  if [[ $current -ge $expected ]]; then
     printf "\n"
     log_success "Tous les ApplicationSets sont créés ($current/$expected)"
     return 0
