@@ -145,6 +145,14 @@ spec:
                       cpu: {{ .envoyGateway.resources.limits.cpu | default "1000m" }}
                       memory: {{ .envoyGateway.resources.limits.memory | default "1Gi" }}
 
+              # Disable certgen Job TTL to prevent ArgoCD self-sync deadlock.
+              # The pre-install/pre-upgrade hook Job gets deleted by Kubernetes
+              # TTL controller while ArgoCD is still tracking it, causing the
+              # sync operation to stall waiting for a ghost Job.
+              certgen:
+                job:
+                  ttlSecondsAfterFinished: ""
+
               # GatewayClass configuration
               config:
                 envoyGateway:
@@ -224,6 +232,9 @@ spec:
                     limits:
                       cpu: {{ .envoyGateway.resources.limits.cpu | default "1000m" }}
                       memory: {{ .envoyGateway.resources.limits.memory | default "1Gi" }}
+              certgen:
+                job:
+                  ttlSecondsAfterFinished: ""
               config:
                 envoyGateway:
                   gateway:
