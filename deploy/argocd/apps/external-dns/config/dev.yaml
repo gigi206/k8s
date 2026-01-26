@@ -34,6 +34,15 @@ externalDns:
   crd:
     create: true
 
+  # External-DNS resources (usage: 2m/22Mi)
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      cpu: "50m"
+      memory: "64Mi"
+
   # CoreDNS configuration (only when provider=coredns)
   coredns:
     version: "1.45.0"
@@ -41,6 +50,14 @@ externalDns:
     replicas: 1
     serviceType: "LoadBalancer"
     # loadBalancerIP is now centralized in config.yaml (features.externalDns.loadBalancerIP)
+    # CoreDNS resources (usage: 5m/15Mi)
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "24Mi"
+      limits:
+        cpu: "50m"
+        memory: "48Mi"
 
   # etcd configuration (only when provider=coredns)
   etcd:
@@ -54,6 +71,14 @@ externalDns:
       clientSecret: "external-dns-etcd-client-tls"
       peerSecret: "external-dns-etcd-peer-tls"
       caSecret: "external-dns-etcd-ca"
+    # etcd resources (usage: 6m/11Mi)
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "16Mi"
+      limits:
+        cpu: "50m"
+        memory: "32Mi"
 
 syncPolicy:
   automated:

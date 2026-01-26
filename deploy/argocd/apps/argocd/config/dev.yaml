@@ -89,16 +89,19 @@ argocd:
             replacement: in-cluster
             action: replace
 
-  # Redis (single instance for dev)
-  redis:
-    ha: false
-
   # Dex/SSO disabled for dev
   dex:
     enabled: false
 
-  # ApplicationSet controller
+  # ApplicationSet controller (usage: 3m/52Mi)
   applicationSet:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "64Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
     metrics:
       serviceMonitor:
         relabelings:
@@ -106,14 +109,32 @@ argocd:
             replacement: in-cluster
             action: replace
 
-  # Notifications controller
+  # Notifications controller (usage: 3m/44Mi)
   notifications:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "64Mi"
+      limits:
+        cpu: "50m"
+        memory: "128Mi"
     metrics:
       serviceMonitor:
         relabelings:
           - targetLabel: cluster
             replacement: in-cluster
             action: replace
+
+  # Redis (usage: 6m/30Mi)
+  redis:
+    ha: false
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
 
 syncPolicy:
   automated:

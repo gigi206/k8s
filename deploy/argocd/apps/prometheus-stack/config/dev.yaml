@@ -151,6 +151,26 @@ prometheusStack:
       enabled: true
       namespace: "monitoring"
 
+  # Prometheus Operator (usage: 6m/27Mi)
+  prometheusOperator:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
+
+  # Kube State Metrics (usage: 5m/22Mi)
+  kubeStateMetrics:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
+
 syncPolicy:
   automated:
     enabled: true
