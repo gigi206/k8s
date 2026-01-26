@@ -87,7 +87,7 @@ features:
 
   # === Configuration Reload ===
   reloader:
-    enabled: true  # Wave 25: Auto-reload pods on ConfigMap/Secret changes
+    enabled: false  # Wave 25: Auto-reload pods on ConfigMap/Secret changes
 
   # === DNS ===
   externalDns:
@@ -205,7 +205,7 @@ features:
 
   # === Container Security ===
   kubescape:
-    enabled: true   # Wave 78: Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
+    enabled: false   # Wave 78: Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
 
   neuvector:
     enabled: false  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
