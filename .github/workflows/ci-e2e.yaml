@@ -43,6 +43,8 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write  # Required to push CI branch
 
     steps:
       # ========================================================================
@@ -244,21 +246,48 @@ jobs:
       # ========================================================================
       # Generate CI Config and Deploy
       # ========================================================================
+      - name: Create CI branch
+        id: ci-branch
+        run: |
+          CI_BRANCH="ci-test-${{ github.run_id }}"
+          echo "branch=$CI_BRANCH" >> "$GITHUB_OUTPUT"
+
+          # Configure Git for commits
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Generate CI configuration
         env:
           INGRESS: ${{ steps.detect.outputs.ingress }}
           EXTRA_APPS: ${{ steps.detect.outputs.extra_apps }}
           ALL_APPS: ${{ steps.detect.outputs.all_apps }}
+          CI_GIT_BRANCH: ${{ steps.ci-branch.outputs.branch }}
         run: |
           chmod +x .github/scripts/generate-ci-config.sh
           .github/scripts/generate-ci-config.sh
 
           echo "=== Generated config ==="
           yq '.features' deploy/argocd/config/config.yaml
+          echo ""
+          echo "git.revision: $(yq '.git.revision' deploy/argocd/config/config.yaml)"
+
+      - name: Push CI branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_BRANCH: ${{ steps.ci-branch.outputs.branch }}
+        run: |
+          # Create and push CI branch with modified config
+          git checkout -b "$CI_BRANCH"
+          git add deploy/argocd/config/config.yaml
+          git commit -m "CI: configure for run ${{ github.run_id }}
+
+          Apps: ${{ steps.detect.outputs.all_apps }}
+          Ingress: ${{ steps.detect.outputs.ingress }}"
+          git push origin "$CI_BRANCH"
+
+          echo "::notice::CI branch created: $CI_BRANCH"
 
       - name: Deploy ApplicationSets
-        env:
-          CI_GIT_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           cd deploy/argocd
 
@@ -268,7 +297,7 @@ jobs:
           export TIMEOUT_APPS_GENERATION=300
           export TIMEOUT_APPS_SYNC=900
 
-          # Deploy
+          # Deploy (git.revision is already set in config.yaml to point to CI branch)
           bash deploy-applicationsets.sh --verbose
 
       - name: Wait for applications to sync
@@ -456,9 +485,16 @@ jobs:
         if: always()
         env:
           LOOP_FILE: ${{ steps.storage-setup.outputs.loop_file }}
+          CI_BRANCH: ${{ steps.ci-branch.outputs.branch }}
         run: |
           echo "=== Cleaning up K3d cluster ==="
           k3d cluster delete $CLUSTER_NAME || true
+
+          # Clean up CI branch (always, even on failure)
+          if [ -n "$CI_BRANCH" ]; then
+            echo "=== Cleaning up CI branch: $CI_BRANCH ==="
+            git push origin --delete "$CI_BRANCH" || true
+          fi
 
           # Clean up loop device if Rook was used
           if [ -n "$LOOP_FILE" ] && [ -f "$LOOP_FILE" ]; then
@@ -493,6 +529,7 @@ jobs:
           echo "| NeuVector Security | ${{ steps.test-neuvector.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| ArgoCD Components | ${{ steps.test-argocd.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**CI branch:** ${{ steps.ci-branch.outputs.branch || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Apps deployed:** ${{ steps.detect.outputs.all_apps || 'default' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Ingress controller:** ${{ steps.detect.outputs.ingress || 'traefik' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Storage provider:** ${{ steps.detect.outputs.storage_provider || 'none' }}" >> $GITHUB_STEP_SUMMARY

@@ -230,6 +230,15 @@ yq -i '.features.cilium.egressPolicy.enabled = true' "$CONFIG_FILE"
 yq -i '.features.cilium.ingressPolicy.enabled = true' "$CONFIG_FILE"
 
 # =============================================================================
+# Update git.revision for CI branch
+# =============================================================================
+
+if [ -n "${CI_GIT_BRANCH:-}" ]; then
+  log_info "Setting git.revision to $CI_GIT_BRANCH..."
+  yq -i ".git.revision = \"$CI_GIT_BRANCH\"" "$CONFIG_FILE"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 
