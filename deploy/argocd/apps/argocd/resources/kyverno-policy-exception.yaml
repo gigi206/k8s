@@ -1,0 +1,26 @@
+---
+# PolicyException for ArgoCD - requires K8s API for GitOps operations
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: argocd-automount-sa-token
+  namespace: argo-cd
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - argo-cd
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

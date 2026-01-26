@@ -219,6 +219,14 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/kustomize/nginx-gwf
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
         # Source 4: Helm chart
         - repoURL: https://oauth2-proxy.github.io/manifests
           targetRevision: '{{ .oauth2Proxy.version }}'

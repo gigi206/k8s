@@ -1,0 +1,26 @@
+---
+# PolicyException for MetalLB - requires K8s API for LoadBalancer management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: metallb-automount-sa-token
+  namespace: metallb-system
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - metallb-system
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
