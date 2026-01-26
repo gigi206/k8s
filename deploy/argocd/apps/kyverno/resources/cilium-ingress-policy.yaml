@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kyverno Pod Ingress
+# =============================================================================
+# Allows traffic to Kyverno admission controller webhook from kube-apiserver.
+# Required when features.cilium.defaultDenyPodIngress.enabled is true.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kyverno-ingress
+  namespace: kyverno
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: kyverno
+  ingress:
+    # Allow webhook calls from kube-apiserver (all nodes)
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9443"
+              protocol: TCP
+    # Allow Prometheus scraping
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    # Allow internal communication between Kyverno components
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/instance: kyverno

@@ -1,0 +1,26 @@
+---
+# PolicyException for OAuth2-Proxy - requires K8s API for secret access and session management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: oauth2-proxy-automount-sa-token
+  namespace: oauth2-proxy
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - oauth2-proxy
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

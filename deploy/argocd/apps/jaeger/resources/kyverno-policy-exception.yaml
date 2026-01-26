@@ -1,0 +1,26 @@
+---
+# PolicyException for Jaeger - requires K8s API for trace collection and storage
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: jaeger-automount-sa-token
+  namespace: jaeger
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - jaeger
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

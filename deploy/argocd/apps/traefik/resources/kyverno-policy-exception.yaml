@@ -1,0 +1,26 @@
+---
+# PolicyException for Traefik - requires K8s API for ingress/gateway management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: traefik-automount-sa-token
+  namespace: traefik
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - traefik
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

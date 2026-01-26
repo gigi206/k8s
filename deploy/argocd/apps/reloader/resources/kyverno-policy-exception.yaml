@@ -1,0 +1,26 @@
+---
+# PolicyException for Reloader - requires K8s API to watch ConfigMaps/Secrets
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: reloader-automount-sa-token
+  namespace: reloader
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - reloader
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

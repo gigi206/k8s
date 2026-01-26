@@ -1,0 +1,26 @@
+---
+# PolicyException for Istio Gateway - requires K8s API for gateway management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: istio-gateway-automount-sa-token
+  namespace: istio-system
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - istio-system
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

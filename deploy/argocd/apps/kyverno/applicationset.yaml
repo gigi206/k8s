@@ -1,0 +1,193 @@
+---
+# =============================================================================
+# Kyverno ApplicationSet - Wave 18 (Policy Engine)
+# =============================================================================
+# Deploys Kyverno policy engine for Kubernetes native policy management.
+# Provides mutation, validation, and generation capabilities.
+# Deployed early to enforce policies on all subsequent applications.
+# Docs: https://kyverno.io/docs/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: kyverno
+  namespace: argo-cd
+  annotations:
+    argocd.argoproj.io/sync-wave: "18"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/kyverno/config/*.yaml
+
+  template:
+    metadata:
+      name: kyverno
+      namespace: argo-cd
+      annotations:
+        argocd.argoproj.io/sync-wave: "18"
+    spec:
+      project: default
+
+      source:
+        repoURL: https://kyverno.github.io/kyverno/
+        targetRevision: '{{ .kyverno.version }}'
+        chart: kyverno
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .kyverno.namespace }}'
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      ignoreDifferences:
+        - group: kyverno.io
+          kind: ClusterPolicy
+          jqPathExpressions:
+            - .spec.rules[]?.skipBackgroundRequests
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 0: Namespace
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kyverno/resources
+          directory:
+            include: "namespace.yaml"
+
+        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        # Source: Cilium ingress policy (pod-to-pod communication)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kyverno/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
+
+        # Source: Kyverno Helm Chart
+        - repoURL: https://kyverno.github.io/kyverno/
+          targetRevision: '{{ .kyverno.version }}'
+          chart: kyverno
+          helm:
+            releaseName: kyverno
+            valuesObject:
+              # CRDs managed by Helm
+              crds:
+                install: true
+
+              # Enable PolicyExceptions to allow apps to opt out of policies
+              features:
+                policyExceptions:
+                  enabled: true
+                  namespace: '*'
+
+              # Admission Controller (main policy enforcement)
+              admissionController:
+                replicas: {{ .kyverno.admissionController.replicas }}
+                resources:
+                  requests:
+                    cpu: '{{ .kyverno.admissionController.resources.requests.cpu }}'
+                    memory: '{{ .kyverno.admissionController.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kyverno.admissionController.resources.limits.cpu }}'
+                    memory: '{{ .kyverno.admissionController.resources.limits.memory }}'
+                {{- if .features.monitoring.enabled }}
+                metricsService:
+                  create: true
+                {{- end }}
+
+              # Background Controller
+              backgroundController:
+                replicas: {{ .kyverno.backgroundController.replicas }}
+                resources:
+                  requests:
+                    cpu: '{{ .kyverno.backgroundController.resources.requests.cpu }}'
+                    memory: '{{ .kyverno.backgroundController.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kyverno.backgroundController.resources.limits.cpu }}'
+                    memory: '{{ .kyverno.backgroundController.resources.limits.memory }}'
+                {{- if .features.monitoring.enabled }}
+                metricsService:
+                  create: true
+                {{- end }}
+
+              # Reports Controller
+              reportsController:
+                replicas: {{ .kyverno.reportsController.replicas }}
+                resources:
+                  requests:
+                    cpu: '{{ .kyverno.reportsController.resources.requests.cpu }}'
+                    memory: '{{ .kyverno.reportsController.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kyverno.reportsController.resources.limits.cpu }}'
+                    memory: '{{ .kyverno.reportsController.resources.limits.memory }}'
+                {{- if .features.monitoring.enabled }}
+                metricsService:
+                  create: true
+                {{- end }}
+
+              # Cleanup Controller
+              cleanupController:
+                replicas: {{ .kyverno.cleanupController.replicas }}
+                resources:
+                  requests:
+                    cpu: '{{ .kyverno.cleanupController.resources.requests.cpu }}'
+                    memory: '{{ .kyverno.cleanupController.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kyverno.cleanupController.resources.limits.cpu }}'
+                    memory: '{{ .kyverno.cleanupController.resources.limits.memory }}'
+                {{- if .features.monitoring.enabled }}
+                metricsService:
+                  create: true
+                {{- end }}
+
+        # Source: ClusterPolicies
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kyverno/resources
+          directory:
+            include: "clusterpolicy-*.yaml"
+
+        {{- if .features.monitoring.enabled }}
+        # Source: ServiceMonitors for Prometheus
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kyverno/kustomize/monitoring
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+        {{- end }}

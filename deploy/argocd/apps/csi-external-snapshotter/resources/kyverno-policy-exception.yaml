@@ -1,0 +1,29 @@
+---
+# PolicyException for CSI External Snapshotter - requires K8s API for snapshot management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: csi-external-snapshotter-automount-sa-token
+  namespace: kube-system
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - kube-system
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: snapshot-controller

@@ -210,6 +210,14 @@ spec:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- end }}
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
 
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}

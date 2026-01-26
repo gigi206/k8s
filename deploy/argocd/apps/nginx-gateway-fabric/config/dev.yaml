@@ -8,7 +8,14 @@ nginxGatewayFabric:
   replicas: 1
   serviceType: LoadBalancer
   gatewayClassName: nginx-gwf  # Différent de "nginx" pour éviter conflit avec nginx-ingress
-  resources: {}  # Pas de limits/requests en dev (défini en prod)
+  # Resource limits for security compliance
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
 
 syncPolicy:
   automated:

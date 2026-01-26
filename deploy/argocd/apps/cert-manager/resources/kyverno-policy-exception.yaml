@@ -1,0 +1,26 @@
+---
+# PolicyException for cert-manager - requires K8s API for certificate management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: cert-manager-automount-sa-token
+  namespace: cert-manager
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - cert-manager
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

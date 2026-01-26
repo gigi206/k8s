@@ -118,6 +118,14 @@ spec:
           directory:
             include: "cilium-ingress-policy.yaml"
         {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/envoy-gateway/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
         # Source 0: Envoy Gateway Helm Chart (OCI)
         - repoURL: oci://docker.io/envoyproxy/gateway-helm
           chart: gateway-helm
@@ -172,11 +180,6 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
-                  - op: add
-                    path: /spec/addresses
-                    value:
-                      - type: IPAddress
-                        value: '{{ .features.gatewayAPI.controller.loadBalancerIP }}'
               - target:
                   kind: Certificate
                   name: wildcard-k8s-local
@@ -245,11 +248,6 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
-                  - op: add
-                    path: /spec/addresses
-                    value:
-                      - type: IPAddress
-                        value: '{{ .features.gatewayAPI.controller.loadBalancerIP }}'
               - target:
                   kind: Certificate
                   name: wildcard-k8s-local

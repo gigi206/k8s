@@ -1,0 +1,26 @@
+---
+# PolicyException for Longhorn - requires K8s API for volume management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: longhorn-automount-sa-token
+  namespace: longhorn-system
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - longhorn-system
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
