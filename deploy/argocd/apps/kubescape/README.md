@@ -347,6 +347,36 @@ Key alerts defined in `kustomize/monitoring/prometheusrules.yaml`:
 - Internal component communication
 - API server webhook calls
 
+## Known Issues
+
+### Storage CrashLoopBackOff with Kyverno SA Token Mutation (chart <= 1.30.2)
+
+**Symptom**: The `storage` pod enters `CrashLoopBackOff` with:
+
+```
+panic: failed to get cluster config: unable to find config
+```
+
+The APIService `v1beta1.spdx.softwarecomposition.kubescape.io` shows `False (MissingEndpoints)`, and `node-agent` stays Not Ready (`waiting for storage to be ready`).
+
+**Root cause**: The upstream Helm chart (`kubescape-operator`) has a bug in `templates/storage/deployment.yaml` — it does **not** set `automountServiceAccountToken: true` in the pod spec, unlike all other Deployments in the chart (kubescape, kubevuln, operator, prometheus-exporter).
+
+When the Kyverno `disable-automount-sa-token` ClusterPolicy is active, it mutates pods via `patchStrategicMerge` to set `automountServiceAccountToken: false`. The other Deployments resist this mutation because they explicitly set the field to `true`. But `storage` has no explicit value, so Kyverno successfully mutates it → no SA token mounted → `rest.InClusterConfig()` fails → panic.
+
+A Kyverno `PolicyException` exists for the `kubescape` namespace, but due to ArgoCD sync ordering, the Deployment can be admitted **before** the PolicyException is created (race condition).
+
+**Fix applied**: The `kyverno-policy-exception.yaml` has `argocd.argoproj.io/sync-wave: "-1"` to ensure it is created before the Helm chart resources (wave 0).
+
+**Recovery** (one-time after applying the fix):
+
+```bash
+# Delete the storage deployment so ArgoCD recreates it
+# with the PolicyException already in place
+kubectl delete deployment storage -n kubescape
+```
+
+**Upstream reference**: `kubescape/storage` — [`pkg/registry/file/utils.go`](https://github.com/kubescape/storage/blob/main/pkg/registry/file/utils.go) (`NewKubernetesClient` → `getConfig` → `"unable to find config"`).
+
 ## Troubleshooting
 
 ### Scan Not Running
