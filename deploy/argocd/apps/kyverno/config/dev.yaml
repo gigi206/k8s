@@ -13,46 +13,46 @@ kyverno:
   namespace: kyverno
   version: "3.6.2"  # Helm chart version - Renovate will update this
 
-  # Admission controller replicas (main policy enforcement)
+  # Admission controller replicas (actual: 4m/54Mi)
   admissionController:
     replicas: 1
     resources:
       requests:
-        cpu: "100m"
-        memory: "256Mi"
+        cpu: "10m"
+        memory: "80Mi"
       limits:
         cpu: "500m"
         memory: "512Mi"
 
-  # Background controller (async policy processing)
+  # Background controller (actual: 2m/37Mi)
   backgroundController:
     replicas: 1
     resources:
       requests:
-        cpu: "50m"
-        memory: "128Mi"
+        cpu: "5m"
+        memory: "50Mi"
       limits:
         cpu: "200m"
         memory: "256Mi"
 
-  # Reports controller (policy report generation)
+  # Reports controller (actual: 2m/34Mi)
   reportsController:
     replicas: 1
     resources:
       requests:
-        cpu: "50m"
-        memory: "128Mi"
+        cpu: "5m"
+        memory: "50Mi"
       limits:
         cpu: "200m"
         memory: "256Mi"
 
-  # Cleanup controller (cleanup policies)
+  # Cleanup controller (actual: 2m/24Mi)
   cleanupController:
     replicas: 1
     resources:
       requests:
-        cpu: "50m"
-        memory: "128Mi"
+        cpu: "5m"
+        memory: "50Mi"
       limits:
         cpu: "200m"
         memory: "256Mi"

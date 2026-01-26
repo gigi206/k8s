@@ -12,54 +12,61 @@ neuvector:
   # Must be strong enough: 8+ chars, uppercase, lowercase, number, special char
   adminPassword: "Admin123!"
 
-  # Controller (2 replicas for Consul quorum during rolling updates)
+  # Controller (actual: 37m/1191Mi, 2 replicas for Consul quorum)
   controller:
     replicas: 2
     resources:
       requests:
-        cpu: "200m"
-        memory: "1Gi"
+        cpu: "30m"
+        memory: "1200Mi"
       limits:
         cpu: "2000m"
-        memory: "2Gi"
+        memory: "3Gi"
 
-  # Enforcer (DaemonSet - runs on all nodes)
+  # Enforcer (actual: 501m/554Mi - DaemonSet, runs on all nodes)
   enforcer:
     resources:
       requests:
-        cpu: "100m"
-        memory: "128Mi"
+        cpu: "200m"
+        memory: "550Mi"
       limits:
-        cpu: "500m"
-        memory: "512Mi"
+        cpu: "1500m"
+        memory: "2Gi"
 
-  # Manager (Web UI)
+  # Manager (actual: 3m/518Mi - Web UI)
   manager:
     resources:
       requests:
-        cpu: "100m"
-        memory: "512Mi"
+        cpu: "10m"
+        memory: "650Mi"
       limits:
         cpu: "500m"
         memory: "1Gi"
 
-  # Scanner (single replica for dev)
-  # Note: Scanner loads entire CVE database in memory - requires significant RAM
+  # Scanner (actual idle: 1m/74Mi, loads CVE DB during scans)
   scanner:
     replicas: 1
     resources:
       requests:
-        cpu: "200m"
-        memory: "2Gi"
+        cpu: "5m"
+        memory: "128Mi"
       limits:
         cpu: "1000m"
-        memory: "4Gi"
+        memory: "2Gi"
 
   # Prometheus exporter settings
   exporter:
     # WARNING: enforcerStats impacts performance - enable only if needed
     enforcerStats:
       enabled: true
+    # Resources (actual: ~1m CPU, ~25Mi mem)
+    resources:
+      requests:
+        cpu: "5m"
+        memory: "32Mi"
+      limits:
+        cpu: "50m"
+        memory: "64Mi"
 
   # OIDC Configuration (Keycloak) - Native NeuVector OIDC
   oidc:

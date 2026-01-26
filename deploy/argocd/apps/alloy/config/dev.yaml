@@ -10,11 +10,21 @@ alloy:
   controller:
     type: daemonset
 
-  # Resources
+  # Config reloader resources (actual: 0m/8Mi)
+  configReloader:
+    resources:
+      requests:
+        cpu: 1m
+        memory: 12Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
+
+  # Resources (actual: 11m/99Mi)
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      cpu: 15m
+      memory: 120Mi
     limits:
       cpu: 200m
       memory: 256Mi

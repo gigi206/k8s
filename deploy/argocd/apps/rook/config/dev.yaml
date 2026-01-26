@@ -31,6 +31,50 @@ rook:
     mgr:
       count: 1
       allowMultiplePerNode: true
+    # Ceph daemon resources (from kubectl top)
+    resources:
+      mon:
+        requests:
+          cpu: "25m"
+          memory: "100Mi"
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
+      osd:
+        requests:
+          cpu: "20m"
+          memory: "750Mi"
+        limits:
+          cpu: "2"
+          memory: "4Gi"
+      mgr:
+        requests:
+          cpu: "25m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+      crashcollector:
+        requests:
+          cpu: "5m"
+          memory: "10Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
+      exporter:
+        requests:
+          cpu: "5m"
+          memory: "16Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
+      logcollector:
+        requests:
+          cpu: "5m"
+          memory: "10Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
 
   # Storage configuration (OSDs)
   storage:
@@ -55,6 +99,14 @@ rook:
     replicaSize: 1
     gateway:
       instances: 1
+      # RGW resources (actual: ~6m CPU, ~120Mi mem)
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "150Mi"
+        limits:
+          cpu: "1"
+          memory: "512Mi"
 
   # Ceph Dashboard
   dashboard:

@@ -7,10 +7,21 @@ envoyGateway:
   version: "1.6.2"
   replicas: 1
   gatewayClassName: envoy  # GatewayClass name pour Envoy Gateway
+  # Certgen job resources (crypto operations)
+  certgen:
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+
+  # Resources (actual: 1m/49Mi)
   resources:
     requests:
-      cpu: "100m"
-      memory: "256Mi"
+      cpu: "5m"
+      memory: "64Mi"
     limits:
       cpu: "1000m"
       memory: "1Gi"

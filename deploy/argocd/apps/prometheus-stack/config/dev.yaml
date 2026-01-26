@@ -17,14 +17,14 @@ prometheusStack:
     # Replicas (dev: 1)
     replicas: 1
 
-    # Resources (dev: minimal)
+    # Resources (actual: 29m/539Mi)
     resources:
       requests:
-        cpu: "100m"
-        memory: "512Mi"
+        cpu: "25m"
+        memory: "650Mi"
       limits:
-        cpu: "500m"
-        memory: "1Gi"
+        cpu: "1000m"
+        memory: "2Gi"
 
     # Ingress (dev: disabled - using Gateway API HTTPRoute)
     ingress:
@@ -64,14 +64,14 @@ prometheusStack:
       enabled: true
       size: "1Gi"
 
-    # Resources (dev: minimal, augmenté pour éviter OOMKill)
+    # Resources (actual: 14m/308Mi)
     resources:
       requests:
         cpu: "50m"
         memory: "256Mi"
       limits:
-        cpu: "200m"
-        memory: "512Mi"
+        cpu: "500m"
+        memory: "1Gi"
 
     # Ingress (dev: disabled - using Gateway API HTTPRoute)
     ingress:
@@ -87,9 +87,18 @@ prometheusStack:
       unified_alerting:
         enabled: true      # Nouveau système d'alerting (Grafana 8+, obligatoire depuis Grafana 12+)
 
-    # Sidecar dashboards configuration
-    # Note: folderAnnotation est géré par ApplicationSet via features.monitoring.dashboard.folderAnnotation
+    # Sidecar configuration
     sidecar:
+      # Sidecar resources (actual: ~2m CPU, ~91Mi mem)
+      resources:
+        requests:
+          cpu: "5m"
+          memory: "100Mi"
+        limits:
+          cpu: "100m"
+          memory: "256Mi"
+      # Sidecar dashboards configuration
+      # Note: folderAnnotation est géré par ApplicationSet via features.monitoring.dashboard.folderAnnotation
       dashboards:
         enabled: true
         # folderAnnotation: géré par ApplicationSet (default: features.monitoring.dashboard.folderAnnotation)
@@ -114,11 +123,11 @@ prometheusStack:
     # Replicas (dev: 1)
     replicas: 1
 
-    # Resources (dev: minimal)
+    # Resources (actual: 1m/19Mi)
     resources:
       requests:
-        cpu: "50m"
-        memory: "64Mi"
+        cpu: "5m"
+        memory: "25Mi"
       limits:
         cpu: "100m"
         memory: "128Mi"
@@ -158,18 +167,37 @@ prometheusStack:
         cpu: "10m"
         memory: "32Mi"
       limits:
-        cpu: "50m"
-        memory: "64Mi"
+        cpu: "200m"
+        memory: "128Mi"
+    # Config reloader resources (actual: ~1m CPU, ~14Mi mem)
+    configReloader:
+      resources:
+        requests:
+          cpu: "5m"
+          memory: "20Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
 
-  # Kube State Metrics (usage: 5m/22Mi)
+  # Node Exporter resources (actual: ~1m CPU, ~13Mi mem)
+  nodeExporter:
+    resources:
+      requests:
+        cpu: "5m"
+        memory: "20Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+
+  # Kube State Metrics (usage: 4m/21Mi)
   kubeStateMetrics:
     resources:
       requests:
         cpu: "10m"
         memory: "32Mi"
       limits:
-        cpu: "50m"
-        memory: "64Mi"
+        cpu: "200m"
+        memory: "128Mi"
 
 syncPolicy:
   automated:

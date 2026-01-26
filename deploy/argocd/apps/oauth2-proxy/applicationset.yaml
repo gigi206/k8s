@@ -344,6 +344,17 @@ spec:
                       drop: ["ALL"]
                     seccompProfile:
                       type: RuntimeDefault
+                  {{- if .oauth2Proxy.waitForKeycloak }}
+                  {{- if .oauth2Proxy.waitForKeycloak.resources }}
+                  resources:
+                    requests:
+                      cpu: '{{ .oauth2Proxy.waitForKeycloak.resources.requests.cpu }}'
+                      memory: '{{ .oauth2Proxy.waitForKeycloak.resources.requests.memory }}'
+                    limits:
+                      cpu: '{{ .oauth2Proxy.waitForKeycloak.resources.limits.cpu }}'
+                      memory: '{{ .oauth2Proxy.waitForKeycloak.resources.limits.memory }}'
+                  {{- end }}
+                  {{- end }}
 
               # Mount root CA for TLS verification when refreshing tokens
               # OAuth2 Proxy uses external HTTPS URLs from OIDC discovery during token refresh

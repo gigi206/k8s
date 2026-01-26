@@ -219,6 +219,20 @@ spec:
                     cpu: '{{ .kubescape.storage.resources.limits.cpu }}'
                     memory: '{{ .kubescape.storage.resources.limits.memory }}'
 
+              # Prometheus exporter resources
+              {{- if .kubescape.prometheusExporter }}
+              {{- if .kubescape.prometheusExporter.resources }}
+              prometheusExporter:
+                resources:
+                  requests:
+                    cpu: '{{ .kubescape.prometheusExporter.resources.requests.cpu }}'
+                    memory: '{{ .kubescape.prometheusExporter.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kubescape.prometheusExporter.resources.limits.cpu }}'
+                    memory: '{{ .kubescape.prometheusExporter.resources.limits.memory }}'
+              {{- end }}
+              {{- end }}
+
               # Node agent resources (DaemonSet)
               nodeAgent:
                 resources:
