@@ -246,7 +246,7 @@ argocd-install-dev:
 	@echo "$(GREEN)📦 Étape 1/5: Récupération du kubeconfig...$(NC)"
 	@mkdir -p $(KUBE_DIR)
 	@cd $(VAGRANT_DIR) && \
-		MASTER_IP=$$(K8S_ENV=dev vagrant ssh k8s-dev-m1 -c 'hostname -I | cut -d" " -f1' 2>/dev/null | tr -d '\r\n') && \
+		MASTER_IP=$$(K8S_ENV=dev vagrant ssh k8s-dev-m1 -c 'hostname -I | cut -d" " -f1' 2>/dev/null | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r\n') && \
 		K8S_ENV=dev vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
 		sed "s/127.0.0.1/$$MASTER_IP/g" > .kube/config-dev
 	@export KUBECONFIG=$(KUBECONFIG_DEV) && \
