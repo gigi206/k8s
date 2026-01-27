@@ -82,6 +82,14 @@ spec:
             maxDuration: {{ .syncPolicy.retry.backoff.maxDuration }}
 
       sources:
+        {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/apisix/resources
+          directory:
+            include: "namespace.yaml"
+        {{- end }}
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
         - repoURL: https://github.com/gigi206/k8s
