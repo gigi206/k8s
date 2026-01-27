@@ -76,7 +76,14 @@ syncPolicy:
     selfHeal: true
   # ServerSideApply=true allows shared CRD management
   # Traefik installs and manages Gateway API CRDs (standard channel)
+  # SkipDryRunOnMissingResource=true: critical for multi-source apps - without it,
+  # a missing CRD (e.g. Certificate before cert-manager syncs) aborts the ENTIRE
+  # sync including CRD creation from the Helm chart, causing cascading delays.
+  # RespectIgnoreDifferences=true: required because traefik defines ignoreDifferences
+  # for HTTPRoute default fields added by the Gateway controller.
   syncOptions:
     - CreateNamespace=true
     - ServerSideApply=true
     - PruneLast=true
+    - SkipDryRunOnMissingResource=true
+    - RespectIgnoreDifferences=true
