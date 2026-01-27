@@ -1,10 +1,15 @@
 ---
 # PolicyException for NeuVector - requires K8s API for container security
+# IMPORTANT: sync-wave -1 ensures this exception exists BEFORE other resources
+# are created (wave 0). Without this, Kyverno mutates automountServiceAccountToken
+# to false on all Pods because its informer hasn't cached the exception yet.
 apiVersion: kyverno.io/v2
 kind: PolicyException
 metadata:
   name: neuvector-automount-sa-token
   namespace: neuvector
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

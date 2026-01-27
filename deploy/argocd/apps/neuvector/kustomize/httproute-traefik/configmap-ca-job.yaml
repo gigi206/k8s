@@ -26,18 +26,22 @@ spec:
           args:
             - |
               set -e
-              echo "Waiting for CA secret to be ready..."
+              echo "Waiting for CA secret to be ready with data..."
+              CA_CERT=""
               for i in $(seq 1 60); do
-                if kubectl get secret neuvector-backend-ca-secret -n neuvector >/dev/null 2>&1; then
-                  echo "Secret found, creating ConfigMap..."
+                CA_CERT=$(kubectl get secret neuvector-backend-ca-secret -n neuvector -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 -d 2>/dev/null || true)
+                if [ -n "$CA_CERT" ]; then
+                  echo "CA certificate found (attempt $i)"
                   break
                 fi
-                echo "Attempt $i/60 - Secret not ready, waiting..."
+                echo "Attempt $i/60 - CA cert not ready, waiting..."
                 sleep 5
               done
 
-              # Get CA cert from secret and create ConfigMap
-              CA_CERT=$(kubectl get secret neuvector-backend-ca-secret -n neuvector -o jsonpath='{.data.ca\.crt}' | base64 -d)
+              if [ -z "$CA_CERT" ]; then
+                echo "ERROR: CA certificate not available after 5 minutes"
+                exit 1
+              fi
 
               kubectl create configmap neuvector-backend-ca \
                 --from-literal=ca.crt="$CA_CERT" \
