@@ -1,7 +1,20 @@
 ---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# Always deployed (namespace also carries istio dataplane-mode label).
+# Tempo chart sets PSA-compliant securityContext (runAsNonRoot, drop ALL
+# capabilities, seccompProfile: RuntimeDefault) - restricted is sufficient.
+# =============================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
   name: tempo
   labels:
     istio.io/dataplane-mode: ambient
+    # PSA: Enforce restricted profile (Tempo is fully PSA-compliant)
+    pod-security.kubernetes.io/enforce: restricted
+    # PSA: Warn on restricted violations
+    pod-security.kubernetes.io/warn: restricted
+    # PSA: Audit restricted violations
+    pod-security.kubernetes.io/audit: restricted

@@ -98,8 +98,8 @@ Environment Variables:
   KUBECONFIG            Path to kubeconfig file
   ARGOCD_NAMESPACE      ArgoCD namespace (default: argo-cd)
   TIMEOUT_APPSETS       Timeout for ApplicationSets creation (default: 120s)
-  TIMEOUT_APPS_GENERATION  Timeout for Applications generation (default: 60s)
-  TIMEOUT_APPS_SYNC     Timeout for Applications sync (default: 300s)
+  TIMEOUT_APPS_GENERATION  Timeout for Applications generation (default: 240s)
+  TIMEOUT_APPS_SYNC     Timeout for Applications sync (default: 900s)
   TIMEOUT_API_LB        Timeout for API LoadBalancer IP (default: 60s)
   NO_COLOR              Disable colored output
 
@@ -477,7 +477,7 @@ resolve_dependencies() {
     if [[ "$FEAT_OAUTH2_PROXY" == "true" ]]; then
       if [[ "$FEAT_GATEWAY_API_HTTPROUTE" == "true" ]]; then
         log_info "  → OAuth2-Proxy: mode ext_authz (AuthorizationPolicy Istio)"
-      elif [[ "$FEAT_GATEWAY_API_PROVIDER" == "apisix" ]]; then
+      elif [[ "$FEAT_GATEWAY_CONTROLLER" == "apisix" ]]; then
         log_info "  → OAuth2-Proxy: mode forward-auth (APISIX plugin)"
       fi
     fi
@@ -647,7 +647,7 @@ KYVERNO_APPSET=""
 # Wave 20: Certificates
 [[ "$FEAT_CERT_MANAGER" == "true" ]] && APPLICATIONSETS+=("apps/cert-manager/applicationset.yaml")
 
-# Wave 25: Secrets Management
+# Wave 3: Secrets Management
 [[ "$FEAT_EXTERNAL_SECRETS" == "true" ]] && APPLICATIONSETS+=("apps/external-secrets/applicationset.yaml")
 
 # Wave 25: Configuration Reload (auto-reload pods on ConfigMap/Secret changes)
@@ -708,7 +708,7 @@ if [[ "$FEAT_STORAGE" == "true" ]]; then
   esac
 fi
 
-# Wave 65: Database Operator
+# Wave 15: Database Operator
 if [[ "$FEAT_DATABASE_OPERATOR" == "true" ]]; then
   case "$FEAT_DATABASE_PROVIDER" in
     cnpg)
@@ -727,7 +727,7 @@ if [[ "$FEAT_LOGGING" == "true" ]] && [[ "$FEAT_LOGGING_LOKI" == "true" ]]; then
   esac
 fi
 
-# Wave 75-76: Monitoring
+# Wave 5-76: Monitoring (prometheus-stack: wave 5, cilium: wave 76)
 if [[ "$FEAT_MONITORING" == "true" ]]; then
   APPLICATIONSETS+=("apps/prometheus-stack/applicationset.yaml")
 fi
@@ -749,7 +749,7 @@ if [[ "$FEAT_TRACING" == "true" ]]; then
   esac
 fi
 
-# Wave 80-81: SSO + OAuth2-Proxy
+# Wave 30-35: SSO + OAuth2-Proxy
 if [[ "$FEAT_SSO" == "true" ]]; then
   case "$FEAT_SSO_PROVIDER" in
     keycloak)

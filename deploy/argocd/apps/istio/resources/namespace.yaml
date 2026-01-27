@@ -1,7 +1,20 @@
 ---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# Always deployed (namespace also carries istio-injection label).
+# Istio CNI DaemonSet requires hostPath mounts (/opt/cni/bin, /etc/cni/net.d)
+# and ztunnel needs elevated privileges for eBPF/networking operations.
+# =============================================================================
 apiVersion: v1
 kind: Namespace
 metadata:
   name: istio-system
   labels:
     istio-injection: enabled
+    # PSA: Allow privileged workloads (required for Istio CNI + ztunnel)
+    pod-security.kubernetes.io/enforce: privileged
+    # PSA: Warn on restricted violations (visibility into non-compliant pods)
+    pod-security.kubernetes.io/warn: restricted
+    # PSA: Audit restricted violations (for logging)
+    pod-security.kubernetes.io/audit: restricted
