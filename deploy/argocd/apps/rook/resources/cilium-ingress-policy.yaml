@@ -35,10 +35,10 @@ spec:
     # Allow traffic from any pod in the same namespace
     - fromEndpoints:
         - matchLabels:
-            "k8s:io.kubernetes.pod.namespace": rook-ceph
+            io.kubernetes.pod.namespace: rook-ceph
 
   egress:
     # Allow traffic to any pod in the same namespace
     - toEndpoints:
         - matchLabels:
-            "k8s:io.kubernetes.pod.namespace": rook-ceph
+            io.kubernetes.pod.namespace: rook-ceph
