@@ -208,7 +208,7 @@ features:
     enabled: false   # Wave 78: Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
 
   neuvector:
-    enabled: false  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+    enabled: true  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
 
 # =============================================================================
 # RKE2 Cluster Configuration

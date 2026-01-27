@@ -59,12 +59,12 @@ spec:
               - name: prometheus.enabled
                 value: '{{ .features.monitoring.enabled }}'
 
-        # Source 2: ClusterIssuers (Let's Encrypt, Self-Signed)
+        # Source 2: ClusterIssuers, ClusterSecretStore, and webhook readiness check
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
-            include: "{cluster-secret-store.yaml,clusterissuer-selfsigned.yaml}"
+            include: "{cluster-secret-store.yaml,clusterissuer-selfsigned.yaml,webhook-readiness-check.yaml}"
 
       destination:
         server: https://kubernetes.default.svc
@@ -212,9 +212,9 @@ spec:
             - name: startupapicheck.resources.limits.memory
               value: '{{ .certManager.startupapicheck.resources.limits.memory }}'
             {{- end }}
-        # Source 2: ClusterIssuers (Let's Encrypt, Self-Signed)
+        # Source 2: ClusterIssuers, ClusterSecretStore, and webhook readiness check
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: 'deploy/argocd/apps/{{ .appName }}/resources'
           directory:
-            include: "{cluster-secret-store.yaml,clusterissuer-selfsigned.yaml}"
+            include: "{cluster-secret-store.yaml,clusterissuer-selfsigned.yaml,webhook-readiness-check.yaml}"
