@@ -114,14 +114,14 @@ features:
     httpRoute:
       enabled: true  # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "envoy-gateway"  # Wave 41: istio, apisix, nginx-gwf, envoy-gateway, traefik
+      provider: "nginx-gwf"  # Wave 41: istio, apisix, nginx-gwf, envoy-gateway, traefik
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
       # - envoy-gateway: envoy-gateway-system
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
-      gatewayNamespace: "envoy-gateway-system"
+      gatewayNamespace: "nginx-gateway"
       # Gateway LoadBalancer IP (used for MetalLB pool and external-dns)
       loadBalancerIP: "192.168.121.210"
 
@@ -205,7 +205,7 @@ features:
 
   # === Container Security ===
   kubescape:
-    enabled: false   # Wave 78: Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
+    enabled: true   # Wave 78: Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
 
   neuvector:
     enabled: true  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
