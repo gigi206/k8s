@@ -253,7 +253,7 @@ argocd-install-dev:
 	echo "" && \
 	echo "$(GREEN)📚 Étape 2/5: Ajout du repo Helm ArgoCD...$(NC)" && \
 	helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true && \
-	helm repo update >/dev/null 2>&1 && \
+	helm repo update argo >/dev/null 2>&1 && \
 	echo "" && \
 	echo "$(GREEN)🔐 Étape 3/5: Création du namespace et secret SOPS...$(NC)" && \
 	kubectl create namespace $(ARGOCD_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f - && \
