@@ -35,3 +35,9 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/instance: kyverno
+      toPorts:
+        - ports:
+            - port: "9443"    # Webhook/server communication
+              protocol: TCP
+            - port: "8000"    # Metrics
+              protocol: TCP
