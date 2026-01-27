@@ -243,7 +243,7 @@ spec:
             - name: gateway.enabled
               value: 'false'
 
-            # Prometheus metrics (only when monitoring enabled - CRD required)
+            # Prometheus metrics (only when monitoring enabled)
             {{- if .features.monitoring.enabled }}
             - name: metrics.prometheus.enabled
               value: 'true'
@@ -251,6 +251,11 @@ spec:
               value: 'true'
             - name: metrics.prometheus.serviceMonitor.additionalLabels.release
               value: '{{ .features.monitoring.release }}'
+            # Disable API check: the chart fails to render if monitoring.coreos.com/v1
+            # CRD is not yet available (prometheus-stack syncs in parallel).
+            # The ServiceMonitor is created anyway and ArgoCD retries if CRD is missing.
+            - name: metrics.prometheus.disableAPICheck
+              value: 'true'
             {{- end }}
 
             # Replicas
