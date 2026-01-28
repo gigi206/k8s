@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# MetalLB ApplicationSet - Wave 10 (Load Balancer)
+# MetalLB ApplicationSet (Load Balancer)
 # =============================================================================
 # Déploie MetalLB pour fournir des IPs LoadBalancer dans un cluster bare-metal
 # Docs: https://metallb.universe.tf/
@@ -12,7 +12,6 @@ metadata:
   name: metallb
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "10"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -44,7 +43,6 @@ spec:
       #   app: metallb
       #   environment: '{{ .environment }}'
       annotations:
-        argocd.argoproj.io/sync-wave: "10"
     spec:
       project: default
 

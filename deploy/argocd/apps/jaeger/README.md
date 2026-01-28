@@ -34,7 +34,7 @@ Istio is configured to send traces to Jaeger via the Zipkin protocol:
 ```yaml
 # In Istio meshConfig
 extensionProviders:
-  - name: zipkin
+ - name: zipkin
     zipkin:
       service: jaeger-collector.jaeger.svc.cluster.local
       port: 9411

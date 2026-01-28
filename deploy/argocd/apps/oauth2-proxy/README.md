@@ -135,19 +135,19 @@ Traefik n'a pas cette fonctionnalité dans son middleware `forwardAuth`.
 
 ### Automatiques (via ApplicationSets)
 
-- **Keycloak** (Wave 80) : Fournit l'IdP OIDC
-  - Client `oauth2-proxy` créé automatiquement
-  - Realm `k8s` avec utilisateurs/groupes
+- **Keycloak** : Fournit l'IdP OIDC
+ - Client `oauth2-proxy` créé automatiquement
+ - Realm `k8s` avec utilisateurs/groupes
 
 - **Gateway Controller** (selon provider) :
-  - **Istio** (Wave 40) : Service mesh avec ext_authz
-    - ExtensionProvider `oauth2-proxy` configuré dans le mesh
-  - **nginx-gateway-fabric** (Wave 41) : Gateway API avec SnippetsFilter
-    - SnippetsFilter `oauth2-auth` déployé dans le namespace gateway
-  - **APISIX** (Wave 40) : API Gateway avec forward-auth plugin
-    - Plugin `forward-auth` + `serverless-post-function` configuré par route
+ - **Istio** : Service mesh avec ext_authz
+   - ExtensionProvider `oauth2-proxy` configuré dans le mesh
+ - **nginx-gateway-fabric** : Gateway API avec SnippetsFilter
+   - SnippetsFilter `oauth2-auth` déployé dans le namespace gateway
+ - **APISIX** : API Gateway avec forward-auth plugin
+   - Plugin `forward-auth` + `serverless-post-function` configuré par route
 
-- **Cert-Manager** (Wave 20) : Certificats TLS
+- **Cert-Manager** : Certificats TLS
 
 ### Applications protégées
 
@@ -188,7 +188,7 @@ Chaque application gère sa propre configuration OAuth2 selon le provider :
 # config/config.yaml
 features:
   oauth2Proxy:
-    enabled: true  # Wave 81
+    enabled: true  # 
 ```
 
 ### Environnements
@@ -255,7 +255,7 @@ Le cookie utilise le domaine parent (`.k8s.lan`) pour le SSO :
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - authorization-policy.yaml
+ - authorization-policy.yaml
 ```
 
 2. Créer `apps/<app>/kustomize/oauth2-authz/authorization-policy.yaml` :
@@ -275,10 +275,10 @@ spec:
   provider:
     name: oauth2-proxy
   rules:
-    - to:
-        - operation:
+   - to:
+       - operation:
             hosts:
-              - "<app>.PLACEHOLDER.example.com"
+             - "<app>.PLACEHOLDER.example.com"
 ```
 
 3. Ajouter dans `apps/<app>/applicationset.yaml` (templatePatch) :
@@ -290,11 +290,11 @@ spec:
   path: deploy/argocd/apps/<app>/kustomize/oauth2-authz
   kustomize:
     patches:
-      - target:
+     - target:
           kind: AuthorizationPolicy
           name: oauth2-proxy-<app>
         patch: |
-          - op: replace
+         - op: replace
             path: /spec/rules/0/to/0/operation/hosts/0
             value: <app>.{{ .common.domain }}
 {{- end }}
@@ -308,7 +308,7 @@ spec:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - referencegrant.yaml
+ - referencegrant.yaml
 ```
 
 2. Créer `apps/<app>/kustomize/oauth2-authz-nginx-gwf/referencegrant.yaml` :
@@ -322,11 +322,11 @@ metadata:
   namespace: nginx-gateway
 spec:
   from:
-    - group: gateway.networking.k8s.io
+   - group: gateway.networking.k8s.io
       kind: HTTPRoute
       namespace: <app-namespace>  # Namespace de l'application
   to:
-    - group: gateway.nginx.org
+   - group: gateway.nginx.org
       kind: SnippetsFilter
 ```
 
@@ -347,10 +347,10 @@ spec:
     kind: HTTPRoute
     name: <app>
   patch: |
-    - op: add
+   - op: add
       path: /spec/rules/0/filters
       value:
-        - type: ExtensionRef
+       - type: ExtensionRef
           extensionRef:
             group: gateway.nginx.org
             kind: SnippetsFilter

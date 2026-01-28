@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Kubescape ApplicationSet - Wave 78 (Kubernetes Security Scanning)
+# Kubescape ApplicationSet (Kubernetes Security Scanning)
 # =============================================================================
 # Deploys Kubescape operator for comprehensive Kubernetes security:
 # - Configuration scanning (CIS, NSA, MITRE benchmarks)
@@ -17,7 +17,6 @@ metadata:
   name: kubescape
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "78"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -43,7 +42,6 @@ spec:
       name: kubescape
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "78"
     spec:
       project: default
 

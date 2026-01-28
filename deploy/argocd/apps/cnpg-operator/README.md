@@ -236,7 +236,7 @@ kubectl get secret -n my-namespace my-cluster-app -o yaml
 kubectl run -it --rm --restart=Never pg-client \
   --image=postgres:16 \
   --env="PGPASSWORD=$(kubectl get secret -n my-namespace my-cluster-app -o jsonpath='{.data.password}' | base64 -d)" \
-  -- psql -h my-cluster-rw.my-namespace.svc -U app -d app -c "SELECT version();"
+  -- psql -h my-cluster-rw.my-namespace.svc -U app -d app -c "SELECT version;"
 ```
 
 ## Dependencies

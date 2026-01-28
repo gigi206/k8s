@@ -25,7 +25,7 @@ kubectl apply -f deploy/argocd/apps/traefik/applicationset.yaml
 ## Architecture de deploiement
 
 ```
-traefik (Wave 40)
+traefik
   |
   +-- Cree IngressClass: traefik
   +-- Cree GatewayClass: traefik
@@ -108,10 +108,10 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-  - host: myapp.example.com
+ - host: myapp.example.com
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:
@@ -129,15 +129,15 @@ metadata:
   name: my-app
 spec:
   entryPoints:
-    - websecure
+   - websecure
   routes:
-  - match: Host(`myapp.example.com`)
+ - match: Host(`myapp.example.com`)
     kind: Rule
     services:
-    - name: my-app
+   - name: my-app
       port: 8080
     middlewares:
-    - name: my-ratelimit
+   - name: my-ratelimit
   tls:
     certResolver: letsencrypt
 ```
@@ -152,16 +152,16 @@ metadata:
 spec:
   gatewayClassName: traefik
   listeners:
-  - name: http
+ - name: http
     protocol: HTTP
     port: 80
-  - name: https
+ - name: https
     protocol: HTTPS
     port: 443
     tls:
       mode: Terminate
       certificateRefs:
-      - name: my-cert
+     - name: my-cert
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -169,16 +169,16 @@ metadata:
   name: my-route
 spec:
   parentRefs:
-  - name: my-gateway
+ - name: my-gateway
   hostnames:
-  - "myapp.example.com"
+ - "myapp.example.com"
   rules:
-  - matches:
-    - path:
+ - matches:
+   - path:
         type: PathPrefix
         value: /
     backendRefs:
-    - name: my-app
+   - name: my-app
       port: 8080
 ```
 
@@ -253,12 +253,12 @@ Quand `traefik.dashboard.expose: true` et `features.gatewayAPI.enabled: true`, l
 
 ```
 kustomize/httproute/
-  - httproute.yaml       # HTTPRoute avec 3 règles (redirect, oauth2, backend)
-  - service.yaml         # Service exposant l'API dashboard (port 8080)
-  - referencegrant.yaml  # Autorise référence cross-namespace vers oauth2-proxy
+ - httproute.yaml       # HTTPRoute avec 3 règles (redirect, oauth2, backend)
+ - service.yaml         # Service exposant l'API dashboard (port 8080)
+ - referencegrant.yaml  # Autorise référence cross-namespace vers oauth2-proxy
 
 kustomize/oauth2-authz/
-  - middleware.yaml      # Middleware chain vers oauth2-proxy forward-auth
+ - middleware.yaml      # Middleware chain vers oauth2-proxy forward-auth
 ```
 
 ### ReferenceGrant
@@ -273,11 +273,11 @@ metadata:
   namespace: oauth2-proxy
 spec:
   from:
-    - group: gateway.networking.k8s.io
+   - group: gateway.networking.k8s.io
       kind: HTTPRoute
       namespace: traefik
   to:
-    - group: ""
+   - group: ""
       kind: Service
       name: oauth2-proxy
 ```

@@ -90,8 +90,8 @@ metadata:
   name: allow-istio-health-probes
 spec:
   ingress:
-    - fromCIDR:
-        - 169.254.7.127/32  # Istio's SNAT address for kubelet health probes
+   - fromCIDR:
+       - 169.254.7.127/32  # Istio's SNAT address for kubelet health probes
 ```
 
 **Why**: If you have default-deny NetworkPolicies, kubelet health probes will be blocked because they originate from Istio's link-local SNAT address.
@@ -104,26 +104,26 @@ spec:
 
 This ApplicationSet deploys 4 Istio components via separate Helm charts:
 
-#### 1. **istio-base** (Wave 78.1 - CRDs)
+#### 1. **istio-base** ( - CRDs)
 - **Chart**: `https://istio-release.storage.googleapis.com/charts/base`
 - **Purpose**: Installs Istio CRDs (ServiceEntry, VirtualService, Gateway, etc.)
 - **Namespace**: `istio-system`
 
-#### 2. **istiod** (Wave 78.2 - Control Plane)
+#### 2. **istiod** ( - Control Plane)
 - **Chart**: `https://istio-release.storage.googleapis.com/charts/istiod`
 - **Purpose**: Istio control plane (configuration distribution, certificate management)
 - **Replicas**:
-  - Dev: 1
-  - Prod: 3 (HA)
+ - Dev: 1
+ - Prod: 3 (HA)
 - **Key Config**: `PILOT_ENABLE_AMBIENT: "true"` (enables ambient profile)
 
-#### 3. **istio-cni** (Wave 78.3 - CNI Plugin)
+#### 3. **istio-cni** ( - CNI Plugin)
 - **Chart**: `https://istio-release.storage.googleapis.com/charts/cni`
 - **Purpose**: CNI plugin for transparent traffic redirection (replaces init containers)
 - **Deployment**: DaemonSet (runs on every node)
 - **CNI Chaining**: Configured to chain with Cilium (`cniConfFileName: "10-cilium.conflist"`)
 
-#### 4. **ztunnel** (Wave 78.4 - Ambient Data Plane)
+#### 4. **ztunnel** ( - Ambient Data Plane)
 - **Chart**: `https://istio-release.storage.googleapis.com/charts/ztunnel`
 - **Purpose**: Shared node proxy for L4 traffic processing (mTLS, telemetry, authorization)
 - **Deployment**: DaemonSet (one per node)
@@ -168,11 +168,11 @@ This ApplicationSet deploys 4 Istio components via separate Helm charts:
 
 ### Wave Configuration
 
-- **Wave**: 40 (service mesh foundation, before istio-gateway Wave 45)
+- **Wave**: 40 (service mesh foundation, before istio-gateway )
 - **Namespace**: `istio-system`
 - **Dependencies**:
-  - Cilium CNI (with required configuration)
-  - Prometheus Operator CRDs (for monitoring)
+ - Cilium CNI (with required configuration)
+ - Prometheus Operator CRDs (for monitoring)
 
 ### Installation
 
@@ -243,7 +243,7 @@ metadata:
 spec:
   gatewayClassName: istio-waypoint
   listeners:
-    - name: mesh
+   - name: mesh
       port: 15008
       protocol: HBONE
 EOF
@@ -290,7 +290,7 @@ metadata:
 spec:
   gatewayClassName: istio-waypoint
   listeners:
-    - name: mesh
+   - name: mesh
       port: 15008
       protocol: HBONE
 ```
@@ -318,7 +318,7 @@ Envoy access logs can be enabled per-namespace to capture HTTP request details i
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                        meshConfig (global)                                   │
 │  extensionProviders:                                                         │
-│    - name: access-log-json         # Provider definition                     │
+│   - name: access-log-json         # Provider definition                     │
 │      envoyFileAccessLog:                                                     │
 │        path: /dev/stdout                                                     │
 │        logFormat:                                                            │
@@ -332,8 +332,8 @@ Envoy access logs can be enabled per-namespace to capture HTTP request details i
 │  namespace: my-app                                                           │
 │  spec:                                                                       │
 │    accessLogging:                                                            │
-│      - providers:                                                            │
-│          - name: access-log-json   # Enable for this namespace only          │
+│     - providers:                                                            │
+│         - name: access-log-json   # Enable for this namespace only          │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -363,7 +363,7 @@ metadata:
 spec:
   gatewayClassName: istio-waypoint
   listeners:
-    - name: mesh
+   - name: mesh
       port: 15008
       protocol: HBONE
 EOF
@@ -378,8 +378,8 @@ metadata:
   namespace: my-namespace
 spec:
   accessLogging:
-    - providers:
-        - name: access-log-json
+   - providers:
+       - name: access-log-json
 ```
 
 **Step 3**: Verify access logs are being generated:
@@ -485,9 +485,9 @@ meshConfig:
   enableTracing: true
   defaultProviders:
     tracing:
-      - otel
+     - otel
   extensionProviders:
-    - name: otel
+   - name: otel
       opentelemetry:
         service: tempo.tempo.svc.cluster.local
         port: 4317
@@ -663,9 +663,9 @@ To update dashboards from upstream:
 
 1. Download the latest JSON from [istio/istio](https://github.com/istio/istio/tree/master/manifests/addons/dashboards)
 2. Apply waypoint modifications:
-   - Replace `reporter=\"source\"` with `reporter=~\"source|waypoint\"`
-   - Replace `reporter=\"destination\"` with `reporter=~\"destination|waypoint\"`
-   - Add `waypoint` to the `qrep` variable options
+  - Replace `reporter=\"source\"` with `reporter=~\"source|waypoint\"`
+  - Replace `reporter=\"destination\"` with `reporter=~\"destination|waypoint\"`
+  - Add `waypoint` to the `qrep` variable options
 3. Wrap in ConfigMap YAML with `grafana_dashboard: "1"` label
 4. Commit and push
 
@@ -845,14 +845,14 @@ server:
 ### Environment-Specific Settings
 
 - **Dev** (`config/dev.yaml`):
-  - 1 istiod replica
-  - Minimal resources
-  - Auto-sync enabled
+ - 1 istiod replica
+ - Minimal resources
+ - Auto-sync enabled
 
 - **Prod** (`config/prod.yaml`):
-  - 3 istiod replicas (HA)
-  - Higher resource limits
-  - Manual sync (for controlled updates)
+ - 3 istiod replicas (HA)
+ - Higher resource limits
+ - Manual sync (for controlled updates)
 
 ### Customization
 

@@ -1,9 +1,9 @@
 ---
 # =============================================================================
-# External-DNS ApplicationSet - Wave 45 (DNS Automation)
+# External-DNS ApplicationSet (DNS Automation)
 # =============================================================================
 # Déploie External-DNS pour synchroniser les Ingress/Services avec un provider DNS
-# Wave 45: Après Gateway API (15) et Istio (40) pour accéder aux CRDs
+#  Après Gateway API (15) et Istio (40) pour accéder aux CRDs
 # Docs: https://github.com/kubernetes-sigs/external-dns
 # =============================================================================
 
@@ -13,7 +13,6 @@ metadata:
   name: external-dns
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "45"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +41,6 @@ spec:
       name: external-dns
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "45"
     spec:
       project: default
 

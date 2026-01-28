@@ -5,15 +5,15 @@ Longhorn est un système de stockage distribué pour Kubernetes qui fournit des 
 ## Dépendances
 
 ### Automatiques (via ApplicationSets)
-Ces composants sont déployés automatiquement dans le bon ordre grâce aux sync waves:
+Ces composants sont des dépendances de cette application:
 
-- **CSI External Snapshotter** (Wave 55): Requis pour les snapshots de volumes
-  - Déployé automatiquement avant Longhorn
-  - ApplicationSet: `csi-external-snapshotter`
+- **CSI External Snapshotter**: Requis pour les snapshots de volumes
+ - Déployé automatiquement avant Longhorn
+ - ApplicationSet: `csi-external-snapshotter`
 
-- **Prometheus Stack** (Wave 75): Pour le monitoring Longhorn
-  - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
-  - Alertes automatiques pour l'utilisation disque > 90%
+- **Prometheus Stack**: Pour le monitoring Longhorn
+ - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
+ - Alertes automatiques pour l'utilisation disque > 90%
 
 ### Manuelles (sur les nodes)
 
@@ -157,7 +157,7 @@ metadata:
   name: longhorn-test-pvc
 spec:
   accessModes:
-    - ReadWriteOnce
+   - ReadWriteOnce
   storageClassName: longhorn
   resources:
     requests:

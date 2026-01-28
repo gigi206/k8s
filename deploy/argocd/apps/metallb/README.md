@@ -17,7 +17,7 @@ MetalLB est une implémentation de LoadBalancer pour les clusters Kubernetes bar
 - **Plage d'IPs disponibles**: IPs non utilisées sur le réseau local
 
 ### Optionnelles
-- **Prometheus Stack** (Wave 75): Pour monitoring des speakers et controller
+- **Prometheus Stack**: Pour monitoring des speakers et controller
 - **BGP Router** (mode BGP uniquement): Pour advertisement BGP
 
 ## Architecture
@@ -82,9 +82,9 @@ Cette infrastructure utilise le **Mode L2** (Layer 2) par défaut.
 ```yaml
 metallb:
   ipAddressPool:
-    - name: default
+   - name: default
       addresses:
-        - 192.168.1.220-192.168.1.250  # 31 IPs disponibles
+       - 192.168.1.220-192.168.1.250  # 31 IPs disponibles
 ```
 
 **IPAddressPool** (ressource déployée via Git):
@@ -96,7 +96,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.220-192.168.1.250
+   - 192.168.1.220-192.168.1.250
 ```
 
 **L2Advertisement** (ressource déployée via Git):
@@ -108,7 +108,7 @@ metadata:
   namespace: metallb-system
 spec:
   ipAddressPools:
-    - default
+   - default
 ```
 
 ### Prod (config-prod.yaml)
@@ -116,9 +116,9 @@ spec:
 ```yaml
 metallb:
   ipAddressPool:
-    - name: default
+   - name: default
       addresses:
-        - 192.168.1.240-192.168.1.250  # 11 IPs (production réservée)
+       - 192.168.1.240-192.168.1.250  # 11 IPs (production réservée)
 ```
 
 **Différences dev/prod**:
@@ -142,7 +142,7 @@ spec:
   selector:
     app: my-app
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
 ```
 
@@ -167,7 +167,7 @@ spec:
   type: LoadBalancer
   loadBalancerIP: 192.168.1.225  # IP spécifique du pool
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
 ```
 
@@ -185,7 +185,7 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
 ```
 
@@ -203,7 +203,7 @@ spec:
   type: LoadBalancer
   loadBalancerIP: 192.168.1.230
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
 
 ---
@@ -218,7 +218,7 @@ spec:
   type: LoadBalancer
   loadBalancerIP: 192.168.1.230
   ports:
-  - port: 443
+ - port: 443
     targetPort: 8443
 ```
 
@@ -400,7 +400,7 @@ metadata:
   namespace: metallb-system
 spec:
   ipAddressPools:
-    - default
+   - default
 ```
 
 ### Multiple IP Pools
@@ -413,7 +413,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.240-192.168.1.245
+   - 192.168.1.240-192.168.1.245
   autoAssign: false  # Assignation manuelle
 
 ---
@@ -424,7 +424,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.220-192.168.1.230
+   - 192.168.1.220-192.168.1.230
   autoAssign: true
 ```
 
