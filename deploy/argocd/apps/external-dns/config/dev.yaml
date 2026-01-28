@@ -55,7 +55,7 @@ externalDns:
 
   # CoreDNS configuration (only when provider=coredns)
   coredns:
-    version: "1.45.0"
+    version: "1.45.2"
     enabled: true
     replicas: 1
     serviceType: "LoadBalancer"
