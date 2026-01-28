@@ -158,3 +158,9 @@ spec:
           path: deploy/argocd/apps/cnpg-operator/resources
           directory:
             include: "clusterimagecatalog.yaml"
+        # Source 5: PostSync webhook readiness check (unconditional)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cnpg-operator/resources
+          directory:
+            include: "webhook-readiness-check.yaml"
