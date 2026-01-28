@@ -1,9 +1,9 @@
 ---
 # =============================================================================
-# Loki ApplicationSet - Wave 73 (Log Storage)
+# Loki ApplicationSet (Log Storage)
 # =============================================================================
 # Deploys Grafana Loki for centralized log aggregation and querying.
-# Works with Alloy (Wave 74) for log collection.
+# Works with Alloy  for log collection.
 # Docs: https://grafana.com/docs/loki/latest/
 # =============================================================================
 
@@ -13,7 +13,6 @@ metadata:
   name: loki
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "73"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +41,6 @@ spec:
       name: loki
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "73"
     spec:
       project: default
 

@@ -15,7 +15,7 @@ CSI External Snapshotter fournit les CustomResourceDefinitions (CRDs) pour les s
 - **Kubernetes 1.20+**: Support natif des VolumeSnapshot
 
 ### Optionnelles
-- **Longhorn** (Wave 60): CSI driver qui utilise ces CRDs pour les snapshots
+- **Longhorn**: CSI driver qui utilise ces CRDs pour les snapshots
 - **Autres CSI drivers**: Tout driver supportant les snapshots (AWS EBS, GCP PD, etc.)
 
 ## CRDs Installées
@@ -100,7 +100,7 @@ spec:
     kind: VolumeSnapshot
     apiGroup: snapshot.storage.k8s.io
   accessModes:
-    - ReadWriteOnce
+   - ReadWriteOnce
   resources:
     requests:
       storage: 10Gi

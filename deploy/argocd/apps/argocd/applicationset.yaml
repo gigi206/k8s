@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# ArgoCD ApplicationSet - Wave 50 (GitOps Controller)
+# ArgoCD ApplicationSet (GitOps Controller)
 # =============================================================================
 # Déploie ArgoCD pour qu'il se gère lui-même (self-managed)
 # Docs: https://argo-cd.readthedocs.io/
@@ -12,7 +12,6 @@ metadata:
   name: argocd
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "50"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -41,7 +40,6 @@ spec:
       name: argocd
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "50"
     spec:
       project: default
 

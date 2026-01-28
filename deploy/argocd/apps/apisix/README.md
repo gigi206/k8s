@@ -215,7 +215,7 @@ metadata:
   namespace: my-namespace
 spec:
   externalNodes:
-    - type: Domain
+   - type: Domain
       name: oauth2-proxy.oauth2-proxy.svc.cluster.local
       port: 4180
 ---
@@ -228,32 +228,32 @@ spec:
   ingressClassName: apisix
   http:
     # Route /oauth2/* to OAuth2 Proxy for authentication flow
-    - name: oauth2
+   - name: oauth2
       match:
         hosts:
-          - my-app.k8s.lan
+         - my-app.k8s.lan
         paths:
-          - /oauth2/*
+         - /oauth2/*
       upstreams:
-        - name: oauth2-proxy
+       - name: oauth2-proxy
       plugins:
-        - name: proxy-rewrite
+       - name: proxy-rewrite
           enable: true
           config:
             regex_uri: ["^/oauth2/(.*)", "/$1"]
     # Route all other traffic (protected by OAuth2)
-    - name: main
+   - name: main
       match:
         hosts:
-          - my-app.k8s.lan
+         - my-app.k8s.lan
         paths:
-          - /*
+         - /*
       backends:
-        - serviceName: my-app-service
+       - serviceName: my-app-service
           servicePort: 8080
       plugins:
         # Validate token with oauth2-proxy
-        - name: forward-auth
+       - name: forward-auth
           enable: true
           config:
             uri: http://oauth2-proxy.oauth2-proxy.svc:4180/oauth2/auth
@@ -261,12 +261,12 @@ spec:
             upstream_headers: ["X-Auth-Request-User", "X-Auth-Request-Email"]
             client_headers: ["Set-Cookie"]
         # Convert 401 to 302 redirect (forward-auth doesn't handle redirects)
-        - name: serverless-post-function
+       - name: serverless-post-function
           enable: true
           config:
             phase: header_filter
             functions:
-              - "return function() if ngx.status == 401 then ngx.status = 302; ngx.header['Location'] = '/oauth2/start?rd=' .. ngx.escape_uri(ngx.var.scheme .. '://' .. ngx.var.host .. ngx.var.request_uri) end end"
+             - "return function if ngx.status == 401 then ngx.status = 302; ngx.header['Location'] = '/oauth2/start?rd=' .. ngx.escape_uri(ngx.var.scheme .. '://' .. ngx.var.host .. ngx.var.request_uri) end end"
 ```
 
 **Key Points**:
@@ -293,7 +293,7 @@ For HTTPRoute, OAuth2 protection uses a Global Rule that discovers HTTPRoutes dy
 │  labels:                                                        │
 │    oauth2-protected: "true"                                     │
 │  hostnames:                                                     │
-│    - prometheus.k8s.lan                                         │
+│   - prometheus.k8s.lan                                         │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -332,24 +332,24 @@ metadata:
     oauth2-protected: "true"  # Add this label
 spec:
   hostnames:
-    - "my-app.k8s.lan"
+   - "my-app.k8s.lan"
   rules:
     # Route /oauth2/* to OAuth2 Proxy (required for login flow)
-    - matches:
-        - path:
+   - matches:
+       - path:
             type: PathPrefix
             value: /oauth2/
       backendRefs:
-        - name: oauth2-proxy
+       - name: oauth2-proxy
           namespace: oauth2-proxy
           port: 4180
     # Route all other traffic to your app
-    - matches:
-        - path:
+   - matches:
+       - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: my-app-service
+       - name: my-app-service
           port: 8080
 ```
 
@@ -443,14 +443,14 @@ metadata:
 spec:
   ingressClassName: apisix
   http:
-    - name: my-route
+   - name: my-route
       match:
         hosts:
-          - my-app.k8s.lan
+         - my-app.k8s.lan
         paths:
-          - /*
+         - /*
       backends:
-        - serviceName: my-https-service  # Original Service (no appProtocol needed)
+       - serviceName: my-https-service  # Original Service (no appProtocol needed)
           servicePort: 8443
 ```
 
@@ -471,7 +471,7 @@ spec:
   selector:
     app: my-app
   ports:
-    - name: https
+   - name: https
       port: 8443
       targetPort: 8443
       protocol: TCP
@@ -484,19 +484,19 @@ metadata:
   namespace: my-namespace
 spec:
   parentRefs:
-    - group: gateway.networking.k8s.io
+   - group: gateway.networking.k8s.io
       kind: Gateway
       name: default-gateway
       namespace: apisix
   hostnames:
-    - my-app.k8s.lan
+   - my-app.k8s.lan
   rules:
-    - matches:
-        - path:
+   - matches:
+       - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: my-https-service
+       - name: my-https-service
           port: 8443
 ```
 

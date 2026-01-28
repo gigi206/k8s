@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Tempo ApplicationSet - Wave 77 (Distributed Tracing)
+# Tempo ApplicationSet (Distributed Tracing)
 # =============================================================================
 # Deploys Grafana Tempo for distributed tracing with Istio Ambient mode.
 # Integrates with Loki for log-trace correlation.
@@ -13,7 +13,6 @@ metadata:
   name: tempo
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "77"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +41,6 @@ spec:
       name: tempo
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "77"
     spec:
       project: default
 

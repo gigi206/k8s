@@ -41,7 +41,7 @@ In `config/config.yaml`:
 ```yaml
 features:
   kubescape:
-    enabled: true  # Wave 78: Kubernetes security scanning
+    enabled: true  # : Kubernetes security scanning
 ```
 
 ### Capabilities
@@ -336,9 +336,9 @@ Key alerts defined in `kustomize/monitoring/prometheusrules.yaml`:
 `resources/cilium-egress-policy.yaml` allows:
 - Internal namespace communication
 - HTTPS (443) to external services:
-  - Grype vulnerability database
-  - Control framework updates
-  - Container registries
+ - Grype vulnerability database
+ - Control framework updates
+ - Container registries
 
 ### Ingress Policy
 
@@ -361,11 +361,11 @@ The APIService `v1beta1.spdx.softwarecomposition.kubescape.io` shows `False (Mis
 
 **Root cause**: The upstream Helm chart (`kubescape-operator`) has a bug in `templates/storage/deployment.yaml` — it does **not** set `automountServiceAccountToken: true` in the pod spec, unlike all other Deployments in the chart (kubescape, kubevuln, operator, prometheus-exporter).
 
-When the Kyverno `disable-automount-sa-token` ClusterPolicy is active, it mutates pods via `patchStrategicMerge` to set `automountServiceAccountToken: false`. The other Deployments resist this mutation because they explicitly set the field to `true`. But `storage` has no explicit value, so Kyverno successfully mutates it → no SA token mounted → `rest.InClusterConfig()` fails → panic.
+When the Kyverno `disable-automount-sa-token` ClusterPolicy is active, it mutates pods via `patchStrategicMerge` to set `automountServiceAccountToken: false`. The other Deployments resist this mutation because they explicitly set the field to `true`. But `storage` has no explicit value, so Kyverno successfully mutates it → no SA token mounted → `rest.InClusterConfig` fails → panic.
 
 A Kyverno `PolicyException` exists for the `kubescape` namespace, but due to ArgoCD sync ordering, the Deployment can be admitted **before** the PolicyException is created (race condition).
 
-**Fix applied**: The `kyverno-policy-exception.yaml` has `argocd.argoproj.io/sync-wave: "-1"` to ensure it is created before the Helm chart resources (wave 0).
+**Fix applied**: The `kyverno-policy-exception.yaml` has `argocd.argoproj.io/sync-wave: "-1"` to ensure it is created before the Helm chart resources .
 
 **Recovery** (one-time after applying the fix):
 

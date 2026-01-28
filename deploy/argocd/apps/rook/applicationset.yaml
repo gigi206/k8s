@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Rook-Ceph ApplicationSet - Wave 60 (Distributed Storage)
+# Rook-Ceph ApplicationSet (Distributed Storage)
 # =============================================================================
 # Deploys Rook-Ceph for distributed block and file storage
 # Charts: rook-ceph (operator) + rook-ceph-cluster (cluster)
@@ -13,7 +13,6 @@ metadata:
   name: rook
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "60"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +41,6 @@ spec:
       name: rook
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "60"
     spec:
       project: default
 

@@ -159,27 +159,31 @@ deploy/argocd/
 {{- end }}
 ```
 
-### Sync Wave Strategy
+### Sync Waves (Intra-Application Only)
 
-Applications are deployed in order using ArgoCD sync waves (lower = earlier):
-- **Inter-app**: `argocd.argoproj.io/sync-wave` annotation on ApplicationSet
-- **Intra-app**: Same annotation on individual resources (e.g., CRDs wave `-1`, CRs wave `1`)
+**IMPORTANT**: Sync waves only work for resources **WITHIN a single Application**. They do **NOT** control the order between separate Applications (ArgoCD syncs Applications in parallel).
+
+Use `argocd.argoproj.io/sync-wave` annotation on resources to control deployment order within an Application:
+- Wave `-1`: CRDs, Namespaces (deploy first)
+- Wave `0`: Default (Secrets, ConfigMaps, Services)
+- Wave `1`: Custom Resources that depend on CRDs
+
+**Example** (in keycloak app):
+- `KeycloakRealmImport` has `sync-wave: "1"` to deploy after secrets (wave 0)
 
 **IMPORTANT - ExternalSecret Sync Waves**:
 - **NEVER use PreSync hooks** for ExternalSecrets. If the external-secrets webhook is not ready, PreSync hooks **block the entire sync** indefinitely.
-- **NEVER use sync-wave "-1"** for ExternalSecrets. This causes deployment to block at 0/18 if the webhook is not ready.
-- **NEVER use sync-wave "1"** for ExternalSecrets that create secrets mounted by Deployments. ArgoCD waits for wave 0 to be Healthy before processing wave 1, creating a circular dependency.
-- **DO NOT use any sync-wave** for ExternalSecrets - let ArgoCD sync all resources in parallel and retry failures automatically.
-- The `external-secrets` app includes a **PostSync Job** (`webhook-readiness-check`) that verifies the webhook is ready before marking the app as Healthy. This ensures dependent apps can create ExternalSecrets successfully.
+- **DO NOT use sync-wave** for ExternalSecrets - let ArgoCD sync all resources in parallel and retry failures automatically.
+- The `external-secrets` app includes a **PostSync Job** (`webhook-readiness-check`) that verifies the webhook is ready before marking the app as Healthy.
 
 ### Feature Flags
 
 Feature flags in `config/config.yaml` control which ApplicationSets are deployed.
 
 Examples:
-- `features.metallb.enabled` → metallb (wave 10)
-- `features.monitoring.enabled` → prometheus-stack (wave 75)
-- `features.sso.enabled` + `provider=keycloak` → keycloak (wave 80)
+- `features.metallb.enabled` → metallb
+- `features.monitoring.enabled` → prometheus-stack
+- `features.sso.enabled` + `provider=keycloak` → keycloak
 
 See `deploy-applicationsets.sh` for the complete list and automatic dependency resolution (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
 

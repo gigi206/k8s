@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Jaeger ApplicationSet - Wave 77 (Distributed Tracing)
+# Jaeger ApplicationSet (Distributed Tracing)
 # =============================================================================
 # Deploys Jaeger for distributed tracing with Istio Ambient mode.
 # Includes Waypoint proxies for L7 tracing in selected namespaces.
@@ -13,7 +13,6 @@ metadata:
   name: jaeger
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "77"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +41,6 @@ spec:
       name: jaeger
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "77"
     spec:
       project: default
 

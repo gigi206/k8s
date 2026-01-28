@@ -12,8 +12,6 @@ kind: PrometheusRule
 metadata:
   name: csi-snapshotter-prometheus-rules
   namespace: kube-system
-  annotations:
-    argocd.argoproj.io/sync-wave: "80"
   labels:
     prometheus: csi-snapshotter
     role: alert-rules

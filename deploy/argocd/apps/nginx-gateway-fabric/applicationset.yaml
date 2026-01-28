@@ -1,9 +1,9 @@
 ---
 # =============================================================================
-# NGINX Gateway Fabric ApplicationSet - Wave 41 (Gateway API Controller)
+# NGINX Gateway Fabric ApplicationSet (Gateway API Controller)
 # =============================================================================
 # Déploie NGINX Gateway Fabric pour Gateway API (nouvelle génération)
-# Coexiste avec nginx-ingress (Wave 40) pour transition progressive
+# Coexiste avec nginx-ingress  pour transition progressive
 # Docs: https://docs.nginx.com/nginx-gateway-fabric/
 # Repo: https://github.com/nginxinc/nginx-gateway-fabric
 # =============================================================================
@@ -14,7 +14,6 @@ metadata:
   name: nginx-gateway-fabric
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "41"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -43,7 +42,6 @@ spec:
       name: nginx-gateway-fabric
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "41"
     spec:
       project: default
 

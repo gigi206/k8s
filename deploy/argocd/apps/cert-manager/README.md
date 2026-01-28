@@ -5,12 +5,12 @@ Cert-Manager gère automatiquement les certificats TLS dans Kubernetes, avec sup
 ## Dépendances
 
 ### Automatiques (via ApplicationSets)
-Ces composants sont déployés automatiquement dans le bon ordre grâce aux sync waves:
+Ces composants sont des dépendances de cette application:
 
-- **Prometheus Stack** (Wave 75): Pour le monitoring cert-manager
-  - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
-  - Dashboard Grafana automatiquement chargé
-  - Alertes automatiques pour certificats expirés/non-ready
+- **Prometheus Stack**: Pour le monitoring cert-manager
+ - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
+ - Dashboard Grafana automatiquement chargé
+ - Alertes automatiques pour certificats expirés/non-ready
 
 ### Manuelles
 
@@ -79,7 +79,7 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
-    - http01:
+   - http01:
         ingress:
           class: nginx
 ```
@@ -97,7 +97,7 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-    - http01:
+   - http01:
         ingress:
           class: nginx
 ```
@@ -124,14 +124,14 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - example.com
+ - hosts:
+   - example.com
     secretName: example-com-tls
   rules:
-  - host: example.com
+ - host: example.com
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:
@@ -157,8 +157,8 @@ spec:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-  - example.com
-  - www.example.com
+ - example.com
+ - www.example.com
 ```
 
 ### Gateway API (v1.15+)
@@ -174,14 +174,14 @@ metadata:
 spec:
   gatewayClassName: nginx
   listeners:
-  - name: https
+ - name: https
     protocol: HTTPS
     port: 443
     hostname: example.com
     tls:
       mode: Terminate
       certificateRefs:
-      - name: example-com-tls
+     - name: example-com-tls
 ```
 
 ## Monitoring
@@ -352,7 +352,7 @@ metadata:
   name: httpbin
 spec:
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
   selector:
     app: httpbin
@@ -371,10 +371,10 @@ spec:
         app: httpbin
     spec:
       containers:
-      - name: httpbin
+     - name: httpbin
         image: kennethreitz/httpbin
         ports:
-        - containerPort: 8080
+       - containerPort: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -385,14 +385,14 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - httpbin.example.com
+ - hosts:
+   - httpbin.example.com
     secretName: httpbin-tls
   rules:
-  - host: httpbin.example.com
+ - host: httpbin.example.com
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:

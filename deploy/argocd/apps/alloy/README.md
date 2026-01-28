@@ -47,8 +47,8 @@ Collects logs from all running Kubernetes pods using the Kubernetes API.
 **Features:**
 - JSON log parsing (extracts `level` and `msg`)
 - TraceID extraction for log-to-trace correlation:
-  - W3C Traceparent: `Traceparent:[00-<traceid>-...]`
-  - B3: `X-B3-Traceid:[<traceid>]`
+ - W3C Traceparent: `Traceparent:[00-<traceid>-...]`
+ - B3: `X-B3-Traceid:[<traceid>]`
 
 **Grafana query:**
 ```logql

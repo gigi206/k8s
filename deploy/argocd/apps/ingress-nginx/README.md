@@ -5,13 +5,13 @@ Ingress-NGINX est un contrôleur d'entrée Kubernetes qui gère le routage HTTP/
 ## Dépendances
 
 ### Automatiques (via ApplicationSets)
-Ces composants sont déployés automatiquement dans le bon ordre grâce aux sync waves:
+Ces composants sont des dépendances de cette application:
 
-- **MetalLB** (Wave 10): Fournit les IPs LoadBalancer pour le service ingress-nginx
-- **Cert-Manager** (Wave 20): Génère automatiquement les certificats TLS
-- **Prometheus Stack** (Wave 75): Pour le monitoring ingress-nginx
-  - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
-  - 5 alertes automatiques (config failed, certificate expiry, 4XX/5XX errors, metrics missing)
+- **MetalLB**: Fournit les IPs LoadBalancer pour le service ingress-nginx
+- **Cert-Manager**: Génère automatiquement les certificats TLS
+- **Prometheus Stack**: Pour le monitoring ingress-nginx
+ - ServiceMonitor et PrometheusRule déployés si `features.monitoring.enabled: true`
+ - 5 alertes automatiques (config failed, certificate expiry, 4XX/5XX errors, metrics missing)
 
 ### Manuelles
 
@@ -141,10 +141,10 @@ metadata:
 spec:
   ingressClassName: nginx  # Utilise ingress-nginx
   rules:
-  - host: app.example.com
+ - host: app.example.com
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:
@@ -166,14 +166,14 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - app.example.com
+ - hosts:
+   - app.example.com
     secretName: app-tls
   rules:
-  - host: app.example.com
+ - host: app.example.com
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:
@@ -267,10 +267,10 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   rules:
-  - host: app.example.com
+ - host: app.example.com
     http:
       paths:
-      - path: /api(/|$)(.*)
+     - path: /api(/|$)(.*)
         pathType: Prefix
 ```
 
@@ -286,24 +286,24 @@ Si `features.monitoring.enabled: true`, les ressources suivantes sont déployée
 **PrometheusRule (5 Alertes):**
 
 1. **NGINXConfigFailed** (critical, 1s):
-   - Échec du reload de config nginx
-   - Action: Désinstaller les derniers changements d'ingress
+  - Échec du reload de config nginx
+  - Action: Désinstaller les derniers changements d'ingress
 
 2. **NGINXCertificateExpiry** (critical, 1s):
-   - Certificat SSL expire dans moins de 7 jours
-   - Action: Renouveler les certificats
+  - Certificat SSL expire dans moins de 7 jours
+  - Action: Renouveler les certificats
 
 3. **NGINXTooMany500s** (warning, 1m):
-   - Plus de 5% de requêtes retournent 5XX
-   - Action: Vérifier les backends
+  - Plus de 5% de requêtes retournent 5XX
+  - Action: Vérifier les backends
 
 4. **NGINXTooMany4XXs** (warning, 1m):
-   - Plus de 5% de requêtes retournent 4XX
-   - Action: Vérifier la configuration et les requêtes
+  - Plus de 5% de requêtes retournent 4XX
+  - Action: Vérifier la configuration et les requêtes
 
 5. **NGINXMetricsMissing** (critical, 15m):
-   - Aucune métrique reportée depuis 15 minutes
-   - Action: Vérifier que nginx est up
+  - Aucune métrique reportée depuis 15 minutes
+  - Action: Vérifier que nginx est up
 
 ### Grafana Dashboard
 
@@ -509,7 +509,7 @@ metadata:
   namespace: default
 spec:
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
   selector:
     app: httpbin
@@ -530,10 +530,10 @@ spec:
         app: httpbin
     spec:
       containers:
-      - name: httpbin
+     - name: httpbin
         image: kennethreitz/httpbin
         ports:
-        - containerPort: 8080
+       - containerPort: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -548,14 +548,14 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-  - hosts:
-    - httpbin.example.com
+ - hosts:
+   - httpbin.example.com
     secretName: httpbin-tls
   rules:
-  - host: httpbin.example.com
+ - host: httpbin.example.com
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:

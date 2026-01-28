@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Traefik ApplicationSet - Wave 40 (Ingress Controller)
+# Traefik ApplicationSet (Ingress Controller)
 # =============================================================================
 # Deploie Traefik comme Ingress Controller / API Gateway
 # Docs: https://doc.traefik.io/traefik/
@@ -17,7 +17,6 @@ metadata:
   name: traefik
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "40"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -46,7 +45,6 @@ spec:
       name: traefik
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "40"
     spec:
       project: default
 

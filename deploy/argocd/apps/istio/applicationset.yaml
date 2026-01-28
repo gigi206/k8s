@@ -5,7 +5,6 @@ metadata:
   name: istio
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "40"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -36,7 +35,6 @@ spec:
         app: istio
         environment: '{{ .environment }}'
       annotations:
-        argocd.argoproj.io/sync-wave: "40"
     spec:
       project: default
       destination:

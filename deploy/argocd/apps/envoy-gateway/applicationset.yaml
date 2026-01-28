@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Envoy Gateway ApplicationSet - Wave 41 (Gateway API Controller)
+# Envoy Gateway ApplicationSet (Gateway API Controller)
 # =============================================================================
 # Déploie Envoy Gateway pour Gateway API (nouvelle génération)
 # Implémentation officielle d'EnvoyProxy pour Gateway API
@@ -14,7 +14,6 @@ metadata:
   name: envoy-gateway
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "41"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -46,7 +45,6 @@ spec:
         app: envoy-gateway
         environment: '{{ .environment }}'
       annotations:
-        argocd.argoproj.io/sync-wave: "41"
     spec:
       project: default
 
@@ -66,7 +64,7 @@ spec:
     spec:
       # Ignore CRD annotations to avoid "Too long" errors (large last-applied-configuration)
       ignoreDifferences:
-        # Gateway API CRDs - already managed by gateway-api-controller (Wave 15)
+        # Gateway API CRDs - already managed by gateway-api-controller 
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           name: httproutes.gateway.networking.k8s.io
