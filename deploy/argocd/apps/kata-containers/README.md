@@ -156,10 +156,10 @@ metadata:
 spec:
   runtimeClassName: kata-qemu  # QEMU/KVM (recommande)
   containers:
-    - name: nginx
+   - name: nginx
       image: nginx:alpine
       ports:
-        - containerPort: 80
+       - containerPort: 80
 ```
 
 ### Verification de l'isolation

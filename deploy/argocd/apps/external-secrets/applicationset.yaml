@@ -1,10 +1,8 @@
 ---
 # =============================================================================
-# External-Secrets ApplicationSet - Wave 3 (Secret Management CRDs)
+# External-Secrets ApplicationSet (Secret Management)
 # =============================================================================
 # Déploie External Secrets Operator pour synchroniser les secrets entre namespaces
-# IMPORTANT: Wave 3 pour installer les CRDs (ExternalSecret, SecretStore) avant
-# prometheus-stack (wave 5) qui en dépend
 # Docs: https://external-secrets.io/
 # =============================================================================
 
@@ -14,7 +12,6 @@ metadata:
   name: external-secrets
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -43,7 +40,6 @@ spec:
       name: external-secrets
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "3"
     spec:
       project: default
 

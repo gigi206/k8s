@@ -24,9 +24,9 @@ kubectl apply -f deploy/argocd/apps/nginx-gateway-fabric/applicationset.yaml
 ## Architecture de déploiement
 
 ```
-nginx-ingress (Wave 40)          → Pour apps utilisant ressources Ingress
+nginx-ingress          → Pour apps utilisant ressources Ingress
   ↓
-nginx-gateway-fabric (Wave 41)   → Pour nouvelles apps utilisant Gateway API
+nginx-gateway-fabric   → Pour nouvelles apps utilisant Gateway API
   ↓
   Crée GatewayClass: nginx-gwf
 ```
@@ -77,16 +77,16 @@ metadata:
 spec:
   gatewayClassName: nginx-gwf
   listeners:
-  - name: http
+ - name: http
     protocol: HTTP
     port: 80
-  - name: https
+ - name: https
     protocol: HTTPS
     port: 443
     tls:
       mode: Terminate
       certificateRefs:
-      - name: my-cert-secret
+     - name: my-cert-secret
 ```
 
 ### 3. Créer une HTTPRoute
@@ -99,16 +99,16 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-  - name: my-gateway
+ - name: my-gateway
   hostnames:
-  - "myapp.example.com"
+ - "myapp.example.com"
   rules:
-  - matches:
-    - path:
+ - matches:
+   - path:
         type: PathPrefix
         value: /
     backendRefs:
-    - name: my-service
+   - name: my-service
       port: 8080
 ```
 
@@ -148,7 +148,7 @@ metadata:
   namespace: nginx-gateway
 spec:
   snippets:
-    - context: http.server.location
+   - context: http.server.location
       value: |
         auth_request /oauth2/auth;
         auth_request_set $user $upstream_http_x_auth_request_user;
@@ -168,11 +168,11 @@ metadata:
   namespace: nginx-gateway
 spec:
   from:
-    - group: gateway.networking.k8s.io
+   - group: gateway.networking.k8s.io
       kind: HTTPRoute
       namespace: monitoring  # Namespace de l'application
   to:
-    - group: gateway.nginx.org
+   - group: gateway.nginx.org
       kind: SnippetsFilter
 ```
 
@@ -186,23 +186,23 @@ metadata:
   namespace: monitoring
 spec:
   parentRefs:
-    - name: default-gateway
+   - name: default-gateway
       namespace: nginx-gateway
   hostnames:
-    - "my-app.k8s.lan"
+   - "my-app.k8s.lan"
   rules:
-    - matches:
-        - path:
+   - matches:
+       - path:
             type: PathPrefix
             value: /
       filters:
-        - type: ExtensionRef
+       - type: ExtensionRef
           extensionRef:
             group: gateway.nginx.org
             kind: SnippetsFilter
             name: oauth2-auth
       backendRefs:
-        - name: my-app-service
+       - name: my-app-service
           port: 8080
 ```
 
@@ -259,12 +259,12 @@ metadata:
   namespace: rook-ceph
 spec:
   targetRefs:
-    - group: ""
+   - group: ""
       kind: Service
       name: ceph-dashboard-https
   validation:
     caCertificateRefs:
-      - group: ""
+     - group: ""
         kind: Secret
         name: ceph-dashboard-backend-ca
     hostname: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
@@ -289,15 +289,15 @@ spec:
     template:
       type: kubernetes.io/tls
   data:
-    - secretKey: ca.crt
+   - secretKey: ca.crt
       remoteRef:
         key: root-ca-secret
         property: tls.crt
-    - secretKey: tls.crt
+   - secretKey: tls.crt
       remoteRef:
         key: root-ca-secret
         property: tls.crt
-    - secretKey: tls.key
+   - secretKey: tls.key
       remoteRef:
         key: root-ca-secret
         property: tls.key
@@ -335,15 +335,15 @@ metadata:
   name: canary-route
 spec:
   parentRefs:
-  - name: my-gateway
+ - name: my-gateway
   hostnames:
-  - "app.example.com"
+ - "app.example.com"
   rules:
-  - backendRefs:
-    - name: app-v1
+ - backendRefs:
+   - name: app-v1
       port: 8080
       weight: 90
-    - name: app-v2
+   - name: app-v2
       port: 8080
       weight: 10
 ```
@@ -357,17 +357,17 @@ metadata:
   name: header-route
 spec:
   parentRefs:
-  - name: my-gateway
+ - name: my-gateway
   rules:
-  - matches:
-    - headers:
-      - name: "X-Version"
+ - matches:
+   - headers:
+     - name: "X-Version"
         value: "beta"
     backendRefs:
-    - name: app-beta
+   - name: app-beta
       port: 8080
-  - backendRefs:
-    - name: app-stable
+ - backendRefs:
+   - name: app-stable
       port: 8080
 ```
 
@@ -403,10 +403,10 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: myapp.example.com
+ - host: myapp.example.com
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:
@@ -425,7 +425,7 @@ metadata:
 spec:
   gatewayClassName: nginx-gwf
   listeners:
-  - name: http
+ - name: http
     protocol: HTTP
     port: 80
 ---
@@ -436,16 +436,16 @@ metadata:
   name: myapp
 spec:
   parentRefs:
-  - name: shared-gateway
+ - name: shared-gateway
   hostnames:
-  - "myapp.example.com"
+ - "myapp.example.com"
   rules:
-  - matches:
-    - path:
+ - matches:
+   - path:
         type: PathPrefix
         value: /
     backendRefs:
-    - name: myapp
+   - name: myapp
       port: 8080
 ```
 
@@ -547,7 +547,7 @@ kubectl get gateway <name> -o jsonpath='{.status.listeners[?(@.name=="https")].c
 
 ## Notes
 
-- Nécessite `gateway-api-controller` (Wave 15) déjà déployé pour les CRDs
+- Nécessite `gateway-api-controller` déjà déployé pour les CRDs
 - Coexiste avec nginx-ingress - pas de conflit
 - MetalLB assigne automatiquement une IP au service LoadBalancer
 - Utilise la GatewayClass `nginx-gwf` (différent de nginx-ingress)

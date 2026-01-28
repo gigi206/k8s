@@ -103,7 +103,7 @@ metadata:
 spec:
   gatewayClassName: istio-waypoint
   listeners:
-    - name: mesh
+   - name: mesh
       port: 15008
       protocol: HBONE
 
@@ -119,7 +119,7 @@ metadata:
 spec:
   gatewayClassName: istio-waypoint
   listeners:
-    - name: mesh
+   - name: mesh
       port: 15008
       protocol: HBONE
 
@@ -135,7 +135,7 @@ metadata:
 spec:
   gatewayClassName: istio-waypoint
   listeners:
-    - name: mesh
+   - name: mesh
       port: 15008
       protocol: HBONE
 ```

@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Kata Containers ApplicationSet - Wave 12 (Container Runtime)
+# Kata Containers ApplicationSet (Container Runtime)
 # =============================================================================
 # Deploie Kata Containers pour fournir une isolation hardware via des micro-VMs
 # Docs: https://katacontainers.io/
@@ -12,7 +12,6 @@ metadata:
   name: kata-containers
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "12"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -41,7 +40,6 @@ spec:
       name: kata-containers
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "12"
     spec:
       project: default
 

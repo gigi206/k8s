@@ -1,9 +1,9 @@
 ---
 # =============================================================================
-# Alloy ApplicationSet - Wave 74 (Log Collector)
+# Alloy ApplicationSet (Log Collector)
 # =============================================================================
 # Deploys Grafana Alloy as a DaemonSet for log collection.
-# Sends logs to Loki (Wave 73).
+# Sends logs to Loki .
 # Docs: https://grafana.com/docs/alloy/latest/
 # =============================================================================
 
@@ -13,7 +13,6 @@ metadata:
   name: alloy
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "74"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +41,6 @@ spec:
       name: alloy
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "74"
     spec:
       project: default
 

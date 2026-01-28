@@ -112,7 +112,7 @@ spec:
     mgr_role: active
     rook_cluster: rook-ceph
   ports:
-    - name: https-dashboard
+   - name: https-dashboard
       port: 8443
       targetPort: 8443
       protocol: TCP
@@ -124,7 +124,7 @@ L'HTTPRoute pointe vers ce Service au lieu de `rook-ceph-mgr-dashboard` :
 ```yaml
 # kustomize/httproute/httproute.yaml
 backendRefs:
-  - name: ceph-dashboard-https  # Notre Service personnalisé
+ - name: ceph-dashboard-https  # Notre Service personnalisé
     port: 8443
 ```
 
@@ -138,8 +138,8 @@ func (c *Cluster) makeDashboardService(name string) (*v1.Service, error) {
     Ports: []v1.ServicePort{
         {
             Name:       portName,
-            Port:       int32(c.dashboardPublicPort()),
-            TargetPort: intstr.IntOrString{IntVal: int32(c.dashboardInternalPort())},
+            Port:       int32(c.dashboardPublicPort),
+            TargetPort: intstr.IntOrString{IntVal: int32(c.dashboardInternalPort)},
             Protocol:   v1.ProtocolTCP,
             // Pas de champ appProtocol !
         },
@@ -193,12 +193,12 @@ metadata:
   namespace: rook-ceph
 spec:
   targetRefs:
-    - group: ""
+   - group: ""
       kind: Service
       name: ceph-dashboard-https
   validation:
     caCertificateRefs:
-      - group: ""
+     - group: ""
         kind: Secret
         name: ceph-dashboard-backend-ca  # CA syncé via ExternalSecret
     hostname: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
@@ -224,15 +224,15 @@ spec:
     template:
       type: kubernetes.io/tls  # Requis par nginx-gateway-fabric
   data:
-    - secretKey: ca.crt        # Clé utilisée par BackendTLSPolicy
+   - secretKey: ca.crt        # Clé utilisée par BackendTLSPolicy
       remoteRef:
         key: root-ca-secret
         property: tls.crt
-    - secretKey: tls.crt
+   - secretKey: tls.crt
       remoteRef:
         key: root-ca-secret
         property: tls.crt
-    - secretKey: tls.key
+   - secretKey: tls.key
       remoteRef:
         key: root-ca-secret
         property: tls.key
@@ -257,11 +257,11 @@ spec:
     name: selfsigned-cluster-issuer
     kind: ClusterIssuer
   dnsNames:
-    - rook-ceph-mgr-dashboard
-    - rook-ceph-mgr-dashboard.rook-ceph
-    - rook-ceph-mgr-dashboard.rook-ceph.svc
-    - rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
-    - ceph.k8s.lan  # Domaine externe (patché via ApplicationSet)
+   - rook-ceph-mgr-dashboard
+   - rook-ceph-mgr-dashboard.rook-ceph
+   - rook-ceph-mgr-dashboard.rook-ceph.svc
+   - rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
+   - ceph.k8s.lan  # Domaine externe (patché via ApplicationSet)
 ```
 
 #### Injection du certificat
@@ -288,13 +288,13 @@ ceph dashboard set-ssl-certificate-key -i /certs/tls.key
   path: deploy/argocd/apps/rook/kustomize/certificates-nginx-gwf
   kustomize:
     images:
-      - 'rook/ceph:IMAGE_TAG=docker.io/rook/ceph:{{ .rook.operator.version }}'
+     - 'rook/ceph:IMAGE_TAG=docker.io/rook/ceph:{{ .rook.operator.version }}'
     patches:
-      - target:
+     - target:
           kind: Certificate
           name: ceph-dashboard-tls
         patch: |
-          - op: replace
+         - op: replace
             path: /spec/dnsNames/4
             value: ceph.{{ .common.domain }}
 {{- end }}
@@ -394,34 +394,34 @@ metadata:
   namespace: my-app
 spec:
   containers:
-  - name: app
+ - name: app
     image: my-app:latest
     env:
     # S3 Credentials (from Secret)
-    - name: AWS_ACCESS_KEY_ID
+   - name: AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
           name: my-bucket
           key: AWS_ACCESS_KEY_ID
-    - name: AWS_SECRET_ACCESS_KEY
+   - name: AWS_SECRET_ACCESS_KEY
       valueFrom:
         secretKeyRef:
           name: my-bucket
           key: AWS_SECRET_ACCESS_KEY
     # Bucket configuration (from ConfigMap)
-    - name: S3_ENDPOINT
+   - name: S3_ENDPOINT
       value: "http://$(BUCKET_HOST):$(BUCKET_PORT)"
-    - name: BUCKET_HOST
+   - name: BUCKET_HOST
       valueFrom:
         configMapKeyRef:
           name: my-bucket
           key: BUCKET_HOST
-    - name: BUCKET_PORT
+   - name: BUCKET_PORT
       valueFrom:
         configMapKeyRef:
           name: my-bucket
           key: BUCKET_PORT
-    - name: BUCKET_NAME
+   - name: BUCKET_NAME
       valueFrom:
         configMapKeyRef:
           name: my-bucket

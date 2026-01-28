@@ -23,18 +23,18 @@ Implémentation officielle d'EnvoyProxy pour Gateway API.
                          v
 ┌─────────────────────────────────────────────────────────────┐
 │              Envoy Gateway Controller                        │
-│  - Watches Gateway API resources                            │
-│  - Provisions Envoy Proxy instances                         │
-│  - Configures Envoy via xDS API                             │
+│ - Watches Gateway API resources                            │
+│ - Provisions Envoy Proxy instances                         │
+│ - Configures Envoy via xDS API                             │
 │  Namespace: envoy-gateway-system                            │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          v
 ┌─────────────────────────────────────────────────────────────┐
 │                   Envoy Proxy Fleet                          │
-│  - One deployment per Gateway resource                       │
-│  - LoadBalancer service (MetalLB)                           │
-│  - Handles HTTP/HTTPS/TCP traffic                           │
+│ - One deployment per Gateway resource                       │
+│ - LoadBalancer service (MetalLB)                           │
+│ - Handles HTTP/HTTPS/TCP traffic                           │
 │  Namespace: envoy-gateway-system (configurable)             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -75,21 +75,21 @@ cd deploy/argocd && ./deploy-applicationsets.sh
 Quand activé, les ressources suivantes sont créées:
 
 1. **Envoy Gateway Controller** (Helm chart)
-   - Deployment: `envoy-gateway` dans `envoy-gateway-system`
-   - Service: metrics sur port 19001
-   - GatewayClass: `envoy`
+  - Deployment: `envoy-gateway` dans `envoy-gateway-system`
+  - Service: metrics sur port 19001
+  - GatewayClass: `envoy`
 
 2. **Default Gateway** (`kustomize/gateway/`)
-   - Gateway: `default-gateway` avec listeners HTTP (80) et HTTPS (443)
-   - Certificate: `wildcard-k8s-local-tls` pour `*.{{ common.domain }}`
-   - LoadBalancer IP: configurée via `gatewayAPI.controller.loadBalancerIP`
+  - Gateway: `default-gateway` avec listeners HTTP (80) et HTTPS (443)
+  - Certificate: `wildcard-k8s-local-tls` pour `*.{{ common.domain }}`
+  - LoadBalancer IP: configurée via `gatewayAPI.controller.loadBalancerIP`
 
 3. **Cilium Network Policies** (si activé)
-   - Host ingress policy: ports 80/443 vers nodes
-   - Pod ingress policy: trafic vers pods envoy-gateway
+  - Host ingress policy: ports 80/443 vers nodes
+  - Pod ingress policy: trafic vers pods envoy-gateway
 
 4. **PrometheusRules** (si monitoring activé)
-   - Alertes pour le contrôleur et les proxies
+  - Alertes pour le contrôleur et les proxies
 
 ### Vérification du déploiement
 
@@ -165,13 +165,13 @@ metadata:
   namespace: my-app
 spec:
   parentRefs:
-  - name: default-gateway
+ - name: default-gateway
     namespace: envoy-gateway-system
   hostnames:
-  - "myapp.k8s.lan"
+ - "myapp.k8s.lan"
   rules:
-  - backendRefs:
-    - name: my-app-service
+ - backendRefs:
+   - name: my-app-service
       port: 80
 ```
 
@@ -215,7 +215,7 @@ metadata:
   namespace: rook-ceph
 spec:
   endpoints:
-    - fqdn:
+   - fqdn:
         hostname: rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local
         port: 8443
   tls:
@@ -235,14 +235,14 @@ metadata:
   namespace: rook-ceph
 spec:
   parentRefs:
-    - name: default-gateway
+   - name: default-gateway
       namespace: envoy-gateway-system
       sectionName: https
   hostnames:
-    - "ceph.k8s.lan"
+   - "ceph.k8s.lan"
   rules:
-    - backendRefs:
-        - group: gateway.envoyproxy.io  # Important: groupe du Backend CRD
+   - backendRefs:
+       - group: gateway.envoyproxy.io  # Important: groupe du Backend CRD
           kind: Backend                   # Important: kind Backend (pas Service)
           name: ceph-dashboard-backend
           port: 8443
@@ -284,22 +284,22 @@ metadata:
   namespace: my-namespace
 spec:
   targetRefs:
-    - group: gateway.networking.k8s.io
+   - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: my-app
   extAuth:
     failOpen: false
     http:
       backendRefs:
-        - name: oauth2-proxy
+       - name: oauth2-proxy
           namespace: oauth2-proxy
           port: 4180
       path: /oauth2/auth
       headersToBackend:
-        - X-Auth-Request-User
-        - X-Auth-Request-Email
-        - X-Auth-Request-Access-Token
-        - X-Auth-Request-Groups
+       - X-Auth-Request-User
+       - X-Auth-Request-Email
+       - X-Auth-Request-Access-Token
+       - X-Auth-Request-Groups
 ```
 
 ### ReferenceGrant requis
@@ -314,11 +314,11 @@ metadata:
   namespace: oauth2-proxy
 spec:
   from:
-    - group: gateway.envoyproxy.io
+   - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: my-namespace
   to:
-    - group: ""
+   - group: ""
       kind: Service
       name: oauth2-proxy
 ```
@@ -335,27 +335,27 @@ metadata:
   namespace: my-namespace
 spec:
   parentRefs:
-    - name: default-gateway
+   - name: default-gateway
       namespace: envoy-gateway-system
   hostnames:
-    - "myapp.k8s.lan"
+   - "myapp.k8s.lan"
   rules:
     # Route OAuth2 callbacks vers oauth2-proxy
-    - matches:
-        - path:
+   - matches:
+       - path:
             type: PathPrefix
             value: /oauth2/
       backendRefs:
-        - name: oauth2-proxy
+       - name: oauth2-proxy
           namespace: oauth2-proxy
           port: 4180
     # Route principale vers le backend
-    - matches:
-        - path:
+   - matches:
+       - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: my-app-service
+       - name: my-app-service
           port: 80
 ```
 
@@ -383,7 +383,7 @@ metadata:
   name: oidc-myapp
 spec:
   targetRefs:
-    - group: gateway.networking.k8s.io
+   - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: my-app
   oidc:
@@ -549,9 +549,9 @@ Pour migrer depuis Istio, NGINX Gateway Fabric ou autre:
 
 ## Sync Wave
 
-**Wave 41** - Deploy after Gateway API CRDs (Wave 15), alongside other Gateway implementations.
+**** - Deploy after Gateway API CRDs, alongside other Gateway implementations.
 
 Dependencies:
-- MetalLB (Wave 10) - LoadBalancer provider
-- Gateway API Controller (Wave 15) - CRDs
-- Cert-Manager (Wave 20) - TLS certificates
+- MetalLB - LoadBalancer provider
+- Gateway API Controller - CRDs
+- Cert-Manager - TLS certificates

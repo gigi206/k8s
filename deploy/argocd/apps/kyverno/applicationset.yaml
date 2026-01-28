@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Kyverno ApplicationSet - Wave 18 (Policy Engine)
+# Kyverno ApplicationSet (Policy Engine)
 # =============================================================================
 # Deploys Kyverno policy engine for Kubernetes native policy management.
 # Provides mutation, validation, and generation capabilities.
@@ -14,7 +14,6 @@ metadata:
   name: kyverno
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "18"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -43,7 +42,6 @@ spec:
       name: kyverno
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "18"
     spec:
       project: default
 

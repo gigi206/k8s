@@ -16,10 +16,10 @@ ArgoCD est un outil de déploiement continu (CD) déclaratif qui suit le paradig
 - **CustomResourceDefinitions (CRDs)**: Installées automatiquement par le chart
 
 ### Optionnelles
-- **Ingress-NGINX** (Wave 40): Pour accès UI/CLI via ingress
-- **Cert-Manager** (Wave 20): Pour TLS automatique sur l'ingress
-- **Prometheus Stack** (Wave 75): Pour monitoring et alerting
-- **External-DNS** (Wave 45): Pour DNS automatique
+- **Ingress-NGINX**: Pour accès UI/CLI via ingress
+- **Cert-Manager**: Pour TLS automatique sur l'ingress
+- **Prometheus Stack**: Pour monitoring et alerting
+- **External-DNS**: Pour DNS automatique
 
 ## Architecture
 
@@ -294,16 +294,16 @@ grpc_server_handled_total                    # gRPC requests
 - **gnetId**: 14584 (dashboard officiel)
 - **Auto-import**: Via ConfigMap avec label `grafana_dashboard: "1"`
 - **Sections**:
-  - Applications count
-  - Application health status (timeline)
-  - Apps out of sync
-  - Sync stats and activity
-  - Controller stats (reconciliation, K8s API)
-  - Controller telemetry (CPU, memory, goroutines)
-  - Cluster stats (resources, events)
-  - Repo server stats (Git requests, performance)
-  - Server stats (gRPC services)
-  - Redis stats
+ - Applications count
+ - Application health status (timeline)
+ - Apps out of sync
+ - Sync stats and activity
+ - Controller stats (reconciliation, K8s API)
+ - Controller telemetry (CPU, memory, goroutines)
+ - Cluster stats (resources, events)
+ - Repo server stats (Git requests, performance)
+ - Server stats (gRPC services)
+ - Redis stats
 
 **Variables**:
 - `datasource`: Prometheus
@@ -468,14 +468,14 @@ argocd:
     enabled: true
     config: |
       connectors:
-        - type: github
+       - type: github
           id: github
           name: GitHub
           config:
             clientID: $GITHUB_CLIENT_ID
             clientSecret: $GITHUB_CLIENT_SECRET
             orgs:
-              - name: my-org
+             - name: my-org
 ```
 
 **Créer les secrets**:
@@ -502,11 +502,11 @@ argocd:
 # Dans server.config
 notifications:
   triggers:
-    - name: on-sync-succeeded
+   - name: on-sync-succeeded
       template: sync-succeeded
       enabled: true
   templates:
-    - name: sync-succeeded
+   - name: sync-succeeded
       slack:
         attachments: |
           [{

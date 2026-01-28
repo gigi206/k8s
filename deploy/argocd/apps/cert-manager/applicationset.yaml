@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Cert-Manager ApplicationSet - Wave 20 (Certificate Management)
+# Cert-Manager ApplicationSet (Certificate Management)
 # =============================================================================
 # Déploie Cert-Manager pour gérer automatiquement les certificats TLS
 # Docs: https://cert-manager.io/
@@ -12,7 +12,6 @@ metadata:
   name: cert-manager
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "20"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -41,7 +40,6 @@ spec:
       name: cert-manager
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "20"
     spec:
       project: default
 

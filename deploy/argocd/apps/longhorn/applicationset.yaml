@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Longhorn ApplicationSet - Wave 60 (Distributed Storage)
+# Longhorn ApplicationSet (Distributed Storage)
 # =============================================================================
 # Déploie Longhorn pour fournir du stockage persistant distribué
 # Docs: https://longhorn.io/
@@ -12,7 +12,6 @@ metadata:
   name: longhorn
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "60"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -41,7 +40,6 @@ spec:
       name: longhorn
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "60"
     spec:
       project: default
 

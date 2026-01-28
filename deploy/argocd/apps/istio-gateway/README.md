@@ -4,7 +4,7 @@ Istio Gateway provides ingress capabilities for the service mesh using Gateway A
 
 ## Overview
 
-- **Wave**: 45 (after Istio control plane at Wave 40)
+- **Wave**: 45 (after Istio control plane at )
 - **Namespace**: `istio-system`
 - **Provider**: Part of Istio service mesh
 - **GatewayClass**: `istio`
@@ -84,17 +84,17 @@ metadata:
   namespace: my-namespace
 spec:
   parentRefs:
-    - name: istio-gateway
+   - name: istio-gateway
       namespace: istio-system
   hostnames:
-    - "myapp.k8s.lan"
+   - "myapp.k8s.lan"
   rules:
-    - matches:
-        - path:
+   - matches:
+       - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: my-service
+       - name: my-service
           port: 8080
 ```
 
@@ -111,20 +111,20 @@ metadata:
   name: canary-route
 spec:
   parentRefs:
-    - name: istio-gateway
+   - name: istio-gateway
       namespace: istio-system
   hostnames:
-    - "myapp.k8s.lan"
+   - "myapp.k8s.lan"
   rules:
-    - matches:
-        - headers:
-            - name: "X-Canary"
+   - matches:
+       - headers:
+           - name: "X-Canary"
               value: "true"
       backendRefs:
-        - name: my-service-canary
+       - name: my-service-canary
           port: 8080
-    - backendRefs:
-        - name: my-service
+   - backendRefs:
+       - name: my-service
           port: 8080
 ```
 
@@ -205,9 +205,9 @@ kubectl logs -n istio-system -l istio=gateway | grep my-app
 
 ## Dependencies
 
-- **istio** (Wave 40): Requires Istio control plane
-- **cert-manager** (Wave 20): Requires cert-manager for TLS certificates
-- **gateway-api-controller** (Wave 15): Requires Gateway API CRDs
+- **istio**: Requires Istio control plane
+- **cert-manager**: Requires cert-manager for TLS certificates
+- **gateway-api-controller**: Requires Gateway API CRDs
 
 ## References
 
