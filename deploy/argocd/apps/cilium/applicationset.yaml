@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Cilium ApplicationSet - Wave 76 (After Prometheus-Stack)
+# Cilium ApplicationSet (After Prometheus-Stack)
 # =============================================================================
 # Cilium CNI is installed by RKE2 during cluster bootstrap. This ApplicationSet
 # deploys additional resources:
@@ -16,7 +16,6 @@ metadata:
   name: cilium
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "76"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -45,7 +44,6 @@ spec:
       name: cilium
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "76"
     spec:
       project: default
 

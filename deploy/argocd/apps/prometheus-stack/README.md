@@ -68,12 +68,12 @@ Kube-Prometheus-Stack est une collection complète d'outils de monitoring pour K
 
 ### Requises
 - **Kubernetes 1.19+**
-- **Longhorn** (Wave 60): Pour persistence Prometheus/Grafana (prod)
+- **Longhorn**: Pour persistence Prometheus/Grafana (prod)
 
 ### Optionnelles
-- **Ingress-NGINX** (Wave 40): Pour accès UI via ingress
-- **Cert-Manager** (Wave 20): Pour TLS automatique
-- **External-DNS** (Wave 45): Pour DNS automatique
+- **Ingress-NGINX**: Pour accès UI via ingress
+- **Cert-Manager**: Pour TLS automatique
+- **External-DNS**: Pour DNS automatique
 
 ## Configuration
 
@@ -298,9 +298,9 @@ metadata:
     release: prometheus-stack
 spec:
   groups:
-  - name: cert-manager.rules
+ - name: cert-manager.rules
     rules:
-    - alert: CertManagerAbsent
+   - alert: CertManagerAbsent
       expr: absent(up{job="cert-manager"})
       for: 10m
       labels:
@@ -332,9 +332,9 @@ prometheusStack:
         group_interval: 5m
         repeat_interval: 12h
       receivers:
-      - name: 'slack-notifications'
+     - name: 'slack-notifications'
         slack_configs:
-        - channel: '#alerts'
+       - channel: '#alerts'
           title: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
           text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
 ```
@@ -355,7 +355,7 @@ metadata:
     app: my-app
 spec:
   ports:
-  - name: metrics
+ - name: metrics
     port: 9090
     targetPort: 9090
   selector:
@@ -372,7 +372,7 @@ spec:
     matchLabels:
       app: my-app
   endpoints:
-  - port: metrics
+ - port: metrics
     interval: 30s
 ```
 
@@ -383,7 +383,7 @@ spec:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - servicemonitor.yaml
+ - servicemonitor.yaml
 
 # ApplicationSet injecte le label dynamiquement
 # dans applicationset.yaml:

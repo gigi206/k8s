@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# NeuVector ApplicationSet - Wave 82 (Container Security)
+# NeuVector ApplicationSet (Container Security)
 # =============================================================================
 # Deploys NeuVector container security platform with:
 # - Controller (policy engine, single or HA)
@@ -17,7 +17,6 @@ metadata:
   name: neuvector
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "82"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -43,7 +42,6 @@ spec:
       name: neuvector
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "82"
     spec:
       project: default
 

@@ -28,7 +28,7 @@ Les network policies sont contrôlées par les feature flags dans `config.yaml` 
 features:
   cilium:
     monitoring:
-      enabled: true       # Wave 76: ServiceMonitors, dashboards Grafana
+      enabled: true       # : ServiceMonitors, dashboards Grafana
     egressPolicy:
       enabled: true       # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
     ingressPolicy:
@@ -139,11 +139,11 @@ spec:
   description: "Allow mon-app to access external services"
   endpointSelector: {}
   egress:
-    - toEntities:
-        - world
+   - toEntities:
+       - world
       toPorts:
-        - ports:
-            - port: "443"
+       - ports:
+           - port: "443"
               protocol: TCP
 ```
 
@@ -265,17 +265,17 @@ Tous les ServiceMonitors et PodMonitors sont déployés dans le namespace `kube-
 #### Dashboards Grafana (2)
 
 1. **Cilium Agent Dashboard** - Métriques eBPF, load balancing des services, BPF maps, performance datapath
-   - Affiche la fonctionnalité de remplacement de kube-proxy via eBPF
-   - Métriques : santé des endpoints, connection tracking, application des policies, NAT/masquerading
+  - Affiche la fonctionnalité de remplacement de kube-proxy via eBPF
+  - Métriques : santé des endpoints, connection tracking, application des policies, NAT/masquerading
 
 2. **Cilium Operator Dashboard** - Statut de l'opérateur, allocation IP, réconciliation des endpoints
-   - Affiche la gestion des adresses IP (IPAM), statut CiliumNode, utilisation des ressources de l'opérateur
+  - Affiche la gestion des adresses IP (IPAM), statut CiliumNode, utilisation des ressources de l'opérateur
 
-Ces dashboards sont les **dashboards officiels Cilium** du chart Helm et remplacent la fonctionnalité du dashboard "Kubernetes / Proxy" désactivé. Ils sont automatiquement déployés via cet ApplicationSet (Wave 76) en utilisant des ConfigMaps avec le label `grafana_dashboard: "1"`.
+Ces dashboards sont les **dashboards officiels Cilium** du chart Helm et remplacent la fonctionnalité du dashboard "Kubernetes / Proxy" désactivé. Ils sont automatiquement déployés via cet ApplicationSet en utilisant des ConfigMaps avec le label `grafana_dashboard: "1"`.
 
 ## Déploiement
 
-- **Wave** : 76 (après prometheus-stack en Wave 75)
+- **Wave** : 76 (après prometheus-stack en )
 - **Namespace** : kube-system (où tournent Cilium/Hubble)
 - **Dépendances** : CRDs Prometheus Operator (depuis prometheus-stack)
 
@@ -284,18 +284,18 @@ Ces dashboards sont les **dashboards officiels Cilium** du chart Helm et remplac
 Une fois les métriques collectées, les dashboards Grafana suivants afficheront des données :
 
 - **Hubble / DNS Overview (Namespace)** - Requêtes DNS, codes de réponse, latence
-  - Nécessite : `dns:query;ignoreAAAA` dans la config des métriques Hubble
+ - Nécessite : `dns:query;ignoreAAAA` dans la config des métriques Hubble
 - **Hubble / HTTP Overview** - Taux de requêtes HTTP, codes de réponse, latence
-  - Nécessite : CiliumNetworkPolicy avec règles L7 pour activer le proxy Envoy pour le trafic HTTP
-  - Note : Sera vide sans policies L7 - les métriques HTTP ne sont générées que pour le trafic proxifié
+ - Nécessite : CiliumNetworkPolicy avec règles L7 pour activer le proxy Envoy pour le trafic HTTP
+ - Note : Sera vide sans policies L7 - les métriques HTTP ne sont générées que pour le trafic proxifié
 - **Hubble / Flow Overview** - Flows réseau, paquets droppés, verdicts de policies
-  - Toujours disponible - affiche tous les flows réseau
+ - Toujours disponible - affiche tous les flows réseau
 - **Cilium / Agent** - Santé de l'agent Cilium, utilisation des BPF maps, erreurs
-  - Note : Métriques exposées sur les pods, nécessite PodMonitor (déployé dans cette ApplicationSet)
+ - Note : Métriques exposées sur les pods, nécessite PodMonitor (déployé dans cette ApplicationSet)
 - **Cilium / Operator** - Statut de l'opérateur, réconciliation des endpoints
-  - Note : Métriques exposées sur les pods, nécessite PodMonitor (déployé dans cette ApplicationSet)
+ - Note : Métriques exposées sur les pods, nécessite PodMonitor (déployé dans cette ApplicationSet)
 - **Cilium / Envoy** - Métriques du proxy L7, statistiques de connexion
-  - Disponible quand Envoy traite du trafic L7
+ - Disponible quand Envoy traite du trafic L7
 
 ## Métriques BPF Syscall (désactivées par défaut)
 
@@ -343,7 +343,7 @@ spec:
       serviceMonitor:
         enabled: false  # Nous utilisons des PodMonitors à la place
       metrics:
-        - "+cilium_bpf_syscall_duration_seconds"  # Activer les métriques syscall
+       - "+cilium_bpf_syscall_duration_seconds"  # Activer les métriques syscall
 ```
 
 **Option 2 : Via patch ConfigMap** :
@@ -445,12 +445,12 @@ Dec 20 16:07:20.543: monitoring/prometheus-0:58092 <> rook-ceph/exporter:9926 Po
 ```yaml
 # Dans apps/<app>/resources/cilium-ingress-policy.yaml
 ingress:
-  - fromEndpoints:
-      - matchLabels:
+ - fromEndpoints:
+     - matchLabels:
           io.kubernetes.pod.namespace: monitoring  # Autoriser depuis monitoring
     toPorts:
-      - ports:
-          - port: "9926"  # Port manquant identifié via Hubble
+     - ports:
+         - port: "9926"  # Port manquant identifié via Hubble
             protocol: TCP
 ```
 
@@ -516,15 +516,15 @@ cilium_bpf_maps_virtual_memory_max_bytes
 
 **Explication** :
 - **Mode CRD** (configuration actuelle, recommandé pour single-cluster) :
-  - Stockage d'état via Kubernetes CRDs
-  - Pas de kvstore externe nécessaire
-  - Métriques `kvstore_operations_total` non applicables
-  - "No data" dans la section kvstore est **normal et attendu**
+ - Stockage d'état via Kubernetes CRDs
+ - Pas de kvstore externe nécessaire
+ - Métriques `kvstore_operations_total` non applicables
+ - "No data" dans la section kvstore est **normal et attendu**
 
 - **Mode kvstore** (non utilisé, requis pour multi-cluster) :
-  - Nécessite etcd ou consul externe
-  - Génère les métriques `kvstore_operations_total`
-  - Permet le partage d'état entre clusters
+ - Nécessite etcd ou consul externe
+ - Génère les métriques `kvstore_operations_total`
+ - Permet le partage d'état entre clusters
 
 **Vérification** :
 ```bash
@@ -578,15 +578,15 @@ spec:
     matchLabels:
       app: my-app
   ingress:
-  - fromEndpoints:
-    - {}
+ - fromEndpoints:
+   - {}
     toPorts:
-    - ports:
-      - port: "80"
+   - ports:
+     - port: "80"
         protocol: TCP
       rules:
         http:
-        - method: "GET|POST|PUT|DELETE"
+       - method: "GET|POST|PUT|DELETE"
           path: "/"
 ```
 

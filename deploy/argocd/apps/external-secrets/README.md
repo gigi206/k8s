@@ -62,21 +62,21 @@ spec:
 Each application that needs OIDC secrets defines an ExternalSecret:
 
 - **ArgoCD**: `apps/argocd/resources/external-secret.yaml`
-  - Source: `keycloak/argocd-oidc-client-secret`
-  - Target: `argo-cd/argocd-secret`
+ - Source: `keycloak/argocd-oidc-client-secret`
+ - Target: `argo-cd/argocd-secret`
 
 - **Grafana**: `apps/prometheus-stack/resources/external-secret.yaml`
-  - Source: `keycloak/grafana-oidc-client-secret`
-  - Target: `monitoring/grafana-oidc-credentials`
+ - Source: `keycloak/grafana-oidc-client-secret`
+ - Target: `monitoring/grafana-oidc-credentials`
 
 ## Sync Wave
 
-External Secrets Operator is deployed at **Wave 25**, ensuring it's available before applications that depend on it:
+External Secrets Operator is deployed at ****, ensuring it's available before applications that depend on it:
 
-- Wave 25: External Secrets Operator
-- Wave 50: ArgoCD (uses ExternalSecret)
-- Wave 75: Prometheus-Stack (uses ExternalSecret for Grafana)
-- Wave 80: Keycloak (provides source secrets)
+- External Secrets Operator
+- ArgoCD (uses ExternalSecret)
+- Prometheus-Stack (uses ExternalSecret for Grafana)
+- Keycloak (provides source secrets)
 
 ## Adding a New Application
 
@@ -97,7 +97,7 @@ To add OIDC support for a new application:
 2. **Add to ksops-generator.yaml**:
    ```yaml
    files:
-     - ./secret-myapp-client.yaml
+    - ./secret-myapp-client.yaml
    ```
 
 3. **Create KeycloakRealmImport** in your app's resources:
@@ -113,7 +113,7 @@ To add OIDC support for a new application:
      realm:
        realm: k8s
        clients:
-         - clientId: myapp
+        - clientId: myapp
            secret: "$(env:MYAPP_CLIENT_SECRET)"
            # ... client config
      placeholders:
@@ -139,7 +139,7 @@ To add OIDC support for a new application:
      target:
        name: myapp-oidc-credentials
      data:
-       - secretKey: client-secret
+      - secretKey: client-secret
          remoteRef:
            key: myapp-oidc-client-secret
            property: client-secret

@@ -84,9 +84,9 @@ placeholders:
 3. Mettre a jour le `ksops-generator.yaml`:
 ```yaml
 files:
-  - ./secret-argocd.yaml
-  - ./secret-grafana.yaml
-  - ./secret-admin.yaml
+ - ./secret-argocd.yaml
+ - ./secret-grafana.yaml
+ - ./secret-admin.yaml
 ```
 
 ## Configuration
@@ -218,7 +218,7 @@ kubectl get cluster -n keycloak keycloak-db
 kubectl logs -n keycloak keycloak-db-1
 
 # Connexion directe
-kubectl exec -n keycloak keycloak-db-1 -- psql -U keycloak -d keycloak -c "SELECT version();"
+kubectl exec -n keycloak keycloak-db-1 -- psql -U keycloak -d keycloak -c "SELECT version;"
 ```
 
 ### OIDC Login echoue
@@ -265,9 +265,9 @@ kubectl exec -n keycloak deployment/keycloak -- \
 
 ## Dependencies
 
-- **cnpg-operator** (Wave 65): Pour la base PostgreSQL
-- **cert-manager** (Wave 20): Pour les certificats TLS
-- **external-secrets** (Wave 25): Pour la synchronisation des secrets OIDC
+- **cnpg-operator**: Pour la base PostgreSQL
+- **cert-manager**: Pour les certificats TLS
+- **external-secrets**: Pour la synchronisation des secrets OIDC
 
 ## References
 

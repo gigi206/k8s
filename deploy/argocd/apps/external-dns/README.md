@@ -56,12 +56,12 @@ Kubernetes Resources → External-DNS → etcd → CoreDNS → Clients DNS
 externalDns:
   provider: "cloudflare"  # ou aws, google, azure, etc.
   domainFilters:
-    - "example.com"
+   - "example.com"
   txtOwnerId: "external-dns-dev"
   sources:
-    - "service"
-    - "ingress"
-    - "crd"
+   - "service"
+   - "ingress"
+   - "crd"
   interval: "15s"
   policy: "sync"
 ```
@@ -83,12 +83,12 @@ externalDns:
 externalDns:
   provider: "coredns"
   domainFilters:
-    - "k8s.lan"  # Votre domaine local
+   - "k8s.lan"  # Votre domaine local
   txtOwnerId: "external-dns-dev"
   sources:
-    - "service"
-    - "ingress"
-    - "crd"
+   - "service"
+   - "ingress"
+   - "crd"
   interval: "15s"
   policy: "sync"
 
@@ -121,10 +121,10 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: app.example.com  # DNS créé automatiquement
+ - host: app.example.com  # DNS créé automatiquement
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:
@@ -150,7 +150,7 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
   selector:
     app: my-app
@@ -170,14 +170,14 @@ metadata:
   namespace: default
 spec:
   endpoints:
-  - dnsName: custom.example.com
+ - dnsName: custom.example.com
     recordType: A
     targets:
-    - 192.168.1.100
-  - dnsName: alias.example.com
+   - 192.168.1.100
+ - dnsName: alias.example.com
     recordType: CNAME
     targets:
-    - custom.example.com
+   - custom.example.com
 ```
 
 ## Configuration des Clients DNS (Mode CoreDNS)
@@ -375,11 +375,11 @@ externalDns:
 ```yaml
 externalDns:
   sources:
-    - "service"         # Services LoadBalancer
-    - "ingress"         # Ingress resources
-    - "crd"             # DNSEndpoint CRDs
-    - "istio-gateway"   # Istio Gateway
-    - "istio-virtualservice"  # Istio VirtualService
+   - "service"         # Services LoadBalancer
+   - "ingress"         # Ingress resources
+   - "crd"             # DNSEndpoint CRDs
+   - "istio-gateway"   # Istio Gateway
+   - "istio-virtualservice"  # Istio VirtualService
 ```
 
 ### Filtres de domaine
@@ -387,9 +387,9 @@ externalDns:
 ```yaml
 externalDns:
   domainFilters:
-    - "example.com"     # Seulement example.com
-    - "*.example.com"   # Tous les sous-domaines
-    - "test.local"      # Domaine local
+   - "example.com"     # Seulement example.com
+   - "*.example.com"   # Tous les sous-domaines
+   - "test.local"      # Domaine local
 ```
 
 ### Annotations Ingress
@@ -437,7 +437,7 @@ metadata:
   namespace: default
 spec:
   ports:
-  - port: 80
+ - port: 80
     targetPort: 8080
   selector:
     app: httpbin
@@ -458,10 +458,10 @@ spec:
         app: httpbin
     spec:
       containers:
-      - name: httpbin
+     - name: httpbin
         image: kennethreitz/httpbin
         ports:
-        - containerPort: 8080
+       - containerPort: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -471,10 +471,10 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: httpbin.k8s.lan  # DNS créé automatiquement
+ - host: httpbin.k8s.lan  # DNS créé automatiquement
     http:
       paths:
-      - path: /
+     - path: /
         pathType: Prefix
         backend:
           service:

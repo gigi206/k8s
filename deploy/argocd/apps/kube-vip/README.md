@@ -126,7 +126,7 @@ kubectl config set-cluster kubernetes --server=https://192.168.121.200:6443
 
 ## Notes
 
-- Wave 15 (déployé après MetalLB, avant Cert-Manager)
+-  (déployé après MetalLB, avant Cert-Manager)
 - Utilise ARP pour annoncer la VIP sur le réseau local
 - Le DaemonSet s'exécute sur les nœuds master uniquement (nodeSelector)
 - Nécessite l'interface réseau `eth1` (interface Vagrant)

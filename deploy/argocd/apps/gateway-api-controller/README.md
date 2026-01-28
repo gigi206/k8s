@@ -5,7 +5,7 @@ Gateway API Controller implémente les APIs Gateway standard de Kubernetes pour 
 ## Dépendances
 
 ### Automatiques (via ApplicationSets)
-Ces composants sont déployés automatiquement dans le bon ordre grâce aux sync waves:
+Ces composants sont des dépendances de cette application:
 
 Aucune dépendance automatique. Gateway API Controller s'installe de manière autonome.
 
@@ -47,16 +47,16 @@ metadata:
 spec:
   gatewayClassName: nginx
   listeners:
-  - name: http
+ - name: http
     protocol: HTTP
     port: 80
-  - name: https
+ - name: https
     protocol: HTTPS
     port: 443
     tls:
       mode: Terminate
       certificateRefs:
-      - name: my-tls-secret
+     - name: my-tls-secret
 ```
 
 ### HTTPRoute Resource
@@ -70,16 +70,16 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-  - name: my-gateway
+ - name: my-gateway
   hostnames:
-  - "example.com"
+ - "example.com"
   rules:
-  - matches:
-    - path:
+ - matches:
+   - path:
         type: PathPrefix
         value: /app
     backendRefs:
-    - name: my-service
+   - name: my-service
       port: 80
 ```
 

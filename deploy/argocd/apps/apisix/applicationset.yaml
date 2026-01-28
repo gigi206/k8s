@@ -5,7 +5,6 @@ metadata:
   name: apisix
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "65"  # After rook-ceph (wave 60), before prometheus-stack (wave 75)
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -36,7 +35,6 @@ spec:
         app: apisix
         environment: '{{ .environment }}'
       annotations:
-        argocd.argoproj.io/sync-wave: "65"
     spec:
       project: default
       destination:

@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Keycloak ApplicationSet - Wave 30 (Identity & Access Management)
+# Keycloak ApplicationSet (Identity & Access Management)
 # =============================================================================
 # Deploie l'operateur Keycloak officiel et une instance Keycloak
 # avec PostgreSQL gere par CloudNativePG
@@ -13,7 +13,6 @@ metadata:
   name: keycloak
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "30"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -42,7 +41,6 @@ spec:
       name: keycloak
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "30"
     spec:
       project: default
 
@@ -271,7 +269,7 @@ spec:
         # Source 11: Kiali OIDC - ClusterSecretStore for istio-system (conditional)
         # Deployed when: serviceMesh enabled OR (SSO enabled AND Istio is Gateway API provider)
         # Note: The ExternalSecret that uses this store is now in Istio application (kustomize/sso)
-        # to ensure proper dependency ordering (Istio wave 40 > Keycloak wave 30)
+        # to ensure proper dependency ordering (Istio  > Keycloak )
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/resources

@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# Kube-VIP ApplicationSet - Wave 15 (Load Balancer for API Server)
+# Kube-VIP ApplicationSet (Load Balancer for API Server)
 # =============================================================================
 # Déploie Kube-VIP pour fournir une VIP HA pour l'API Kubernetes
 # Docs: https://kube-vip.io/
@@ -12,7 +12,6 @@ metadata:
   name: kube-vip
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "15"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -41,7 +40,6 @@ spec:
       name: kube-vip
       namespace: argo-cd
       annotations:
-        argocd.argoproj.io/sync-wave: "15"
     spec:
       project: default
 

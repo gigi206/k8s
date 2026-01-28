@@ -59,11 +59,11 @@ spec:
   template:
     spec:
       containers:
-        - name: my-app
+       - name: my-app
           envFrom:
-            - secretRef:
+           - secretRef:
                 name: my-app-secrets
-            - configMapRef:
+           - configMapRef:
                 name: my-app-config
 ```
 

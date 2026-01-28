@@ -5,7 +5,6 @@ metadata:
   name: istio-gateway
   namespace: argo-cd
   annotations:
-    argocd.argoproj.io/sync-wave: "45"  # After istio control plane (wave 40)
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
@@ -36,7 +35,6 @@ spec:
         app: istio-gateway
         environment: '{{ .environment }}'
       annotations:
-        argocd.argoproj.io/sync-wave: "45"  # Deploy after control plane
     spec:
       project: default
       destination:
