@@ -74,48 +74,63 @@ features:
   # Provider selection for LoadBalancer IP allocation and L2 announcements:
   #   - metallb: MetalLB (stable, recommended for VMs and most setups)
   #   - cilium: Cilium LB-IPAM with L2 announcements (bare-metal only with XDP-compatible NICs)
+  #   - loxilb: LoxiLB eBPF-based load balancer (CNI-agnostic, DSR support, L7 capable)
   #
   # WARNING: Only ONE provider should handle L2 announcements at a time!
   # When provider=metallb, Cilium L2 announcements are DISABLED in configure_cilium.sh
   # When provider=cilium, MetalLB ApplicationSet is NOT deployed
+  # When provider=loxilb, both MetalLB and Cilium L2 are NOT deployed/disabled
   #
   # ⚠️ KNOWN ISSUE: Cilium L2 does NOT work on virtualized interfaces (virtio/libvirt/KVM)
   # due to ARP timing bugs (kernel processes ARP before Cilium TC hooks).
   # See: https://github.com/cilium/cilium/issues/38223
   # =============================================================================
   loadBalancer:
-    enabled: true  # Wave 10: LoadBalancer for Services
-    provider: "metallb"  # metallb | cilium
+    enabled: true  # LoadBalancer for Services
+    provider: "loxilb"  # metallb | cilium | loxilb
+    mode: "l2"  # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
+    # BGP configuration (used when mode == "bgp")
+    bgp:
+      localASN: 64512           # Local AS number for the cluster
+      peers:
+        - address: "192.168.121.1"  # BGP peer IP (router)
+          asn: 64512                # Peer AS number (iBGP if same as localASN)
+          # port: 179              # Optional: BGP port (default: 179)
     pools:
       default:
-        range: "192.168.121.201-192.168.121.250"  # Default pool for services
+        range: "192.168.121.220-192.168.121.250"  # Default pool for services (excludes static IPs)
+    # Static IPs for services (same IP regardless of provider)
+    # Note: kubernetesApi is managed by kube-vip, not LoadBalancer provider
+    staticIPs:
+      kubernetesApi: "192.168.121.200"   # Kubernetes API VIP (kube-vip)
+      externalDns: "192.168.121.201"     # CoreDNS (UDP/53)
+      gateway: "192.168.121.210"         # Gateway API controller (HTTP/HTTPS)
 
   kubeVip:
-    enabled: true  # Wave 15: VIP pour API Kubernetes HA
+    enabled: true  # VIP pour API Kubernetes HA (uses staticIPs.kubernetesApi)
 
   # === Certificates ===
   certManager:
-    enabled: true  # Wave 20: Gestion des certificats TLS
+    enabled: true  # Gestion des certificats TLS
     issuerType: "letsencrypt-staging"
     # issuerType: "letsencrypt-prod"
 
   # === Secrets Management ===
   externalSecrets:
-    enabled: true  # Wave 25: External Secrets Operator
+    enabled: true  # External Secrets Operator
 
   # === Configuration Reload ===
   reloader:
-    enabled: false  # Wave 25: Auto-reload pods on ConfigMap/Secret changes
+    enabled: false  # Auto-reload pods on ConfigMap/Secret changes
 
   # === DNS ===
   externalDns:
-    enabled: true  # Wave 30: Automation DNS
-    loadBalancerIP: "192.168.121.201"  # MetalLB IP for external-dns CoreDNS
+    enabled: true  # Automation DNS
     # provider: "coredns"  # ou: aws, google, azure, cloudflare, etc.
 
   # === Service Mesh ===
   serviceMesh:
-    enabled: false      # Wave 40: Service Mesh (control plane + data plane)
+    enabled: false      # Service Mesh (control plane + data plane)
     provider: "istio"  # istio, linkerd (futur)
     istio:
       accessLogs:
@@ -128,20 +143,18 @@ features:
 
   # === Gateway API ===
   gatewayAPI:
-    enabled: true  # Wave 15: Gateway API CRDs (gateway-api-controller)
+    enabled: true  # Gateway API CRDs (gateway-api-controller)
     httpRoute:
       enabled: true  # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "envoy-gateway"  # Wave 41: istio, apisix, nginx-gwf, envoy-gateway, traefik
+      provider: "nginx-gwf"  # istio, apisix, nginx-gwf, envoy-gateway, traefik
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
       # - envoy-gateway: envoy-gateway-system
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
-      gatewayNamespace: "envoy-gateway-system"
-      # Gateway LoadBalancer IP (used for MetalLB pool and external-dns)
-      loadBalancerIP: "192.168.121.210"
+      gatewayNamespace: "nginx-gateway"
 
   # === Legacy Ingress (déprécié) ===
   ingress:
@@ -150,19 +163,19 @@ features:
 
   # === Storage ===
   storage:
-    enabled: true        # Wave 60: Stockage distribué
+    enabled: true        # Stockage distribué
     provider: "rook"       # Provider selection: longhorn | rook
     class: "ceph-block"    # Kubernetes StorageClass name: longhorn | ceph-block (rook)
-    csiSnapshotter: true # Wave 55: CSI External Snapshotter (requis pour snapshots)
+    csiSnapshotter: true # CSI External Snapshotter (requis pour snapshots)
 
   # === Database Operator ===
   databaseOperator:
-    enabled: true    # Wave 65: Opérateur PostgreSQL
+    enabled: true    # Opérateur PostgreSQL
     provider: "cnpg" # cnpg (CloudNativePG)
 
   # === Monitoring ===
   monitoring:
-    enabled: true  # Wave 75: Prometheus + Grafana
+    enabled: true  # Prometheus + Grafana
     prometheus: true
     grafana: true
     release: "prometheus-stack"  # Release name for ServiceMonitor discovery
@@ -174,7 +187,7 @@ features:
   # === Cilium (CNI installé par RKE2) ===
   cilium:
     monitoring:
-      enabled: true     # Wave 76: ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
+      enabled: true     # ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
     egressPolicy:
       enabled: true     # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
     ingressPolicy:
@@ -188,12 +201,12 @@ features:
   logging:
     enabled: true        # Active le logging centralisé
     loki:
-      enabled: true      # Wave 73: Grafana Loki (backend stockage logs)
-      collector: "alloy" # Wave 74: alloy (recommandé), fluent-bit (futur)
+      enabled: true      # Grafana Loki (backend stockage logs)
+      collector: "alloy" # alloy (recommandé), fluent-bit (futur)
 
   # === Distributed Tracing ===
   tracing:
-    enabled: true      # Wave 77: Distributed tracing
+    enabled: true      # Distributed tracing
     provider: "tempo"  # tempo (recommandé, corrélation Loki) ou jaeger
     sampling: 100      # Pourcentage de traces échantillonnées (1-100)
 
@@ -208,25 +221,25 @@ features:
   #   - Prometheus/Alertmanager/Hubble/Longhorn are accessible without auth
   sso:
     enabled: true
-    provider: "keycloak"  # Wave 80: keycloak ou external (IdP externe)
+    provider: "keycloak"  # keycloak ou external (IdP externe)
 
   # === OAuth2 Proxy ===
   # Indépendant du SSO - peut être utilisé avec Keycloak local OU IdP externe
   # Utilisé en mode ext_authz avec Istio (auth seulement, pas de proxy du trafic)
   oauth2Proxy:
-    enabled: true  # Wave 81: OAuth2 Proxy pour authentification OIDC
+    enabled: true  # OAuth2 Proxy pour authentification OIDC
 
   # === Policy Engine ===
   kyverno:
-    enabled: true   # Wave 18: Kyverno policy engine (mutation, validation, generation)
+    enabled: true   # Kyverno policy engine (mutation, validation, generation)
                     # Includes ClusterPolicy to disable automountServiceAccountToken by default
 
   # === Container Security ===
   kubescape:
-    enabled: false   # Wave 78: Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
+    enabled: false   # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
 
   neuvector:
-    enabled: true  # Wave 82: NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+    enabled: true  # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
 
 # =============================================================================
 # RKE2 Cluster Configuration

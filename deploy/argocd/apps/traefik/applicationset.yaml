@@ -222,6 +222,18 @@ spec:
               value: '{{ .traefik.deployment.kind | default "Deployment" }}'
             - name: service.type
               value: '{{ .traefik.service.type | default "LoadBalancer" }}'
+            {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
+            {{- if eq .features.loadBalancer.provider "metallb" }}
+            - name: service.annotations.metallb\.universe\.tf/loadBalancerIPs
+              value: '{{ .features.loadBalancer.staticIPs.gateway }}'
+            {{- else if eq .features.loadBalancer.provider "cilium" }}
+            - name: service.annotations.lbipam\.cilium\.io/ips
+              value: '{{ .features.loadBalancer.staticIPs.gateway }}'
+            {{- else if eq .features.loadBalancer.provider "loxilb" }}
+            - name: service.annotations.loxilb\.io/staticIP
+              value: '{{ .features.loadBalancer.staticIPs.gateway }}'
+            {{- end }}
+            {{- end }}
 
             # IngressClass
             - name: ingressClass.enabled

@@ -1,0 +1,41 @@
+---
+# Configuration LoxiLB - Prod
+environment: prod
+appName: loxilb
+
+loxilb:
+  # Image versions (tracked by Renovate)
+  loxilbImage: "ghcr.io/loxilb-io/loxilb"
+  loxilbTag: "v0.9.9"
+  kubeLoxilbImage: "ghcr.io/loxilb-io/kube-loxilb"
+  kubeLoxilbTag: "v0.9.9"
+
+  # LB Configuration
+  # 0 = DNAT (default), 1 = one-arm, 2 = fullNAT
+  setLBMode: 0
+
+  # Resources for kube-loxilb (prod: higher limits)
+  kubeLoxilb:
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  # Resources for loxilb (DaemonSet)
+  loxilbLb:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

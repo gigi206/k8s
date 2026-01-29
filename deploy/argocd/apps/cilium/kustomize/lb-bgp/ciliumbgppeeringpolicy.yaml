@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# CiliumBGPPeeringPolicy - BGP peering for LoadBalancer IPs
+# =============================================================================
+# This policy is used when features.loadBalancer.provider == "cilium"
+# and features.loadBalancer.mode == "bgp"
+# Configure BGP peers in config.yaml: features.loadBalancer.bgp.peers
+# =============================================================================
+apiVersion: cilium.io/v2alpha1
+kind: CiliumBGPPeeringPolicy
+metadata:
+  name: default
+spec:
+  nodeSelector:
+    matchLabels:
+      # Apply to all nodes (can be restricted via node labels)
+      kubernetes.io/os: linux
+  virtualRouters:
+    - localASN: 64512
+      exportPodCIDR: false
+      serviceSelector:
+        matchLabels: {}
+      neighbors:
+        # BGP peer configuration - patched by ApplicationSet from config.yaml
+        - peerAddress: "PLACEHOLDER_PEER_ADDRESS/32"
+          peerASN: 64512

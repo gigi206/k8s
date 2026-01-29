@@ -1,0 +1,78 @@
+---
+# =============================================================================
+# kube-loxilb Deployment
+# =============================================================================
+# Kubernetes LoadBalancer controller for loxilb
+# Source: https://github.com/loxilb-io/kube-loxilb/blob/main/manifest/in-cluster/kube-loxilb-nobgp.yaml
+# Args are patched by ApplicationSet based on config (L2 vs BGP mode)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-loxilb
+  namespace: kube-system
+  labels:
+    app: kube-loxilb-app
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-loxilb-app
+  template:
+    metadata:
+      labels:
+        app: kube-loxilb-app
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+      priorityClassName: system-node-critical
+      serviceAccountName: kube-loxilb
+      terminationGracePeriodSeconds: 0
+      initContainers:
+        - name: wait-for-loxilb
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for loxilb API to be ready..."
+              LOXILB_IP=""
+              while [ -z "$LOXILB_IP" ]; do
+                LOXILB_IP=$(nslookup loxilb-lb-service.kube-system.svc.cluster.local 2>/dev/null | awk '/^Address/ && !/10.43/ {print $NF}' | head -1)
+                if [ -z "$LOXILB_IP" ]; then
+                  echo "Waiting for loxilb DNS..."
+                  sleep 2
+                fi
+              done
+              echo "loxilb IP: $LOXILB_IP"
+              until wget -q -O- http://$LOXILB_IP:11111/netlox/v1/config/loadbalancer/all >/dev/null 2>&1; do
+                echo "Waiting for loxilb API..."
+                sleep 2
+              done
+              echo "loxilb API is ready"
+      containers:
+        - name: kube-loxilb
+          image: ghcr.io/loxilb-io/kube-loxilb:latest
+          imagePullPolicy: Always
+          command:
+            - /bin/kube-loxilb
+          args:
+            - --cidrPools=defaultPool=192.168.80.249/32
+            - --setRoles=0.0.0.0
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "50Mi"
+            limits:
+              cpu: "100m"
+              memory: "50Mi"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW

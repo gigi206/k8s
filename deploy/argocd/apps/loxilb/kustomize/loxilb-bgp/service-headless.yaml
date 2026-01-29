@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# LoxiLB Headless Service - BGP Mode
+# =============================================================================
+# Service for kube-loxilb to discover loxilb pods (includes BGP ports)
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: loxilb-lb-service
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  clusterIP: None
+  selector:
+    app: loxilb-app
+  ports:
+    - name: loxilb-app
+      port: 11111
+      targetPort: 11111
+      protocol: TCP
+    - name: loxilb-app-bgp
+      port: 179
+      targetPort: 179
+      protocol: TCP
+    - name: loxilb-app-gobgp
+      port: 50051
+      targetPort: 50051
+      protocol: TCP

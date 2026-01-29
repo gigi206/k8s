@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# MetalLB BGPPeer
+# =============================================================================
+# Configure BGP peers for MetalLB
+# Patched by ApplicationSet from config.yaml: features.loadBalancer.bgp
+# =============================================================================
+apiVersion: metallb.io/v1beta2
+kind: BGPPeer
+metadata:
+  name: default-peer
+  namespace: metallb-system
+spec:
+  myASN: 64512
+  peerASN: 64512
+  peerAddress: PLACEHOLDER_PEER_ADDRESS
+  # peerPort: 179  # Optional, default 179

@@ -91,7 +91,7 @@ spec:
       {{- end }}
       sources:
         {{- if and .features.loadBalancer.enabled (eq .features.loadBalancer.provider "cilium") }}
-        # Source: Cilium LB-IPAM resources (CiliumLoadBalancerIPPool + CiliumL2AnnouncementPolicy)
+        # Source: Cilium LB-IPAM resources (CiliumLoadBalancerIPPool)
         # Only deployed when loadBalancer.enabled == true AND loadBalancer.provider == "cilium"
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -109,6 +109,34 @@ spec:
                     value:
                       - start: "{{ (split "-" .features.loadBalancer.pools.default.range)._0 }}"
                         stop: "{{ (split "-" .features.loadBalancer.pools.default.range)._1 }}"
+        # Source: L2 or BGP announcement policy (based on mode)
+        {{- if eq .features.loadBalancer.mode "bgp" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/lb-bgp
+          kustomize:
+            patches:
+              - target:
+                  group: cilium.io
+                  version: v2alpha1
+                  kind: CiliumBGPPeeringPolicy
+                  name: default
+                patch: |
+                  - op: replace
+                    path: /spec/virtualRouters/0/localASN
+                    value: {{ .features.loadBalancer.bgp.localASN }}
+                  - op: replace
+                    path: /spec/virtualRouters/0/neighbors
+                    value:
+                      {{- range .features.loadBalancer.bgp.peers }}
+                      - peerAddress: "{{ .address }}/32"
+                        peerASN: {{ .asn }}
+                      {{- end }}
+        {{- else }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/lb-l2
+        {{- end }}
         {{- end }}
         {{- if .features.cilium.egressPolicy.enabled }}
         # Source 1: Egress Policy - blocks external egress, allows internal cluster traffic

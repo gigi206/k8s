@@ -139,6 +139,16 @@ spec:
               # Service configuration
               service:
                 type: LoadBalancer
+                {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
+                annotations:
+                  {{- if eq .features.loadBalancer.provider "metallb" }}
+                  metallb.universe.tf/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                  {{- else if eq .features.loadBalancer.provider "cilium" }}
+                  lbipam.cilium.io/ips: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                  {{- else if eq .features.loadBalancer.provider "loxilb" }}
+                  loxilb.io/staticIP: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                  {{- end }}
+                {{- end }}
                 ports:
                   # Only expose HTTP/HTTPS traffic ports
                   # Health check ports (15020/15021) are internal-only for K8s probes

@@ -59,6 +59,10 @@ spec:
             - name: nginxGateway.service.type
               value: '{{ .nginxGatewayFabric.serviceType | default "LoadBalancer" }}'
 
+            # LoadBalancer class (required for loxilb)
+            # Note: Uses Go template syntax, not available in basic template
+            # Real configuration is in templatePatch below
+
             # GatewayClass name
             - name: nginxGateway.gatewayClassName
               value: '{{ .nginxGatewayFabric.gatewayClassName | default "nginx" }}'
@@ -125,6 +129,12 @@ spec:
               - name: nginxGateway.service.type
                 value: '{{ .nginxGatewayFabric.serviceType | default "LoadBalancer" }}'
 
+              # LoadBalancer class (required for loxilb)
+              {{- if and .features.loadBalancer.enabled (eq .features.loadBalancer.provider "loxilb") }}
+              - name: nginx.service.loadBalancerClass
+                value: "loxilb.io/loxilb"
+              {{- end }}
+
               # GatewayClass name
               - name: nginxGateway.gatewayClassName
                 value: '{{ .nginxGatewayFabric.gatewayClassName | default "nginx-gwf" }}'
@@ -174,11 +184,19 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
+                  {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
                   - op: add
                     path: /spec/infrastructure
                     value:
                       annotations:
-                        metallb.universe.tf/loadBalancerIPs: '{{ .features.gatewayAPI.controller.loadBalancerIP }}'
+                        {{- if eq .features.loadBalancer.provider "metallb" }}
+                        metallb.universe.tf/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                        {{- else if eq .features.loadBalancer.provider "cilium" }}
+                        lbipam.cilium.io/ips: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                        {{- else if eq .features.loadBalancer.provider "loxilb" }}
+                        loxilb.io/staticIP: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                        {{- end }}
+                  {{- end }}
               - target:
                   kind: Certificate
                   name: wildcard-k8s-local

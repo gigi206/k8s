@@ -124,7 +124,7 @@ spec:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
-            
+
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
@@ -156,6 +156,18 @@ spec:
               value: 'Critical'
             - name: controller.service.type
               value: '{{ .ingressNginx.controller.service.type | default "LoadBalancer" }}'
+            {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
+            {{- if eq .features.loadBalancer.provider "metallb" }}
+            - name: controller.service.annotations.metallb\.universe\.tf/loadBalancerIPs
+              value: '{{ .features.loadBalancer.staticIPs.gateway }}'
+            {{- else if eq .features.loadBalancer.provider "cilium" }}
+            - name: controller.service.annotations.lbipam\.cilium\.io/ips
+              value: '{{ .features.loadBalancer.staticIPs.gateway }}'
+            {{- else if eq .features.loadBalancer.provider "loxilb" }}
+            - name: controller.service.annotations.loxilb\.io/staticIP
+              value: '{{ .features.loadBalancer.staticIPs.gateway }}'
+            {{- end }}
+            {{- end }}
             - name: controller.metrics.enabled
               value: '{{ .features.monitoring.enabled }}'
             - name: controller.metrics.serviceMonitor.enabled

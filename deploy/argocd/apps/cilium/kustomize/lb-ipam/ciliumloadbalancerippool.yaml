@@ -12,6 +12,6 @@ metadata:
 spec:
   blocks:
     # IP range will be patched by ApplicationSet based on config.yaml
-    # Default: 192.168.121.201-192.168.121.250
-    - start: "192.168.121.201"
-      stop: "192.168.121.250"
+    # Default: 192.168.121.220-192.168.121.250 (excludes static IPs)
+    - start: "PLACEHOLDER_START"
+      stop: "PLACEHOLDER_STOP"

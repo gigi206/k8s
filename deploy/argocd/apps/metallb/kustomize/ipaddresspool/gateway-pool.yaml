@@ -4,7 +4,7 @@
 # =============================================================================
 # Pool dédié pour le Gateway API controller (APISIX, Istio, Envoy, etc.)
 # L'adresse IP est patchée via Kustomize depuis config.yaml:
-#   features.gatewayAPI.controller.loadBalancerIP
+#   features.loadBalancer.staticIPs.gateway
 # =============================================================================
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool

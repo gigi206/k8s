@@ -518,6 +518,30 @@
       "packageNameTemplate": "kubescape-operator",
       "datasourceTemplate": "helm",
       "registryUrlTemplate": "https://kubescape.github.io/helm-charts"
+    },
+    {
+      "customType": "regex",
+      "description": "LoxiLB image (ghcr.io/loxilb-io/loxilb)",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/loxilb/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "loxilbTag:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "ghcr.io/loxilb-io/loxilb",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "kube-loxilb image (ghcr.io/loxilb-io/kube-loxilb)",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/loxilb/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kubeLoxilbTag:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "ghcr.io/loxilb-io/kube-loxilb",
+      "datasourceTemplate": "docker"
     }
   ]
 }

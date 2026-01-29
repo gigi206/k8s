@@ -59,7 +59,7 @@ externalDns:
     enabled: true
     replicas: 1
     serviceType: "LoadBalancer"
-    # loadBalancerIP is now centralized in config.yaml (features.externalDns.loadBalancerIP)
+    # loadBalancerIP is centralized in config.yaml (features.loadBalancer.staticIPs.externalDns)
     # CoreDNS resources (usage: 5m/15Mi)
     resources:
       requests:

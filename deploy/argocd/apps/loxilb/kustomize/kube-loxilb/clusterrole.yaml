@@ -1,0 +1,158 @@
+---
+# =============================================================================
+# ClusterRole for kube-loxilb
+# =============================================================================
+# Source: https://github.com/loxilb-io/kube-loxilb/blob/main/manifest/in-cluster/kube-loxilb.yaml
+# Includes all permissions from official manifest (namespaces, secrets, gateway-api, CRDs)
+# =============================================================================
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: kube-loxilb
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - watch
+      - list
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - watch
+      - list
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+      - services
+      - namespaces
+      - services/status
+    verbs:
+      - get
+      - watch
+      - list
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gatewayclasses
+      - gatewayclasses/status
+      - gateways
+      - gateways/status
+      - tcproutes
+      - udproutes
+    verbs:
+      - get
+      - watch
+      - list
+      - patch
+      - update
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+  - apiGroups:
+      - bgppeer.loxilb.io
+    resources:
+      - bgppeerservices
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - update
+      - delete
+  - apiGroups:
+      - bgppolicydefinedsets.loxilb.io
+    resources:
+      - bgppolicydefinedsetsservices
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - update
+      - delete
+  - apiGroups:
+      - bgppolicydefinition.loxilb.io
+    resources:
+      - bgppolicydefinitionservices
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - update
+      - delete
+  - apiGroups:
+      - bgppolicyapply.loxilb.io
+    resources:
+      - bgppolicyapplyservices
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - update
+      - delete
+  - apiGroups:
+      - loxiurl.loxilb.io
+    resources:
+      - loxiurls
+    verbs:
+      - get
+      - watch
+      - list
+      - create
+      - update
+      - delete
+  - apiGroups:
+      - egress.loxilb.io
+    resources:
+      - egresses
+    verbs:
+      - get
+      - watch
+      - list
+      - patch
+      - update

@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# MetalLB BGPAdvertisement
+# =============================================================================
+# Annonce les IPs LoadBalancer via BGP
+# Utilisé quand features.loadBalancer.mode == "bgp"
+# Requires: speaker.frr.enabled=true in Helm values
+# =============================================================================
+apiVersion: metallb.io/v1beta1
+kind: BGPAdvertisement
+metadata:
+  name: default-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - default-pool
+    - external-dns
+    - gateway

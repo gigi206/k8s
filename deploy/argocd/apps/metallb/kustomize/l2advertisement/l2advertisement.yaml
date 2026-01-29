@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# MetalLB L2Advertisement
+# =============================================================================
+# Annonce les IPs LoadBalancer via ARP (Layer 2)
+# Utilisé quand features.loadBalancer.mode == "l2"
+# =============================================================================
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - default-pool
+    - external-dns
+    - gateway
