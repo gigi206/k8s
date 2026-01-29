@@ -17,6 +17,49 @@ Cet ApplicationSet gère les ressources additionnelles pour Cilium CNI, incluant
 1. **Monitoring** - ServiceMonitors, PodMonitors et dashboards Grafana pour Prometheus
 2. **Network Policies** - CiliumClusterwideNetworkPolicy pour le contrôle du trafic egress
 3. **HTTPRoute** - Accès à l'UI Hubble via Gateway API (optionnel)
+4. **LB-IPAM** - CiliumLoadBalancerIPPool et CiliumL2AnnouncementPolicy (si `loadBalancer.provider=cilium`)
+
+## LoadBalancer Provider (LB-IPAM)
+
+### Configuration
+
+Le provider LoadBalancer est configurable dans `config.yaml` :
+
+```yaml
+features:
+  loadBalancer:
+    enabled: true
+    provider: "metallb"  # metallb | cilium
+    pools:
+      default:
+        range: "192.168.121.201-192.168.121.250"
+```
+
+- **`metallb`** (défaut) : MetalLB gère les IPs LoadBalancer via L2 announcements
+- **`cilium`** : Cilium LB-IPAM avec CiliumLoadBalancerIPPool et CiliumL2AnnouncementPolicy
+
+### Limitation : Cilium L2 ne fonctionne PAS sur les VMs
+
+> **⚠️ IMPORTANT** : Cilium L2 announcements a un bug connu qui empêche les réponses ARP sur les interfaces virtualisées (virtio/libvirt/KVM/VMware). Ce bug affecte les kernels 6.8+ et n'a pas de fix upstream.
+
+**Symptômes** :
+- Les IPs LoadBalancer sont assignées aux services
+- Les leases L2 sont acquises correctement
+- Mais AUCUNE réponse ARP n'est envoyée
+- Ping échoue avec "Destination Host Unreachable"
+
+**Cause** : Les paquets ARP sont traités par le kernel AVANT d'atteindre le hook TC BPF de Cilium. Sur les interfaces virtuelles, ce timing empêche Cilium de répondre aux requêtes ARP.
+
+**Workarounds testés (non fonctionnels sur virtio)** :
+- `loadBalancer.acceleration: best-effort` (XDP générique) - Ne fonctionne pas
+- `loadBalancer.acceleration: native` (XDP natif) - Requiert NIC compatible
+
+**Références** :
+- [cilium/cilium#38223](https://github.com/cilium/cilium/issues/38223) - Does not respond to ARP requests
+- [cilium/cilium#37959](https://github.com/cilium/cilium/issues/37959) - L2 not responding on VLAN interface
+- [cilium/cilium#35972](https://github.com/cilium/cilium/issues/35972) - L2 Pod Announcements does not reply
+
+**Recommandation** : Utiliser `provider: metallb` pour tous les environnements virtualisés. Cilium LB-IPAM peut fonctionner sur bare-metal avec des NICs compatibles XDP (Intel, Mellanox).
 
 ## Network Policies
 

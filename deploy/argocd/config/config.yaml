@@ -72,12 +72,16 @@ features:
   # LoadBalancer Provider Configuration
   # =============================================================================
   # Provider selection for LoadBalancer IP allocation and L2 announcements:
-  #   - metallb: MetalLB (stable, recommended for most setups)
-  #   - cilium: Cilium LB-IPAM with L2 announcements (native, uses CiliumLoadBalancerIPPool)
+  #   - metallb: MetalLB (stable, recommended for VMs and most setups)
+  #   - cilium: Cilium LB-IPAM with L2 announcements (bare-metal only with XDP-compatible NICs)
   #
   # WARNING: Only ONE provider should handle L2 announcements at a time!
   # When provider=metallb, Cilium L2 announcements are DISABLED in configure_cilium.sh
   # When provider=cilium, MetalLB ApplicationSet is NOT deployed
+  #
+  # ⚠️ KNOWN ISSUE: Cilium L2 does NOT work on virtualized interfaces (virtio/libvirt/KVM)
+  # due to ARP timing bugs (kernel processes ARP before Cilium TC hooks).
+  # See: https://github.com/cilium/cilium/issues/38223
   # =============================================================================
   loadBalancer:
     enabled: true  # Wave 10: LoadBalancer for Services
