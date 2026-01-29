@@ -353,7 +353,8 @@ get_feature() {
 log_info "Lecture des feature flags depuis config.yaml..."
 
 # Lecture des feature flags
-FEAT_METALLB=$(get_feature '.features.metallb.enabled' 'true')
+FEAT_LB_ENABLED=$(get_feature '.features.loadBalancer.enabled' 'true')
+FEAT_LB_PROVIDER=$(get_feature '.features.loadBalancer.provider' 'metallb')
 FEAT_KYVERNO=$(get_feature '.features.kyverno.enabled' 'true')
 FEAT_KUBEVIP=$(get_feature '.features.kubeVip.enabled' 'true')
 FEAT_GATEWAY_API=$(get_feature '.features.gatewayAPI.enabled' 'true')
@@ -389,7 +390,7 @@ FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.cilium.defaultDeny
 FEAT_KATA_CONTAINERS=$(get_feature '.features.kataContainers.enabled' 'false')
 
 log_debug "Feature flags lus:"
-log_debug "  metallb: $FEAT_METALLB"
+log_debug "  loadBalancer: $FEAT_LB_ENABLED (provider: $FEAT_LB_PROVIDER)"
 log_debug "  kyverno: $FEAT_KYVERNO"
 log_debug "  kubeVip: $FEAT_KUBEVIP"
 log_debug "  gatewayAPI: $FEAT_GATEWAY_API (httpRoute: $FEAT_GATEWAY_HTTPROUTE, controller: $FEAT_GATEWAY_CONTROLLER)"
@@ -626,8 +627,10 @@ log_info "Construction de la liste des ApplicationSets..."
 
 APPLICATIONSETS=()
 
-# Wave 10: Load Balancer
-[[ "$FEAT_METALLB" == "true" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
+# Wave 10: Load Balancer (provider-based)
+# metallb: MetalLB handles L2 announcements
+# cilium: Cilium LB-IPAM with L2 announcements (configured in apps/cilium/kustomize/lb-ipam/)
+[[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "metallb" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
 
 # Wave 12: Kata Containers (hardware isolation via micro-VMs)
 [[ "$FEAT_KATA_CONTAINERS" == "true" ]] && APPLICATIONSETS+=("apps/kata-containers/applicationset.yaml")
@@ -1497,7 +1500,7 @@ echo ""
 
 echo ""
 echo -e "${GREEN}🔧 Configuration déployée:${RESET}"
-echo "  MetalLB:           $FEAT_METALLB"
+echo "  LoadBalancer:      $FEAT_LB_ENABLED ($FEAT_LB_PROVIDER)"
 echo "  Kube-VIP:          $FEAT_KUBEVIP"
 echo "  Gateway API:       $FEAT_GATEWAY_API (httpRoute: $FEAT_GATEWAY_HTTPROUTE, controller: $FEAT_GATEWAY_CONTROLLER)"
 echo "  Cert-Manager:      $FEAT_CERT_MANAGER"
