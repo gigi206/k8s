@@ -562,6 +562,15 @@ resolve_dependencies() {
 validate_dependencies() {
   local errors=0
 
+  # Vérifier que loxilb n'est pas utilisé avec Cilium (incompatible sans Multus CNI)
+  if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]]; then
+    log_error "LoxiLB n'est pas compatible avec Cilium CNI sans configuration Multus"
+    log_error "  LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP et entrent en conflit"
+    log_error "  Voir: deploy/argocd/apps/loxilb/README.md pour plus de détails"
+    log_error "  Alternatives: metallb, cilium (LB-IPAM)"
+    errors=$((errors + 1))
+  fi
+
   # Vérifier les conflits de providers
   if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" != "istio" ]]; then
     if [[ "$FEAT_GATEWAY_CONTROLLER" == "istio" ]]; then
@@ -627,40 +636,42 @@ log_info "Construction de la liste des ApplicationSets..."
 
 APPLICATIONSETS=()
 
-# Wave 10: Load Balancer (provider-based)
+# Load Balancer (provider-based)
 # metallb: MetalLB handles L2 announcements
 # cilium: Cilium LB-IPAM with L2 announcements (configured in apps/cilium/kustomize/lb-ipam/)
+# loxilb: LoxiLB eBPF-based load balancer (CNI-agnostic, DSR support)
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "metallb" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
+[[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]] && APPLICATIONSETS+=("apps/loxilb/applicationset.yaml")
 
-# Wave 12: Kata Containers (hardware isolation via micro-VMs)
+# Kata Containers (hardware isolation via micro-VMs)
 [[ "$FEAT_KATA_CONTAINERS" == "true" ]] && APPLICATIONSETS+=("apps/kata-containers/applicationset.yaml")
 
-# Wave 15: API HA + Gateway API CRDs
+# API HA + Gateway API CRDs
 [[ "$FEAT_KUBEVIP" == "true" ]] && APPLICATIONSETS+=("apps/kube-vip/applicationset.yaml")
 # gateway-api-controller installe les CRDs Gateway API, sauf si apisix, traefik ou envoy-gateway est le provider
 # (ces controllers incluent leurs propres CRDs Gateway API dans leur chart Helm)
 [[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "apisix" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "traefik" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "envoy-gateway" ]] && APPLICATIONSETS+=("apps/gateway-api-controller/applicationset.yaml")
 
-# Wave 18: Policy Engine (deployed separately in Phase 1 to avoid chicken-and-egg
+# Policy Engine (deployed separately in Phase 1 to avoid chicken-and-egg
 # problem: Kyverno mutates pods before PolicyExceptions are deployed, which can
 # block apps with PreSync hook Jobs due to immutable spec.template)
 KYVERNO_APPSET=""
 [[ "$FEAT_KYVERNO" == "true" ]] && KYVERNO_APPSET="apps/kyverno/applicationset.yaml"
 
-# Wave 20: Certificates
+# Certificates
 [[ "$FEAT_CERT_MANAGER" == "true" ]] && APPLICATIONSETS+=("apps/cert-manager/applicationset.yaml")
 
-# Wave 3: Secrets Management (deployed separately in Phase 1.5)
+# Secrets Management (deployed separately in Phase 1.5)
 EXTERNAL_SECRETS_APPSET=""
 [[ "$FEAT_EXTERNAL_SECRETS" == "true" ]] && EXTERNAL_SECRETS_APPSET="apps/external-secrets/applicationset.yaml"
 
-# Wave 25: Configuration Reload (auto-reload pods on ConfigMap/Secret changes)
+# Configuration Reload (auto-reload pods on ConfigMap/Secret changes)
 [[ "$FEAT_RELOADER" == "true" ]] && APPLICATIONSETS+=("apps/reloader/applicationset.yaml")
 
-# Wave 30: DNS
+# DNS
 [[ "$FEAT_EXTERNAL_DNS" == "true" ]] && APPLICATIONSETS+=("apps/external-dns/applicationset.yaml")
 
-# Wave 40-42: Service Mesh + Gateway Controller
+# Service Mesh + Gateway Controller
 if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" == "istio" ]]; then
   APPLICATIONSETS+=("apps/istio/applicationset.yaml")
 fi
@@ -695,10 +706,10 @@ if [[ -n "$FEAT_GATEWAY_CONTROLLER" ]]; then
   esac
 fi
 
-# Wave 50: GitOps Controller (toujours déployé)
+# GitOps Controller (toujours déployé)
 APPLICATIONSETS+=("apps/argocd/applicationset.yaml")
 
-# Wave 55-60: Storage
+# Storage
 if [[ "$FEAT_STORAGE" == "true" ]]; then
   [[ "$FEAT_CSI_SNAPSHOTTER" == "true" ]] && APPLICATIONSETS+=("apps/csi-external-snapshotter/applicationset.yaml")
 
@@ -712,7 +723,7 @@ if [[ "$FEAT_STORAGE" == "true" ]]; then
   esac
 fi
 
-# Wave 15: Database Operator
+# Database Operator
 if [[ "$FEAT_DATABASE_OPERATOR" == "true" ]]; then
   case "$FEAT_DATABASE_PROVIDER" in
     cnpg)
@@ -721,7 +732,7 @@ if [[ "$FEAT_DATABASE_OPERATOR" == "true" ]]; then
   esac
 fi
 
-# Wave 73-74: Logging (Loki + collector)
+# Logging (Loki + collector)
 if [[ "$FEAT_LOGGING" == "true" ]] && [[ "$FEAT_LOGGING_LOKI" == "true" ]]; then
   APPLICATIONSETS+=("apps/loki/applicationset.yaml")
   case "$FEAT_LOGGING_COLLECTOR" in
@@ -731,7 +742,7 @@ if [[ "$FEAT_LOGGING" == "true" ]] && [[ "$FEAT_LOGGING_LOKI" == "true" ]]; then
   esac
 fi
 
-# Wave 5-76: Monitoring (prometheus-stack: wave 5, cilium: wave 76)
+# Monitoring (prometheus-stack + cilium)
 if [[ "$FEAT_MONITORING" == "true" ]]; then
   APPLICATIONSETS+=("apps/prometheus-stack/applicationset.yaml")
 fi
@@ -741,7 +752,7 @@ if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" 
   APPLICATIONSETS+=("apps/cilium/applicationset.yaml")
 fi
 
-# Wave 77: Distributed Tracing
+# Distributed Tracing
 if [[ "$FEAT_TRACING" == "true" ]]; then
   case "$FEAT_TRACING_PROVIDER" in
     jaeger)
@@ -753,7 +764,7 @@ if [[ "$FEAT_TRACING" == "true" ]]; then
   esac
 fi
 
-# Wave 30-35: SSO + OAuth2-Proxy
+# SSO + OAuth2-Proxy
 if [[ "$FEAT_SSO" == "true" ]]; then
   case "$FEAT_SSO_PROVIDER" in
     keycloak)

@@ -1,0 +1,16 @@
+---
+# =============================================================================
+# LoxiLB BGPPeerService CRD
+# =============================================================================
+# Configure BGP peers for LoxiLB
+# Requires: --setBGP and --enableBGPCRDs in kube-loxilb args
+# Patched by ApplicationSet from config.yaml: features.loadBalancer.bgp
+# =============================================================================
+apiVersion: "bgppeer.loxilb.io/v1"
+kind: BGPPeerService
+metadata:
+  name: default-peer
+spec:
+  ipAddress: PLACEHOLDER_PEER_ADDRESS
+  remoteAs: 64512
+  remotePort: 179

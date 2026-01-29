@@ -13,9 +13,10 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    # Pool d'IPs disponibles pour les LoadBalancer
-    # À adapter selon votre réseau
-    - 192.168.121.240-192.168.121.250
+    # Pool d'IPs disponibles pour les LoadBalancer (auto-assign)
+    # Patched by ApplicationSet from config.yaml: features.loadBalancer.pools.default.range
+    # Note: 200 (API) is managed by kube-vip, not MetalLB
+    - PLACEHOLDER_DEFAULT_POOL_RANGE
 
 ---
 apiVersion: metallb.io/v1beta1
@@ -29,27 +30,3 @@ spec:
     - PLACEHOLDER_EXTERNAL_DNS_IP/32
   autoAssign: false  # Seuls les Services avec loadBalancerIP explicite peuvent utiliser ce pool
 
----
-apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata:
-  name: kubernetes-api
-  namespace: metallb-system
-spec:
-  addresses:
-    # Pool dédié pour l'API Kubernetes (réservé, auto-assign désactivé)
-    - 192.168.121.200/32
-  autoAssign: false  # Seuls les Services avec loadBalancerIP explicite peuvent utiliser ce pool
-
----
-apiVersion: metallb.io/v1beta1
-kind: L2Advertisement
-metadata:
-  name: default-advertisement
-  namespace: metallb-system
-spec:
-  ipAddressPools:
-    - default-pool
-    - external-dns
-    - kubernetes-api
-    - gateway

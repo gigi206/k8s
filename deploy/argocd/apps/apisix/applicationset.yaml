@@ -225,8 +225,8 @@ spec:
               # Service configuration
               service:
                 type: {{ .apisix.gateway.type }}
-                {{- if .features.gatewayAPI.controller.loadBalancerIP }}
-                loadBalancerIP: {{ .features.gatewayAPI.controller.loadBalancerIP }}
+                {{- if .features.loadBalancer.staticIPs.gateway }}
+                loadBalancerIP: {{ .features.loadBalancer.staticIPs.gateway }}
                 annotations:
                   metallb.universe.tf/address-pool: gateway
                   # External-DNS: Create DNS records for all ApisixRoute hostnames
@@ -380,11 +380,11 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
-                  {{- if .features.gatewayAPI.controller.loadBalancerIP }}
+                  {{- if .features.loadBalancer.staticIPs.gateway }}
                   - op: add
                     path: /metadata/annotations
                     value:
-                      external-dns.alpha.kubernetes.io/target: '{{ .features.gatewayAPI.controller.loadBalancerIP }}'
+                      external-dns.alpha.kubernetes.io/target: '{{ .features.loadBalancer.staticIPs.gateway }}'
                   {{- end }}
               - target:
                   kind: Certificate

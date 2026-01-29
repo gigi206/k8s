@@ -4,6 +4,8 @@
 # =============================================================================
 # DaemonSet pour fournir une VIP HA pour l'API Kubernetes
 # Tourne uniquement sur les control-plane nodes
+# L'adresse VIP est injectée via kustomize patch depuis config.yaml:
+#   features.loadBalancer.staticIPs.kubernetesApi
 # =============================================================================
 
 apiVersion: apps/v1
@@ -68,7 +70,7 @@ spec:
             - name: vip_retryperiod
               value: "1"
             - name: address
-              value: "192.168.121.200"
+              value: "PLACEHOLDER_KUBERNETES_API_VIP"
             - name: prometheus_server
               value: ":2112"
           securityContext:

@@ -82,7 +82,7 @@ Quand activé, les ressources suivantes sont créées:
 2. **Default Gateway** (`kustomize/gateway/`)
   - Gateway: `default-gateway` avec listeners HTTP (80) et HTTPS (443)
   - Certificate: `wildcard-k8s-local-tls` pour `*.{{ common.domain }}`
-  - LoadBalancer IP: configurée via `gatewayAPI.controller.loadBalancerIP`
+  - LoadBalancer IP: configurée via `features.loadBalancer.staticIPs.gateway`
 
 3. **Cilium Network Policies** (si activé)
   - Host ingress policy: ports 80/443 vers nodes
