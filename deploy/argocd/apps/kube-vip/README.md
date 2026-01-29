@@ -8,6 +8,17 @@ Kube-VIP permet d'accéder à l'API Kubernetes via une adresse IP virtuelle flot
 
 ## Configuration
 
+### VIP centralisée (config/config.yaml)
+
+La VIP est définie dans la configuration globale :
+
+```yaml
+features:
+  loadBalancer:
+    staticIPs:
+      kubernetesApi: "192.168.121.200"   # Kubernetes API VIP (kube-vip)
+```
+
 ### Configuration dev (config/dev.yaml)
 
 ```yaml
@@ -15,9 +26,9 @@ environment: dev
 appName: kube-vip
 
 kubeVip:
-  vip: "192.168.121.200"        # VIP pour l'API Kubernetes
+  version: "v1.0.3"
   interface: "eth1"              # Interface réseau
-  arpEnabled: true               # Utilise ARP pour annoncer la VIP
+  arp: true                      # Utilise ARP pour annoncer la VIP
 
 syncPolicy:
   automated:
@@ -30,10 +41,10 @@ syncPolicy:
 
 Similaire à dev, mais avec `automated.enabled: false` pour contrôle manuel.
 
-## Ressources déployées (resources/)
+## Ressources déployées
 
-- **rbac.yaml**: ServiceAccount, ClusterRole, ClusterRoleBinding
-- **daemonset.yaml**: DaemonSet kube-vip sur les nœuds master
+- **resources/rbac.yaml**: ServiceAccount, ClusterRole, ClusterRoleBinding
+- **kustomize/daemonset/daemonset.yaml**: DaemonSet kube-vip sur les nœuds master (VIP injectée via kustomize patch)
 
 ## Vérification
 

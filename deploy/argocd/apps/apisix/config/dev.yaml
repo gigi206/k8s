@@ -15,7 +15,7 @@ apisix:
   # APISIX Configuration
   gateway:
     type: LoadBalancer
-    # loadBalancerIP is now defined in global config: features.gatewayAPI.controller.loadBalancerIP
+    # loadBalancerIP is centralized in config.yaml (features.loadBalancer.staticIPs.gateway)
     http:
       enabled: true
     tls:

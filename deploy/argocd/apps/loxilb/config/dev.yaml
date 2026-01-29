@@ -1,0 +1,21 @@
+---
+# Configuration LoxiLB - Dev
+environment: dev
+appName: loxilb
+
+loxilb:
+  # Image versions (tracked by Renovate)
+  loxilbImage: "ghcr.io/loxilb-io/loxilb"
+  loxilbTag: "v0.9.8"
+  kubeLoxilbImage: "ghcr.io/loxilb-io/kube-loxilb"
+  kubeLoxilbTag: "v0.9.8"
+
+  # LB Configuration
+  # 0 = DNAT (default), 1 = one-arm, 2 = fullNAT
+  setLBMode: 0
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

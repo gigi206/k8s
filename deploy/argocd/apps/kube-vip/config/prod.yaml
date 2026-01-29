@@ -7,8 +7,7 @@ kubeVip:
   # Version de l'image kube-vip
   version: "v1.0.3"
 
-  # VIP pour l'API Kubernetes
-  vip: "192.168.121.200"
+  # VIP is centralized in config.yaml: features.loadBalancer.staticIPs.kubernetesApi
 
   # Interface réseau à utiliser
   interface: "eth1"

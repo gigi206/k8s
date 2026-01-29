@@ -124,8 +124,9 @@ spec:
           chart: metallb
           helm:
             parameters:
+              # FRR required for BGP mode
               - name: speaker.frr.enabled
-                value: "false"
+                value: '{{ eq .features.loadBalancer.mode "bgp" }}'
             # PSA restricted compatibility for controller
             valuesObject:
               controller:
@@ -153,7 +154,7 @@ spec:
                     memory: '{{ .metallb.speaker.resources.limits.memory }}'
               {{- end }}
 
-        # Source 2: IPAddressPool & L2Advertisement (avec patch pour Gateway API controller IP)
+        # Source 2: IPAddressPool & L2Advertisement (avec patches depuis config.yaml)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/metallb/kustomize/ipaddresspool
@@ -161,18 +162,53 @@ spec:
             patches:
               - target:
                   kind: IPAddressPool
+                  name: default-pool
+                patch: |
+                  - op: replace
+                    path: /spec/addresses/0
+                    value: '{{ .features.loadBalancer.pools.default.range }}'
+              - target:
+                  kind: IPAddressPool
                   name: gateway
                 patch: |
                   - op: replace
                     path: /spec/addresses/0
-                    value: '{{ .features.gatewayAPI.controller.loadBalancerIP }}/32'
+                    value: '{{ .features.loadBalancer.staticIPs.gateway }}/32'
               - target:
                   kind: IPAddressPool
                   name: external-dns
                 patch: |
                   - op: replace
                     path: /spec/addresses/0
-                    value: '{{ .features.externalDns.loadBalancerIP }}/32'
+                    value: '{{ .features.loadBalancer.staticIPs.externalDns }}/32'
+
+        # Source 3: L2Advertisement or BGPAdvertisement (based on mode)
+        {{- if eq .features.loadBalancer.mode "bgp" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/kustomize/bgpadvertisement
+          kustomize:
+            patches:
+              - target:
+                  group: metallb.io
+                  version: v1beta2
+                  kind: BGPPeer
+                  name: default-peer
+                patch: |
+                  - op: replace
+                    path: /spec/myASN
+                    value: {{ .features.loadBalancer.bgp.localASN }}
+                  - op: replace
+                    path: /spec/peerASN
+                    value: {{ (index .features.loadBalancer.bgp.peers 0).asn }}
+                  - op: replace
+                    path: /spec/peerAddress
+                    value: '{{ (index .features.loadBalancer.bgp.peers 0).address }}'
+        {{- else }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/kustomize/l2advertisement
+        {{- end }}
 
         {{- if .features.monitoring.enabled }}
         # Source 3: Services pour métriques (sans label release dans selectors)

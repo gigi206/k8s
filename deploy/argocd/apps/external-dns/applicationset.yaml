@@ -214,11 +214,21 @@ spec:
                 capabilities:
                   drop: ["ALL"]
                 readOnlyRootFilesystem: true
-              {{- if .features.externalDns.loadBalancerIP }}
+              {{- if .features.loadBalancer.enabled }}
               service:
-                loadBalancerIP: '{{ .features.externalDns.loadBalancerIP }}'
+                {{- if eq .features.loadBalancer.provider "loxilb" }}
+                loadBalancerClass: "loxilb.io/loxilb"
+                {{- end }}
+                {{- if .features.loadBalancer.staticIPs.externalDns }}
                 annotations:
-                  metallb.universe.tf/address-pool: external-dns
+                  {{- if eq .features.loadBalancer.provider "metallb" }}
+                  metallb.universe.tf/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.externalDns }}'
+                  {{- else if eq .features.loadBalancer.provider "cilium" }}
+                  lbipam.cilium.io/ips: '{{ .features.loadBalancer.staticIPs.externalDns }}'
+                  {{- else if eq .features.loadBalancer.provider "loxilb" }}
+                  loxilb.io/staticIP: '{{ .features.loadBalancer.staticIPs.externalDns }}'
+                  {{- end }}
+                {{- end }}
               {{- end }}
               {{- if .externalDns.coredns.resources }}
               resources:

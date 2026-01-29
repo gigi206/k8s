@@ -1,0 +1,154 @@
+---
+# =============================================================================
+# LoxiLB ApplicationSet (Load Balancer) - Official Manifests
+# =============================================================================
+# Déploie LoxiLB pour fournir des IPs LoadBalancer via eBPF
+# Source: https://github.com/loxilb-io/kube-loxilb (manifests officiels)
+# Docs: https://docs.loxilb.io/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: loxilb
+  namespace: argo-cd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/loxilb/config/*.yaml
+
+  template:
+    metadata:
+      name: loxilb
+      namespace: argo-cd
+    spec:
+      project: default
+
+      sources:
+        # Placeholder - sera remplacé par templatePatch
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: 'HEAD'
+          path: deploy/argocd/apps/loxilb/kustomize/kube-loxilb
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: kube-system
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # =======================================================================
+        # Source 1: kube-loxilb (controller)
+        # =======================================================================
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/kube-loxilb
+          kustomize:
+            images:
+              - 'ghcr.io/loxilb-io/kube-loxilb={{ .loxilb.kubeLoxilbImage }}:{{ .loxilb.kubeLoxilbTag }}'
+            patches:
+              - target:
+                  group: apps
+                  version: v1
+                  kind: Deployment
+                  name: kube-loxilb
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/args
+                    {{- if eq .features.loadBalancer.mode "bgp" }}
+                    value:
+                      - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
+                      - --setRoles=0.0.0.0
+                      - --setBGP={{ .features.loadBalancer.bgp.localASN }}
+                      - --setLBMode={{ .loxilb.setLBMode }}
+                    {{- else }}
+                    value:
+                      - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
+                      - --setRoles=0.0.0.0
+                      - --setLBMode={{ .loxilb.setLBMode }}
+                    {{- end }}
+
+        # =======================================================================
+        # Source 2: loxilb daemon (L2 ou BGP selon le mode)
+        # =======================================================================
+        {{- if eq .features.loadBalancer.mode "bgp" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/loxilb-bgp
+          kustomize:
+            images:
+              - 'ghcr.io/loxilb-io/loxilb={{ .loxilb.loxilbImage }}:{{ .loxilb.loxilbTag }}'
+        {{- else }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/loxilb
+          kustomize:
+            images:
+              - 'ghcr.io/loxilb-io/loxilb={{ .loxilb.loxilbImage }}:{{ .loxilb.loxilbTag }}'
+        {{- end }}
+
+        {{- if eq .features.loadBalancer.mode "bgp" }}
+        # =======================================================================
+        # Source 3: CRDs for BGP (only in BGP mode)
+        # =======================================================================
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/crds
+
+        # =======================================================================
+        # Source 4: BGPPeerService CR (only in BGP mode)
+        # =======================================================================
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/bgp
+          kustomize:
+            patches:
+              - target:
+                  group: bgppeer.loxilb.io
+                  version: v1
+                  kind: BGPPeerService
+                  name: default-peer
+                patch: |
+                  - op: replace
+                    path: /spec/ipAddress
+                    value: '{{ (index .features.loadBalancer.bgp.peers 0).address }}'
+                  - op: replace
+                    path: /spec/remoteAs
+                    value: {{ (index .features.loadBalancer.bgp.peers 0).asn }}
+        {{- end }}

@@ -1,9 +1,9 @@
 ---
 # Kustomization for Cilium LB-IPAM resources
 # Only deployed when features.loadBalancer.provider == "cilium"
+# Note: L2/BGP advertisement policies are in separate directories
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
   - ciliumloadbalancerippool.yaml
-  - ciliuml2announcementpolicy.yaml
