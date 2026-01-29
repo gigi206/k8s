@@ -194,8 +194,11 @@ fi
 # echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
 
 # Configure Cilium CNI
-# NOTE: Cilium L2 announcements disabled (known ARP bugs on virtualized interfaces)
-# LoadBalancer IP management will be handled by MetalLB (installed via ArgoCD)
+# LB_PROVIDER is passed from Vagrantfile (metallb or cilium)
+# - metallb: Cilium L2 announcements disabled, MetalLB handles LoadBalancer IPs
+# - cilium: Cilium L2 announcements enabled, Cilium LB-IPAM handles LoadBalancer IPs
+export LB_PROVIDER="${LB_PROVIDER:-metallb}"
+echo "LoadBalancer provider: $LB_PROVIDER"
 /vagrant/scripts/configure_cilium.sh
 
 systemctl enable --now rke2-server.service
