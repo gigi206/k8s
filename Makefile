@@ -12,6 +12,13 @@ KUBE_DIR := $(VAGRANT_DIR)/.kube
 KUBECONFIG_DEV := $(KUBE_DIR)/config-dev
 ARGOCD_DIR := $(CURDIR)/deploy/argocd
 ARGOCD_NAMESPACE := argo-cd
+CONFIG_YAML := $(ARGOCD_DIR)/config/config.yaml
+
+# Read LoadBalancer settings from config.yaml
+# LB_PROVIDER: metallb (default) or cilium - controls which LB system handles L2 announcements
+# When metallb: Cilium L2 announcements are disabled, MetalLB handles LoadBalancer IPs
+# When cilium: Cilium L2 announcements are enabled, Cilium LB-IPAM handles LoadBalancer IPs
+LB_PROVIDER := $(shell yq -r '.features.loadBalancer.provider // "metallb"' $(CONFIG_YAML) 2>/dev/null || echo "metallb")
 
 # Default target
 help:
@@ -65,7 +72,8 @@ vagrant-dev-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🚀 Démarrage du cluster DEV (RKE2)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=dev vagrant up
+	@echo "$(YELLOW)   LoadBalancer Provider: $(LB_PROVIDER)$(NC)"
+	cd vagrant && K8S_ENV=dev LB_PROVIDER=$(LB_PROVIDER) vagrant up
 	@echo ""
 	@echo "$(GREEN)✅ Cluster RKE2 DEV démarré!$(NC)"
 	@echo ""
