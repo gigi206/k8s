@@ -3,16 +3,23 @@
 # Configure Cilium CNI for RKE2 cluster
 # This script configures Cilium with full CNI settings
 #
-# NOTE: L2 announcements are ENABLED but LoadBalancer IPAM is handled by MetalLB
-# L2 announcements in Cilium has known ARP bugs on virtualized interfaces in single-node with LoadBalancer IPAM
-# For multi-node clusters, MetalLB will handle LoadBalancer IP management (installed via ArgoCD)
+# LoadBalancer Provider Selection (LB_PROVIDER environment variable)
+# =============================================================================
+# LB_PROVIDER=metallb (default): MetalLB handles LoadBalancer IPs
+#   - Cilium L2 announcements DISABLED to avoid conflict
+#   - MetalLB L2 mode provides stable ARP responses
+#
+# LB_PROVIDER=cilium: Cilium LB-IPAM with L2 announcements
+#   - Cilium L2 announcements ENABLED
+#   - Uses CiliumLoadBalancerIPPool and CiliumL2AnnouncementPolicy (via ArgoCD)
+#   - Known ARP bugs on virtualized interfaces in Cilium 1.17.x-1.18.x
 #
 # HISTORY:
 # - Initially configured with Cilium L2 announcements for LoadBalancer IPs
 # - Discovered known bug in Cilium 1.17.x-1.18.x with ARP responses on virtualized interfaces
 # - Applied workaround (manual IP + systemd service) for single-node clusters
 # - Switched to MetalLB for proper multi-node LoadBalancer support
-# - Cilium L2 announcements kept enabled for other features, MetalLB handles LoadBalancer IPs
+# - Now configurable via LB_PROVIDER environment variable
 #
 
 set -e
@@ -28,9 +35,21 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 # Cf https://artifacthub.io/packages/helm/cilium/cilium
 # Cf https://docs.cilium.io/en/stable/
 
+# Determine L2 announcements setting based on LoadBalancer provider
+# Only enable Cilium L2 announcements when provider is explicitly "cilium"
+# For any other provider (metallb, loxilb, none, etc.), Cilium L2 is disabled
+LB_PROVIDER="${LB_PROVIDER:-metallb}"
+if [ "$LB_PROVIDER" = "cilium" ]; then
+  L2_ANNOUNCEMENTS_ENABLED="true"
+  echo "LoadBalancer Provider: Cilium LB-IPAM (L2 announcements ENABLED)"
+else
+  L2_ANNOUNCEMENTS_ENABLED="false"
+  echo "LoadBalancer Provider: $LB_PROVIDER (Cilium L2 announcements DISABLED)"
+fi
+
 echo "Configuring Cilium HelmChartConfig..."
 mkdir -p /var/lib/rancher/rke2/server/manifests
-cat <<'EOF' >/var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+cat <<EOF >/var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -146,16 +165,14 @@ spec:
     socketLB:
       hostNamespaceOnly: true # REQUIRED for Istio Ambient (prevents socket LB conflicts with ztunnel)
 
-    # L2 Announcements - ENABLED for general L2 features
-    # ===================================================
-    # NOTE: LoadBalancer IP management is handled by MetalLB (installed via ArgoCD)
-    # Cilium L2 announcements has known bugs with ARP responses on virtualized interfaces
-    # when used for LoadBalancer IPAM. MetalLB provides more reliable LoadBalancer support.
+    # L2 Announcements - Controlled by LB_PROVIDER
+    # =============================================
+    # LB_PROVIDER=metallb: DISABLED (MetalLB handles L2 announcements)
+    # LB_PROVIDER=cilium: ENABLED (Cilium handles L2 announcements + LB-IPAM)
     #
-    # L2 announcements is kept enabled for other Cilium features, but LoadBalancer IPs
-    # will be managed by MetalLB using CiliumLoadBalancerIPPool and CiliumL2AnnouncementPolicy
+    # WARNING: Having both MetalLB and Cilium L2 enabled causes conflicts!
     l2announcements:
-      enabled: true
+      enabled: ${L2_ANNOUNCEMENTS_ENABLED}
       interface: eth1
       leaseDuration: 3s
       leaseRenewDeadline: 1s
@@ -164,7 +181,7 @@ spec:
       # leaseRenewDeadline: 60s
       # leaseRetryPeriod: 10s
     l2NeighDiscovery:
-      enabled: true  # Enable L2 neighbor discovery to respond to ARP/NDP requests - https://github.com/cilium/cilium/issues/38223
+      enabled: ${L2_ANNOUNCEMENTS_ENABLED}  # Match l2announcements setting
       refreshPeriod: 30s
     # k8sClientRateLimit: # https://docs.cilium.io/en/latest/network/l2-announcements/#sizing-client-rate-limit
     #   qps: 10
@@ -301,8 +318,13 @@ echo "✓ Cilium HelmChartConfig created"
 echo "  - kube-proxy replacement: enabled"
 echo "  - Routing mode: native"
 echo "  - Network interface: eth1"
-echo "  - L2 announcements: ENABLED (for general L2 features)"
-echo "  - LoadBalancer IPAM: Handled by MetalLB (via ArgoCD)"
+if [ "$LB_PROVIDER" = "cilium" ]; then
+  echo "  - L2 announcements: ENABLED (Cilium LB-IPAM mode)"
+  echo "  - LoadBalancer IPAM: Cilium (CiliumLoadBalancerIPPool via ArgoCD)"
+else
+  echo "  - L2 announcements: DISABLED ($LB_PROVIDER mode)"
+  echo "  - LoadBalancer IPAM: $LB_PROVIDER (via ArgoCD)"
+fi
 echo "  - Hubble observability: enabled"
 echo "  - Prometheus metrics: enabled"
 echo "  - Host firewall: enabled"
