@@ -62,15 +62,15 @@ kubectl port-forward -n argo-cd svc/argocd-server 8080:443
     │   └── config.yaml                     # ⚙️ Configuration globale + feature flags
     └── apps/                                # 📦 Applications (un dossier par app)
         ├── metallb/
-        │   ├── applicationset.yaml         # Wave 10
+        │   ├── applicationset.yaml
         │   ├── config/dev.yaml             # Config dev
         │   └── resources/                  # Ressources K8s
-        ├── cert-manager/                   # Wave 20
-        ├── external-dns/                   # Wave 45
-        ├── ingress-nginx/                  # Wave 40
-        ├── argocd/                         # Wave 50
-        ├── longhorn/                       # Wave 60
-        ├── prometheus-stack/               # Wave 75
+        ├── cert-manager/
+        ├── external-dns/
+        ├── ingress-nginx/
+        ├── argocd/
+        ├── longhorn/
+        ├── prometheus-stack/
         └── ...                             # 27 apps au total
 ```
 
