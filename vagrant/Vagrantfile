@@ -12,6 +12,8 @@ ENV["VAGRANT_DEFAULT_PROVIDER"] = "libvirt"
 # Charger la configuration d'environnement
 # Par défaut: dev, peut être surchargé via ENV['K8S_ENV']
 env = ENV['K8S_ENV'] || 'dev'
+# LoadBalancer provider (metallb or cilium) - passed from Makefile
+lb_provider = ENV['LB_PROVIDER'] || 'metallb'
 config_file = File.join(File.dirname(__FILE__), 'config', "#{env}.rb")
 
 unless File.exist?(config_file)
@@ -117,7 +119,7 @@ Vagrant.configure("2") do |config|
       end
 
       master.vm.provision "shell", path: "scripts/install_common.sh"
-      master.vm.provision "shell", path: "scripts/install_master.sh"
+      master.vm.provision "shell", path: "scripts/install_master.sh", env: {"LB_PROVIDER" => lb_provider}
 
       # Premier master: export kubeconfig et token
       if i == 1
