@@ -9,56 +9,56 @@ deploy-applicationsets.sh (Liste hardcodée)
     ↓
 apps/ (Applications modulaires - 10 ApplicationSets)
     ├── metallb/
-    │   ├── applicationset.yaml         # Wave 10
+    │   ├── applicationset.yaml
     │   ├── config/
     │   │   ├── dev.yaml
     │   │   └── prod.yaml
     │   └── resources/
     │       └── ipaddresspool.yaml
     ├── kube-vip/
-    │   ├── applicationset.yaml         # Wave 15
+    │   ├── applicationset.yaml
     │   └── config/
     │       ├── dev.yaml
     │       └── prod.yaml
     ├── gateway-api-controller/
-    │   ├── applicationset.yaml         # Wave 15
+    │   ├── applicationset.yaml
     │   └── config/
     │       ├── dev.yaml
     │       └── prod.yaml
     ├── cert-manager/
-    │   ├── applicationset.yaml         # Wave 20
+    │   ├── applicationset.yaml
     │   ├── config/
     │   │   ├── dev.yaml
     │   │   └── prod.yaml
     │   └── resources/
     │       └── clusterissuer-*.yaml
     ├── external-dns/
-    │   ├── applicationset.yaml         # Wave 30
+    │   ├── applicationset.yaml
     │   └── config/
     │       ├── dev.yaml
     │       └── prod.yaml
     ├── ingress-nginx/
-    │   ├── applicationset.yaml         # Wave 40
+    │   ├── applicationset.yaml
     │   └── config/
     │       ├── dev.yaml
     │       └── prod.yaml
     ├── argocd/
-    │   ├── applicationset.yaml         # Wave 50
+    │   ├── applicationset.yaml
     │   └── config/
     │       ├── dev.yaml
     │       └── prod.yaml
     ├── csi-external-snapshotter/
-    │   ├── applicationset.yaml         # Wave 55
+    │   ├── applicationset.yaml
     │   └── config/
     │       ├── dev.yaml
     │       └── prod.yaml
     ├── longhorn/
-    │   ├── applicationset.yaml         # Wave 60
+    │   ├── applicationset.yaml
     │   └── config/
     │       ├── dev.yaml
     │       └── prod.yaml
     └── prometheus-stack/
-        ├── applicationset.yaml         # Wave 75
+        ├── applicationset.yaml
         └── config/
             ├── dev.yaml
             └── prod.yaml
@@ -78,82 +78,82 @@ Applications déployées (10 Applications)
     └── prometheus-stack
 ```
 
-## Ordre de déploiement (Sync Waves)
+## Applications déployées
 
-Les applications sont déployées dans cet ordre via les **sync waves** (définis dans chaque `applicationset.yaml`) :
+ArgoCD synchronise les Applications en parallèle. Le script `deploy-applicationsets.sh` déploie les ApplicationSets en plusieurs phases pour gérer les dépendances critiques (CRDs, webhooks).
 
-| Wave | Application | Description |
-|------|-------------|-------------|
-| 5 | `prometheus-stack` | CRDs Prometheus (ServiceMonitor, PrometheusRule) |
-| 10 | `metallb` | Load Balancer Layer 2 |
-| 15 | `kube-vip` | VIP pour l'API Kubernetes HA |
-| 15 | `gateway-api-controller` | Gateway API CRDs |
-| 15 | `cnpg-operator` | CloudNativePG (PostgreSQL Operator) |
-| 20 | `cert-manager` | Gestion des certificats TLS |
-| 25 | `external-secrets` | External Secrets Operator |
-| 30 | `keycloak` | Identity Provider (SSO) |
-| 35 | `oauth2-proxy` | OAuth2 Proxy pour Istio |
-| 40 | `istio` | Service Mesh (control plane) |
-| 45 | `external-dns` | Synchronisation DNS automatique |
-| 45 | `istio-gateway` | Gateway Istio + TLS |
-| 50 | `argocd` | GitOps Controller (self-managed) |
-| 55 | `csi-external-snapshotter` | CSI Snapshot Controller |
-| 60 | `rook` | Stockage distribué Ceph |
-| 73 | `loki` | Stockage des logs |
-| 74 | `alloy` | Collecteur de logs |
-| 76 | `cilium` | Monitoring CNI (Hubble) |
-| 77 | `tempo` | Distributed Tracing |
+| Catégorie | Application | Description |
+|-----------|-------------|-------------|
+| CRDs | `prometheus-stack` | CRDs Prometheus (ServiceMonitor, PrometheusRule) |
+| Infrastructure | `metallb` | Load Balancer Layer 2 |
+| Infrastructure | `kube-vip` | VIP pour l'API Kubernetes HA |
+| Infrastructure | `gateway-api-controller` | Gateway API CRDs |
+| Database | `cnpg-operator` | CloudNativePG (PostgreSQL Operator) |
+| Certificates | `cert-manager` | Gestion des certificats TLS |
+| Secrets | `external-secrets` | External Secrets Operator |
+| SSO | `keycloak` | Identity Provider (SSO) |
+| SSO | `oauth2-proxy` | OAuth2 Proxy pour Istio |
+| Service Mesh | `istio` | Service Mesh (control plane) |
+| Ingress & DNS | `external-dns` | Synchronisation DNS automatique |
+| Ingress & DNS | `istio-gateway` | Gateway Istio + TLS |
+| GitOps | `argocd` | GitOps Controller (self-managed) |
+| Storage | `csi-external-snapshotter` | CSI Snapshot Controller |
+| Storage | `rook` | Stockage distribué Ceph |
+| Observability | `loki` | Stockage des logs |
+| Observability | `alloy` | Collecteur de logs |
+| Observability | `cilium` | Monitoring CNI (Hubble) |
+| Observability | `tempo` | Distributed Tracing |
 
 ### Graphe de dépendances
 
 ```mermaid
 flowchart TB
-    subgraph wave5["Wave 5 - CRDs Prometheus"]
+    subgraph crds["CRDs Prometheus"]
         prometheus-stack["prometheus-stack<br/><i>ServiceMonitor, PrometheusRule CRDs</i>"]
     end
 
-    subgraph wave10["Wave 10 - LoadBalancer"]
+    subgraph infra["Infrastructure"]
         metallb["metallb<br/><i>LoadBalancer L2</i>"]
-    end
-
-    subgraph wave15["Wave 15 - HA, Gateway API & DB Operator"]
         kube-vip["kube-vip<br/><i>VIP API HA</i>"]
         gateway-api["gateway-api-controller<br/><i>Gateway API CRDs</i>"]
+    end
+
+    subgraph database["Database"]
         cnpg["cnpg-operator<br/><i>PostgreSQL Operator</i>"]
     end
 
-    subgraph wave20["Wave 20 - Certificates"]
+    subgraph certificates["Certificates"]
         cert-manager["cert-manager<br/><i>TLS, ClusterIssuer</i>"]
     end
 
-    subgraph wave25["Wave 25 - Secrets"]
+    subgraph secrets["Secrets"]
         external-secrets["external-secrets<br/><i>ClusterSecretStore</i>"]
     end
 
-    subgraph wave30-35["Wave 30-35 - SSO"]
+    subgraph sso["SSO"]
         keycloak["keycloak<br/><i>Identity Provider</i>"]
         oauth2-proxy["oauth2-proxy<br/><i>Auth Proxy</i>"]
     end
 
-    subgraph wave40["Wave 40 - Service Mesh"]
+    subgraph mesh["Service Mesh"]
         istio["istio<br/><i>Control Plane</i>"]
     end
 
-    subgraph wave45["Wave 45 - Ingress & DNS"]
+    subgraph ingress["Ingress & DNS"]
         istio-gateway["istio-gateway<br/><i>Gateway + TLS</i>"]
         external-dns["external-dns<br/><i>DNS automation</i>"]
     end
 
-    subgraph wave50["Wave 50 - GitOps"]
+    subgraph gitops["GitOps"]
         argocd["argocd<br/><i>Self-managed</i>"]
     end
 
-    subgraph wave55-60["Wave 55-60 - Storage"]
+    subgraph storage["Storage"]
         csi-snapshotter["csi-external-snapshotter<br/><i>VolumeSnapshots</i>"]
         rook["rook<br/><i>Ceph Storage</i>"]
     end
 
-    subgraph wave73-77["Wave 73-77 - Observability"]
+    subgraph observability["Observability"]
         loki["loki<br/><i>Log Storage</i>"]
         alloy["alloy<br/><i>Log Collector</i>"]
         cilium["cilium<br/><i>CNI Monitoring</i>"]
@@ -568,7 +568,7 @@ kubectl apply -f apps/my-app/applicationset.yaml
 ```bash
 # Commenter ou supprimer la ligne dans deploy-applicationsets.sh (ligne ~267)
 APPLICATIONSETS=(
-  # "apps/prometheus-stack/applicationset.yaml"   # Wave 75 - Désactivé
+  # "apps/prometheus-stack/applicationset.yaml"   # Désactivé
 )
 ```
 
