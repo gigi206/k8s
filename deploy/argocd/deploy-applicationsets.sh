@@ -647,8 +647,9 @@ KYVERNO_APPSET=""
 # Wave 20: Certificates
 [[ "$FEAT_CERT_MANAGER" == "true" ]] && APPLICATIONSETS+=("apps/cert-manager/applicationset.yaml")
 
-# Wave 3: Secrets Management
-[[ "$FEAT_EXTERNAL_SECRETS" == "true" ]] && APPLICATIONSETS+=("apps/external-secrets/applicationset.yaml")
+# Wave 3: Secrets Management (deployed separately in Phase 1.5)
+EXTERNAL_SECRETS_APPSET=""
+[[ "$FEAT_EXTERNAL_SECRETS" == "true" ]] && EXTERNAL_SECRETS_APPSET="apps/external-secrets/applicationset.yaml"
 
 # Wave 25: Configuration Reload (auto-reload pods on ConfigMap/Secret changes)
 [[ "$FEAT_RELOADER" == "true" ]] && APPLICATIONSETS+=("apps/reloader/applicationset.yaml")
@@ -776,11 +777,14 @@ fi
 EXPECTED_APPS_COUNT=${#APPLICATIONSETS[@]}
 # Include Kyverno in the count (deployed separately in Phase 1)
 [[ -n "$KYVERNO_APPSET" ]] && EXPECTED_APPS_COUNT=$((EXPECTED_APPS_COUNT + 1))
+# Include external-secrets in the count (deployed separately in Phase 1.5)
+[[ -n "$EXTERNAL_SECRETS_APPSET" ]] && EXPECTED_APPS_COUNT=$((EXPECTED_APPS_COUNT + 1))
 log_debug "Nombre d'Applications attendues: $EXPECTED_APPS_COUNT"
 
 # Afficher la liste finale
 log_info "ApplicationSets à déployer (${#APPLICATIONSETS[@]}):"
 [[ -n "$KYVERNO_APPSET" ]] && log_debug "  - $KYVERNO_APPSET (Phase 1)"
+[[ -n "$EXTERNAL_SECRETS_APPSET" ]] && log_debug "  - $EXTERNAL_SECRETS_APPSET (Phase 1.5)"
 for appset in "${APPLICATIONSETS[@]}"; do
   log_debug "  - $appset"
 done
@@ -1053,6 +1057,38 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
   done
 
   log_success "PolicyExceptions pré-déployées: $pe_count"
+fi
+
+# =============================================================================
+# Phase 1.5: Deploy external-secrets (webhook must be ready before dependent apps)
+# =============================================================================
+if [[ -n "$EXTERNAL_SECRETS_APPSET" ]]; then
+  echo ""
+  log_info "Phase 1.5: Déploiement de external-secrets (secret management)..."
+
+  cat "${SCRIPT_DIR}/${EXTERNAL_SECRETS_APPSET}" > "$TEMP_MANIFEST"
+  apply_manifest_patches "$TEMP_MANIFEST"
+
+  if [[ $VERBOSE -eq 1 ]]; then
+    kubectl apply -f "$TEMP_MANIFEST"
+  else
+    kubectl apply -f "$TEMP_MANIFEST" > /dev/null
+  fi
+  log_success "ApplicationSet external-secrets déployé"
+
+  check_external_secrets_healthy() {
+    local health
+    health=$(kubectl get application external-secrets -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
+    [[ "$health" == "Healthy" ]] && { printf "\n"; log_success "External-secrets est Healthy (webhook opérationnel)"; return 0; }
+    return 1
+  }
+
+  wait_for_condition \
+    "Attente de external-secrets (Healthy + webhook prêt)..." \
+    "$TIMEOUT_APPS_SYNC" \
+    check_external_secrets_healthy || {
+      log_warning "External-secrets non Healthy - les ExternalSecrets pourraient échouer"
+    }
 fi
 
 # =============================================================================
