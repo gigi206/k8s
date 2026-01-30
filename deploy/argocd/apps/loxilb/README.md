@@ -181,7 +181,7 @@ spec:
 | **DSR Support** | ✅ | ❌ | ✅ |
 | **L7 Natif** | ✅ | ❌ | Via Envoy |
 | **CNI Required** | Non | Non | Cilium |
-| **VM Compatible** | ✅ | ✅ | ❌ (bug virtio) |
+| **VM Compatible** | ✅ | ✅ | ✅ (config requise) |
 | **Maturité** | CNCF Sandbox | Mature | Mature |
 
 ### Quand choisir LoxiLB?
@@ -234,7 +234,7 @@ Si vous utilisez Cilium comme CNI, considérez ces alternatives :
 | Alternative | Avantages | Inconvénients |
 |-------------|-----------|---------------|
 | **MetalLB** | Simple, mature, compatible Cilium | Pas de DSR, performance moindre |
-| **Cilium LB-IPAM** | Natif Cilium, haute performance | Bug avec virtio (VMs) |
+| **Cilium LB-IPAM** | Natif Cilium, haute performance | Interface L2 doit être dans devices Cilium |
 | **LoxiLB + Multus** | Toutes les fonctionnalités LoxiLB | Configuration complexe |
 
 ### Vérification de la compatibilité
