@@ -95,3 +95,20 @@ fs.inotify.max_user_watches=524288
 fs.inotify.max_user_instances=8192
 EOF
 sysctl -p /etc/sysctl.d/k8s.conf
+
+# DNS fix for Cilium host firewall compatibility
+# Cilium host firewall blocks UDP loopback traffic to systemd-resolved stub (127.0.0.53)
+# Solution: Disable stub listener and use upstream DNS directly
+# Ref: https://github.com/cilium/cilium/issues/23838
+if systemctl is-active --quiet systemd-resolved; then
+    echo "Configuring systemd-resolved for Cilium host firewall compatibility..."
+    mkdir -p /etc/systemd/resolved.conf.d
+    cat <<EOF >/etc/systemd/resolved.conf.d/no-stub.conf
+[Resolve]
+DNSStubListener=no
+EOF
+    # Point resolv.conf to upstream DNS (not stub)
+    ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+    systemctl restart systemd-resolved
+    echo "DNS configured: using upstream DNS directly (stub listener disabled)"
+fi
