@@ -640,8 +640,14 @@ APPLICATIONSETS=()
 # metallb: MetalLB handles L2 announcements
 # cilium: Cilium LB-IPAM with L2 announcements (configured in apps/cilium/kustomize/lb-ipam/)
 # loxilb: LoxiLB eBPF-based load balancer (CNI-agnostic, DSR support)
+# klipper: ServiceLB (RKE2/K3s built-in), uses node IPs - no ApplicationSet needed
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "metallb" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]] && APPLICATIONSETS+=("apps/loxilb/applicationset.yaml")
+# klipper: No ApplicationSet deployed - ServiceLB is built into RKE2 (enabled via enable-servicelb: true)
+if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "klipper" ]]; then
+  log_info "Klipper (ServiceLB) mode: no LoadBalancer ApplicationSet deployed"
+  log_warning "  Note: staticIP annotations will be ignored (Klipper uses node IPs)"
+fi
 
 # Kata Containers (hardware isolation via micro-VMs)
 [[ "$FEAT_KATA_CONTAINERS" == "true" ]] && APPLICATIONSETS+=("apps/kata-containers/applicationset.yaml")

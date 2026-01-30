@@ -194,11 +194,21 @@ fi
 # echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
 
 # Configure Cilium CNI
-# LB_PROVIDER is passed from Vagrantfile (metallb or cilium)
+# LB_PROVIDER is passed from Vagrantfile (metallb, cilium, loxilb, or klipper)
 # - metallb: Cilium L2 announcements disabled, MetalLB handles LoadBalancer IPs
 # - cilium: Cilium L2 announcements enabled, Cilium LB-IPAM handles LoadBalancer IPs
+# - loxilb: LoxiLB eBPF-based load balancer (CNI-agnostic, DSR support)
+# - klipper: ServiceLB (built-in RKE2/K3s), uses node IPs, no static IP support
 export LB_PROVIDER="${LB_PROVIDER:-metallb}"
 echo "LoadBalancer provider: $LB_PROVIDER"
+
+# Enable ServiceLB (Klipper) if provider is klipper
+# ServiceLB is disabled by default in RKE2 (unlike K3s)
+if [ "$LB_PROVIDER" = "klipper" ]; then
+  echo "Enabling ServiceLB (Klipper) in RKE2 config..."
+  echo "enable-servicelb: true" >> /etc/rancher/rke2/config.yaml
+fi
+
 /vagrant/scripts/configure_cilium.sh
 
 systemctl enable --now rke2-server.service

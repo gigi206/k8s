@@ -222,7 +222,8 @@ spec:
               value: '{{ .traefik.deployment.kind | default "Deployment" }}'
             - name: service.type
               value: '{{ .traefik.service.type | default "LoadBalancer" }}'
-            {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
+            {{- /* Static IPs not supported by klipper (uses node IPs) */ -}}
+            {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway (ne .features.loadBalancer.provider "klipper") }}
             {{- if eq .features.loadBalancer.provider "metallb" }}
             - name: service.annotations.metallb\.universe\.tf/loadBalancerIPs
               value: '{{ .features.loadBalancer.staticIPs.gateway }}'
