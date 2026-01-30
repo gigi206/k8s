@@ -197,7 +197,8 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
-                  {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
+                  {{- /* Static IPs not supported by klipper (uses node IPs) */ -}}
+                  {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway (ne .features.loadBalancer.provider "klipper") }}
                   - op: add
                     path: /spec/infrastructure
                     value:
@@ -292,7 +293,8 @@ spec:
                   - op: replace
                     path: /spec/listeners/1/hostname
                     value: '*.{{ .common.domain }}'
-                  {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
+                  {{- /* Static IPs not supported by klipper (uses node IPs) */ -}}
+                  {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway (ne .features.loadBalancer.provider "klipper") }}
                   - op: add
                     path: /spec/infrastructure
                     value:

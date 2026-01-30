@@ -37,11 +37,14 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 
 # Determine L2 announcements setting based on LoadBalancer provider
 # Only enable Cilium L2 announcements when provider is explicitly "cilium"
-# For any other provider (metallb, loxilb, none, etc.), Cilium L2 is disabled
+# For any other provider (metallb, loxilb, klipper, none, etc.), Cilium L2 is disabled
 LB_PROVIDER="${LB_PROVIDER:-metallb}"
 if [ "$LB_PROVIDER" = "cilium" ]; then
   L2_ANNOUNCEMENTS_ENABLED="true"
   echo "LoadBalancer Provider: Cilium LB-IPAM (L2 announcements ENABLED)"
+elif [ "$LB_PROVIDER" = "klipper" ]; then
+  L2_ANNOUNCEMENTS_ENABLED="false"
+  echo "LoadBalancer Provider: Klipper/ServiceLB (Cilium L2 announcements DISABLED, uses node IPs)"
 else
   L2_ANNOUNCEMENTS_ENABLED="false"
   echo "LoadBalancer Provider: $LB_PROVIDER (Cilium L2 announcements DISABLED)"

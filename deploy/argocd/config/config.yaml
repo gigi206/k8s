@@ -75,6 +75,7 @@ features:
   #   - metallb: MetalLB (stable, recommended for VMs and most setups)
   #   - cilium: Cilium LB-IPAM with L2 announcements (bare-metal only with XDP-compatible NICs)
   #   - loxilb: LoxiLB eBPF-based load balancer (CNI-agnostic, DSR support, L7 capable)
+  #   - klipper: ServiceLB (RKE2/K3s built-in), uses node IPs, no static IP pool support
   #
   # WARNING: Only ONE provider should handle L2 announcements at a time!
   # When provider=metallb, Cilium L2 announcements are DISABLED in configure_cilium.sh
@@ -87,7 +88,7 @@ features:
   # =============================================================================
   loadBalancer:
     enabled: true  # LoadBalancer for Services
-    provider: "loxilb"  # metallb | cilium | loxilb
+    provider: "cilium"  # metallb | cilium | loxilb | klipper
     mode: "l2"  # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
     # BGP configuration (used when mode == "bgp")
     bgp:

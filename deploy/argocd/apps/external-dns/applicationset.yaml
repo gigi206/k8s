@@ -219,7 +219,8 @@ spec:
                 {{- if eq .features.loadBalancer.provider "loxilb" }}
                 loadBalancerClass: "loxilb.io/loxilb"
                 {{- end }}
-                {{- if .features.loadBalancer.staticIPs.externalDns }}
+                {{- /* Static IPs not supported by klipper (uses node IPs) */ -}}
+                {{- if and .features.loadBalancer.staticIPs.externalDns (ne .features.loadBalancer.provider "klipper") }}
                 annotations:
                   {{- if eq .features.loadBalancer.provider "metallb" }}
                   metallb.universe.tf/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.externalDns }}'

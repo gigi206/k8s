@@ -181,9 +181,19 @@ Use `argocd.argoproj.io/sync-wave` annotation on resources to control deployment
 Feature flags in `config/config.yaml` control which ApplicationSets are deployed.
 
 Examples:
-- `features.metallb.enabled` → metallb
+- `features.loadBalancer.provider` → metallb | cilium | loxilb | klipper
 - `features.monitoring.enabled` → prometheus-stack
 - `features.sso.enabled` + `provider=keycloak` → keycloak
+
+**LoadBalancer Providers**:
+| Provider | Description | Static IPs | IP Pool |
+|----------|-------------|------------|---------|
+| `metallb` | MetalLB (recommended for VMs) | Yes | Yes |
+| `cilium` | Cilium LB-IPAM | Yes | Yes |
+| `loxilb` | LoxiLB eBPF-based | Yes | Yes |
+| `klipper` | ServiceLB (RKE2/K3s built-in) | **No** | No (uses node IPs) |
+
+**Note**: When using `klipper`, staticIP annotations are ignored as Klipper uses node IPs directly.
 
 See `deploy-applicationsets.sh` for the complete list and automatic dependency resolution (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
 
