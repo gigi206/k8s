@@ -1,0 +1,106 @@
+---
+# =============================================================================
+# kube-vip-cloud-provider ApplicationSet (LoadBalancer IPAM)
+# =============================================================================
+# Déploie kube-vip-cloud-provider pour l'allocation d'IPs aux Services LoadBalancer
+# Fonctionne avec kube-vip (svc_enable=true) pour l'annonce ARP des VIPs
+# Docs: https://kube-vip.io/docs/usage/cloud-provider/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: kube-vip-cloud-provider
+  namespace: argo-cd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/kube-vip-cloud-provider/config/*.yaml
+
+  template:
+    metadata:
+      name: kube-vip-cloud-provider
+      namespace: argo-cd
+    spec:
+      project: default
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: kube-system
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.cilium.ingressPolicy.enabled }}
+        # Cilium ingress policy for kube-vip-cloud-provider
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kube-vip-cloud-provider/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+        {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kube-vip-cloud-provider/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
+
+        # Helm chart kube-vip-cloud-provider
+        - repoURL: https://kube-vip.github.io/helm-charts
+          targetRevision: '{{ .kubeVipCloudProvider.version }}'
+          chart: kube-vip-cloud-provider
+          helm:
+            releaseName: kube-vip-cloud-provider
+            valuesObject:
+              # IP pool configuration via ConfigMap
+              cm:
+                data:
+                  range-global: '{{ .features.loadBalancer.pools.default.range }}'
+              {{- if .kubeVipCloudProvider.resources }}
+              resources:
+                requests:
+                  cpu: '{{ .kubeVipCloudProvider.resources.requests.cpu }}'
+                  memory: '{{ .kubeVipCloudProvider.resources.requests.memory }}'
+                limits:
+                  cpu: '{{ .kubeVipCloudProvider.resources.limits.cpu }}'
+                  memory: '{{ .kubeVipCloudProvider.resources.limits.memory }}'
+              {{- end }}

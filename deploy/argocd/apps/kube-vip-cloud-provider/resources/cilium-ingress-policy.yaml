@@ -1,0 +1,45 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy for kube-vip-cloud-provider
+# =============================================================================
+# Allows:
+# - Egress to Kubernetes API (for watching Services)
+# - Ingress from Prometheus (metrics scraping)
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kube-vip-cloud-provider
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-vip-cloud-provider
+  ingress:
+    # Allow Prometheus scraping (metrics port)
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    # Allow access to Kubernetes API
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # Allow DNS resolution
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

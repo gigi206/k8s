@@ -387,6 +387,20 @@
     },
     {
       "customType": "regex",
+      "description": "Kube-VIP Cloud Provider Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kube-vip-cloud-provider/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kubeVipCloudProvider:\\s*\\n(?:\\s*#[^\\n]*\\n)*\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "kube-vip-cloud-provider",
+      "packageNameTemplate": "kube-vip-cloud-provider",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://kube-vip.github.io/helm-charts"
+    },
+    {
+      "customType": "regex",
       "description": "Jaeger Helm chart",
       "managerFilePatterns": [
         "/^deploy/argocd/apps/jaeger/config/.*\\.yaml$/"
