@@ -211,6 +211,71 @@ fi
 
 /vagrant/scripts/configure_cilium.sh
 
+# CoreDNS k8s.lan forwarding to external-dns (only for providers with static IPs)
+# Klipper uses node IPs so static IP forwarding is not supported
+if [ "$LB_PROVIDER" != "klipper" ]; then
+  # Read external-dns static IP from config
+  EXTERNAL_DNS_IP=$(grep -A10 "staticIPs:" "$CONFIG_FILE" | grep "externalDns:" | awk -F'"' '{print $2}')
+  if [ -n "$EXTERNAL_DNS_IP" ]; then
+    echo "Configuring CoreDNS to forward k8s.lan to external-dns ($EXTERNAL_DNS_IP)..."
+    mkdir -p /var/lib/rancher/rke2/server/manifests
+    cat <<EOF >/var/lib/rancher/rke2/server/manifests/rke2-coredns-config.yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-coredns
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    servers:
+      - zones:
+          - zone: .
+            use_tcp: true
+        port: 53
+        plugins:
+          - name: errors
+          - name: health
+            configBlock: |-
+              lameduck 10s
+          - name: ready
+          - name: kubernetes
+            parameters: cluster.local in-addr.arpa ip6.arpa
+            configBlock: |-
+              pods insecure
+              fallthrough in-addr.arpa ip6.arpa
+              ttl 30
+          - name: prometheus
+            parameters: 0.0.0.0:9153
+          - name: forward
+            parameters: . /etc/resolv.conf
+          - name: cache
+            parameters: 30
+          - name: loop
+          - name: reload
+          - name: loadbalance
+      - zones:
+          - zone: k8s.lan.
+        port: 53
+        plugins:
+          - name: errors
+          - name: log
+          - name: cache
+            parameters: 30
+          - name: forward
+            parameters: . $EXTERNAL_DNS_IP
+            configBlock: |-
+              health_check 5s
+              max_fails 3
+              expire 10s
+EOF
+    echo "✓ CoreDNS HelmChartConfig created (k8s.lan -> $EXTERNAL_DNS_IP)"
+  else
+    echo "⚠ No externalDns static IP found in config, skipping CoreDNS k8s.lan config"
+  fi
+else
+  echo "⚠ Klipper provider detected - CoreDNS k8s.lan forwarding not supported (no static IPs)"
+fi
+
 systemctl enable --now rke2-server.service
 
 # CIS File Permissions Fixes (K.1.1.12, K.1.1.20)
