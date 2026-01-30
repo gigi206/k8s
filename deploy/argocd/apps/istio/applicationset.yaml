@@ -266,10 +266,16 @@ spec:
                           user_agent: "%REQ(USER-AGENT)%"
                           request_id: "%REQ(X-REQUEST-ID)%"
                 {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
+                  # OAuth2 Proxy extension provider for external authorization
+                  # Security: FAIL-CLOSE - if OAuth2 is unavailable, access is DENIED
                   - name: oauth2-proxy
                     envoyExtAuthzHttp:
                       service: {{ .istio.extensionProviders.oauth2Proxy.service }}
                       port: {{ .istio.extensionProviders.oauth2Proxy.port }}
+                      # FAIL-CLOSE: block access if auth service is unavailable
+                      timeout: 5s
+                      failOpen: false
+                      statusOnError: "503"
                       headersToDownstreamOnDeny:
                         - content-type
                         - set-cookie
@@ -325,10 +331,16 @@ spec:
                           user_agent: "%REQ(USER-AGENT)%"
                           request_id: "%REQ(X-REQUEST-ID)%"
                 {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
+                  # OAuth2 Proxy extension provider for external authorization
+                  # Security: FAIL-CLOSE - if OAuth2 is unavailable, access is DENIED
                   - name: oauth2-proxy
                     envoyExtAuthzHttp:
                       service: {{ .istio.extensionProviders.oauth2Proxy.service }}
                       port: {{ .istio.extensionProviders.oauth2Proxy.port }}
+                      # FAIL-CLOSE: block access if auth service is unavailable
+                      timeout: 5s
+                      failOpen: false
+                      statusOnError: "503"
                       headersToDownstreamOnDeny:
                         - content-type
                         - set-cookie
@@ -378,10 +390,16 @@ spec:
                           user_agent: "%REQ(USER-AGENT)%"
                           request_id: "%REQ(X-REQUEST-ID)%"
                 {{- if and .features.sso.enabled .istio.extensionProviders .istio.extensionProviders.oauth2Proxy .istio.extensionProviders.oauth2Proxy.enabled }}
+                  # OAuth2 Proxy extension provider for external authorization
+                  # Security: FAIL-CLOSE - if OAuth2 is unavailable, access is DENIED
                   - name: oauth2-proxy
                     envoyExtAuthzHttp:
                       service: {{ .istio.extensionProviders.oauth2Proxy.service }}
                       port: {{ .istio.extensionProviders.oauth2Proxy.port }}
+                      # FAIL-CLOSE: block access if auth service is unavailable
+                      timeout: 5s
+                      failOpen: false
+                      statusOnError: "503"
                       headersToDownstreamOnDeny:
                         - content-type
                         - set-cookie
