@@ -640,9 +640,18 @@ APPLICATIONSETS=()
 # metallb: MetalLB handles L2 announcements
 # cilium: Cilium LB-IPAM with L2 announcements (configured in apps/cilium/kustomize/lb-ipam/)
 # loxilb: LoxiLB eBPF-based load balancer (CNI-agnostic, DSR support)
+# kube-vip: kube-vip-cloud-provider handles IPAM, kube-vip handles L2/ARP announcements
 # klipper: ServiceLB (RKE2/K3s built-in), uses node IPs - no ApplicationSet needed
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "metallb" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]] && APPLICATIONSETS+=("apps/loxilb/applicationset.yaml")
+[[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "kube-vip" ]] && APPLICATIONSETS+=("apps/kube-vip-cloud-provider/applicationset.yaml")
+# kube-vip provider requires kubeVip.enabled=true (kube-vip announces VIPs via ARP)
+if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "kube-vip" ]] && [[ "$FEAT_KUBEVIP" != "true" ]]; then
+  log_error "loadBalancer.provider=kube-vip requires features.kubeVip.enabled=true"
+  log_error "  kube-vip-cloud-provider handles IPAM, but kube-vip is needed to announce VIPs via ARP"
+  log_error "  Please set 'features.kubeVip.enabled: true' in config.yaml"
+  exit 1
+fi
 # klipper: No ApplicationSet deployed - ServiceLB is built into RKE2 (enabled via enable-servicelb: true)
 if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "klipper" ]]; then
   log_info "Klipper (ServiceLB) mode: no LoadBalancer ApplicationSet deployed"

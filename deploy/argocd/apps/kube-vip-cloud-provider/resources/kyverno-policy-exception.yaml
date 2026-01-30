@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Kyverno PolicyException for kube-vip-cloud-provider
+# =============================================================================
+# Allows kube-vip-cloud-provider to mount ServiceAccount token
+# Required for Kubernetes API access to watch/update Services
+# =============================================================================
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: kube-vip-cloud-provider
+  namespace: kube-system
+spec:
+  exceptions:
+    - policyName: disallow-auto-mount-service-account-token
+      ruleNames:
+        - validate-automountServiceAccountToken
+        - validate-pod-automountServiceAccountToken
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+            - Pod
+          namespaces:
+            - kube-system
+          names:
+            - kube-vip-cloud-provider*

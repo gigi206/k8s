@@ -93,6 +93,17 @@ spec:
                   - op: replace
                     path: /spec/template/spec/containers/0/env/13/value
                     value: '{{ .features.loadBalancer.staticIPs.kubernetesApi }}'
+              {{- if eq .features.loadBalancer.provider "kube-vip" }}
+              # Enable Services mode when using kube-vip as LoadBalancer provider
+              # svc_enable is at env index 7 in the DaemonSet
+              - target:
+                  kind: DaemonSet
+                  name: kube-vip
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/7/value
+                    value: "true"
+              {{- end }}
 
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Source: Cilium host ingress policy - allows external access to API VIP

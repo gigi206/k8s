@@ -1,0 +1,27 @@
+---
+# Configuration kube-vip-cloud-provider - Prod
+environment: prod
+appName: kube-vip-cloud-provider
+
+kubeVipCloudProvider:
+  # Helm chart version
+  version: "0.2.10"
+
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=false
+    - ServerSideApply=true
+    - PruneLast=true

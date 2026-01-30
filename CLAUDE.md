@@ -181,7 +181,7 @@ Use `argocd.argoproj.io/sync-wave` annotation on resources to control deployment
 Feature flags in `config/config.yaml` control which ApplicationSets are deployed.
 
 Examples:
-- `features.loadBalancer.provider` → metallb | cilium | loxilb | klipper
+- `features.loadBalancer.provider` → metallb | cilium | loxilb | kube-vip | klipper
 - `features.monitoring.enabled` → prometheus-stack
 - `features.sso.enabled` + `provider=keycloak` → keycloak
 
@@ -191,11 +191,13 @@ Examples:
 | `metallb` | MetalLB (stable, simple setup) | Yes | Yes |
 | `cilium` | Cilium LB-IPAM with L2 announcements | Yes | Yes |
 | `loxilb` | LoxiLB eBPF-based | Yes | Yes |
+| `kube-vip` | kube-vip cloud provider (ConfigMap-based IPAM) | Yes | Yes |
 | `klipper` | ServiceLB (RKE2/K3s built-in) | **No** | No (uses node IPs) |
 
 **Notes**:
 - When using `klipper`, staticIP annotations are ignored as Klipper uses node IPs directly.
 - When using `cilium`, the L2 announcement interface must be in Cilium's `devices` list (see `apps/cilium/README.md`).
+- When using `kube-vip`, kube-vip-cloud-provider handles IPAM and kube-vip handles ARP announcements (automatic `svc_enable=true`). **Requires `features.kubeVip.enabled: true`**.
 
 See `deploy-applicationsets.sh` for the complete list and automatic dependency resolution (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
 

@@ -148,6 +148,8 @@ spec:
                   lbipam.cilium.io/ips: '{{ .features.loadBalancer.staticIPs.gateway }}'
                   {{- else if eq .features.loadBalancer.provider "loxilb" }}
                   loxilb.io/staticIP: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                  {{- else if eq .features.loadBalancer.provider "kube-vip" }}
+                  kube-vip.io/loadbalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
                   {{- end }}
                 {{- end }}
                 ports:
