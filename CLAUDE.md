@@ -188,12 +188,14 @@ Examples:
 **LoadBalancer Providers**:
 | Provider | Description | Static IPs | IP Pool |
 |----------|-------------|------------|---------|
-| `metallb` | MetalLB (recommended for VMs) | Yes | Yes |
-| `cilium` | Cilium LB-IPAM | Yes | Yes |
+| `metallb` | MetalLB (stable, simple setup) | Yes | Yes |
+| `cilium` | Cilium LB-IPAM with L2 announcements | Yes | Yes |
 | `loxilb` | LoxiLB eBPF-based | Yes | Yes |
 | `klipper` | ServiceLB (RKE2/K3s built-in) | **No** | No (uses node IPs) |
 
-**Note**: When using `klipper`, staticIP annotations are ignored as Klipper uses node IPs directly.
+**Notes**:
+- When using `klipper`, staticIP annotations are ignored as Klipper uses node IPs directly.
+- When using `cilium`, the L2 announcement interface must be in Cilium's `devices` list (see `apps/cilium/README.md`).
 
 See `deploy-applicationsets.sh` for the complete list and automatic dependency resolution (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
 

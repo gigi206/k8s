@@ -38,28 +38,42 @@ features:
 - **`metallb`** (défaut) : MetalLB gère les IPs LoadBalancer via L2 announcements
 - **`cilium`** : Cilium LB-IPAM avec CiliumLoadBalancerIPPool et CiliumL2AnnouncementPolicy
 
-### Limitation : Cilium L2 ne fonctionne PAS sur les VMs
+### Configuration requise : Interface L2 dans les devices Cilium
 
-> **⚠️ IMPORTANT** : Cilium L2 announcements a un bug connu qui empêche les réponses ARP sur les interfaces virtualisées (virtio/libvirt/KVM/VMware). Ce bug affecte les kernels 6.8+ et n'a pas de fix upstream.
+> **⚠️ IMPORTANT** : L'interface utilisée dans `CiliumL2AnnouncementPolicy` **DOIT** être dans la liste des devices gérés par Cilium. Sinon, les programmes BPF ne seront pas attachés et les réponses ARP ne fonctionneront pas.
 
-**Symptômes** :
+**Symptômes si mal configuré** :
 - Les IPs LoadBalancer sont assignées aux services
 - Les leases L2 sont acquises correctement
-- Mais AUCUNE réponse ARP n'est envoyée
-- Ping échoue avec "Destination Host Unreachable"
+- La map BPF `cilium_l2_responder_v4` est **vide** (0 éléments)
+- Aucune réponse ARP n'est envoyée
+- Ping échoue avec "Time to live exceeded" ou "Destination Host Unreachable"
 
-**Cause** : Les paquets ARP sont traités par le kernel AVANT d'atteindre le hook TC BPF de Cilium. Sur les interfaces virtuelles, ce timing empêche Cilium de répondre aux requêtes ARP.
+**Vérification** :
+```bash
+# Voir les devices gérés par Cilium
+kubectl -n kube-system get cm cilium-config -o yaml | grep devices
 
-**Workarounds testés (non fonctionnels sur virtio)** :
-- `loadBalancer.acceleration: best-effort` (XDP générique) - Ne fonctionne pas
-- `loadBalancer.acceleration: native` (XDP natif) - Requiert NIC compatible
+# Voir l'interface configurée dans la policy L2
+kubectl get ciliuml2announcementpolicy -o yaml | grep -A2 interfaces
 
-**Références** :
-- [cilium/cilium#38223](https://github.com/cilium/cilium/issues/38223) - Does not respond to ARP requests
-- [cilium/cilium#37959](https://github.com/cilium/cilium/issues/37959) - L2 not responding on VLAN interface
-- [cilium/cilium#35972](https://github.com/cilium/cilium/issues/35972) - L2 Pod Announcements does not reply
+# Vérifier si la map BPF est remplie (doit contenir les IPs LB)
+kubectl -n kube-system exec ds/cilium -- bpftool map dump pinned /sys/fs/bpf/tc/globals/cilium_l2_responder_v4
+```
 
-**Recommandation** : Utiliser `provider: metallb` pour tous les environnements virtualisés. Cilium LB-IPAM peut fonctionner sur bare-metal avec des NICs compatibles XDP (Intel, Mellanox).
+**Solution** : L'interface dans `CiliumL2AnnouncementPolicy` doit correspondre à un device dans `cilium-config` :
+```yaml
+# cilium-config
+devices: eth0
+
+# CiliumL2AnnouncementPolicy - DOIT utiliser eth0
+spec:
+  interfaces:
+    - eth0  # ✓ Correct - eth0 est dans devices
+    # - eth1  # ✗ Incorrect - eth1 n'est pas dans devices
+```
+
+**Note** : Cilium L2 fonctionne sur les VMs (virtio/KVM) quand l'interface est correctement configurée.
 
 ## Network Policies
 
