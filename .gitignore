@@ -4,3 +4,7 @@ vagrant/ip_master
 vagrant/k8s-token
 vagrant/kube.config
 vagrant/.kube/
+
+# APEX
+.apex/
+apex/
