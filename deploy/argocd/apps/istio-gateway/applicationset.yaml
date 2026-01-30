@@ -139,7 +139,8 @@ spec:
               # Service configuration
               service:
                 type: LoadBalancer
-                {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway }}
+                {{- /* Static IPs not supported by klipper (uses node IPs) */ -}}
+                {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway (ne .features.loadBalancer.provider "klipper") }}
                 annotations:
                   {{- if eq .features.loadBalancer.provider "metallb" }}
                   metallb.universe.tf/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
