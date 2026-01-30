@@ -4,7 +4,7 @@
 # =============================================================================
 # This policy is used when features.loadBalancer.provider == "cilium"
 # It configures Cilium to announce LoadBalancer IPs via ARP/NDP on the
-# specified interface (eth1 by default for libvirt/Vagrant setups)
+# specified interface (must match Cilium's managed devices)
 # =============================================================================
 apiVersion: cilium.io/v2alpha1
 kind: CiliumL2AnnouncementPolicy
@@ -14,9 +14,9 @@ spec:
   # Match all services (no selector = all)
   serviceSelector:
     matchLabels: {}
-  # Interface to announce on (host network interface)
+  # Interface to announce on (must be in Cilium's devices list)
   interfaces:
-    - eth1
+    - eth0
   # Announce LoadBalancer and ExternalIPs
   loadBalancerIPs: true
   externalIPs: true
