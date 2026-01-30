@@ -7,6 +7,9 @@
 # 2. If authenticated (202), returns 200 to allow request through
 # 3. If not authenticated (401), returns 302 redirect to /oauth2/start
 #
+# Security: FAIL-CLOSE - if OAuth2 is unavailable, access is DENIED (503)
+# This ensures applications are NEVER accessible if authentication fails.
+#
 # This solves the Traefik limitation where forwardAuth returns 401 directly
 # instead of redirecting to the login page.
 # =============================================================================
@@ -58,11 +61,23 @@ data:
           proxy_set_header X-Real-IP $http_x_real_ip;
           proxy_set_header X-Forwarded-For $http_x_forwarded_for;
 
+          # FAIL-CLOSE: short timeouts to detect OAuth2 unavailability quickly
+          proxy_connect_timeout 5s;
+          proxy_read_timeout 10s;
+          proxy_send_timeout 10s;
+
           # Intercept errors from upstream
           proxy_intercept_errors on;
 
-          # On 401, redirect to login
+          # FAIL-CLOSE: 401 = redirect to login, 5xx = service unavailable (blocked)
           error_page 401 = @error401;
+          error_page 500 502 503 504 = @service_unavailable;
+        }
+
+        # Error handler - OAuth2 service unavailable (FAIL-CLOSE)
+        location @service_unavailable {
+          default_type text/html;
+          return 503 '<!DOCTYPE html><html><head><title>503 - Authentication Service Unavailable</title></head><body><h1>503 Service Unavailable</h1><p>The authentication service is temporarily unavailable. Please try again later.</p></body></html>';
         }
 
         # Error handler - redirect to oauth2 login
