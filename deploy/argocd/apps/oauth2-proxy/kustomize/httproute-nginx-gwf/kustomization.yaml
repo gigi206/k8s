@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# HTTPRoute + SnippetsFilter for nginx-gateway-fabric (OAuth2-Proxy)
+# =============================================================================
+# Combines HTTPRoutes with OAuth2 server locations for nginx-gwf.
+# Uses httproute/ as base and adds SnippetsFilter + extensionRef patches.
+# SECURITY: All resources are in the same source, ensuring atomic deployment.
+# If SnippetsFilter CRD doesn't exist, entire source fails = no unprotected routes.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Base HTTPRoutes for OAuth2 Proxy
+  - ../httproute
+  # OAuth2 server locations SnippetsFilter (must be created together with HTTPRoutes)
+  - snippetsfilter.yaml
+
+patches:
+  # Add extensionRef to oauth2-proxy HTTPRoute
+  - target:
+      group: gateway.networking.k8s.io
+      version: v1
+      kind: HTTPRoute
+      name: oauth2-proxy
+    patch: |
+      - op: add
+        path: /spec/rules/0/filters
+        value:
+          - type: ExtensionRef
+            extensionRef:
+              group: gateway.nginx.org
+              kind: SnippetsFilter
+              name: oauth2-server-locations

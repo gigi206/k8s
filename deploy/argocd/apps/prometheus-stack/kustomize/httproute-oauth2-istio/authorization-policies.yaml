@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# Istio AuthorizationPolicies for OAuth2 Proxy ext_authz
+# =============================================================================
+# Protects Prometheus and Alertmanager by requiring authentication via OAuth2 Proxy
+# In Istio ambient mode, must use targetRef with Gateway instead of selector
+# =============================================================================
+
+# Prometheus
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: oauth2-proxy-prometheus
+  namespace: istio-system
+spec:
+  targetRef:
+    kind: Gateway
+    group: gateway.networking.k8s.io
+    name: default-gateway
+  action: CUSTOM
+  provider:
+    name: oauth2-proxy
+  rules:
+    - to:
+        - operation:
+            hosts:
+              - "prometheus.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            notPaths:
+              - "/oauth2/*"  # Exclude OAuth2 flow paths (handled by HTTPRoute)
+
+---
+# Alertmanager
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: oauth2-proxy-alertmanager
+  namespace: istio-system
+spec:
+  targetRef:
+    kind: Gateway
+    group: gateway.networking.k8s.io
+    name: default-gateway
+  action: CUSTOM
+  provider:
+    name: oauth2-proxy
+  rules:
+    - to:
+        - operation:
+            hosts:
+              - "alertmanager.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            notPaths:
+              - "/oauth2/*"  # Exclude OAuth2 flow paths (handled by HTTPRoute)
