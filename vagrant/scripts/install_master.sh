@@ -214,8 +214,9 @@ fi
 # CoreDNS k8s.lan forwarding to external-dns (only for providers with static IPs)
 # Klipper uses node IPs so static IP forwarding is not supported
 if [ "$LB_PROVIDER" != "klipper" ]; then
-  # Read external-dns static IP from config
-  EXTERNAL_DNS_IP=$(grep -A10 "staticIPs:" "$CONFIG_FILE" | grep "externalDns:" | awk -F'"' '{print $2}')
+  # Read external-dns static IP from ArgoCD config (not rke2.yaml)
+  ARGOCD_CONFIG_FILE="/vagrant/deploy/argocd/config/config.yaml"
+  EXTERNAL_DNS_IP=$(grep -A10 "staticIPs:" "$ARGOCD_CONFIG_FILE" | grep "externalDns:" | awk -F'"' '{print $2}')
   if [ -n "$EXTERNAL_DNS_IP" ]; then
     echo "Configuring CoreDNS to forward k8s.lan to external-dns ($EXTERNAL_DNS_IP)..."
     mkdir -p /var/lib/rancher/rke2/server/manifests
