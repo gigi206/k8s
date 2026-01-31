@@ -3,8 +3,14 @@
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 
 # Determine script and project directories (agnostic of mount point)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VAGRANT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# When run via Vagrant provisioner, BASH_SOURCE may not work correctly
+if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
+  SCRIPT_DIR="/vagrant/vagrant/scripts"
+  VAGRANT_DIR="/vagrant/vagrant"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  VAGRANT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
 
 . "$SCRIPT_DIR/RKE2_ENV.sh"
 curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -

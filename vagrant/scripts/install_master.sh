@@ -4,8 +4,14 @@ export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 
 # Determine script and project directories (agnostic of mount point)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# When run via Vagrant provisioner, BASH_SOURCE may not work correctly
+if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
+  SCRIPT_DIR="/vagrant/vagrant/scripts"
+  PROJECT_ROOT="/vagrant"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
 
 . "$SCRIPT_DIR/RKE2_ENV.sh"
 # export INSTALL_RKE2_VERSION=v1.24.8+rke2r1
