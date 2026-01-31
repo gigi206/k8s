@@ -88,7 +88,7 @@ features:
   # =============================================================================
   loadBalancer:
     enabled: true  # LoadBalancer for Services
-    provider: "cilium"  # metallb | cilium | loxilb | kube-vip | klipper
+    provider: "metallb"  # metallb | cilium | loxilb | kube-vip | klipper
     mode: "l2"  # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
     # BGP configuration (used when mode == "bgp")
     bgp:
@@ -99,9 +99,16 @@ features:
           # port: 179              # Optional: BGP port (default: 179)
     pools:
       default:
-        range: "192.168.121.220-192.168.121.250"  # Default pool for services (excludes static IPs)
+        # Dynamic pool for auto-assigned LoadBalancer IPs (excludes static IPs)
+        # Static IPs (200-219) are reserved in dedicated pools below
+        range: "192.168.121.220-192.168.121.250"
     # Static IPs for services (same IP regardless of provider)
     # Note: kubernetesApi is managed by kube-vip, not LoadBalancer provider
+    # IMPORTANT: These IPs must NOT be in the default pool range to avoid overlap
+    # Range 200-219 is reserved for static assignments:
+    #   - 200: Kubernetes API VIP (kube-vip)
+    #   - 201: CoreDNS/external-dns
+    #   - 210: Gateway API controller
     staticIPs:
       kubernetesApi: "192.168.121.200"   # Kubernetes API VIP (kube-vip)
       externalDns: "192.168.121.201"     # CoreDNS (UDP/53)

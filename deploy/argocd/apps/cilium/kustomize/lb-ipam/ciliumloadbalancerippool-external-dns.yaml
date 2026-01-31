@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# CiliumLoadBalancerIPPool - Dedicated pool for external-dns CoreDNS
+# =============================================================================
+# This pool is used when features.loadBalancer.provider == "cilium"
+# The IP is configured via Kustomize patches in the ApplicationSet
+# Services request this IP via annotation: lbipam.cilium.io/ips
+# =============================================================================
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: external-dns
+spec:
+  blocks:
+    # IP will be patched by ApplicationSet based on config.yaml
+    - cidr: "PLACEHOLDER_EXTERNAL_DNS_IP/32"
+  # Allow any service to request IPs from this pool via annotation
+  allowFirstLastIPs: "Yes"

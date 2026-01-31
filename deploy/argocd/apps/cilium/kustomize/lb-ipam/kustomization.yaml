@@ -2,8 +2,15 @@
 # Kustomization for Cilium LB-IPAM resources
 # Only deployed when features.loadBalancer.provider == "cilium"
 # Note: L2/BGP advertisement policies are in separate directories
+#
+# Pools:
+#   - default: Dynamic IP allocation (192.168.121.220-250)
+#   - external-dns: Dedicated for CoreDNS (192.168.121.201)
+#   - gateway: Dedicated for Gateway API controller (192.168.121.210)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
   - ciliumloadbalancerippool.yaml
+  - ciliumloadbalancerippool-external-dns.yaml
+  - ciliumloadbalancerippool-gateway.yaml
