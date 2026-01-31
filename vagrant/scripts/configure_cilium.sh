@@ -39,6 +39,8 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 # Only enable Cilium L2 announcements when provider is explicitly "cilium"
 # For any other provider (metallb, loxilb, klipper, none, etc.), Cilium L2 is disabled
 LB_PROVIDER="${LB_PROVIDER:-metallb}"
+CNI_MULTUS_ENABLED="${CNI_MULTUS_ENABLED:-false}"
+
 if [ "$LB_PROVIDER" = "cilium" ]; then
   L2_ANNOUNCEMENTS_ENABLED="true"
   echo "LoadBalancer Provider: Cilium LB-IPAM (L2 announcements ENABLED)"
@@ -48,6 +50,11 @@ elif [ "$LB_PROVIDER" = "klipper" ]; then
 else
   L2_ANNOUNCEMENTS_ENABLED="false"
   echo "LoadBalancer Provider: $LB_PROVIDER (Cilium L2 announcements DISABLED)"
+fi
+
+# CNI chaining mode info
+if [ "$CNI_MULTUS_ENABLED" = "true" ]; then
+  echo "CNI Chaining: enabled (Multus mode - secondary interfaces for LoxiLB)"
 fi
 
 echo "Configuring Cilium HelmChartConfig..."

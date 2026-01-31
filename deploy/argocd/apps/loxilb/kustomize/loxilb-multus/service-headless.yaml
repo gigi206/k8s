@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# LoxiLB Headless Service - Multus Mode
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: loxilb-lb-service
+  namespace: kube-system
+spec:
+  clusterIP: None
+  selector:
+    app: loxilb-app
+  ports:
+    - name: api
+      port: 11111
+      targetPort: 11111
+      protocol: TCP

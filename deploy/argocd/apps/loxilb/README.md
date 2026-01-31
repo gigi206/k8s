@@ -220,10 +220,32 @@ kubectl exec -n kube-system loxilb-lb-xxx -- loxicmd get lb -o wide
 
 Selon la [documentation officielle](https://docs.loxilb.io/latest/cilium-incluster/), pour faire coexister LoxiLB et Cilium :
 
-1. **Installer Multus CNI** pour créer des interfaces réseau secondaires
-2. **Configurer Cilium** avec `cni-exclusive: false`
-3. **Créer une NetworkAttachmentDefinition** macvlan pour LoxiLB
-4. **Annoter les pods LoxiLB** avec `k8s.v1.cni.cncf.io/networks`
+1. **Activer Multus CNI** dans `config.yaml` :
+   ```yaml
+   cni:
+     primary: "cilium"
+     multus:
+       enabled: true
+       whereabouts: true
+       networks:
+         loxilb:
+           type: "macvlan"
+           master: "eth1"
+           mode: "bridge"
+           ipam:
+             range: "192.168.80.0/24"
+             gateway: "192.168.80.1"
+   ```
+
+2. **Recréer le cluster** :
+   ```bash
+   make vagrant-dev-destroy && make dev-full
+   ```
+
+Le script de déploiement :
+- Configure RKE2 avec `cni: [multus, cilium]`
+- Déploie l'ApplicationSet `multus` avec les NetworkAttachmentDefinitions
+- Utilise automatiquement `loxilb-multus` au lieu de `loxilb` (hostNetwork: false + annotation Multus)
 
 Cette configuration isole le trafic LoxiLB dans des interfaces distinctes de celles gérées par Cilium.
 
@@ -235,7 +257,7 @@ Si vous utilisez Cilium comme CNI, considérez ces alternatives :
 |-------------|-----------|---------------|
 | **MetalLB** | Simple, mature, compatible Cilium | Pas de DSR, performance moindre |
 | **Cilium LB-IPAM** | Natif Cilium, haute performance | Interface L2 doit être dans devices Cilium |
-| **LoxiLB + Multus** | Toutes les fonctionnalités LoxiLB | Configuration complexe |
+| **LoxiLB + Multus** | Toutes les fonctionnalités LoxiLB | Recréation cluster requise |
 
 ### Vérification de la compatibilité
 
