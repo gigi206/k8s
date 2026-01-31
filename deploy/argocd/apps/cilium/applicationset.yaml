@@ -234,10 +234,12 @@ spec:
         {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 3: HTTPRoute (Gateway API standard)
+        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+        # Source: HTTPRoute + OAuth2 SnippetsFilter for nginx-gwf (atomic deployment)
+        # SECURITY: HTTPRoutes and SnippetsFilter in same source = fail together if CRD missing
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/kustomize/httproute
+          path: deploy/argocd/apps/cilium/kustomize/httproute-oauth2-nginx-gwf
           kustomize:
             patches:
               - target:
@@ -250,25 +252,6 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
-                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
-                  - op: add
-                    path: /spec/rules/1/filters
-                    value:
-                      - type: ExtensionRef
-                        extensionRef:
-                          group: traefik.io
-                          kind: Middleware
-                          name: oauth2-proxy-auth
-                  {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
-                  - op: add
-                    path: /spec/rules/1/filters
-                    value:
-                      - type: ExtensionRef
-                        extensionRef:
-                          group: gateway.nginx.org
-                          kind: SnippetsFilter
-                          name: oauth2-auth
-                  {{- end }}
               - target:
                   kind: ReferenceGrant
                   name: gateway-hubble-tls
@@ -276,23 +259,31 @@ spec:
                   - op: replace
                     path: /spec/from/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
-        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
-        # Source: Traefik Middleware for OAuth2 Proxy forwardAuth (Hubble)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-traefik
-        {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
-        # Source: NGINX Gateway Fabric SnippetsFilter for OAuth2 auth_request (Hubble)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-nginx-gwf
         {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
-        # Source: SecurityPolicy for Envoy Gateway native OIDC (Hubble)
+        # Source: HTTPRoute + OAuth2 SecurityPolicy for Envoy Gateway (atomic deployment)
+        # SECURITY: HTTPRoutes and SecurityPolicy in same source = fail together if CRD missing
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-envoy-gateway
+          path: deploy/argocd/apps/cilium/kustomize/httproute-oauth2-envoy-gateway
           kustomize:
             patches:
+              - target:
+                  kind: HTTPRoute
+                  name: hubble-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: hubble.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-hubble-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
               - target:
                   group: gateway.envoyproxy.io
                   kind: Backend
@@ -318,7 +309,51 @@ spec:
                   - op: replace
                     path: /spec/oidc/redirectURL
                     value: https://hubble.{{ .common.domain }}/oauth2/callback
+        {{- else }}
+        # Source: HTTPRoute (Gateway API standard) - without atomic oauth2
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: hubble-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: hubble.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: traefik.io
+                          kind: Middleware
+                          name: oauth2-proxy-auth
+                  {{- end }}
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-hubble-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+        # Source: Traefik Middleware for OAuth2 Proxy forwardAuth (Hubble)
+        # Note: Traefik has fail-close behavior - refuses routing if Middleware CRD missing
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-traefik
         {{- end }}
+        {{- end }}
+        # NOTE: AuthorizationPolicy for OAuth2 Proxy (Hubble) moved to Istio application
+        # to ensure Istio CRDs exist before the AuthorizationPolicy is created
+        # See: deploy/argocd/apps/istio/kustomize/oauth2-authz/
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source 3: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
         - repoURL: https://github.com/gigi206/k8s

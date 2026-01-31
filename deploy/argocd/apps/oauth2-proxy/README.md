@@ -2,6 +2,96 @@
 
 OAuth2 Proxy fournit une authentification OIDC centralisée via Keycloak pour les applications sans auth native.
 
+## ⚠️ Sécurité - Déploiement Atomique (Fail-Close)
+
+### Risque identifié
+
+Lors du démarrage du cluster, une **race condition** peut exposer les applications sans authentification :
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PROBLÈME : Sources ArgoCD séparées                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Source 1: HTTPRoute          Source 2: SnippetsFilter/AuthPolicy           │
+│  ┌──────────────────┐         ┌──────────────────────────────┐              │
+│  │ prometheus route │  ───X───│ oauth2-auth SnippetsFilter   │              │
+│  │ (créé avec       │         │ (ÉCHOUE si CRD manquant)     │              │
+│  │  extensionRef)   │         └──────────────────────────────┘              │
+│  └──────────────────┘                                                       │
+│          │                                                                  │
+│          ▼                                                                  │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ VULNÉRABILITÉ: HTTPRoute créé SANS protection OAuth2 !              │   │
+│  │ → Application accessible sans authentification                       │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Scénario de vulnérabilité** :
+1. Le cluster démarre, ArgoCD synchronise les applications
+2. L'HTTPRoute est créé (source 1 réussit)
+3. Le SnippetsFilter/AuthorizationPolicy échoue car le CRD n'existe pas encore (nginx-gateway-fabric/istio pas prêt)
+4. **L'HTTPRoute existe sans protection** → accès non authentifié possible
+5. Plus tard, quand le CRD est disponible, la ressource OAuth2 est créée
+6. L'application est finalement protégée, mais une fenêtre de vulnérabilité a existé
+
+### Solution : Déploiement Atomique
+
+Toutes les ressources (HTTPRoute + OAuth2) sont dans le **même source Kustomize** :
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    SOLUTION : Source unique (atomique)                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Source unique: httproute-oauth2-{provider}/                                │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ kustomization.yaml                                                   │   │
+│  │ ├── resources:                                                       │   │
+│  │ │   ├── ../httproute              (HTTPRoutes base)                  │   │
+│  │ │   ├── snippetsfilter.yaml       (OAuth2 auth)                      │   │
+│  │ │   └── referencegrant.yaml       (permissions)                      │   │
+│  │ └── patches:                                                         │   │
+│  │     └── extensionRef → oauth2-auth                                   │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│          │                                                                  │
+│          ▼                                                                  │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ SÉCURISÉ: Si CRD manquant → TOUT le source échoue                   │   │
+│  │ → Aucune route non protégée ne peut être créée                       │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Comportement par provider
+
+| Provider | Ressource Auth | Comportement si CRD manquant | Pattern utilisé |
+|----------|----------------|------------------------------|-----------------|
+| **nginx-gwf** | `SnippetsFilter` | ❌ Fail-open (route sans auth) | `httproute-oauth2-nginx-gwf/` |
+| **istio** | `AuthorizationPolicy` | ❌ Fail-open (route sans auth) | `httproute-oauth2-istio/` |
+| **envoy-gateway** | `SecurityPolicy` | ❌ Fail-open (route sans auth) | `httproute-oauth2-envoy-gateway/` |
+| **traefik** | `Middleware` | ✅ Fail-close (routing échoue) | Sources séparées OK |
+| **apisix** | Plugin inline | ✅ Intégré dans ApisixRoute | N/A (déjà atomique) |
+
+### Applications protégées par déploiement atomique
+
+| Application | nginx-gwf | istio | envoy-gateway |
+|-------------|-----------|-------|---------------|
+| prometheus-stack | `httproute-oauth2-nginx-gwf/` | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` |
+| cilium (hubble) | `httproute-oauth2-nginx-gwf/` | Via istio app | `httproute-oauth2-envoy-gateway/` |
+| oauth2-proxy | `httproute-nginx-gwf/` | N/A | N/A |
+| jaeger | N/A | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` |
+| longhorn | N/A | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` |
+
+### Mesures de sécurité supplémentaires
+
+1. **SnippetsFilter Fail-Close** : Configuration `error_page 500 502 503 504 = /oauth2/unavailable` retourne 503 si OAuth2 Proxy est indisponible (pas de bypass)
+
+2. **Timeouts courts** : `proxy_connect_timeout 5s; proxy_read_timeout 10s` pour détecter rapidement l'indisponibilité
+
+3. **ArgoCD Sync Retry** : Retry automatique avec backoff exponentiel jusqu'à ce que toutes les ressources soient créées
+
 ## Architecture
 
 OAuth2 Proxy supporte plusieurs modes selon le Gateway API controller utilisé :
@@ -247,114 +337,135 @@ Le cookie utilise le domaine parent (`.k8s.lan`) pour le SSO :
 
 ## Ajouter une nouvelle application protégée
 
-### Avec Istio (AuthorizationPolicy)
+> ⚠️ **IMPORTANT** : Utilisez le pattern de déploiement atomique pour éviter les vulnérabilités de race condition (voir section Sécurité ci-dessus).
 
-1. Créer `apps/<app>/kustomize/oauth2-authz/kustomization.yaml` :
+### Pattern Atomique (Recommandé)
+
+Pour tous les providers sauf Traefik et APISIX, créez un overlay combiné `httproute-oauth2-{provider}/` :
+
+#### 1. Créer l'overlay atomique
+
+```bash
+mkdir -p apps/<app>/kustomize/httproute-oauth2-{istio,nginx-gwf,envoy-gateway}
+```
+
+#### 2. Structure du répertoire
+
+```
+apps/<app>/kustomize/
+├── httproute/                          # HTTPRoutes de base
+│   ├── kustomization.yaml
+│   └── httproute.yaml
+├── httproute-oauth2-istio/             # Atomique: HTTPRoute + AuthorizationPolicy
+│   ├── kustomization.yaml
+│   └── authorization-policy.yaml
+├── httproute-oauth2-nginx-gwf/         # Atomique: HTTPRoute + SnippetsFilter
+│   ├── kustomization.yaml
+│   ├── snippetsfilter.yaml
+│   └── referencegrant.yaml
+└── httproute-oauth2-envoy-gateway/     # Atomique: HTTPRoute + SecurityPolicy
+    ├── kustomization.yaml
+    ├── security-policy.yaml
+    ├── backend-keycloak.yaml
+    └── oidc-secret.yaml
+```
+
+#### 3. Exemple kustomization.yaml (Istio)
+
 ```yaml
 ---
+# httproute-oauth2-istio/kustomization.yaml
+# SECURITY: All resources in same source = atomic deployment
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
 resources:
- - authorization-policy.yaml
+  - ../httproute                    # Base HTTPRoutes
+  - authorization-policy.yaml       # OAuth2 AuthorizationPolicy
 ```
 
-2. Créer `apps/<app>/kustomize/oauth2-authz/authorization-policy.yaml` :
-```yaml
----
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: oauth2-proxy-<app>
-  namespace: istio-system
-spec:
-  targetRef:
-    kind: Gateway
-    group: gateway.networking.k8s.io
-    name: istio-gateway
-  action: CUSTOM
-  provider:
-    name: oauth2-proxy
-  rules:
-   - to:
-       - operation:
-            hosts:
-             - "<app>.PLACEHOLDER.example.com"
-```
+#### 4. ApplicationSet avec conditions atomiques
 
-3. Ajouter dans `apps/<app>/applicationset.yaml` (templatePatch) :
 ```yaml
-{{- if .features.oauth2Proxy.enabled }}
-# Source: AuthorizationPolicy for OAuth2 Proxy ext_authz
+{{- if .features.gatewayAPI.httpRoute.enabled }}
+{{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+# Source: HTTPRoute + OAuth2 AuthorizationPolicy for Istio (atomic deployment)
+# SECURITY: HTTPRoutes and AuthorizationPolicy in same source = fail together if CRD missing
 - repoURL: https://github.com/gigi206/k8s
   targetRevision: '{{ .git.revision }}'
-  path: deploy/argocd/apps/<app>/kustomize/oauth2-authz
+  path: deploy/argocd/apps/<app>/kustomize/httproute-oauth2-istio
   kustomize:
     patches:
-     - target:
+      - target:
+          kind: HTTPRoute
+          name: <app>
+        patch: |
+          - op: replace
+            path: /spec/hostnames/0
+            value: <app>.{{ .common.domain }}
+      - target:
           kind: AuthorizationPolicy
           name: oauth2-proxy-<app>
         patch: |
-         - op: replace
+          - op: replace
             path: /spec/rules/0/to/0/operation/hosts/0
             value: <app>.{{ .common.domain }}
-{{- end }}
-```
-
-### Avec nginx-gateway-fabric (SnippetsFilter)
-
-1. Créer `apps/<app>/kustomize/oauth2-authz-nginx-gwf/kustomization.yaml` :
-```yaml
----
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
- - referencegrant.yaml
-```
-
-2. Créer `apps/<app>/kustomize/oauth2-authz-nginx-gwf/referencegrant.yaml` :
-```yaml
----
-# Permet aux HTTPRoutes de ce namespace de référencer le SnippetsFilter oauth2-auth
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant
-metadata:
-  name: allow-nginx-gateway-snippets
-  namespace: nginx-gateway
-spec:
-  from:
-   - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      namespace: <app-namespace>  # Namespace de l'application
-  to:
-   - group: gateway.nginx.org
-      kind: SnippetsFilter
-```
-
-3. Ajouter le SnippetsFilter à l'HTTPRoute de l'application via un patch dans l'ApplicationSet :
-```yaml
-{{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
-# Source: ReferenceGrant for OAuth2 SnippetsFilter
+{{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+# Source: HTTPRoute + OAuth2 SnippetsFilter for nginx-gwf (atomic deployment)
 - repoURL: https://github.com/gigi206/k8s
   targetRevision: '{{ .git.revision }}'
-  path: deploy/argocd/apps/<app>/kustomize/oauth2-authz-nginx-gwf
+  path: deploy/argocd/apps/<app>/kustomize/httproute-oauth2-nginx-gwf
+  kustomize:
+    patches:
+      - target:
+          kind: HTTPRoute
+          name: <app>
+        patch: |
+          - op: replace
+            path: /spec/hostnames/0
+            value: <app>.{{ .common.domain }}
+{{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
+# Source: HTTPRoute + OAuth2 SecurityPolicy for Envoy Gateway (atomic deployment)
+- repoURL: https://github.com/gigi206/k8s
+  targetRevision: '{{ .git.revision }}'
+  path: deploy/argocd/apps/<app>/kustomize/httproute-oauth2-envoy-gateway
+  kustomize:
+    patches:
+      # ... patches pour HTTPRoute, SecurityPolicy, Backend ...
+{{- else }}
+# Source: HTTPRoute standard (sans OAuth2 ou provider non supporté)
+- repoURL: https://github.com/gigi206/k8s
+  targetRevision: '{{ .git.revision }}'
+  path: deploy/argocd/apps/<app>/kustomize/httproute
+{{- end }}
 {{- end }}
 ```
 
-4. Modifier l'HTTPRoute pour ajouter le filter (via patch kustomize dans l'ApplicationSet) :
+### Pattern Traefik (Fail-Close natif)
+
+Traefik peut utiliser des sources séparées car il refuse le routage si le Middleware n'existe pas :
+
 ```yaml
-# Dans la section kustomize.patches de l'HTTPRoute source :
+# HTTPRoute avec extensionRef inline
 - target:
     kind: HTTPRoute
     name: <app>
   patch: |
-   - op: add
+    - op: add
       path: /spec/rules/0/filters
       value:
-       - type: ExtensionRef
+        - type: ExtensionRef
           extensionRef:
-            group: gateway.nginx.org
-            kind: SnippetsFilter
-            name: oauth2-auth
+            group: traefik.io
+            kind: Middleware
+            name: oauth2-proxy-auth
+
+# Source séparée pour le Middleware (OK car fail-close)
+{{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+- repoURL: https://github.com/gigi206/k8s
+  targetRevision: '{{ .git.revision }}'
+  path: deploy/argocd/apps/<app>/kustomize/oauth2-authz-traefik
+{{- end }}
 ```
 
 ## Vérification

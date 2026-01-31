@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# Istio AuthorizationPolicy for OAuth2 Proxy ext_authz
+# =============================================================================
+# Protects Jaeger UI by requiring authentication via OAuth2 Proxy
+# In Istio ambient mode, must use targetRef with Gateway instead of selector
+# =============================================================================
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: oauth2-proxy-jaeger
+  namespace: istio-system
+spec:
+  targetRef:
+    kind: Gateway
+    group: gateway.networking.k8s.io
+    name: default-gateway
+  action: CUSTOM
+  provider:
+    name: oauth2-proxy
+  rules:
+    - to:
+        - operation:
+            hosts:
+              - "jaeger.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
