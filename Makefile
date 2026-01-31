@@ -72,7 +72,6 @@ vagrant-dev-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🚀 Démarrage du cluster DEV (RKE2)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(YELLOW)   LoadBalancer Provider: $(LB_PROVIDER)$(NC)"
 	cd vagrant && K8S_ENV=dev LB_PROVIDER=$(LB_PROVIDER) vagrant up
 	@echo ""
 	@echo "$(GREEN)✅ Cluster RKE2 DEV démarré!$(NC)"
