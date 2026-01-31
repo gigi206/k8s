@@ -141,6 +141,89 @@ spec:
         {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
+        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+        # Source: HTTPRoute + OAuth2 AuthorizationPolicy for Istio (atomic deployment)
+        # SECURITY: HTTPRoutes and AuthorizationPolicy in same source = fail together if CRD missing
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/kustomize/httproute-oauth2-istio
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: longhorn-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: longhorn.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-longhorn-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-longhorn
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: longhorn.{{ .common.domain }}
+        {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
+        # Source: HTTPRoute + OAuth2 SecurityPolicy for Envoy Gateway (atomic deployment)
+        # SECURITY: HTTPRoutes and SecurityPolicy in same source = fail together if CRD missing
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/kustomize/httproute-oauth2-envoy-gateway
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: longhorn-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: longhorn.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-longhorn-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  group: gateway.envoyproxy.io
+                  kind: Backend
+                  name: backend-keycloak
+                patch: |
+                  - op: replace
+                    path: /spec/endpoints/0/fqdn/hostname
+                    value: keycloak.{{ .common.domain }}
+              - target:
+                  group: gateway.envoyproxy.io
+                  kind: SecurityPolicy
+                  name: oidc-longhorn
+                patch: |
+                  - op: replace
+                    path: /spec/oidc/provider/issuer
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s
+                  - op: replace
+                    path: /spec/oidc/provider/authorizationEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/auth
+                  - op: replace
+                    path: /spec/oidc/provider/tokenEndpoint
+                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/token
+                  - op: replace
+                    path: /spec/oidc/redirectURL
+                    value: https://longhorn.{{ .common.domain }}/oauth2/callback
+        {{- else }}
         # Source: HTTPRoute (Gateway API standard)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -189,43 +272,13 @@ spec:
                   - op: replace
                     path: /spec/from/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- end }}
         {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
         # Source: Traefik Middleware + ReferenceGrant for OAuth2 Proxy forwardAuth
+        # Note: Traefik has fail-close behavior - refuses routing if Middleware CRD missing
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/longhorn/kustomize/oauth2-authz-traefik
-        {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
-        # Source: SecurityPolicy for Envoy Gateway native OIDC
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/longhorn/kustomize/oauth2-authz-envoy-gateway
-          kustomize:
-            patches:
-              - target:
-                  group: gateway.envoyproxy.io
-                  kind: Backend
-                  name: backend-keycloak
-                patch: |
-                  - op: replace
-                    path: /spec/endpoints/0/fqdn/hostname
-                    value: keycloak.{{ .common.domain }}
-              - target:
-                  group: gateway.envoyproxy.io
-                  kind: SecurityPolicy
-                  name: oidc-longhorn
-                patch: |
-                  - op: replace
-                    path: /spec/oidc/provider/issuer
-                    value: https://keycloak.{{ .common.domain }}/realms/k8s
-                  - op: replace
-                    path: /spec/oidc/provider/authorizationEndpoint
-                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/auth
-                  - op: replace
-                    path: /spec/oidc/provider/tokenEndpoint
-                    value: https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/token
-                  - op: replace
-                    path: /spec/oidc/redirectURL
-                    value: https://longhorn.{{ .common.domain }}/oauth2/callback
         {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         # Source: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
@@ -254,21 +307,6 @@ spec:
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
-        {{- end }}
-        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
-        # Source: AuthorizationPolicy for OAuth2 Proxy ext_authz (requires Istio Gateway)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/longhorn/kustomize/oauth2-authz
-          kustomize:
-            patches:
-              - target:
-                  kind: AuthorizationPolicy
-                  name: oauth2-proxy-longhorn
-                patch: |
-                  - op: replace
-                    path: /spec/rules/0/to/0/operation/hosts/0
-                    value: longhorn.{{ .common.domain }}
         {{- end }}
         # Source: Longhorn Helm Chart
         - repoURL: https://charts.longhorn.io

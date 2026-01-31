@@ -1,0 +1,16 @@
+---
+# =============================================================================
+# HTTPRoute + OAuth2 SecurityPolicy for Envoy Gateway (Jaeger)
+# =============================================================================
+# SECURITY: All resources in same source = atomic deployment.
+# If SecurityPolicy CRD doesn't exist, entire source fails = no unprotected routes.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../httproute
+  - external-secret-ca.yaml
+  - backend-keycloak.yaml
+  - security-policy.yaml
+  - oidc-secret.yaml

@@ -1,0 +1,13 @@
+---
+# =============================================================================
+# HTTPRoute + OAuth2 AuthorizationPolicy for Istio (Jaeger)
+# =============================================================================
+# SECURITY: All resources in same source = atomic deployment.
+# If AuthorizationPolicy CRD doesn't exist, entire source fails = no unprotected routes.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../httproute
+  - authorization-policy.yaml

@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# HTTPRoute + OAuth2 AuthorizationPolicy for Istio
+# =============================================================================
+# Combines HTTPRoutes with OAuth2 AuthorizationPolicies for Istio.
+# Uses httproute/ as base and adds AuthorizationPolicy resources.
+# SECURITY: All resources are in the same source, ensuring atomic deployment.
+# If AuthorizationPolicy CRD doesn't exist, entire source fails = no unprotected routes.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Base HTTPRoutes
+  - ../httproute
+  # OAuth2 AuthorizationPolicies (must be created together with HTTPRoutes)
+  - authorization-policies.yaml

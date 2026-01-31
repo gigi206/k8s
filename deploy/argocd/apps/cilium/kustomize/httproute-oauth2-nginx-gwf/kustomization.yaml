@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# HTTPRoute + OAuth2 SnippetsFilter for nginx-gateway-fabric (Hubble UI)
+# =============================================================================
+# Combines HTTPRoutes with OAuth2 authentication for nginx-gwf.
+# Uses httproute/ as base and adds SnippetsFilter + extensionRef patches.
+# SECURITY: All resources are in the same source, ensuring atomic deployment.
+# If SnippetsFilter CRD doesn't exist, entire source fails = no unprotected routes.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Base HTTPRoutes for Hubble UI
+  - ../httproute
+  # OAuth2 SnippetsFilter (must be created together with HTTPRoutes)
+  - snippetsfilter.yaml
+  - referencegrant.yaml
+
+patches:
+  # Add extensionRef to hubble-ui HTTPRoute
+  - target:
+      group: gateway.networking.k8s.io
+      version: v1
+      kind: HTTPRoute
+      name: hubble-ui
+    patch: |
+      - op: add
+        path: /spec/rules/1/filters
+        value:
+          - type: ExtensionRef
+            extensionRef:
+              group: gateway.nginx.org
+              kind: SnippetsFilter
+              name: oauth2-auth

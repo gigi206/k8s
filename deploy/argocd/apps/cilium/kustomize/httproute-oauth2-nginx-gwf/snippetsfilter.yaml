@@ -1,0 +1,63 @@
+---
+# =============================================================================
+# SnippetsFilter - OAuth2 Auth for Cilium Hubble UI (nginx-gateway-fabric)
+# =============================================================================
+# Adds OAuth2 authentication to hubble-ui HTTPRoute.
+# Security: FAIL-CLOSE - if OAuth2 is unavailable, access is DENIED (503)
+# Includes both:
+# - http.server: OAuth2 internal location and /oauth2/* proxy (for this server)
+# - http.server.location: auth_request directive (for protected locations)
+# =============================================================================
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: oauth2-auth
+  namespace: kube-system
+spec:
+  snippets:
+    # Server-level: OAuth2 locations for auth_request and start
+    - context: http.server
+      value: |
+        # Internal location for auth_request - returns 202/401, not 302
+        location = /oauth2/auth {
+            internal;
+            proxy_pass http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth;
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-Uri $request_uri;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            # Fail-close: short timeouts to detect OAuth2 unavailability quickly
+            proxy_connect_timeout 5s;
+            proxy_read_timeout 10s;
+        }
+        # Exact match for /oauth2/start - uses $args to preserve rd parameter
+        # (HTTPRoute location ^~ /oauth2/ uses $request_uri which breaks internal redirects)
+        location = /oauth2/start {
+            internal;
+            proxy_pass http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/start$is_args$args;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        # Error page for OAuth2 failures - returns 503 Service Unavailable
+        location = /oauth2/unavailable {
+            internal;
+            default_type text/html;
+            return 503 '<!DOCTYPE html><html><head><title>503 - Authentication Service Unavailable</title></head><body><h1>503 Service Unavailable</h1><p>The authentication service is temporarily unavailable. Please try again later.</p></body></html>';
+        }
+    # Location-level: auth_request directive for protected routes
+    - context: http.server.location
+      value: |
+        auth_request /oauth2/auth;
+        auth_request_set $user $upstream_http_x_auth_request_user;
+        auth_request_set $email $upstream_http_x_auth_request_email;
+        auth_request_set $access_token $upstream_http_x_auth_request_access_token;
+        proxy_set_header X-Auth-Request-User $user;
+        proxy_set_header X-Auth-Request-Email $email;
+        # FAIL-CLOSE: 401 = redirect to login, 5xx = service unavailable (blocked)
+        error_page 401 = /oauth2/start?rd=$scheme://$host$request_uri;
+        error_page 500 502 503 504 = /oauth2/unavailable;

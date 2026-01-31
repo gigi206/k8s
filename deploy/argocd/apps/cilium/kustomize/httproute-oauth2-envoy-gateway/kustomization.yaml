@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# HTTPRoute + OAuth2 SecurityPolicy for Envoy Gateway (Hubble UI)
+# =============================================================================
+# Combines HTTPRoutes with OAuth2 SecurityPolicies for Envoy Gateway.
+# Uses httproute/ as base and adds SecurityPolicy, Backend, and OIDC resources.
+# SECURITY: All resources are in the same source, ensuring atomic deployment.
+# If SecurityPolicy CRD doesn't exist, entire source fails = no unprotected routes.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Base HTTPRoutes for Hubble UI
+  - ../httproute
+  # OAuth2 SecurityPolicies (must be created together with HTTPRoutes)
+  - external-secret-ca.yaml
+  - backend-keycloak.yaml
+  - security-policy.yaml
+  - oidc-secret.yaml

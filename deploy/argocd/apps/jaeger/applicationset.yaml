@@ -216,10 +216,12 @@ spec:
 
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 3: HTTPRoute (Gateway API standard)
+        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+        # Source: HTTPRoute + OAuth2 AuthorizationPolicy for Istio (atomic deployment)
+        # SECURITY: HTTPRoute and AuthorizationPolicy in same source = fail together if CRD missing
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/kustomize/httproute
+          path: deploy/argocd/apps/jaeger/kustomize/httproute-oauth2-istio
           kustomize:
             patches:
               - target:
@@ -232,43 +234,31 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
-                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
-                  # Insert /oauth2/ route at the beginning and add ExtensionRef filter to the main route
-                  - op: add
-                    path: /spec/rules/0
-                    value:
-                      matches:
-                        - path:
-                            type: PathPrefix
-                            value: /oauth2/
-                      backendRefs:
-                        - group: ""
-                          kind: Service
-                          name: oauth2-proxy
-                          namespace: oauth2-proxy
-                          port: 4180
-                          weight: 1
-                  - op: add
-                    path: /spec/rules/1/filters
-                    value:
-                      - type: ExtensionRef
-                        extensionRef:
-                          group: traefik.io
-                          kind: Middleware
-                          name: oauth2-proxy-auth
-                  {{- end }}
-        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
-        # Source: Traefik Middleware + ReferenceGrant for OAuth2 Proxy forwardAuth
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/kustomize/oauth2-authz-traefik
+              - target:
+                  kind: AuthorizationPolicy
+                  name: oauth2-proxy-jaeger
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/to/0/operation/hosts/0
+                    value: jaeger.{{ .common.domain }}
         {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "envoy-gateway") }}
-        # Source: SecurityPolicy for Envoy Gateway native OIDC
+        # Source: HTTPRoute + OAuth2 SecurityPolicy for Envoy Gateway (atomic deployment)
+        # SECURITY: HTTPRoute and SecurityPolicy in same source = fail together if CRD missing
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/kustomize/oauth2-authz-envoy-gateway
+          path: deploy/argocd/apps/jaeger/kustomize/httproute-oauth2-envoy-gateway
           kustomize:
             patches:
+              - target:
+                  kind: HTTPRoute
+                  name: jaeger
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: jaeger.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
               - target:
                   group: gateway.envoyproxy.io
                   kind: Backend
@@ -294,9 +284,70 @@ spec:
                   - op: replace
                     path: /spec/oidc/redirectURL
                     value: https://jaeger.{{ .common.domain }}/oauth2/callback
+        {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "traefik") }}
+        # Source: HTTPRoute (Traefik - OAuth2 via Middleware in-route, fail-close)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/kustomize/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: jaeger
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: jaeger.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+                  # Insert /oauth2/ route at the beginning and add ExtensionRef filter to the main route
+                  - op: add
+                    path: /spec/rules/0
+                    value:
+                      matches:
+                        - path:
+                            type: PathPrefix
+                            value: /oauth2/
+                      backendRefs:
+                        - group: ""
+                          kind: Service
+                          name: oauth2-proxy
+                          namespace: oauth2-proxy
+                          port: 4180
+                          weight: 1
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: ExtensionRef
+                        extensionRef:
+                          group: traefik.io
+                          kind: Middleware
+                          name: oauth2-proxy-auth
+        # Source: Traefik Middleware + ReferenceGrant for OAuth2 Proxy forwardAuth
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/kustomize/oauth2-authz-traefik
+        {{- else }}
+        # Source: HTTPRoute standard (no OAuth2 or unsupported provider)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/kustomize/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: jaeger
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: jaeger.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
-        # Source 3: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
+        # Source: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/jaeger/kustomize/apisix
@@ -310,22 +361,6 @@ spec:
                     path: /spec/http/0/match/hosts/0
                     value: jaeger.{{ .common.domain }}
         {{- end }}
-        {{- end }}
-
-        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
-        # Source 4: AuthorizationPolicy for OAuth2 Proxy ext_authz (requires Istio Gateway)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/jaeger/kustomize/oauth2-authz
-          kustomize:
-            patches:
-              - target:
-                  kind: AuthorizationPolicy
-                  name: oauth2-proxy-jaeger
-                patch: |
-                  - op: replace
-                    path: /spec/rules/0/to/0/operation/hosts/0
-                    value: jaeger.{{ .common.domain }}
         {{- end }}
 
         {{- if .features.monitoring.enabled }}

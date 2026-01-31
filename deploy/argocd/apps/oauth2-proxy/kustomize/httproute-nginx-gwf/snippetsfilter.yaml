@@ -1,0 +1,43 @@
+---
+# =============================================================================
+# SnippetsFilter - OAuth2 Server Locations for NGINX Gateway Fabric
+# =============================================================================
+# This SnippetsFilter creates the NGINX locations needed for OAuth2 auth_request.
+# It injects an internal location for /oauth2/auth and a proxy location for /oauth2/*.
+#
+# IMPORTANT: This SnippetsFilter only has http.server context (no http.server.location)
+# because oauth2-proxy itself should NOT require authentication.
+#
+# The http.server.location context for auth_request is in per-app SnippetsFilters:
+# - prometheus-stack/kustomize/oauth2-authz-nginx-gwf/snippetsfilter.yaml
+# - cilium/kustomize/oauth2-authz-nginx-gwf/snippetsfilter.yaml
+#
+# Referenced by: oauth2-proxy HTTPRoute (adds locations to shared server block)
+# =============================================================================
+
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: oauth2-server-locations
+  namespace: oauth2-proxy
+spec:
+  snippets:
+    # Server-level: Create internal location for OAuth2 auth_request
+    # NOTE: location /oauth2/ is handled by oauth2-proxy HTTPRoute, not needed here
+    # This SnippetsFilter is for oauth2.k8s.lan server block (oauth2-proxy's own UI)
+    - context: http.server
+      value: |
+        # Internal location for auth_request subrequests
+        # Returns 202 (authenticated) or 401 (unauthorized) - NOT 302 redirects
+        # The internal directive ensures this is only accessible via subrequests
+        location = /oauth2/auth {
+            internal;
+            proxy_pass http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth;
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-Uri $request_uri;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
