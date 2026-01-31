@@ -73,9 +73,9 @@ spec:
     tunnelProtocol: geneve # https://docs.cilium.io/en/latest/security/policy/caveats/#security-identity-for-n-s-service-traffic
     devices:
     - eth0
+    - eth1  # Required for kube-vip LoadBalancer IPs (announced on eth1)
     # devices:
     # - ^eth[0-9]+
-    # - eth1  # Alternative: use eth1 for dataplane separation
     externalIPs:
       enabled: true
     nodePort:
