@@ -82,7 +82,7 @@ features:
   # =============================================================================
   loadBalancer:
     enabled: true # LoadBalancer for Services
-    provider: "loxilb" # metallb | cilium | loxilb | kube-vip | klipper
+    provider: "cilium" # metallb | cilium | loxilb | kube-vip | klipper
     mode: "l2" # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
     # BGP configuration (used when mode == "bgp")
     bgp:
