@@ -277,6 +277,12 @@ fi
 export LB_PROVIDER="${LB_PROVIDER:-metallb}"
 echo "LoadBalancer provider: $LB_PROVIDER"
 
+# GATEWAY_API_PROVIDER is passed from Vagrantfile (cilium, traefik, istio, etc.)
+# - cilium: Cilium Gateway API controller (requires CNI=cilium)
+# - traefik/istio/etc: External Gateway API controllers
+export GATEWAY_API_PROVIDER="${GATEWAY_API_PROVIDER:-traefik}"
+echo "Gateway API provider: $GATEWAY_API_PROVIDER"
+
 # Enable ServiceLB (Klipper) if provider is klipper
 # ServiceLB is disabled by default in RKE2 (unlike K3s)
 if [ "$LB_PROVIDER" = "klipper" ]; then

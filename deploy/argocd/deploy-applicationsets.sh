@@ -122,10 +122,15 @@ wait_for_condition() {
   local condition_func="$3"
   local elapsed=0
   local interval=5
+  local progress_shown=0
 
   log_info "$description"
 
   while true; do
+    # Effacer la barre de progression avant d'appeler le callback
+    # pour que son log_success s'affiche sur une ligne propre
+    [[ $progress_shown -eq 1 ]] && printf "\r\033[K"
+
     if $condition_func; then
       return 0
     fi
@@ -136,9 +141,12 @@ wait_for_condition() {
     fi
 
     # Barre de progression simple
+    progress_shown=1
     local progress=$((elapsed * 100 / timeout))
-    printf "\r  Progression: [%-50s] %d%% (%ds/%ds)" \
-      "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
+    local bar_len=$((progress * 20 / 100))
+    [[ $bar_len -lt 0 ]] && bar_len=0
+    printf "\r  [%-20s] %3d%% (%ds/%ds)" \
+      "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
       "$progress" "$elapsed" "$timeout"
 
     sleep $interval
@@ -731,7 +739,7 @@ fi
 # (ces controllers incluent leurs propres CRDs Gateway API dans leur chart Helm)
 [[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "apisix" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "traefik" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" != "envoy-gateway" ]] && APPLICATIONSETS+=("apps/gateway-api-controller/applicationset.yaml")
 
-# Policy Engine (deployed separately in Phase 1 to avoid chicken-and-egg
+# Policy Engine (deployed separately in Phase 1.1 to avoid chicken-and-egg
 # problem: Kyverno mutates pods before PolicyExceptions are deployed, which can
 # block apps with PreSync hook Jobs due to immutable spec.template)
 KYVERNO_APPSET=""
@@ -740,7 +748,7 @@ KYVERNO_APPSET=""
 # Certificates
 [[ "$FEAT_CERT_MANAGER" == "true" ]] && APPLICATIONSETS+=("apps/cert-manager/applicationset.yaml")
 
-# Secrets Management (deployed separately in Phase 1.5)
+# Secrets Management (deployed separately in Phase 1.2)
 EXTERNAL_SECRETS_APPSET=""
 [[ "$FEAT_EXTERNAL_SECRETS" == "true" ]] && EXTERNAL_SECRETS_APPSET="apps/external-secrets/applicationset.yaml"
 
@@ -868,16 +876,16 @@ fi
 # En environnement dev/local, chaque ApplicationSet génère 1 Application
 # En environnement prod, certains ApplicationSets peuvent générer plusieurs Applications (HA)
 EXPECTED_APPS_COUNT=${#APPLICATIONSETS[@]}
-# Include Kyverno in the count (deployed separately in Phase 1)
+# Include Kyverno in the count (deployed separately in Phase 1.1)
 [[ -n "$KYVERNO_APPSET" ]] && EXPECTED_APPS_COUNT=$((EXPECTED_APPS_COUNT + 1))
-# Include external-secrets in the count (deployed separately in Phase 1.5)
+# Include external-secrets in the count (deployed separately in Phase 1.2)
 [[ -n "$EXTERNAL_SECRETS_APPSET" ]] && EXPECTED_APPS_COUNT=$((EXPECTED_APPS_COUNT + 1))
 log_debug "Nombre d'Applications attendues: $EXPECTED_APPS_COUNT"
 
 # Afficher la liste finale
 log_info "ApplicationSets à déployer (${#APPLICATIONSETS[@]}):"
-[[ -n "$KYVERNO_APPSET" ]] && log_debug "  - $KYVERNO_APPSET (Phase 1)"
-[[ -n "$EXTERNAL_SECRETS_APPSET" ]] && log_debug "  - $EXTERNAL_SECRETS_APPSET (Phase 1.5)"
+[[ -n "$KYVERNO_APPSET" ]] && log_debug "  - $KYVERNO_APPSET (Phase 1.1)"
+[[ -n "$EXTERNAL_SECRETS_APPSET" ]] && log_debug "  - $EXTERNAL_SECRETS_APPSET (Phase 1.2)"
 for appset in "${APPLICATIONSETS[@]}"; do
   log_debug "  - $appset"
 done
@@ -1038,7 +1046,6 @@ check_repo_server_ready() {
   local endpoints
   endpoints=$(kubectl get endpoints -n "$ARGOCD_NAMESPACE" argocd-repo-server -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null)
   if [[ -n "$endpoints" ]]; then
-    printf "\n"
     log_success "ArgoCD repo-server est prêt (endpoints: $endpoints)"
     # Wait for gRPC service to fully initialize after pod is Ready
     log_info "Attente initialisation du service gRPC repo-server (10s)..."
@@ -1077,7 +1084,7 @@ apply_manifest_patches() {
 }
 
 # =============================================================================
-# Phase 1: Deploy Kyverno first + pre-apply PolicyExceptions
+# Phase 1.1: Deploy Kyverno first + pre-apply PolicyExceptions
 # =============================================================================
 # Kyverno mutates pods to set automountServiceAccountToken=false. Apps have
 # PolicyExceptions to opt out, but the exceptions must exist BEFORE Kyverno
@@ -1089,7 +1096,7 @@ trap "rm -f $TEMP_MANIFEST" EXIT
 
 if [[ -n "$KYVERNO_APPSET" ]]; then
   echo ""
-  log_info "Phase 1: Déploiement de Kyverno (policy engine)..."
+  log_info "Phase 1.1: Déploiement de Kyverno (policy engine)..."
 
   # Deploy Kyverno ApplicationSet
   cat "${SCRIPT_DIR}/${KYVERNO_APPSET}" > "$TEMP_MANIFEST"
@@ -1107,7 +1114,6 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
     local health
     health=$(kubectl get application kyverno -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
     if [[ "$health" == "Healthy" ]]; then
-      printf "\n"
       log_success "Kyverno est Healthy"
       return 0
     fi
@@ -1153,11 +1159,11 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
 fi
 
 # =============================================================================
-# Phase 1.5: Deploy external-secrets (webhook must be ready before dependent apps)
+# Phase 1.2: Deploy external-secrets (webhook must be ready before dependent apps)
 # =============================================================================
 if [[ -n "$EXTERNAL_SECRETS_APPSET" ]]; then
   echo ""
-  log_info "Phase 1.5: Déploiement de external-secrets (secret management)..."
+  log_info "Phase 1.2: Déploiement de external-secrets (secret management)..."
 
   cat "${SCRIPT_DIR}/${EXTERNAL_SECRETS_APPSET}" > "$TEMP_MANIFEST"
   apply_manifest_patches "$TEMP_MANIFEST"
@@ -1172,7 +1178,7 @@ if [[ -n "$EXTERNAL_SECRETS_APPSET" ]]; then
   check_external_secrets_healthy() {
     local health
     health=$(kubectl get application external-secrets -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
-    [[ "$health" == "Healthy" ]] && { printf "\n"; log_success "External-secrets est Healthy (webhook opérationnel)"; return 0; }
+    [[ "$health" == "Healthy" ]] && { log_success "External-secrets est Healthy (webhook opérationnel)"; return 0; }
     return 1
   }
 
@@ -1220,7 +1226,6 @@ check_appsets_created() {
   local expected=$EXPECTED_APPS_COUNT
 
   if [[ $current -ge $expected ]]; then
-    printf "\n"
     log_success "Tous les ApplicationSets sont créés ($current/$expected)"
     return 0
   fi
@@ -1248,8 +1253,8 @@ while true; do
 
   if [[ $current_apps -ge $EXPECTED_APPS_COUNT ]]; then
     # Afficher la barre de progression finale à 100%
-    printf "\r  Applications: [%-50s] %d%% (%d/%d)\n" \
-      "$(printf '#%.0s' $(seq 1 50))" \
+    printf "\r  [%-20s] %3d%% (%d/%d Applications)\n" \
+      "$(printf '#%.0s' $(seq 1 20))" \
       100 "$current_apps" "$EXPECTED_APPS_COUNT"
     log_success "Toutes les Applications générées: $current_apps/$EXPECTED_APPS_COUNT"
     break
@@ -1266,8 +1271,10 @@ while true; do
 
   # Barre de progression
   progress=$((current_apps * 100 / EXPECTED_APPS_COUNT))
-  printf "\r  Applications: [%-50s] %d%% (%d/%d)" \
-    "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
+  bar_len=$((progress * 20 / 100))
+  [[ $bar_len -lt 0 ]] && bar_len=0
+  printf "\r  [%-20s] %3d%% (%d/%d Applications)" \
+    "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
     "$progress" "$current_apps" "$EXPECTED_APPS_COUNT"
 
   sleep $apps_gen_interval
@@ -1309,13 +1316,15 @@ while true; do
   [[ $TOTAL_APPS -gt $target_apps ]] && target_apps=$TOTAL_APPS
   progress=$((SYNCED_AND_HEALTHY * 100 / target_apps))
 
+  bar_len=$((progress * 20 / 100))
+  [[ $bar_len -lt 0 ]] && bar_len=0
   if [[ $WAIT_HEALTHY -eq 1 ]]; then
-    printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy, %ds)" \
-      "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
+    printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy, %ds)" \
+      "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
       "$progress" "$SYNCED_AND_HEALTHY" "$target_apps" "$sync_elapsed"
   else
-    printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy)" \
-      "$(printf '#%.0s' $(seq 1 $((progress / 2))))" \
+    printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy)" \
+      "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
       "$progress" "$SYNCED_AND_HEALTHY" "$target_apps"
   fi
 
@@ -1325,12 +1334,12 @@ while true; do
   if [[ $SYNCED_AND_HEALTHY -ge $EXPECTED_APPS_COUNT ]] && [[ $TOTAL_APPS -ge $EXPECTED_APPS_COUNT ]]; then
     # Afficher la barre de progression finale à 100%
     if [[ $WAIT_HEALTHY -eq 1 ]]; then
-      printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy, %ds)\n" \
-        "$(printf '#%.0s' $(seq 1 50))" \
+      printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy, %ds)\n" \
+        "$(printf '#%.0s' $(seq 1 20))" \
         100 "$SYNCED_AND_HEALTHY" "$EXPECTED_APPS_COUNT" "$sync_elapsed"
     else
-      printf "\r  État: [%-50s] %d%% (%d/%d apps Synced + Healthy)\n" \
-        "$(printf '#%.0s' $(seq 1 50))" \
+      printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy)\n" \
+        "$(printf '#%.0s' $(seq 1 20))" \
         100 "$SYNCED_AND_HEALTHY" "$EXPECTED_APPS_COUNT"
     fi
     log_success "Toutes les applications sont Synced + Healthy! ($SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT)"
@@ -1345,6 +1354,42 @@ while true; do
     log_warning "Applications avec problèmes:"
     echo "$APPS_JSON" | jq -r '.items[] | select(.status.sync.status!="Synced" or .status.health.status!="Healthy") | "  - \(.metadata.name): Sync=\(.status.sync.status // "Unknown") Health=\(.status.health.status // "Unknown")"'
     break
+  fi
+
+  # Cilium Gateway API: bootstrap one-shot du GatewayClass + restart Operator
+  # Problème double:
+  # 1. Cilium Helm s'installe avec gatewayClass.create="auto", mais les CRDs
+  #    Gateway API n'existent pas encore → Helm skip la création du GatewayClass
+  # 2. L'Operator démarre SANS les CRDs → ne lance pas son contrôleur Gateway API
+  # Solution: quand les CRDs arrivent (via gateway-api-controller), on:
+  #   a) Crée le GatewayClass manuellement (Cilium Helm l'adoptera au prochain upgrade)
+  #   b) Redémarre l'Operator pour qu'il initialise son contrôleur Gateway API
+  if [[ "$FEAT_GATEWAY_CONTROLLER" == "cilium" ]] && [[ ${_cilium_gw_created:-0} -eq 0 ]]; then
+    if kubectl get crd gatewayclasses.gateway.networking.k8s.io &>/dev/null; then
+      _cilium_gw_created=1
+      if ! kubectl get gatewayclass cilium &>/dev/null; then
+        printf "\r\033[K"
+        log_warning "GatewayClass 'cilium' absent — création manuelle..."
+        kubectl apply --server-side --force-conflicts -f - <<'GWEOF'
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: cilium
+spec:
+  controllerName: io.cilium/gateway-controller
+GWEOF
+      fi
+      # Restart Operator si le contrôleur Gateway API n'est pas actif
+      # (GatewayClass.status.conditions[0].reason == "Pending" signifie que l'Operator
+      # n'a pas initialisé son contrôleur Gateway API car les CRDs étaient absentes au boot)
+      gc_accepted=""
+      gc_accepted=$(kubectl get gatewayclass cilium -o jsonpath='{.status.conditions[0].status}' 2>/dev/null)
+      if [[ "$gc_accepted" != "True" ]]; then
+        log_info "Restart du Cilium Operator (contrôleur Gateway API non initialisé)..."
+        kubectl -n kube-system rollout restart deployment/cilium-operator
+        kubectl -n kube-system rollout status deployment/cilium-operator --timeout=120s
+      fi
+    fi
   fi
 
   sleep $sync_interval
@@ -1372,7 +1417,6 @@ check_kube_vip() {
 
   # Vérifier si la VIP répond (test de connectivité TCP sur port 6443)
   if timeout 2 bash -c "echo > /dev/tcp/${API_VIP}/6443" 2>/dev/null; then
-    printf "\n"
     log_success "VIP Kube-VIP active: $API_VIP"
     return 0
   fi

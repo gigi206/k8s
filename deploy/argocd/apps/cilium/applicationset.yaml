@@ -231,6 +231,12 @@ spec:
           path: deploy/argocd/apps/cilium/resources
           directory:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
         {{- end }}
         {{- if .features.kyverno.enabled }}
@@ -240,6 +246,32 @@ spec:
           path: deploy/argocd/apps/cilium/resources
           directory:
             include: "kyverno-policy-exception.yaml"
+        {{- end }}
+        {{- if and .features.gatewayAPI.enabled (eq .features.gatewayAPI.controller.provider "cilium") }}
+        # Source: Cilium Gateway API resources (Gateway, Certificate)
+        # GatewayClass "cilium" is auto-created when gatewayAPI.enabled=true in Cilium config
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/gateway
+          kustomize:
+            patches:
+              - target:
+                  kind: Gateway
+                  name: default-gateway
+                patch: |
+                  - op: replace
+                    path: /spec/listeners/1/hostname
+                    value: '*.{{ .common.domain }}'
+              - target:
+                  kind: Certificate
+                  name: wildcard-k8s-local
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames/0
+                    value: '*.{{ .common.domain }}'
+                  - op: replace
+                    path: /spec/dnsNames/1
+                    value: '{{ .common.domain }}'
         {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}

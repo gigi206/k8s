@@ -14,6 +14,20 @@
 #   - Uses CiliumLoadBalancerIPPool and CiliumL2AnnouncementPolicy (via ArgoCD)
 #   - Known ARP bugs on virtualized interfaces in Cilium 1.17.x-1.18.x
 #
+# Gateway API Provider Selection (GATEWAY_API_PROVIDER environment variable)
+# =============================================================================
+# GATEWAY_API_PROVIDER=cilium: Cilium Gateway API controller
+#   - Enables gatewayAPI.enabled=true in Cilium config
+#   - GatewayClass "cilium" normally created by Helm chart (gatewayClass.create="auto")
+#   - At first install, CRDs don't exist yet → Helm skips GatewayClass creation
+#   - deploy-applicationsets.sh creates the GatewayClass manually after CRDs arrive
+#   - On future RKE2 upgrades, Cilium Helm adopts the existing GatewayClass
+#   - Requires kubeProxyReplacement=true (already enabled)
+#
+# GATEWAY_API_PROVIDER=<other>: External Gateway API controller (istio, traefik, etc.)
+#   - Cilium gatewayAPI.enabled=false (default)
+#   - Gateway API handled by external controller
+#
 # HISTORY:
 # - Initially configured with Cilium L2 announcements for LoadBalancer IPs
 # - Discovered known bug in Cilium 1.17.x-1.18.x with ARP responses on virtualized interfaces
@@ -40,6 +54,19 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 # For any other provider (metallb, loxilb, klipper, none, etc.), Cilium L2 is disabled
 LB_PROVIDER="${LB_PROVIDER:-metallb}"
 CNI_MULTUS_ENABLED="${CNI_MULTUS_ENABLED:-false}"
+GATEWAY_API_PROVIDER="${GATEWAY_API_PROVIDER:-none}"
+
+# Determine Gateway API setting based on provider
+# Only enable Cilium Gateway API when provider is explicitly "cilium"
+# NOTE: This script only runs when CNI is Cilium (RKE2 default), so no CNI check needed here
+# The Cilium HelmChartConfig is only applied when Cilium CNI is being used
+if [ "$GATEWAY_API_PROVIDER" = "cilium" ]; then
+  GATEWAY_API_ENABLED="true"
+  echo "Gateway API Provider: Cilium (gatewayAPI.enabled=true)"
+else
+  GATEWAY_API_ENABLED="false"
+  echo "Gateway API Provider: $GATEWAY_API_PROVIDER (Cilium gatewayAPI DISABLED)"
+fi
 
 if [ "$LB_PROVIDER" = "cilium" ]; then
   L2_ANNOUNCEMENTS_ENABLED="true"
@@ -128,8 +155,15 @@ ${CILIUM_DEVICES_YAML}
     # maglev:
     #   tableSize: 65521
     #   hashSeed: NXiDKpuSsIEgG92K
+    # Gateway API - Controlled by GATEWAY_API_PROVIDER
+    # =============================================
+    # GATEWAY_API_PROVIDER=cilium: ENABLED (Cilium handles Gateway API)
+    # GATEWAY_API_PROVIDER=<other>: DISABLED (external controller like istio/traefik)
     gatewayAPI: # https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/
-      enabled: false # require kubeProxyReplacement=true
+      enabled: ${GATEWAY_API_ENABLED} # require kubeProxyReplacement=true
+      enableAlpn: true # Required for gRPC over TLS (GRPCRoute)
+      gatewayClass:
+        create: "auto" # "auto" = create only if CRDs exist at Helm install time (see deploy-applicationsets.sh for re-reconciliation)
     # enableCiliumEndpointSlice: removed - deprecated in v1.16 and removed in v1.18
     ipMasqAgent:
       enabled: false
@@ -347,6 +381,11 @@ if [ "$LB_PROVIDER" = "cilium" ]; then
 else
   echo "  - L2 announcements: DISABLED ($LB_PROVIDER mode)"
   echo "  - LoadBalancer IPAM: $LB_PROVIDER (via ArgoCD)"
+fi
+if [ "$GATEWAY_API_PROVIDER" = "cilium" ]; then
+  echo "  - Gateway API: ENABLED (Cilium controller)"
+else
+  echo "  - Gateway API: DISABLED (using $GATEWAY_API_PROVIDER)"
 fi
 echo "  - Hubble observability: enabled"
 echo "  - Prometheus metrics: enabled"

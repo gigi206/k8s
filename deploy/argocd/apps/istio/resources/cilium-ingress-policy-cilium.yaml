@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kiali Gateway Ingress (Cilium)
+# =============================================================================
+# Allows ingress from Cilium Gateway to Kiali for external access.
+# This policy is only deployed when:
+# - features.cilium.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "cilium"
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kiali-gateway-cilium
+  namespace: istio-system
+spec:
+  description: "Allow ingress from Cilium Gateway to Kiali"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kiali
+
+  ingress:
+    # Allow from Cilium Gateway (kube-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "20001"   # Kiali web UI/API
+              protocol: TCP

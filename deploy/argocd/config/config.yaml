@@ -142,13 +142,14 @@ features:
     httpRoute:
       enabled: true # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "nginx-gwf" # istio, apisix, nginx-gwf, envoy-gateway, traefik
+      provider: "nginx-gwf" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
       # - envoy-gateway: envoy-gateway-system
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
+      # - cilium: kube-system (Cilium Gateway runs in kube-system)
       gatewayNamespace: "nginx-gateway"
   # === Legacy Ingress (déprécié) ===
   ingress:

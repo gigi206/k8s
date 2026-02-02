@@ -20,6 +20,11 @@ CONFIG_YAML := $(ARGOCD_DIR)/config/config.yaml
 # When cilium: Cilium L2 announcements are enabled, Cilium LB-IPAM handles LoadBalancer IPs
 LB_PROVIDER := $(shell yq -r '.features.loadBalancer.provider // "metallb"' $(CONFIG_YAML) 2>/dev/null || echo "metallb")
 
+# Read Gateway API controller provider from config.yaml
+# GATEWAY_API_PROVIDER: istio (default), cilium, apisix, traefik, etc.
+# Passed to Vagrant so configure_cilium.sh generates HelmChartConfig with correct gatewayAPI settings
+GATEWAY_API_PROVIDER := $(shell yq -r '.features.gatewayAPI.controller.provider // "traefik"' $(CONFIG_YAML) 2>/dev/null || echo "traefik")
+
 # Default target
 help:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
@@ -72,7 +77,7 @@ vagrant-dev-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🚀 Démarrage du cluster DEV (RKE2)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=dev LB_PROVIDER=$(LB_PROVIDER) vagrant up
+	cd vagrant && K8S_ENV=dev LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
 	@echo ""
 	@echo "$(GREEN)✅ Cluster RKE2 DEV démarré!$(NC)"
 	@echo ""
@@ -137,7 +142,7 @@ vagrant-staging-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🏗️  Démarrage du cluster STAGING$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=staging vagrant up
+	cd vagrant && K8S_ENV=staging LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
 
 vagrant-staging-status:
 	@echo "$(BLUE)📊 Statut du cluster STAGING:$(NC)"
@@ -193,7 +198,7 @@ vagrant-prod-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous démarrez un environnement de PRODUCTION$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=prod vagrant up
+	cd vagrant && K8S_ENV=prod LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
 
 vagrant-prod-status:
 	@echo "$(BLUE)📊 Statut du cluster PROD:$(NC)"
@@ -256,6 +261,7 @@ argocd-install-dev:
 		MASTER_IP=$$(K8S_ENV=dev vagrant ssh k8s-dev-m1 -c 'hostname -I | awk "{print \$$1}"' 2>/dev/null | tr -d '\r\n' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g') && \
 		echo "  → IP VM: $$MASTER_IP" && \
 		K8S_ENV=dev vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
+		sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r' | \
 		sed "s/127.0.0.1/$$MASTER_IP/g" > .kube/config-dev
 	@export KUBECONFIG=$(KUBECONFIG_DEV) && \
 	echo "" && \
@@ -300,6 +306,7 @@ argocd-install-dev:
 	done && \
 	cd $(VAGRANT_DIR) && \
 	K8S_ENV=dev vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
+	sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r' | \
 	sed "s/127.0.0.1/$$KUBE_VIP/g" > .kube/config-dev && \
 	echo "  → Kubeconfig mis à jour avec VIP: $$KUBE_VIP"
 
