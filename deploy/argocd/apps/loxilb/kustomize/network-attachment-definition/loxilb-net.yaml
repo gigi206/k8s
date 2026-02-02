@@ -1,0 +1,36 @@
+---
+# =============================================================================
+# NetworkAttachmentDefinition for LoxiLB
+# =============================================================================
+# Creates a macvlan interface on eth1 for LoxiLB pods
+# macvlan bridge mode provides unique MAC address for proper GARP announcements
+# This isolates LoxiLB eBPF traffic from Cilium-managed interfaces
+# Uses static IPAM with fixed IP for single control-plane deployment
+#
+# Note: macvlan cannot communicate with the host's eth1 directly, but this is
+# acceptable for LoxiLB since it communicates with pods via Cilium (eth0)
+#
+# Reference: https://docs.loxilb.io/latest/cilium-incluster/
+# =============================================================================
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: loxilb-net
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "name": "loxilb-net",
+      "type": "macvlan",
+      "master": "eth1",
+      "mode": "bridge",
+      "ipam": {
+        "type": "static",
+        "addresses": [
+          {"address": "192.168.121.2/24", "gateway": "192.168.121.1"}
+        ]
+      }
+    }

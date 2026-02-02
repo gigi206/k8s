@@ -20,7 +20,6 @@
 
 # Environnement actif (dev ou prod)
 environment: dev
-
 # Politique de synchronisation (base, peut être override par environnement)
 syncPolicy:
   automated:
@@ -37,23 +36,19 @@ syncPolicy:
     - PruneLast=true
     - SkipDryRunOnMissingResource=true
     - RespectIgnoreDifferences=true
-
 # Paramètres communs partagés
 common:
   domain: "k8s.lan"
   certEmail: "admin@example.com"
   clusterIssuer: "selfsigned-cluster-issuer"
-
 # Images communes utilisées par les Jobs
 images:
   curl:
     repository: curlimages/curl
     tag: "8.18.0"
-
 # Configuration Git
 git:
   revision: "HEAD"
-
 # Feature flags - Activation des composants
 # =============================================================================
 # Ces flags contrôlent le déploiement dynamique des ApplicationSets.
@@ -66,7 +61,6 @@ git:
 #   - cilium.monitoring.enabled → active monitoring
 #   - storage.provider=longhorn → active csiSnapshotter (recommandé)
 # =============================================================================
-
 features:
   # === Infrastructure Core ===
   # LoadBalancer Provider Configuration
@@ -87,15 +81,15 @@ features:
   # The CiliumL2AnnouncementPolicy interface must match the 'devices' config.
   # =============================================================================
   loadBalancer:
-    enabled: true  # LoadBalancer for Services
-    provider: "metallb"  # metallb | cilium | loxilb | kube-vip | klipper
-    mode: "l2"  # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
+    enabled: true # LoadBalancer for Services
+    provider: "loxilb" # metallb | cilium | loxilb | kube-vip | klipper
+    mode: "l2" # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
     # BGP configuration (used when mode == "bgp")
     bgp:
-      localASN: 64512           # Local AS number for the cluster
+      localASN: 64512 # Local AS number for the cluster
       peers:
-        - address: "192.168.121.1"  # BGP peer IP (router)
-          asn: 64512                # Peer AS number (iBGP if same as localASN)
+        - address: "192.168.121.1" # BGP peer IP (router)
+          asn: 64512 # Peer AS number (iBGP if same as localASN)
           # port: 179              # Optional: BGP port (default: 179)
     pools:
       default:
@@ -110,52 +104,45 @@ features:
     #   - 201: CoreDNS/external-dns
     #   - 210: Gateway API controller
     staticIPs:
-      kubernetesApi: "192.168.121.200"   # Kubernetes API VIP (kube-vip)
-      externalDns: "192.168.121.201"     # CoreDNS (UDP/53)
-      gateway: "192.168.121.210"         # Gateway API controller (HTTP/HTTPS)
-
+      kubernetesApi: "192.168.121.200" # Kubernetes API VIP (kube-vip)
+      externalDns: "192.168.121.201" # CoreDNS (UDP/53)
+      gateway: "192.168.121.210" # Gateway API controller (HTTP/HTTPS)
   kubeVip:
-    enabled: true  # VIP pour API Kubernetes HA (uses staticIPs.kubernetesApi)
-
+    enabled: true # VIP pour API Kubernetes HA (uses staticIPs.kubernetesApi)
   # === Certificates ===
   certManager:
-    enabled: true  # Gestion des certificats TLS
+    enabled: true # Gestion des certificats TLS
     issuerType: "letsencrypt-staging"
     # issuerType: "letsencrypt-prod"
-
   # === Secrets Management ===
   externalSecrets:
-    enabled: true  # External Secrets Operator
-
+    enabled: true # External Secrets Operator
   # === Configuration Reload ===
   reloader:
-    enabled: false  # Auto-reload pods on ConfigMap/Secret changes
-
+    enabled: false # Auto-reload pods on ConfigMap/Secret changes
   # === DNS ===
   externalDns:
-    enabled: true  # Automation DNS
+    enabled: true # Automation DNS
     # provider: "coredns"  # ou: aws, google, azure, cloudflare, etc.
-
   # === Service Mesh ===
   serviceMesh:
-    enabled: false      # Service Mesh (control plane + data plane)
-    provider: "istio"  # istio, linkerd (futur)
+    enabled: false # Service Mesh (control plane + data plane)
+    provider: "istio" # istio, linkerd (futur)
     istio:
       accessLogs:
         # Provider "access-log-json" disponible pour activation par namespace via Telemetry API
         # Format JSON avec trace_id pour corrélation log-trace
         # Pour activer sur un namespace: créer Telemetry avec providers: [{name: access-log-json}]
-        providerName: "access-log-json"  # Nom du provider à utiliser dans Telemetry
+        providerName: "access-log-json" # Nom du provider à utiliser dans Telemetry
       waypoints:
-        enabled: false   # Istio Waypoint proxies pour L7 (requiert istio.io/dataplane-mode=ambient sur les namespaces)
-
+        enabled: false # Istio Waypoint proxies pour L7 (requiert istio.io/dataplane-mode=ambient sur les namespaces)
   # === Gateway API ===
   gatewayAPI:
-    enabled: true  # Gateway API CRDs (gateway-api-controller)
+    enabled: true # Gateway API CRDs (gateway-api-controller)
     httpRoute:
-      enabled: true  # true = utilise HTTPRoute standard (Gateway API)
+      enabled: true # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "nginx-gwf"  # istio, apisix, nginx-gwf, envoy-gateway, traefik
+      provider: "nginx-gwf" # istio, apisix, nginx-gwf, envoy-gateway, traefik
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
@@ -163,61 +150,53 @@ features:
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
       gatewayNamespace: "nginx-gateway"
-
   # === Legacy Ingress (déprécié) ===
   ingress:
-    enabled: false  # Support Ingress legacy (patch des ressources)
-    class: "istio"  # Classe dérivée de gatewayAPI.controller.provider si non spécifiée
-
+    enabled: false # Support Ingress legacy (patch des ressources)
+    class: "istio" # Classe dérivée de gatewayAPI.controller.provider si non spécifiée
   # === Storage ===
   storage:
-    enabled: true        # Stockage distribué
-    provider: "rook"       # Provider selection: longhorn | rook
-    class: "ceph-block"    # Kubernetes StorageClass name: longhorn | ceph-block (rook)
+    enabled: true # Stockage distribué
+    provider: "rook" # Provider selection: longhorn | rook
+    class: "ceph-block" # Kubernetes StorageClass name: longhorn | ceph-block (rook)
     csiSnapshotter: true # CSI External Snapshotter (requis pour snapshots)
-
   # === Database Operator ===
   databaseOperator:
-    enabled: true    # Opérateur PostgreSQL
+    enabled: true # Opérateur PostgreSQL
     provider: "cnpg" # cnpg (CloudNativePG)
-
   # === Monitoring ===
   monitoring:
-    enabled: true  # Prometheus + Grafana
+    enabled: true # Prometheus + Grafana
     prometheus: true
     grafana: true
-    release: "prometheus-stack"  # Release name for ServiceMonitor discovery
+    release: "prometheus-stack" # Release name for ServiceMonitor discovery
     dashboard:
-      label: "1"  # Label value for grafana_dashboard (enables auto-import)
-      baseFolder: "/tmp/dashboards"  # Base folder for dashboard organization
-      folderAnnotation: "grafana_dashboard_folder"  # Annotation name for dashboard folder path
-
+      label: "1" # Label value for grafana_dashboard (enables auto-import)
+      baseFolder: "/tmp/dashboards" # Base folder for dashboard organization
+      folderAnnotation: "grafana_dashboard_folder" # Annotation name for dashboard folder path
   # === Cilium (CNI installé par RKE2) ===
   cilium:
     monitoring:
-      enabled: true     # ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
+      enabled: true # ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
     egressPolicy:
-      enabled: true     # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
+      enabled: true # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
     ingressPolicy:
-      enabled: true     # CiliumClusterwideNetworkPolicy default-deny host ingress (SSH, API, HTTP/HTTPS)
+      enabled: true # CiliumClusterwideNetworkPolicy default-deny host ingress (SSH, API, HTTP/HTTPS)
     defaultDenyPodIngress:
-      enabled: true     # CiliumClusterwideNetworkPolicy default-deny pod-to-pod ingress (Zero Trust)
-                        # Requires per-app CiliumNetworkPolicy to allow traffic
-                        # Excludes: kube-system (DNS, API, CNI)
-
+      enabled: true # CiliumClusterwideNetworkPolicy default-deny pod-to-pod ingress (Zero Trust)
+      # Requires per-app CiliumNetworkPolicy to allow traffic
+      # Excludes: kube-system (DNS, API, CNI)
   # === Observability: Logging ===
   logging:
-    enabled: true        # Active le logging centralisé
+    enabled: true # Active le logging centralisé
     loki:
-      enabled: true      # Grafana Loki (backend stockage logs)
+      enabled: true # Grafana Loki (backend stockage logs)
       collector: "alloy" # alloy (recommandé), fluent-bit (futur)
-
   # === Distributed Tracing ===
   tracing:
-    enabled: true      # Distributed tracing
-    provider: "tempo"  # tempo (recommandé, corrélation Loki) ou jaeger
-    sampling: 100      # Pourcentage de traces échantillonnées (1-100)
-
+    enabled: true # Distributed tracing
+    provider: "tempo" # tempo (recommandé, corrélation Loki) ou jaeger
+    sampling: 100 # Pourcentage de traces échantillonnées (1-100)
   # === SSO / Authentication ===
   # sso.provider=keycloak déploie Keycloak local
   # sso.provider=external utilise un IdP externe (Okta, Auth0, Azure AD, etc.)
@@ -229,26 +208,43 @@ features:
   #   - Prometheus/Alertmanager/Hubble/Longhorn are accessible without auth
   sso:
     enabled: true
-    provider: "keycloak"  # keycloak ou external (IdP externe)
-
+    provider: "keycloak" # keycloak ou external (IdP externe)
   # === OAuth2 Proxy ===
   # Indépendant du SSO - peut être utilisé avec Keycloak local OU IdP externe
   # Utilisé en mode ext_authz avec Istio (auth seulement, pas de proxy du trafic)
   oauth2Proxy:
-    enabled: true  # OAuth2 Proxy pour authentification OIDC
-
+    enabled: true # OAuth2 Proxy pour authentification OIDC
   # === Policy Engine ===
   kyverno:
-    enabled: true   # Kyverno policy engine (mutation, validation, generation)
-                    # Includes ClusterPolicy to disable automountServiceAccountToken by default
-
+    enabled: true # Kyverno policy engine (mutation, validation, generation)
+    # Includes ClusterPolicy to disable automountServiceAccountToken by default
   # === Container Security ===
   kubescape:
-    enabled: false   # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
-
+    enabled: false # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
   neuvector:
-    enabled: true  # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
-
+    enabled: true # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+# =============================================================================
+# CNI Configuration
+# =============================================================================
+# Configuration du CNI primaire et support multi-réseau
+# primary: CNI principal installé par RKE2 (cilium uniquement supporté)
+# multus: Active le support multi-réseau pour interfaces secondaires
+#   - Requis pour LoxiLB avec Cilium (isolation eBPF)
+#   - Crée NetworkAttachmentDefinitions pour macvlan/ipvlan
+# =============================================================================
+cni:
+  primary: "cilium" # cilium (RKE2 default, eBPF-based)
+  multus:
+    enabled: true # Enable multi-network support
+    whereabouts: true # Cluster-wide IPAM (recommended)
+    networks:
+      loxilb: # NetworkAttachmentDefinition for LoxiLB
+        type: "macvlan" # macvlan provides unique MAC for proper GARP announcements
+        master: "eth1"
+        mode: "bridge" # bridge mode allows inter-macvlan communication
+        ipam:
+          range: "192.168.121.0/24"
+          gateway: "192.168.121.1"
 # =============================================================================
 # RKE2 Cluster Configuration
 # =============================================================================
@@ -256,10 +252,9 @@ features:
 # Ces paramètres sont lus depuis vagrant/config/rke2.yaml par les scripts
 # d'installation. Cette section sert de documentation centralisée.
 # =============================================================================
-
 rke2:
   cis:
-    enabled: true       # Active le profil CIS benchmark hardening
-    profile: "cis"      # Profil générique (s'adapte automatiquement à la version K8s)
-                        # Alternatives spécifiques: cis-1.8 (K8s 1.26), cis-1.9 (K8s 1.27-1.28), cis-1.11 (K8s 1.29+)
-                        # Note: cis-1.23 est OBSOLÈTE (basé sur PSP supprimé depuis K8s 1.25)
+    enabled: true # Active le profil CIS benchmark hardening
+    profile: "cis" # Profil générique (s'adapte automatiquement à la version K8s)
+    # Alternatives spécifiques: cis-1.8 (K8s 1.26), cis-1.9 (K8s 1.27-1.28), cis-1.11 (K8s 1.29+)
+    # Note: cis-1.23 est OBSOLÈTE (basé sur PSP supprimé depuis K8s 1.25)

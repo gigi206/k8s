@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # https://docs.rke2.io/install/quickstart/#linux-agent-worker-node-installation
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
-. /vagrant/scripts/RKE2_ENV.sh
+
+# Determine script and project directories (agnostic of mount point)
+# When run via Vagrant provisioner, BASH_SOURCE may not work correctly
+if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
+  SCRIPT_DIR="/vagrant/vagrant/scripts"
+  VAGRANT_DIR="/vagrant/vagrant"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  VAGRANT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
+
+. "$SCRIPT_DIR/RKE2_ENV.sh"
 curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
 mkdir -p /etc/rancher/rke2/
 
 # Read CIS configuration from vagrant/config/rke2.yaml (structure: rke2.cis.enabled/profile)
-CONFIG_FILE="/vagrant/config/rke2.yaml"
+CONFIG_FILE="$VAGRANT_DIR/config/rke2.yaml"
 CIS_ENABLED=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
 CIS_PROFILE=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
 
@@ -46,11 +57,11 @@ echo "Waiting 1st master node to finish his installation"
 while true
 do
   sleep 5
-  test -f /vagrant/k8s-token && break
+  test -f $VAGRANT_DIR/k8s-token && break
 done
 echo "1st master node has finished his installation. This node can continue his installation"
-echo "server: https://$(cat /vagrant/ip_master):9345" >> /etc/rancher/rke2/config.yaml
-echo "token: $(cat /vagrant/k8s-token)" >> /etc/rancher/rke2/config.yaml
+echo "server: https://$(cat $VAGRANT_DIR/ip_master):9345" >> /etc/rancher/rke2/config.yaml
+echo "token: $(cat $VAGRANT_DIR/k8s-token)" >> /etc/rancher/rke2/config.yaml
 # Add CIS profile if enabled in config.yaml
 if [ "$CIS_ENABLED" = "true" ]; then
   echo "profile: ${CIS_PROFILE:-cis}" >> /etc/rancher/rke2/config.yaml
