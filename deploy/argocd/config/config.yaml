@@ -230,21 +230,13 @@ features:
 # primary: CNI principal installé par RKE2 (cilium uniquement supporté)
 # multus: Active le support multi-réseau pour interfaces secondaires
 #   - Requis pour LoxiLB avec Cilium (isolation eBPF)
-#   - Crée NetworkAttachmentDefinitions pour macvlan/ipvlan
+#   - whereabouts: active l'IPAM cluster-wide (utilisé par install_master.sh)
 # =============================================================================
 cni:
   primary: "cilium" # cilium (RKE2 default, eBPF-based)
   multus:
     enabled: true # Enable multi-network support
-    whereabouts: true # Cluster-wide IPAM (recommended)
-    networks:
-      loxilb: # NetworkAttachmentDefinition for LoxiLB
-        type: "macvlan" # macvlan provides unique MAC for proper GARP announcements
-        master: "eth1"
-        mode: "bridge" # bridge mode allows inter-macvlan communication
-        ipam:
-          range: "192.168.121.0/24"
-          gateway: "192.168.121.1"
+    whereabouts: true # Cluster-wide IPAM for secondary interfaces
 # =============================================================================
 # RKE2 Cluster Configuration
 # =============================================================================
