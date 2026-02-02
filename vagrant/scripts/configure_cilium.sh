@@ -39,15 +39,32 @@ export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 # Only enable Cilium L2 announcements when provider is explicitly "cilium"
 # For any other provider (metallb, loxilb, klipper, none, etc.), Cilium L2 is disabled
 LB_PROVIDER="${LB_PROVIDER:-metallb}"
+CNI_MULTUS_ENABLED="${CNI_MULTUS_ENABLED:-false}"
+
 if [ "$LB_PROVIDER" = "cilium" ]; then
   L2_ANNOUNCEMENTS_ENABLED="true"
+  # Both interfaces for Cilium L2 announcements
+  CILIUM_DEVICES_YAML=$'    - eth0\n    - eth1'
   echo "LoadBalancer Provider: Cilium LB-IPAM (L2 announcements ENABLED)"
+elif [ "$LB_PROVIDER" = "loxilb" ]; then
+  L2_ANNOUNCEMENTS_ENABLED="false"
+  # LoxiLB with Multus/macvlan: exclude eth1 to prevent Cilium eBPF hooks from
+  # intercepting traffic before it reaches LoxiLB on the macvlan interface
+  CILIUM_DEVICES_YAML=$'    - eth0'
+  echo "LoadBalancer Provider: LoxiLB (Cilium L2 DISABLED, eth1 excluded from Cilium devices)"
 elif [ "$LB_PROVIDER" = "klipper" ]; then
   L2_ANNOUNCEMENTS_ENABLED="false"
+  CILIUM_DEVICES_YAML=$'    - eth0\n    - eth1'
   echo "LoadBalancer Provider: Klipper/ServiceLB (Cilium L2 announcements DISABLED, uses node IPs)"
 else
   L2_ANNOUNCEMENTS_ENABLED="false"
+  CILIUM_DEVICES_YAML=$'    - eth0\n    - eth1'
   echo "LoadBalancer Provider: $LB_PROVIDER (Cilium L2 announcements DISABLED)"
+fi
+
+# CNI chaining mode info
+if [ "$CNI_MULTUS_ENABLED" = "true" ]; then
+  echo "CNI Chaining: enabled (Multus mode - secondary interfaces for LoxiLB)"
 fi
 
 echo "Configuring Cilium HelmChartConfig..."
@@ -71,9 +88,12 @@ spec:
     ipv4NativeRoutingCIDR: 10.42.0.0/16 # https://docs.cilium.io/en/latest/network/clustermesh/clustermesh/#additional-requirements-for-native-routed-datapath-modes
     # ipv4NativeRoutingCIDR: 10.0.0.0/8
     tunnelProtocol: geneve # https://docs.cilium.io/en/latest/security/policy/caveats/#security-identity-for-n-s-service-traffic
+    # Devices managed by Cilium eBPF hooks
+    # - For loxilb: only eth0 (eth1 excluded to allow macvlan traffic to reach LoxiLB)
+    # - For others: eth0 + eth1 (required for kube-vip and L2 announcements)
     devices:
-    - eth0
-    - eth1  # Required for kube-vip LoadBalancer IPs (announced on eth1)
+${CILIUM_DEVICES_YAML}
+    # Alternative: regex pattern for all eth interfaces
     # devices:
     # - ^eth[0-9]+
     externalIPs:

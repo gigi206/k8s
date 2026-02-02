@@ -8,11 +8,16 @@ loxilb:
   loxilbImage: "ghcr.io/loxilb-io/loxilb"
   loxilbTag: "v0.9.8"
   kubeLoxilbImage: "ghcr.io/loxilb-io/kube-loxilb"
-  kubeLoxilbTag: "v0.9.8"
+  kubeLoxilbTag: "v0.9.8.5"
 
   # LB Configuration
   # 0 = DNAT (default), 1 = one-arm, 2 = fullNAT
-  setLBMode: 0
+  # With Multus (macvlan), use onearm (1) with these service annotations:
+  #   loxilb.io/lbmode: "onearm"
+  #   loxilb.io/usepodnetwork: "yes"
+  # usepodnetwork routes traffic via eth0 (Cilium) to pod IPs directly,
+  # avoiding the macvlan isolation issue with the host's eth1 interface.
+  setLBMode: 1
 
 syncPolicy:
   automated:

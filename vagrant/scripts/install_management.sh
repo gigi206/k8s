@@ -2,7 +2,18 @@
 export DEBIAN_FRONTEND=noninteractive
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
-. /vagrant/scripts/RKE2_ENV.sh
+
+# Determine script and project directories (agnostic of mount point)
+# When run via Vagrant provisioner, BASH_SOURCE may not work correctly
+if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
+  SCRIPT_DIR="/vagrant/vagrant/scripts"
+  VAGRANT_DIR="/vagrant/vagrant"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  VAGRANT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
+
+. "$SCRIPT_DIR/RKE2_ENV.sh"
 
 # /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
 # ln -s /etc/rancher/rke2/rke2.yaml ~/.kube/config
@@ -40,6 +51,6 @@ export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 kubectl krew install ctx
 kubectl krew install ns
 
-cp /etc/rancher/rke2/rke2.yaml /vagrant/kube-management.config
-sed -i "s@127.0.0.1@$(ip a show dev eth0 | egrep -w inet | awk '{ print $2 }' | awk -F'/' '{ print $1 }')@g" /vagrant/kube-management.config
-# sed -i "s@127.0.0.1@k8s-management.k8s.lan@g" /vagrant/kube-management.config
+cp /etc/rancher/rke2/rke2.yaml $VAGRANT_DIR/kube-management.config
+sed -i "s@127.0.0.1@$(ip a show dev eth0 | egrep -w inet | awk '{ print $2 }' | awk -F'/' '{ print $1 }')@g" $VAGRANT_DIR/kube-management.config
+# sed -i "s@127.0.0.1@k8s-management.k8s.lan@g" $VAGRANT_DIR/kube-management.config

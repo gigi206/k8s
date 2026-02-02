@@ -1,0 +1,70 @@
+---
+# =============================================================================
+# LoxiLB DaemonSet - Multus Mode (Cilium Compatible)
+# =============================================================================
+# eBPF-based load balancer daemon with Multus secondary interface
+# Uses macvlan interface to isolate eBPF programs from Cilium
+#
+# Key differences from standard mode:
+# - hostNetwork: false (uses pod networking + Multus secondary interface)
+# - Multus annotation attaches secondary interface (loxilb-net)
+# - LoxiLB eBPF programs attach to the Multus interface, not eth0
+#
+# Reference: https://docs.loxilb.io/latest/cilium-incluster/
+# =============================================================================
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: loxilb-lb
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  selector:
+    matchLabels:
+      app: loxilb-app
+  template:
+    metadata:
+      name: loxilb-lb
+      labels:
+        app: loxilb-app
+      annotations:
+        # Attach Multus secondary interface for LoxiLB eBPF
+        k8s.v1.cni.cncf.io/networks: loxilb-net
+    spec:
+      # Use pod networking (Cilium) + Multus secondary interface
+      # NOT hostNetwork - this avoids eBPF conflicts with Cilium
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      tolerations:
+        - key: "node-role.kubernetes.io/master"
+          operator: Exists
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: "node-role.kubernetes.io/control-plane"
+                    operator: Exists
+      containers:
+        - name: loxilb-app
+          image: ghcr.io/loxilb-io/loxilb:latest
+          imagePullPolicy: Always
+          command:
+            - /root/loxilb-io/loxilb/loxilb
+          ports:
+            - containerPort: 11111
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+                - NET_ADMIN
+                - NET_RAW
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName

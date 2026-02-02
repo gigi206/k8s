@@ -97,16 +97,22 @@ spec:
                       - --setRoles=0.0.0.0
                       - --setBGP={{ .features.loadBalancer.bgp.localASN }}
                       - --setLBMode={{ .loxilb.setLBMode }}
+                      - --noZoneName
                     {{- else }}
                     value:
                       - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
                       - --setRoles=0.0.0.0
                       - --setLBMode={{ .loxilb.setLBMode }}
+                      - --noZoneName
                     {{- end }}
 
         # =======================================================================
-        # Source 2: loxilb daemon (L2 ou BGP selon le mode)
+        # Source 2: loxilb daemon (L2, BGP, or Multus mode)
         # =======================================================================
+        # Mode selection:
+        # - BGP mode: uses loxilb-bgp (hostNetwork: true, BGP enabled)
+        # - Multus mode: uses loxilb-multus (hostNetwork: false, Multus interface)
+        # - L2 mode (default): uses loxilb (hostNetwork: true)
         {{- if eq .features.loadBalancer.mode "bgp" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -114,6 +120,19 @@ spec:
           kustomize:
             images:
               - 'ghcr.io/loxilb-io/loxilb={{ .loxilb.loxilbImage }}:{{ .loxilb.loxilbTag }}'
+        {{- else if .cni.multus.enabled }}
+        # Multus mode: secondary interface for Cilium compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/loxilb-multus
+          kustomize:
+            images:
+              - 'ghcr.io/loxilb-io/loxilb={{ .loxilb.loxilbImage }}:{{ .loxilb.loxilbTag }}'
+
+        # NetworkAttachmentDefinition for Multus
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/network-attachment-definition
         {{- else }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
