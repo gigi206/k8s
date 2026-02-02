@@ -130,9 +130,17 @@ spec:
               - 'ghcr.io/loxilb-io/loxilb={{ .loxilb.loxilbImage }}:{{ .loxilb.loxilbTag }}'
 
         # NetworkAttachmentDefinition for Multus
+        {{- if .cni.multus.whereabouts }}
+        # Whereabouts IPAM: dynamic IP allocation for multi-node deployments
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/network-attachment-definition-whereabouts
+        {{- else }}
+        # Static IPAM: fixed IP for single-node deployments
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/loxilb/kustomize/network-attachment-definition
+        {{- end }}
         {{- else }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

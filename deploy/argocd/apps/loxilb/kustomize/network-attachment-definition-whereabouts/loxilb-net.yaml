@@ -1,19 +1,20 @@
 ---
 # =============================================================================
-# NetworkAttachmentDefinition for LoxiLB (Static IPAM)
+# NetworkAttachmentDefinition for LoxiLB (Whereabouts IPAM)
 # =============================================================================
 # Creates a macvlan interface on eth1 for LoxiLB pods
 # macvlan bridge mode provides unique MAC address for proper GARP announcements
 # This isolates LoxiLB eBPF traffic from Cilium-managed interfaces
 #
-# Uses static IPAM with fixed IP - suitable for single-node deployments
-# For multi-node deployments with dynamic IP allocation, use Whereabouts IPAM
-# instead by setting cni.multus.whereabouts: true in config.yaml
+# Uses Whereabouts IPAM for dynamic IP allocation across multiple nodes
+# This is the recommended mode for multi-node deployments where each LoxiLB
+# pod needs a unique IP address on the secondary network
 #
 # Note: macvlan cannot communicate with the host's eth1 directly, but this is
 # acceptable for LoxiLB since it communicates with pods via Cilium (eth0)
 #
 # Reference: https://docs.loxilb.io/latest/cilium-incluster/
+# Whereabouts: https://github.com/k8snetworkplumbingwg/whereabouts
 # =============================================================================
 apiVersion: k8s.cni.cncf.io/v1
 kind: NetworkAttachmentDefinition
@@ -31,9 +32,10 @@ spec:
       "master": "eth1",
       "mode": "bridge",
       "ipam": {
-        "type": "static",
-        "addresses": [
-          {"address": "192.168.121.2/24", "gateway": "192.168.121.1"}
-        ]
+        "type": "whereabouts",
+        "range": "192.168.121.0/24",
+        "gateway": "192.168.121.1",
+        "exclude": ["192.168.121.1/32"],
+        "configuration_path": "/var/lib/rancher/rke2/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf"
       }
     }
