@@ -130,6 +130,12 @@ spec:
           path: deploy/argocd/apps/oauth2-proxy/resources
           directory:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/resources
+          directory:
+            include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
         {{- end }}
         {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
@@ -209,6 +215,12 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/kustomize/traefik-middleware
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+        # Source: CiliumEnvoyConfig for ext_authz (oauth2-proxy authentication)
+        # EXPERIMENTAL: May conflict with Gateway API auto-generated configs
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/kustomize/cilium
         {{- end }}
         {{- end }}
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}

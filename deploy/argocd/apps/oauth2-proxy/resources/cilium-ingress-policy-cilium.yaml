@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - OAuth2 Proxy Ingress from Cilium Gateway
+# =============================================================================
+# Allows ext_authz and forward-auth requests from Cilium Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress-cilium
+  namespace: oauth2-proxy
+spec:
+  description: "Allow ingress to OAuth2 Proxy from Cilium Gateway"
+  endpointSelector: {}  # Applies to all pods in oauth2-proxy namespace
+
+  ingress:
+    # Allow from Cilium Gateway (ext_authz requests and OAuth2 flow)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "4180"    # OAuth2 Proxy main port (auth + callback)
+              protocol: TCP
+            - port: "8080"    # Error handler (redirect to login)
+              protocol: TCP

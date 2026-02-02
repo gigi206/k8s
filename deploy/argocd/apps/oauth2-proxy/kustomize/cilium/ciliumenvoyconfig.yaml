@@ -1,0 +1,82 @@
+---
+# =============================================================================
+# CiliumEnvoyConfig - OAuth2 ext_authz for Cilium Gateway API
+# =============================================================================
+# EXPERIMENTAL: This configuration adds ext_authz filter to Cilium's Envoy proxy
+# for authenticating requests via oauth2-proxy.
+#
+# WARNING: CiliumEnvoyConfig may conflict with Gateway API auto-generated configs.
+# If authentication fails or causes issues, remove this resource and use
+# oauth2-proxy forward proxy mode instead.
+#
+# How it works:
+# 1. Envoy intercepts incoming requests
+# 2. ext_authz filter calls oauth2-proxy /oauth2/auth endpoint
+# 3. oauth2-proxy validates session cookie
+#    - 202 OK: Request proceeds to backend
+#    - 401 Unauthorized: Returns 401 (client redirects to /oauth2/start)
+#
+# Requirements:
+# - oauth2-proxy deployed and accessible at oauth2-proxy.oauth2-proxy.svc:4180
+# - HTTPRoute must include /oauth2/* paths routed to oauth2-proxy
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumEnvoyConfig
+metadata:
+  name: oauth2-ext-authz
+  namespace: kube-system
+spec:
+  # Target services that need OAuth2 protection
+  # Note: This is applied to traffic going TO these services
+  services:
+    - name: prometheus-stack-kube-prom-prometheus
+      namespace: monitoring
+    - name: prometheus-stack-kube-prom-alertmanager
+      namespace: monitoring
+    - name: hubble-ui
+      namespace: kube-system
+
+  resources:
+    # Cluster definition for oauth2-proxy
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: oauth2-proxy-ext-authz
+      type: STRICT_DNS
+      connect_timeout: 5s
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: oauth2-proxy-ext-authz
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: oauth2-proxy.oauth2-proxy.svc.cluster.local
+                      port_value: 4180
+
+    # HTTP filter configuration for ext_authz
+    - "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+      stat_prefix: oauth2_ext_authz
+      transport_api_version: V3
+      http_service:
+        server_uri:
+          uri: oauth2-proxy.oauth2-proxy.svc.cluster.local:4180
+          cluster: oauth2-proxy-ext-authz
+          timeout: 5s
+        path_prefix: /oauth2/auth
+        authorization_request:
+          allowed_headers:
+            patterns:
+              - exact: cookie
+              - exact: authorization
+              - exact: x-forwarded-for
+              - exact: x-forwarded-proto
+              - exact: x-forwarded-host
+        authorization_response:
+          allowed_upstream_headers:
+            patterns:
+              - exact: x-auth-request-user
+              - exact: x-auth-request-email
+              - exact: x-auth-request-groups
+              - exact: x-auth-request-access-token
+      failure_mode_allow: false  # Fail-close: deny access if oauth2-proxy unavailable
+      include_peer_certificate: false
