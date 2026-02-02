@@ -189,6 +189,15 @@ spec:
           path: deploy/argocd/apps/cilium/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+        {{- if .features.monitoring.enabled }}
+        # Source: CoreDNS metrics ingress policy (allows Prometheus to scrape port 9153)
+        # Required because RKE2's default-network-dns-policy only allows port 53
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-ingress-policy-coredns.yaml"
+        {{- end }}
         {{- end }}
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Source: Cilium ingress policy - conditional per Gateway provider

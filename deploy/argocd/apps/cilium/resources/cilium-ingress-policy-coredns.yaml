@@ -1,0 +1,32 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - CoreDNS Metrics Ingress
+# =============================================================================
+# Allows Prometheus to scrape CoreDNS metrics on port 9153.
+#
+# RKE2 creates a default NetworkPolicy (default-network-dns-policy) that only
+# allows DNS traffic (port 53). This policy supplements it to allow metrics
+# scraping from the monitoring namespace.
+#
+# Port 9153: CoreDNS Prometheus metrics endpoint
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: coredns-metrics-ingress
+  namespace: kube-system
+spec:
+  description: "Allow Prometheus to scrape CoreDNS metrics"
+  endpointSelector:
+    matchLabels:
+      k8s-app: kube-dns
+
+  ingress:
+    # Allow metrics scraping from monitoring namespace (Prometheus)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9153"
+              protocol: TCP
