@@ -41,7 +41,6 @@ spec:
             backOff:
               baseInterval: 500ms
               maxInterval: 5s
-            timeout: 5s
           retryOn:
             triggers: ["5xx", "gateway-error", "reset", "connect-failure"]
     clientID: "oauth2-proxy"
