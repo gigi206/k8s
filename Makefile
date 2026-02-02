@@ -253,7 +253,7 @@ argocd-install-dev:
 	@echo "$(GREEN)📦 Étape 1/6: Récupération du kubeconfig (bootstrap avec IP VM)...$(NC)"
 	@mkdir -p $(KUBE_DIR)
 	@cd $(VAGRANT_DIR) && \
-		MASTER_IP=$$(K8S_ENV=dev vagrant ssh k8s-dev-m1 -c 'hostname -I | awk "{print \$$1}"' 2>/dev/null | tr -d '\r\n') && \
+		MASTER_IP=$$(K8S_ENV=dev vagrant ssh k8s-dev-m1 -c 'hostname -I | awk "{print \$$1}"' 2>/dev/null | tr -d '\r\n' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g') && \
 		echo "  → IP VM: $$MASTER_IP" && \
 		K8S_ENV=dev vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
 		sed "s/127.0.0.1/$$MASTER_IP/g" > .kube/config-dev
