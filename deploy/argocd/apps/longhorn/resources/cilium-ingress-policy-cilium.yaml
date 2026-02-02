@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Longhorn Ingress from Cilium Gateway
+# =============================================================================
+# Allows access to Longhorn UI from Cilium Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: longhorn-ingress-cilium
+  namespace: longhorn-system
+spec:
+  description: "Allow ingress to Longhorn from Cilium Gateway"
+  endpointSelector: {}  # Applies to all pods in longhorn-system namespace
+
+  ingress:
+    # Allow from Cilium Gateway (kube-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "80"      # Frontend UI
+              protocol: TCP

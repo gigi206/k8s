@@ -126,6 +126,12 @@ spec:
           path: deploy/argocd/apps/neuvector/resources
           directory:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/resources
+          directory:
+            include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
         {{- end }}
         {{- if .rke2.cis.enabled }}
