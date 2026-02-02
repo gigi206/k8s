@@ -2,7 +2,18 @@
 export DEBIAN_FRONTEND=noninteractive
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
-. /vagrant/scripts/RKE2_ENV.sh
+
+# Determine script and project directories (agnostic of mount point)
+# When run via Vagrant provisioner, BASH_SOURCE may not work correctly
+if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
+  SCRIPT_DIR="/vagrant/vagrant/scripts"
+  PROJECT_ROOT="/vagrant"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+
+. "$SCRIPT_DIR/RKE2_ENV.sh"
 # export INSTALL_RKE2_VERSION=v1.24.8+rke2r1
 # /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
 # ln -s /etc/rancher/rke2/rke2.yaml ~/.kube/config
@@ -11,7 +22,7 @@ curl -sfL https://get.rke2.io | sh -
 mkdir -p /etc/rancher/rke2
 
 # Read CIS configuration from vagrant/config/rke2.yaml (structure: rke2.cis.enabled/profile)
-CONFIG_FILE="/vagrant/config/rke2.yaml"
+CONFIG_FILE="$SCRIPT_DIR/../config/rke2.yaml"
 CIS_ENABLED=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
 CIS_PROFILE=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
 
@@ -64,7 +75,48 @@ fi
 # test -d /etc/sysconfig && CONFIG_PATH="/etc/sysconfig/rke2-server" || CONFIG_PATH="/etc/default/rke2-server"
 # echo "RKE2_CNI=calico" >> /usr/local/lib/systemd/system/rke2-server.env
 # echo "RKE2_CNI=calico" >> "${CONFIG_PATH}"
-# echo "cni: [multus, calico]" > /etc/rancher/rke2/config.yaml
+
+# Read CNI configuration from ArgoCD config (using grep/awk for portability)
+ARGOCD_CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
+# CNI primary (under cni: section)
+CNI_PRIMARY=$(grep -A2 "^cni:" "$ARGOCD_CONFIG_FILE" | grep "primary:" | awk -F'"' '{print $2}')
+CNI_PRIMARY=${CNI_PRIMARY:-cilium}
+# Multus enabled (under cni.multus: section)
+CNI_MULTUS_ENABLED=$(grep -A10 "^cni:" "$ARGOCD_CONFIG_FILE" | grep -A5 "multus:" | grep "enabled:" | head -1 | awk '{print $2}')
+CNI_MULTUS_ENABLED=${CNI_MULTUS_ENABLED:-false}
+# Whereabouts IPAM (under cni.multus: section)
+CNI_WHEREABOUTS_ENABLED=$(grep -A10 "^cni:" "$ARGOCD_CONFIG_FILE" | grep -A5 "multus:" | grep "whereabouts:" | head -1 | awk '{print $2}')
+CNI_WHEREABOUTS_ENABLED=${CNI_WHEREABOUTS_ENABLED:-true}
+# LoadBalancer provider (under features.loadBalancer: section)
+LB_PROVIDER_CONFIG=$(grep -A5 "loadBalancer:" "$ARGOCD_CONFIG_FILE" | grep "provider:" | head -1 | awk -F'"' '{print $2}')
+LB_PROVIDER_CONFIG=${LB_PROVIDER_CONFIG:-metallb}
+export CNI_MULTUS_ENABLED
+
+# Validate CNI/provider compatibility
+if [ "$CNI_PRIMARY" = "cilium" ] && [ "$LB_PROVIDER_CONFIG" = "loxilb" ] && [ "$CNI_MULTUS_ENABLED" != "true" ]; then
+  echo "============================================================"
+  echo "ERREUR: LoxiLB nécessite Multus CNI pour fonctionner avec Cilium"
+  echo "============================================================"
+  echo "LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP"
+  echo "et entrent en conflit sans isolation via Multus."
+  echo ""
+  echo "Solution: Activer Multus dans config.yaml:"
+  echo "  cni:"
+  echo "    multus:"
+  echo "      enabled: true"
+  echo ""
+  echo "Puis relancer: make vagrant-dev-destroy && make dev-full"
+  echo "============================================================"
+  exit 1
+fi
+
+if [ "$CNI_MULTUS_ENABLED" = "true" ]; then
+  echo "CNI: Multus + Cilium (multi-network enabled)"
+  echo "  - Whereabouts IPAM: $CNI_WHEREABOUTS_ENABLED"
+else
+  echo "CNI: Cilium (single network)"
+fi
+
 echo "disable:
 - rke2-ingress-nginx
 - rke2-kube-proxy # Disable kube-proxy with Cilium => https://docs.rke2.io/install/network_options/
@@ -82,8 +134,6 @@ disable-kube-proxy: true
 # - xxx=yyy
 # system-default-registry: xxx.fr
 disable-kube-proxy: true # Disable kube-proxy with Cilium => https://docs.rke2.io/install/network_options/
-cni:
-- cilium
 write-kubeconfig-mode: "0644"
 tls-san:
 - k8s-api.k8s.lan
@@ -110,6 +160,31 @@ etcd-expose-metrics: true
 # etcd-s3-access-key: **************************
 # etcd-s3-secret-key: **************************" \
 >>/etc/rancher/rke2/config.yaml
+
+# Configure CNI (Cilium or Multus+Cilium)
+if [ "$CNI_MULTUS_ENABLED" = "true" ]; then
+  echo "cni:" >> /etc/rancher/rke2/config.yaml
+  echo "- multus" >> /etc/rancher/rke2/config.yaml
+  echo "- cilium" >> /etc/rancher/rke2/config.yaml
+
+  # Create HelmChartConfig for Multus with Whereabouts IPAM
+  mkdir -p /var/lib/rancher/rke2/server/manifests
+  cat <<EOF >/var/lib/rancher/rke2/server/manifests/rke2-multus-config.yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-multus
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    rke2-whereabouts:
+      enabled: ${CNI_WHEREABOUTS_ENABLED}
+EOF
+  echo "✓ Multus HelmChartConfig created (Whereabouts IPAM: $CNI_WHEREABOUTS_ENABLED)"
+else
+  echo "cni:" >> /etc/rancher/rke2/config.yaml
+  echo "- cilium" >> /etc/rancher/rke2/config.yaml
+fi
 
 # Add CIS profile if enabled in config.yaml
 if [ "$CIS_ENABLED" = "true" ]; then
@@ -209,13 +284,13 @@ if [ "$LB_PROVIDER" = "klipper" ]; then
   echo "enable-servicelb: true" >> /etc/rancher/rke2/config.yaml
 fi
 
-/vagrant/scripts/configure_cilium.sh
+$SCRIPT_DIR/configure_cilium.sh
 
 # CoreDNS k8s.lan forwarding to external-dns (only for providers with static IPs)
 # Klipper uses node IPs so static IP forwarding is not supported
 if [ "$LB_PROVIDER" != "klipper" ]; then
   # Read external-dns static IP from ArgoCD config (not rke2.yaml)
-  ARGOCD_CONFIG_FILE="/vagrant/deploy/argocd/config/config.yaml"
+  ARGOCD_CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
   EXTERNAL_DNS_IP=$(grep -A10 "staticIPs:" "$ARGOCD_CONFIG_FILE" | grep "externalDns:" | awk -F'"' '{print $2}')
   if [ -n "$EXTERNAL_DNS_IP" ]; then
     echo "Configuring CoreDNS to forward k8s.lan to external-dns ($EXTERNAL_DNS_IP)..."

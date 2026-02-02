@@ -216,16 +216,80 @@ kubectl exec -n kube-system loxilb-lb-xxx -- loxicmd get lb -o wide
 # COUNTERS: 0:0
 ```
 
-### Solution : Multus CNI
+### Solution : Multus CNI + Exclusion eth1 de Cilium
 
-Selon la [documentation officielle](https://docs.loxilb.io/latest/cilium-incluster/), pour faire coexister LoxiLB et Cilium :
+La coexistence de LoxiLB et Cilium nécessite **deux configurations** :
 
-1. **Installer Multus CNI** pour créer des interfaces réseau secondaires
-2. **Configurer Cilium** avec `cni-exclusive: false`
-3. **Créer une NetworkAttachmentDefinition** macvlan pour LoxiLB
-4. **Annoter les pods LoxiLB** avec `k8s.v1.cni.cncf.io/networks`
+#### 1. Multus CNI pour isoler le trafic LoxiLB
+
+Selon la [documentation officielle](https://docs.loxilb.io/latest/cilium-incluster/), LoxiLB doit utiliser une interface secondaire via Multus/macvlan.
+
+#### 2. Exclusion d'eth1 des devices Cilium (automatique)
+
+**Problème découvert** : Même avec Multus, si Cilium a des hooks eBPF sur l'interface parente de macvlan (eth1), il intercepte le trafic **avant** qu'il n'atteigne LoxiLB et fait le DNAT lui-même.
+
+```bash
+# tcpdump sur l'interface macvlan du pod LoxiLB montrait :
+192.168.121.1.42858 > 10.42.0.101.80  # Déjà DNAT'é par Cilium !
+# Au lieu de :
+192.168.121.1.42858 > 192.168.121.210.80  # L'IP originale de la VIP
+```
+
+**Solution** : Le script `configure_cilium.sh` exclut automatiquement `eth1` des devices Cilium quand `LB_PROVIDER=loxilb` :
+
+```bash
+# vagrant/scripts/configure_cilium.sh
+elif [ "$LB_PROVIDER" = "loxilb" ]; then
+  CILIUM_DEVICES_YAML=$'    - eth0'  # eth1 exclu !
+```
+
+Cela désactive les hooks eBPF de Cilium sur eth1, permettant au trafic macvlan d'atteindre LoxiLB directement.
+
+#### Configuration complète
+
+1. **Configurer `config/config.yaml`** :
+   ```yaml
+   features:
+     loadBalancer:
+       enabled: true
+       provider: "loxilb"
+       mode: "l2"
+       pools:
+         default:
+           range: "192.168.121.220-192.168.121.250"
+     cni:
+       multus:
+         enabled: true
+   ```
+
+2. **Recréer le cluster** :
+   ```bash
+   make vagrant-dev-destroy && make dev-full
+   ```
+
+Le script de déploiement :
+- Configure RKE2 avec `cni: [multus, cilium]`
+- Configure Cilium avec `devices: [eth0]` seulement (eth1 exclu)
+- Déploie l'ApplicationSet `multus` avec les NetworkAttachmentDefinitions
+- Utilise automatiquement `loxilb-multus` au lieu de `loxilb` (hostNetwork: false + annotation Multus)
 
 Cette configuration isole le trafic LoxiLB dans des interfaces distinctes de celles gérées par Cilium.
+
+#### Vérification de la configuration
+
+```bash
+# Vérifier que Cilium n'a pas de hooks sur eth1
+ssh vagrant@<node-ip> "sudo bpftool net show | grep eth1"
+# Devrait être vide si LB_PROVIDER=loxilb
+
+# Vérifier les hooks Cilium (seulement eth0)
+ssh vagrant@<node-ip> "sudo bpftool net show | head -10"
+# eth0(2) tcx/ingress cil_from_netdev ...
+
+# Vérifier les compteurs LoxiLB
+kubectl exec -n kube-system -l app=loxilb-app -- loxicmd get lb -o wide
+# COUNTERS devrait montrer du trafic (pas 0:0)
+```
 
 ### Alternatives recommandées
 
@@ -235,7 +299,7 @@ Si vous utilisez Cilium comme CNI, considérez ces alternatives :
 |-------------|-----------|---------------|
 | **MetalLB** | Simple, mature, compatible Cilium | Pas de DSR, performance moindre |
 | **Cilium LB-IPAM** | Natif Cilium, haute performance | Interface L2 doit être dans devices Cilium |
-| **LoxiLB + Multus** | Toutes les fonctionnalités LoxiLB | Configuration complexe |
+| **LoxiLB + Multus** | Toutes les fonctionnalités LoxiLB | Recréation cluster requise |
 
 ### Vérification de la compatibilité
 

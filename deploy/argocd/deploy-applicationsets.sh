@@ -389,6 +389,11 @@ FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled
 FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.cilium.defaultDenyPodIngress.enabled' 'true')
 FEAT_KATA_CONTAINERS=$(get_feature '.features.kataContainers.enabled' 'false')
 
+# CNI configuration
+FEAT_CNI_PRIMARY=$(get_feature '.cni.primary' 'cilium')
+FEAT_CNI_MULTUS=$(get_feature '.cni.multus.enabled' 'false')
+FEAT_CNI_WHEREABOUTS=$(get_feature '.cni.multus.whereabouts' 'true')
+
 log_debug "Feature flags lus:"
 log_debug "  loadBalancer: $FEAT_LB_ENABLED (provider: $FEAT_LB_PROVIDER)"
 log_debug "  kyverno: $FEAT_KYVERNO"
@@ -414,6 +419,9 @@ log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
 log_debug "  cilium.ingressPolicy: $FEAT_CILIUM_INGRESS_POLICY"
 log_debug "  kataContainers: $FEAT_KATA_CONTAINERS"
+log_debug "  cni.primary: $FEAT_CNI_PRIMARY"
+log_debug "  cni.multus: $FEAT_CNI_MULTUS"
+log_debug "  cni.whereabouts: $FEAT_CNI_WHEREABOUTS"
 
 # =============================================================================
 # Résolution automatique des dépendances
@@ -562,13 +570,69 @@ resolve_dependencies() {
 validate_dependencies() {
   local errors=0
 
-  # Vérifier que loxilb n'est pas utilisé avec Cilium (incompatible sans Multus CNI)
-  if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]]; then
-    log_error "LoxiLB n'est pas compatible avec Cilium CNI sans configuration Multus"
-    log_error "  LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP et entrent en conflit"
-    log_error "  Voir: deploy/argocd/apps/loxilb/README.md pour plus de détails"
-    log_error "  Alternatives: metallb, cilium (LB-IPAM)"
+  # ==========================================================================
+  # Validation CNI primaire vs providers qui dépendent de Cilium
+  # ==========================================================================
+  # Ces fonctionnalités nécessitent Cilium comme CNI primaire :
+  # - loadBalancer.provider: cilium (Cilium LB-IPAM)
+  # - cilium.monitoring.enabled (Cilium/Hubble ServiceMonitors)
+  # - cilium.egressPolicy.enabled (CiliumClusterwideNetworkPolicy)
+  # - cilium.ingressPolicy.enabled (CiliumClusterwideNetworkPolicy)
+  # - cilium.defaultDenyPodIngress.enabled (CiliumClusterwideNetworkPolicy)
+
+  # Vérifier loadBalancer.provider=cilium nécessite CNI Cilium
+  if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "cilium" ]]; then
+    if [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+      log_error "loadBalancer.provider=cilium nécessite cni.primary=cilium"
+      log_error "  Cilium LB-IPAM utilise les CRDs CiliumLoadBalancerIPPool qui nécessitent Cilium CNI"
+      log_error "  Changez cni.primary: cilium dans config.yaml"
+      errors=$((errors + 1))
+    fi
+  fi
+
+  # Vérifier que les features Cilium nécessitent CNI Cilium
+  if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.monitoring.enabled=true nécessite cni.primary=cilium"
+    log_error "  Les ServiceMonitors Cilium/Hubble ne fonctionnent qu'avec Cilium CNI"
     errors=$((errors + 1))
+  fi
+
+  if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.egressPolicy.enabled=true nécessite cni.primary=cilium"
+    log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
+    errors=$((errors + 1))
+  fi
+
+  if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.ingressPolicy.enabled=true nécessite cni.primary=cilium"
+    log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
+    errors=$((errors + 1))
+  fi
+
+  if [[ "$FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.defaultDenyPodIngress.enabled=true nécessite cni.primary=cilium"
+    log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
+    errors=$((errors + 1))
+  fi
+
+  # Vérifier que loxilb avec Cilium nécessite Multus CNI pour isolation eBPF
+  if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]]; then
+    if [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
+      log_error "LoxiLB nécessite Multus CNI pour fonctionner avec Cilium"
+      log_error "  LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP et entrent en conflit"
+      log_error "  Activer: cni.multus.enabled: true dans config.yaml"
+      log_error "  Puis recréer le cluster avec: make vagrant-dev-destroy && make dev-full"
+      log_error "  Voir: deploy/argocd/apps/loxilb/README.md pour plus de détails"
+      errors=$((errors + 1))
+    else
+      log_info "LoxiLB avec Multus CNI: configuration valide"
+    fi
+  fi
+
+  # Vérifier que Multus n'est activé que si le CNI primaire le supporte
+  if [[ "$FEAT_CNI_MULTUS" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_warning "Multus CNI avec cni.primary=$FEAT_CNI_PRIMARY non testé"
+    log_warning "  Seule la combinaison Multus + Cilium est supportée"
   fi
 
   # Vérifier les conflits de providers
@@ -1545,6 +1609,8 @@ echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 echo "  OAuth2-Proxy:      $FEAT_OAUTH2_PROXY"
 echo "  NeuVector:         $FEAT_NEUVECTOR"
 echo "  Kubescape:         $FEAT_KUBESCAPE"
+echo "  CNI Primary:       $FEAT_CNI_PRIMARY"
+echo "  CNI Multus:        $FEAT_CNI_MULTUS"
 echo ""
 
 log_success "Déploiement terminé! 🎉"

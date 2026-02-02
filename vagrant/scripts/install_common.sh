@@ -1,5 +1,16 @@
 #!/usr/bin/bash
 export DEBIAN_FRONTEND=noninteractive
+
+# Determine script and project directories (agnostic of mount point)
+# When run via Vagrant provisioner, BASH_SOURCE may not work correctly
+if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
+  SCRIPT_DIR="/vagrant/vagrant/scripts"
+  PROJECT_ROOT="/vagrant"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+fi
+
 apt update
 apt full-upgrade -y
 apt install -y curl git jq htop cloud-guest-utils
@@ -42,7 +53,7 @@ then
     if [ -b /dev/vdb ]; then
         # Read storage provider from ArgoCD config
         STORAGE_PROVIDER=""
-        CONFIG_FILE="/vagrant/deploy/argocd/config/config.yaml"
+        CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
         if [ -f "$CONFIG_FILE" ]; then
             STORAGE_PROVIDER=$(grep -A5 "storage:" "$CONFIG_FILE" | grep "provider:" | awk -F'"' '{print $2}')
         fi
