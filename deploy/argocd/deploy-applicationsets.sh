@@ -598,6 +598,16 @@ validate_dependencies() {
     fi
   fi
 
+  # Vérifier gatewayAPI.controller.provider=cilium nécessite CNI Cilium
+  if [[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" == "cilium" ]]; then
+    if [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+      log_error "gatewayAPI.controller.provider=cilium nécessite cni.primary=cilium"
+      log_error "  Cilium Gateway API utilise le proxy Envoy intégré à Cilium CNI"
+      log_error "  Changez cni.primary: cilium dans config.yaml"
+      errors=$((errors + 1))
+    fi
+  fi
+
   # Vérifier que les features Cilium nécessitent CNI Cilium
   if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
     log_error "features.cilium.monitoring.enabled=true nécessite cni.primary=cilium"
@@ -675,7 +685,7 @@ validate_dependencies() {
 
   # Vérifier que le gateway controller est supporté
   case "$FEAT_GATEWAY_CONTROLLER" in
-    istio|nginx-gateway-fabric|nginx-gwf|envoy-gateway|apisix|traefik|nginx|"") ;;  # OK
+    istio|nginx-gateway-fabric|nginx-gwf|envoy-gateway|apisix|traefik|nginx|cilium|"") ;;  # OK
     *)
       log_error "Gateway controller '$FEAT_GATEWAY_CONTROLLER' non supporté"
       errors=$((errors + 1))
@@ -1005,6 +1015,9 @@ apply_bootstrap_network_policies() {
         ;;
       envoy-gateway)
         argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-envoy-gateway.yaml"
+        ;;
+      cilium)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy-cilium.yaml"
         ;;
       *)
         log_warning "Provider Gateway inconnu: $FEAT_GATEWAY_CONTROLLER - pas de policy gateway ArgoCD"

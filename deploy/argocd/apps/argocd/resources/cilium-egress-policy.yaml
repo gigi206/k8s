@@ -35,3 +35,12 @@ spec:
               protocol: TCP
             - port: "22"
               protocol: TCP  # SSH for git clone
+
+    # Allow access to ingress gateway (LoadBalancer) for OIDC to Keycloak
+    # The LoadBalancer IP is a private RFC1918 IP not included in "world"
+    - toCIDR:
+        - 192.168.121.0/24
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
