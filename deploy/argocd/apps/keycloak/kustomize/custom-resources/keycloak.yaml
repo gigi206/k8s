@@ -39,9 +39,11 @@ spec:
     hostname: https://keycloak.PLACEHOLDER.example.com  # Patched via Kustomize from common.domain
     strict: false
     strictBackchannel: false
-    # Enable dynamic backchannel URLs - allows internal pods to use cluster-local URLs
-    # for server-to-server communication (token exchange, refresh) while browser uses external URL
-    backchannelDynamic: true
+    # IMPORTANT: backchannelDynamic must be false so Keycloak uses the configured hostname
+    # for all endpoints (token, userinfo, etc.). When true, Keycloak detects the proxy's
+    # internal port (e.g., APISIX 9443) and advertises it in OIDC metadata, breaking
+    # server-to-server communication from pods that can't reach that port directly.
+    backchannelDynamic: false
 
   # Bootstrap admin credentials (from SOPS secret)
   bootstrapAdmin:
