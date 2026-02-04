@@ -8,10 +8,6 @@ neuvector:
   version: "2.8.10"        # Core chart version
   monitorVersion: "2.8.10" # Monitor chart version (Prometheus exporter)
 
-  # Admin password for initial setup (read from init secret)
-  # Must be strong enough: 8+ chars, uppercase, lowercase, number, special char
-  adminPassword: "Admin123!"
-
   # Controller (actual: 37m/1191Mi, 2 replicas for Consul quorum)
   controller:
     replicas: 2
@@ -69,10 +65,9 @@ neuvector:
         memory: "64Mi"
 
   # OIDC Configuration (Keycloak) - Native NeuVector OIDC
+  # Secrets (clientId, clientSecret) managed via SOPS in secrets/dev/secret.yaml
   oidc:
     enabled: true
-    clientId: "neuvector"
-    clientSecret: "jqNIknQyvT8GAL64SBVOfSQyHLdWdZZu"
 
 syncPolicy:
   automated:

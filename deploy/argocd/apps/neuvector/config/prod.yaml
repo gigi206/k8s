@@ -52,10 +52,9 @@ neuvector:
         memory: "4Gi"
 
   # OIDC Configuration (Keycloak) - Native NeuVector OIDC
+  # Secrets (clientId, clientSecret) managed via SOPS in secrets/prod/secret.yaml
   oidc:
     enabled: true
-    clientId: "neuvector"
-    clientSecret: "CHANGE_ME_IN_PRODUCTION"  # Set via SOPS secret
 
 syncPolicy:
   automated:
