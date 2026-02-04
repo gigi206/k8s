@@ -466,12 +466,16 @@ spec:
           path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-traefik
         {{- end }}
         {{- if .features.sso.enabled }}
-        # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
-        # - keycloak-client.yaml: déploie le client OIDC Grafana dans Keycloak (ns: keycloak)
-        # - external-secret.yaml: synchronise le secret OIDC vers monitoring namespace
+        # Source: SSO generic resources (ClusterSecretStore, ExternalSecrets)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/kustomize/sso
+        {{- end }}
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak-specific resources (Grafana client Job)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/kustomize/sso-keycloak
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'

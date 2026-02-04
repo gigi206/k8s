@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - NeuVector Keycloak OIDC Egress (APISIX only)
+# =============================================================================
+# Additional egress rule for Keycloak OIDC authentication.
+# Only needed when:
+# - Gateway provider is APISIX (other providers don't need this)
+# - SSO is enabled with Keycloak
+#
+# The LoadBalancer IP is a private RFC1918 IP not included in "world",
+# so we need an explicit rule using toFQDNs for DNS-based targeting.
+# The domain placeholder is patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: neuvector-allow-keycloak-egress
+  namespace: neuvector
+spec:
+  description: "Allow NeuVector to access Keycloak for OIDC (APISIX provider)"
+
+  endpointSelector: {}
+
+  egress:
+    - toFQDNs:
+        - matchName: "keycloak.PLACEHOLDER.example.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
