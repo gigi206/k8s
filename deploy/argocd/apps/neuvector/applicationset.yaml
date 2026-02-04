@@ -359,39 +359,9 @@ spec:
                   limits:
                     cpu: {{ .neuvector.controller.resources.limits.cpu | default "500m" }}
                     memory: {{ .neuvector.controller.resources.limits.memory | default "512Mi" }}
-                {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
-                # OIDC Configuration via Secret (Keycloak)
-                # Ref: https://open-docs.neuvector.com/deploying/production/configmap/
-                secret:
-                  enabled: true
-                  data:
-                    # User initialization (set password to avoid reset prompt)
-                    userinitcfg.yaml:
-                      always_reload: true
-                      users:
-                        - Fullname: admin
-                          Password: {{ .neuvector.adminPassword | default "admin" }}
-                          Role: admin
-                    # OIDC configuration (note: field names are case-sensitive!)
-                    oidcinitcfg.yaml:
-                      always_reload: true
-                      Issuer: https://keycloak.{{ .common.domain }}/realms/k8s
-                      Client_ID: {{ .neuvector.oidc.clientId | default "neuvector" }}
-                      Client_Secret: {{ .neuvector.oidc.clientSecret | default "neuvector-keycloak-secret-placeholder" }}
-                      Scopes:
-                        - openid
-                        - profile
-                        - email
-                        - groups
-                      Enable: true
-                      Default_Role: reader
-                      Group_Claim: groups
-                      group_mapped_roles:
-                        - group: admins
-                          global_role: admin
-                        - group: neuvector-admins
-                          global_role: admin
-                {{- end }}
+                # OIDC Configuration is managed via SOPS secret (neuvector-init)
+                # See: secrets/dev/secret.yaml and secrets/prod/secret.yaml
+                # The neuvector-init secret contains userinitcfg.yaml and oidcinitcfg.yaml
 
               # Enforcer configuration (DaemonSet)
               enforcer:
