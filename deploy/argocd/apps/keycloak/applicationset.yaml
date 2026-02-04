@@ -95,6 +95,23 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        # Source: PreSync hook - Wait for CNPG webhook before creating PostgreSQL Cluster
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "cnpg-webhook-presync-check.yaml"
+
+        {{- if eq .features.storage.provider "rook" }}
+        # Source: PreSync hook - Wait for Ceph storage before creating PostgreSQL PVC
+        # Prevents ~9 min wait when PVC is created before Ceph is ready
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "ceph-storage-presync-check.yaml"
+        {{- end }}
+
         {{- if .rke2.cis.enabled }}
         # Source: Namespace with PSA labels for CIS profile compatibility
         - repoURL: https://github.com/gigi206/k8s
@@ -108,14 +125,22 @@ spec:
           targetRevision: '{{ .keycloak.operatorVersion }}'
           path: kubernetes
 
-        # Source 2: PostgreSQL Cluster (CNPG)
+        # Source 2: PostgreSQL Cluster (CNPG) - sync-wave -1
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/resources
           directory:
             include: "cluster-postgresql.yaml"
 
-        # Source 3: Keycloak CR instance (with domain patches)
+        # Source 2b: DB Readiness Check Job - sync-wave 0
+        # Waits for PostgreSQL to be ready before Keycloak CR is created
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/keycloak/resources
+          directory:
+            include: "db-readiness-check.yaml"
+
+        # Source 3: Keycloak CR instance (with domain patches) - sync-wave 1
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/keycloak/kustomize/custom-resources

@@ -969,6 +969,8 @@ apply_bootstrap_network_policies() {
   fi
 
   # 3. ArgoCD egress policy - ajoute l'accès externe (GitHub, Helm)
+  # Note: La règle Keycloak OIDC est ajoutée conditionnellement par l'ApplicationSet
+  # uniquement si provider=apisix + sso.enabled + sso.provider=keycloak
   if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]]; then
     local argocd_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-egress-policy.yaml"
     if [[ -f "$argocd_policy" ]]; then

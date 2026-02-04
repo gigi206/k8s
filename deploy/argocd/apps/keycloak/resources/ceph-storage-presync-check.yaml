@@ -1,0 +1,139 @@
+---
+# =============================================================================
+# PreSync Job - Wait for Ceph storage before creating PostgreSQL PVC
+# =============================================================================
+# This Job runs before keycloak resources are synced and verifies that
+# Ceph storage is operational. This prevents the ~9 minute wait when
+# PostgreSQL PVC is created before Ceph is ready.
+# =============================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ceph-storage-presync-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ceph-storage-presync-check
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  - apiGroups: ["ceph.rook.io"]
+    resources: ["cephclusters", "cephblockpools"]
+    verbs: ["get", "list"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ceph-storage-presync-check
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ceph-storage-presync-check
+subjects:
+  - kind: ServiceAccount
+    name: ceph-storage-presync-check
+    namespace: keycloak
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ceph-storage-presync-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 10
+  template:
+    spec:
+      serviceAccountName: ceph-storage-presync-check
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: bitnami/kubectl:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for Ceph storage to be ready before creating PostgreSQL PVC..."
+
+              # Check if rook-ceph namespace exists
+              echo "Step 1: Checking rook-ceph namespace..."
+              for i in $(seq 1 120); do
+                if kubectl get namespace rook-ceph >/dev/null 2>&1; then
+                  echo "rook-ceph namespace exists"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120: rook-ceph namespace not found, waiting..."
+                sleep 5
+              done
+
+              # Wait for CephCluster to be Ready
+              echo "Step 2: Checking CephCluster status..."
+              for i in $(seq 1 120); do
+                PHASE=$(kubectl get cephcluster -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+                if [ "$PHASE" = "Ready" ]; then
+                  echo "CephCluster is Ready!"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120: CephCluster phase is '$PHASE', waiting..."
+                sleep 5
+              done
+
+              # Wait for CephBlockPool to be Ready
+              echo "Step 3: Checking CephBlockPool status..."
+              for i in $(seq 1 120); do
+                POOL_PHASE=$(kubectl get cephblockpool -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+                if [ "$POOL_PHASE" = "Ready" ]; then
+                  echo "CephBlockPool is Ready!"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120: CephBlockPool phase is '$POOL_PHASE', waiting..."
+                sleep 5
+              done
+
+              # Final verification
+              CLUSTER_READY=$(kubectl get cephcluster -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+              POOL_READY=$(kubectl get cephblockpool -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+
+              if [ "$CLUSTER_READY" = "Ready" ] && [ "$POOL_READY" = "Ready" ]; then
+                echo "Ceph storage is fully ready!"
+                echo "  - CephCluster: $CLUSTER_READY"
+                echo "  - CephBlockPool: $POOL_READY"
+                echo "PostgreSQL PVC can now be created safely."
+                exit 0
+              fi
+
+              echo "ERROR: Ceph storage did not become ready in time (10 minutes)"
+              echo "  - CephCluster: $CLUSTER_READY"
+              echo "  - CephBlockPool: $POOL_READY"
+              exit 1

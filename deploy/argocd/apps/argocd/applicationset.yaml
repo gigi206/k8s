@@ -90,12 +90,27 @@ spec:
       {{- end }}
       sources:
         {{- if .features.cilium.egressPolicy.enabled }}
-        # Source: Cilium egress policy - conditional
+        # Source: Cilium egress policy (GitHub, Helm registries)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-egress-policy.yaml"
+        {{- end }}
+        {{- if and .features.cilium.egressPolicy.enabled (eq .features.gatewayAPI.controller.provider "apisix") .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak OIDC egress (APISIX only - LoadBalancer IP is RFC1918)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/kustomize/cilium-egress
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumNetworkPolicy
+                  name: argocd-allow-keycloak-egress
+                patch: |
+                  - op: replace
+                    path: /spec/egress/0/toFQDNs/0/matchName
+                    value: keycloak.{{ .common.domain }}
         {{- end }}
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
         # Source: Cilium internal ingress policy (pod-to-pod communication)
@@ -207,10 +222,16 @@ spec:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
         {{- if .features.sso.enabled }}
-        # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
+        # Source: SSO generic resources (ClusterSecretStore, ExternalSecrets)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/kustomize/sso
+        {{- end }}
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak-specific resources (client Job)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/kustomize/sso-keycloak
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'

@@ -10,6 +10,8 @@ kind: HTTPRoute
 metadata:
   name: keycloak
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   parentRefs:
   - group: gateway.networking.k8s.io

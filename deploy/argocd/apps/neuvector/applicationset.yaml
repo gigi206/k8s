@@ -79,12 +79,27 @@ spec:
             - .spec.data[].remoteRef.metadataPolicy
       sources:
         {{- if .features.cilium.egressPolicy.enabled }}
-        # Source: Cilium egress policy - conditional
+        # Source: Cilium egress policy (CVE databases, registries)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/neuvector/resources
           directory:
             include: "cilium-egress-policy.yaml"
+        {{- end }}
+        {{- if and .features.cilium.egressPolicy.enabled (eq .features.gatewayAPI.controller.provider "apisix") .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak OIDC egress (APISIX only - LoadBalancer IP is RFC1918)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/neuvector/kustomize/cilium-egress
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumNetworkPolicy
+                  name: neuvector-allow-keycloak-egress
+                patch: |
+                  - op: replace
+                    path: /spec/egress/0/toFQDNs/0/matchName
+                    value: keycloak.{{ .common.domain }}
         {{- end }}
         {{- if .features.cilium.defaultDenyPodIngress.enabled }}
         # Source: Cilium internal ingress policy (monitoring, neuvector namespace)

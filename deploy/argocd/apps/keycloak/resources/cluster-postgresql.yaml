@@ -11,6 +11,8 @@ kind: Cluster
 metadata:
   name: keycloak-db
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   # Nombre d'instances (1 pour dev, 3 pour prod HA)
   instances: 1

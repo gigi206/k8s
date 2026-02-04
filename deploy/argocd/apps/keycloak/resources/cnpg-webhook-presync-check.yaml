@@ -1,0 +1,111 @@
+---
+# =============================================================================
+# PreSync Job - Wait for CNPG webhook before creating PostgreSQL Cluster
+# =============================================================================
+# This Job runs before keycloak resources are synced and verifies that the
+# CNPG webhook is operational. This prevents sync failures when cnpg-operator
+# is still starting up.
+# =============================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cnpg-webhook-presync-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cnpg-webhook-presync-check
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cnpg-webhook-presync-check
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cnpg-webhook-presync-check
+subjects:
+  - kind: ServiceAccount
+    name: cnpg-webhook-presync-check
+    namespace: keycloak
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cnpg-webhook-presync-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 10
+  template:
+    spec:
+      serviceAccountName: cnpg-webhook-presync-check
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: bitnami/kubectl:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for CNPG webhook to be ready before creating PostgreSQL Cluster..."
+
+              # First check if cnpg-system namespace exists
+              for i in $(seq 1 60); do
+                if kubectl get namespace cnpg-system >/dev/null 2>&1; then
+                  echo "cnpg-system namespace exists"
+                  break
+                fi
+                echo "Attempt $i/60: cnpg-system namespace not found, waiting..."
+                sleep 5
+              done
+
+              # Then wait for webhook endpoints
+              for i in $(seq 1 60); do
+                ENDPOINTS=$(kubectl get endpoints cnpg-webhook-service -n cnpg-system -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null)
+                if [ -n "$ENDPOINTS" ]; then
+                  echo "CNPG webhook endpoint is ready: $ENDPOINTS"
+                  # Additional wait to ensure webhook is fully operational
+                  sleep 5
+                  echo "CNPG webhook is ready! Proceeding with keycloak sync..."
+                  exit 0
+                fi
+                echo "Attempt $i/60: CNPG webhook not ready yet, waiting..."
+                sleep 5
+              done
+
+              echo "ERROR: CNPG webhook did not become ready in time (5 minutes)"
+              exit 1
