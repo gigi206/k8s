@@ -25,6 +25,7 @@ spec:
               protocol: TCP
 
     # Allow internal OAuth2 Proxy communication (same namespace)
+    # Including Redis-HA for session storage
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: oauth2-proxy
@@ -33,4 +34,8 @@ spec:
             - port: "4180"    # OAuth2 Proxy main port
               protocol: TCP
             - port: "44180"   # Metrics port
+              protocol: TCP
+            - port: "6379"    # Redis port
+              protocol: TCP
+            - port: "26379"   # Redis Sentinel port
               protocol: TCP

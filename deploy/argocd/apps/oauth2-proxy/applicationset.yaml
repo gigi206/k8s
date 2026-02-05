@@ -262,6 +262,73 @@ spec:
               # Replica count
               replicaCount: {{ .oauth2Proxy.replicas | default 1 }}
 
+              # =================================================================
+              # Session Storage - Redis backend (redis-ha subchart)
+              # =================================================================
+              # Why Redis? OAuth2/OIDC tokens (especially JWT with claims) can be
+              # very large. Storing them in cookies causes "Request Header Too Large"
+              # errors (nginx/APISIX default ~8KB limit). Redis stores session data
+              # server-side, browser only receives a small session ticket (~64 bytes).
+              #
+              # The oauth2-proxy chart bundles redis-ha (dandydeveloper) for HA Redis
+              # with Sentinel. For dev (1 replica), we use sentinel mode but with
+              # quorum=1 to allow single-node operation.
+              # =================================================================
+              sessionStorage:
+                type: redis
+                redis:
+                  # Use sentinel mode (redis-ha default) - auto-connects to master
+                  clientType: sentinel
+                  sentinel:
+                    masterName: mymaster
+                    # Sentinel connection URLs (auto-generated from redis-ha service)
+                    connectionUrls:
+                      - "redis://oauth2-proxy-redis-ha:26379"
+                    # Sentinel password (required when sentinel.auth is enabled)
+                    existingSecret: "oauth2-proxy-redis-secret"
+                    passwordKey: "redis-sentinel-password"
+                  # Redis node password
+                  passwordKey: "redis-password"
+                  existingSecret: "oauth2-proxy-redis-secret"
+
+              # redis-ha subchart (dandydeveloper/redis-ha)
+              # NOT Bitnami redis - different structure!
+              # Docs: https://artifacthub.io/packages/helm/dandydev-charts/redis-ha
+              redis-ha:
+                enabled: true
+                # Single replica for dev (HA requires 3+)
+                replicas: {{ .oauth2Proxy.redis.replicas | default 1 }}
+                # Sentinel configuration
+                sentinel:
+                  quorum: 1
+                  # Sentinel authentication
+                  auth: true
+                  existingSecret: "oauth2-proxy-redis-secret"
+                  authKey: "redis-sentinel-password"
+                # Redis node authentication
+                auth: true
+                existingSecret: "oauth2-proxy-redis-secret"
+                authKey: "redis-password"
+                # Disable persistence for dev (ephemeral sessions)
+                persistentVolume:
+                  enabled: false
+                # Resource limits and config
+                redis:
+                  # Disable min-replicas-to-write for single-replica setup
+                  # Default is 1, which blocks writes when no replicas available
+                  config:
+                    min-replicas-to-write: 0
+                  resources:
+                    requests:
+                      cpu: {{ .oauth2Proxy.redis.resources.requests.cpu | default "10m" }}
+                      memory: {{ .oauth2Proxy.redis.resources.requests.memory | default "32Mi" }}
+                    limits:
+                      cpu: {{ .oauth2Proxy.redis.resources.limits.cpu | default "100m" }}
+                      memory: {{ .oauth2Proxy.redis.resources.limits.memory | default "128Mi" }}
+                # HAProxy disabled (not needed for internal use)
+                haproxy:
+                  enabled: false
+
               # Configuration for ext_authz mode
               config:
                 # Use existing secret containing client-id, client-secret, cookie-secret
