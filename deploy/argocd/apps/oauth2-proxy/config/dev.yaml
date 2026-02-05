@@ -31,6 +31,19 @@ oauth2Proxy:
         cpu: "50m"
         memory: "64Mi"
 
+  # Redis session storage (avoids "Cookie Too Large" errors with large JWT tokens)
+  # Uses redis-ha subchart (dandydeveloper) with Sentinel for HA
+  redis:
+    # Single replica for dev (HA requires 3+)
+    replicas: 1
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "100m"
+        memory: "128Mi"
+
   # Security hardening (CIS/NSA compliance)
   serviceAccount:
     # Disable SA token automount - oauth2-proxy doesn't need K8s API access
