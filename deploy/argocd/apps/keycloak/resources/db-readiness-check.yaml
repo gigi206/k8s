@@ -1,0 +1,126 @@
+---
+# =============================================================================
+# Sync Hook - Wait for PostgreSQL to be ready before creating Keycloak
+# =============================================================================
+# This Job runs as a Sync hook (after PreSync) and verifies that the database
+# is accepting connections before Keycloak CR is created.
+# This prevents Keycloak pod from CrashLoopBackOff when DB is not ready.
+#
+# Using ArgoCD hook instead of sync-wave because:
+# - Sync-waves with Jobs + ttlSecondsAfterFinished causes ArgoCD to see
+#   the completed/deleted job as OutOfSync and block indefinitely
+# - Hooks are designed for this use case and handle cleanup properly
+# =============================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-readiness-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: db-readiness-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: db-readiness-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: db-readiness-check
+subjects:
+  - kind: ServiceAccount
+    name: db-readiness-check
+    namespace: keycloak
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-readiness-check
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 30
+  template:
+    spec:
+      serviceAccountName: db-readiness-check
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: bitnami/kubectl:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL database to be ready..."
+
+              # Wait for CNPG cluster to be in healthy state
+              echo "Step 1: Checking CNPG cluster status..."
+              for i in $(seq 1 60); do
+                STATUS=$(kubectl get cluster keycloak-db -n keycloak -o jsonpath='{.status.phase}' 2>/dev/null)
+                if [ "$STATUS" = "Cluster in healthy state" ]; then
+                  echo "CNPG cluster is healthy!"
+                  break
+                fi
+                echo "Attempt $i/60: Cluster status is '$STATUS', waiting..."
+                sleep 5
+              done
+
+              # Wait for keycloak-db-rw service to have endpoints
+              echo "Step 2: Checking keycloak-db-rw service endpoints..."
+              for i in $(seq 1 60); do
+                ENDPOINTS=$(kubectl get endpoints keycloak-db-rw -n keycloak -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null)
+                if [ -n "$ENDPOINTS" ]; then
+                  echo "Database service endpoint is ready: $ENDPOINTS"
+                  break
+                fi
+                echo "Attempt $i/60: No endpoints yet, waiting..."
+                sleep 5
+              done
+
+              # Final check - verify endpoint exists
+              FINAL_CHECK=$(kubectl get endpoints keycloak-db-rw -n keycloak -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null)
+              if [ -n "$FINAL_CHECK" ]; then
+                echo "PostgreSQL database is ready at $FINAL_CHECK:5432!"
+                echo "Keycloak can now be deployed safely."
+                exit 0
+              fi
+
+              echo "ERROR: PostgreSQL database did not become ready in time (5 minutes)"
+              exit 1

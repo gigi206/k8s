@@ -11,6 +11,8 @@ kind: CiliumNetworkPolicy
 metadata:
   name: keycloak-internal
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   description: "Allow internal ingress to Keycloak"
   endpointSelector: {}  # Applies to all pods in keycloak namespace

@@ -11,6 +11,8 @@ kind: Keycloak
 metadata:
   name: keycloak
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   # Nombre d'instances (1 pour dev, 3 pour prod HA)
   instances: 1
@@ -83,6 +85,8 @@ kind: Certificate
 metadata:
   name: keycloak-tls-cert
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   secretName: keycloak-tls-cert
   issuerRef:

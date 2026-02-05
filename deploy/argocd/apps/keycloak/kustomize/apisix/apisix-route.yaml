@@ -9,6 +9,8 @@ kind: ApisixRoute
 metadata:
   name: keycloak
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   ingressClassName: apisix
   http:
