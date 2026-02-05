@@ -142,7 +142,7 @@ features:
     httpRoute:
       enabled: true # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "nginx-gwf" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
+      provider: "envoy-gateway" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
@@ -150,7 +150,7 @@ features:
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
       # - cilium: kube-system (Cilium Gateway runs in kube-system)
-      gatewayNamespace: "nginx-gateway"
+      gatewayNamespace: "envoy-gateway-system"
   # === Legacy Ingress (déprécié) ===
   ingress:
     enabled: false # Support Ingress legacy (patch des ressources)
@@ -236,7 +236,7 @@ features:
 cni:
   primary: "cilium" # cilium (RKE2 default, eBPF-based)
   multus:
-    enabled: true # Enable multi-network support
+    enabled: false # Enable multi-network support
     whereabouts: true # Cluster-wide IPAM for secondary interfaces
 # =============================================================================
 # RKE2 Cluster Configuration
