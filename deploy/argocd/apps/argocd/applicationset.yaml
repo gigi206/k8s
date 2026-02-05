@@ -222,10 +222,16 @@ spec:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
         {{- if .features.sso.enabled }}
-        # Source: ExternalSecret + Keycloak client Job (OIDC autonome) - only when SSO enabled
+        # Source: SSO generic resources (ClusterSecretStore, ExternalSecrets)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/kustomize/sso
+        {{- end }}
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak-specific resources (client Job)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/kustomize/sso-keycloak
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'

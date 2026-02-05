@@ -138,11 +138,17 @@ spec:
             include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
         {{- end }}
-        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
-        # Source 2: SSO resources (Keycloak client Job) - only when SSO enabled
+        {{- if .features.sso.enabled }}
+        # Source: SSO generic resources (ClusterSecretStore, ExternalSecrets)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/kustomize/sso
+        {{- end }}
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak-specific resources (client Job)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/oauth2-proxy/kustomize/sso-keycloak
           kustomize:
             images:
               - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'

@@ -6,4 +6,3 @@ resources:
   - cluster-secret-store.yaml
   - external-secret.yaml
   - external-secret-ca.yaml
-  - keycloak-client.yaml
