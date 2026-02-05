@@ -312,8 +312,12 @@ spec:
                 # Disable persistence for dev (ephemeral sessions)
                 persistentVolume:
                   enabled: false
-                # Resource limits
+                # Resource limits and config
                 redis:
+                  # Disable min-replicas-to-write for single-replica setup
+                  # Default is 1, which blocks writes when no replicas available
+                  config:
+                    min-replicas-to-write: 0
                   resources:
                     requests:
                       cpu: {{ .oauth2Proxy.redis.resources.requests.cpu | default "10m" }}
