@@ -284,6 +284,10 @@ spec:
                     # Sentinel connection URLs (auto-generated from redis-ha service)
                     connectionUrls:
                       - "redis://oauth2-proxy-redis-ha:26379"
+                    # Sentinel password (required when sentinel.auth is enabled)
+                    existingSecret: "oauth2-proxy-redis-secret"
+                    passwordKey: "redis-sentinel-password"
+                  # Redis node password
                   passwordKey: "redis-password"
                   existingSecret: "oauth2-proxy-redis-secret"
 
@@ -294,11 +298,14 @@ spec:
                 enabled: true
                 # Single replica for dev (HA requires 3+)
                 replicas: {{ .oauth2Proxy.redis.replicas | default 1 }}
-                # Sentinel quorum (minimum votes to elect master)
-                # Set to 1 for single-replica dev setup
+                # Sentinel configuration
                 sentinel:
                   quorum: 1
-                # Authentication
+                  # Sentinel authentication
+                  auth: true
+                  existingSecret: "oauth2-proxy-redis-secret"
+                  authKey: "redis-sentinel-password"
+                # Redis node authentication
                 auth: true
                 existingSecret: "oauth2-proxy-redis-secret"
                 authKey: "redis-password"
