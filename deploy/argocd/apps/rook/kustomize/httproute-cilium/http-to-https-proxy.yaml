@@ -1,0 +1,165 @@
+---
+# =============================================================================
+# HTTP-to-HTTPS Reverse Proxy - Ceph Dashboard (Cilium Gateway)
+# =============================================================================
+# Cilium Gateway does not support BackendTLSPolicy (cilium/cilium#31352).
+# This nginx proxy accepts HTTP from the Gateway and forwards HTTPS to the
+# Ceph Dashboard backend on port 8443.
+#
+# TEMPORARY: Remove when Cilium adds BackendTLSPolicy support and use
+# BackendTLSPolicy + ExternalSecret CA pattern (see httproute-nginx-gwf/).
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ceph-dashboard-http-proxy-config
+  namespace: rook-ceph
+data:
+  default.conf.template: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        client_body_temp_path /tmp/client_temp;
+        proxy_temp_path /tmp/proxy_temp;
+        fastcgi_temp_path /tmp/fastcgi_temp;
+        uwsgi_temp_path /tmp/uwsgi_temp;
+        scgi_temp_path /tmp/scgi_temp;
+
+        resolver ${RESOLVER} valid=30s;
+
+        server {
+            listen 8080;
+            server_name _;
+
+            location = /healthz {
+                access_log off;
+                return 200 'OK';
+                add_header Content-Type text/plain;
+            }
+
+            location / {
+                proxy_pass https://rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local:8443;
+                proxy_ssl_verify on;
+                proxy_ssl_trusted_certificate /etc/ssl/ca/ca.crt;
+                proxy_ssl_server_name on;
+                proxy_ssl_name rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local;
+
+                proxy_http_version 1.1;
+                proxy_set_header Host $http_host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                proxy_set_header X-Forwarded-Host $http_host;
+
+                # WebSocket support
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+            }
+        }
+
+        map $http_upgrade $connection_upgrade {
+            default upgrade;
+            '' close;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ceph-dashboard-http-proxy
+  namespace: rook-ceph
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ceph-dashboard-http-proxy
+  template:
+    metadata:
+      labels:
+        app: ceph-dashboard-http-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:alpine3.22
+          command:
+            - /bin/sh
+            - -c
+            - |
+              export RESOLVER=$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf)
+              envsubst '${RESOLVER}' < /etc/nginx/templates/default.conf.template > /tmp/nginx.conf
+              exec nginx -c /tmp/nginx.conf -g 'daemon off;'
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/templates
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: ca-cert
+              mountPath: /etc/ssl/ca
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: ceph-dashboard-http-proxy-config
+        - name: tmp
+          emptyDir: {}
+        - name: ca-cert
+          secret:
+            secretName: ceph-dashboard-backend-ca
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-dashboard-http-proxy
+  namespace: rook-ceph
+spec:
+  type: ClusterIP
+  selector:
+    app: ceph-dashboard-http-proxy
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

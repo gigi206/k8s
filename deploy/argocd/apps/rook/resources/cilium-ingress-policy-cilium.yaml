@@ -15,13 +15,14 @@ spec:
   endpointSelector: {}  # Applies to all pods in rook-ceph namespace
 
   ingress:
-    # Allow from Cilium Gateway (kube-system namespace)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
+    # Allow from Cilium Gateway (reserved:ingress identity)
+    # Cilium Gateway uses reserved:ingress, not kube-system pod identity.
+    # Port 8080 serves both S3 (RGW) and Dashboard HTTP-to-HTTPS proxy.
+    - fromEntities:
+        - ingress
       toPorts:
         - ports:
-            - port: "8443"    # Dashboard HTTPS
+            - port: "8443"    # Dashboard HTTPS (direct, for internal use)
               protocol: TCP
-            - port: "8080"    # S3 Object Store (RGW container port)
+            - port: "8080"    # S3 Object Store (RGW) + Dashboard HTTP proxy
               protocol: TCP

@@ -24,13 +24,17 @@ spec:
             - port: "9090"    # Prometheus remote write receiver
               protocol: TCP
 
-    # Allow from oauth2-proxy namespace (for authentication callbacks)
+    # Allow from oauth2-proxy namespace (OAuth callbacks + auth-proxy backend access)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: oauth2-proxy
       toPorts:
         - ports:
             - port: "3000"    # Grafana (OAuth callback)
+              protocol: TCP
+            - port: "9090"    # Prometheus (oauth2-auth-proxy backend)
+              protocol: TCP
+            - port: "9093"    # Alertmanager (oauth2-auth-proxy backend)
               protocol: TCP
 
     # Allow internal monitoring communication (same namespace)

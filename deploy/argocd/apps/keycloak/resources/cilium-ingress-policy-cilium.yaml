@@ -15,11 +15,13 @@ spec:
   endpointSelector: {}  # Applies to all pods in keycloak namespace
 
   ingress:
-    # Allow from Cilium Gateway (kube-system namespace)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
+    # Allow from Cilium Gateway (reserved:ingress identity)
+    # Cilium Gateway routes to Keycloak HTTP port (8080), not HTTPS (8443),
+    # because Cilium does not support BackendTLSPolicy for HTTPS backends.
+    # TLS is terminated at the Gateway level.
+    - fromEntities:
+        - ingress
       toPorts:
         - ports:
-            - port: "8443"    # Keycloak HTTPS
+            - port: "8080"    # Keycloak HTTP
               protocol: TCP

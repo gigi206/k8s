@@ -319,6 +319,95 @@ kubectl get job -n rook-ceph -l app=ceph-dashboard-cert-inject
 curl -k https://ceph.k8s.lan
 ```
 
+### HTTPS Backend avec Cilium Gateway
+
+Cilium Gateway API ne supporte **pas** `BackendTLSPolicy` (voir [cilium/cilium#31352](https://github.com/cilium/cilium/issues/31352)). Le champ `appProtocol: https` n'est pas non plus pris en charge pour les connexions HTTPS vers les backends (seul `kubernetes.io/h2c` est reconnu pour HTTP/2, voir [cilium/cilium#30452](https://github.com/cilium/cilium/issues/30452)).
+
+Sans solution, le gateway envoie du HTTP vers le dashboard Ceph (port 8443) qui attend du HTTPS, provoquant l'erreur :
+```
+upstream connect error or disconnect/reset before headers. reset reason: connection termination
+```
+
+#### Solution : HTTP-to-HTTPS Reverse Proxy
+
+Un reverse proxy nginx est déployé dans le namespace `rook-ceph`. Il accepte les connexions HTTP du gateway et les proxifie en HTTPS vers le dashboard Ceph avec vérification du CA.
+
+```
+Client → Cilium Gateway (TLS termination)
+           → HTTPRoute → ceph-dashboard-http-proxy:8080 (HTTP)
+                            → proxy_pass https://rook-ceph-mgr-dashboard:8443
+                               (proxy_ssl_verify on, CA cert-manager)
+```
+
+| Composant | Rôle |
+|-----------|------|
+| `Deployment/ceph-dashboard-http-proxy` | nginx reverse proxy HTTP→HTTPS |
+| `Service/ceph-dashboard-http-proxy` | ClusterIP port 8080 |
+| `ExternalSecret/ceph-dashboard-backend-ca` | Synchronise le CA cert-manager vers rook-ceph |
+| `Certificate/ceph-dashboard-tls` | Certificat TLS signé par le CA du cluster |
+| `Job/ceph-dashboard-cert-inject` | Injecte le certificat dans le dashboard Ceph |
+
+#### Fichiers
+
+```
+kustomize/
+├── httproute-cilium/
+│   ├── kustomization.yaml
+│   ├── external-secret-ca.yaml      # Sync CA depuis cert-manager
+│   └── http-to-https-proxy.yaml     # ConfigMap + Deployment + Service
+└── certificates-cilium/
+    ├── kustomization.yaml
+    ├── certificate.yaml              # Certificate cert-manager
+    └── dashboard-cert-inject-job.yaml  # Job injection cert dans Ceph
+```
+
+#### Sécurité
+
+- **proxy_ssl_verify on** : nginx vérifie le certificat du backend contre le CA du cluster
+- **proxy_ssl_name** : vérifie le SNI (`rook-ceph-mgr-dashboard.rook-ceph.svc.cluster.local`)
+- **PSA restricted** : le proxy tourne en non-root (UID 101) avec `nginxinc/nginx-unprivileged`
+
+#### Condition dans ApplicationSet
+
+Le HTTPRoute standard est patché pour pointer vers le proxy au lieu du backend HTTPS :
+
+```yaml
+{{- if eq .features.gatewayAPI.controller.provider "cilium" }}
+# Patch HTTPRoute: ceph-dashboard-https:8443 → ceph-dashboard-http-proxy:8080
+- target:
+    kind: HTTPRoute
+    name: ceph-dashboard
+  patch: |
+    - op: replace
+      path: /spec/rules/0/backendRefs/0/name
+      value: ceph-dashboard-http-proxy
+    - op: replace
+      path: /spec/rules/0/backendRefs/0/port
+      value: 8080
+{{- end }}
+```
+
+#### Vérification
+
+```bash
+# Proxy déployé
+kubectl get pods -n rook-ceph -l app=ceph-dashboard-http-proxy
+
+# CA syncé
+kubectl get secret -n rook-ceph ceph-dashboard-backend-ca
+
+# Certificate émis
+kubectl get certificate -n rook-ceph ceph-dashboard-tls
+
+# Job d'injection terminé
+kubectl get job -n rook-ceph ceph-dashboard-cert-inject
+
+# Test accès dashboard (doit retourner 200 ou redirect SSO)
+curl -kI https://ceph.k8s.lan
+```
+
+> **Note** : Ce workaround sera supprimé quand Cilium implémentera le support de `BackendTLSPolicy`.
+
 ### SSO / Authentification
 
 #### SAML2 (actuel)

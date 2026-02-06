@@ -294,6 +294,27 @@ kubectl logs -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-nam
 kubectl run -it --rm curl --image=curlimages/curl -- curl -k --http1.1 https://neuvector-service-webui.neuvector.svc.cluster.local:8443
 ```
 
+### Cilium Gateway: HTTPS backend non supporté
+
+Cilium Gateway API ne supporte **pas** `BackendTLSPolicy` (voir [cilium/cilium#31352](https://github.com/cilium/cilium/issues/31352)). Le champ `appProtocol: https` n'est pas non plus pris en charge pour les connexions HTTPS vers les backends (seul `kubernetes.io/h2c` est reconnu pour HTTP/2, voir [cilium/cilium#30452](https://github.com/cilium/cilium/issues/30452)).
+
+NeuVector Manager écoute **uniquement en HTTPS** sur le port 8443. Sans mécanisme pour indiquer au gateway de se connecter en HTTPS, les connexions échouent avec :
+```
+upstream connect error or disconnect/reset before headers. reset reason: connection termination
+```
+
+**Limitation actuelle** : Contrairement à Rook (qui utilise un reverse proxy HTTP-to-HTTPS comme workaround), NeuVector n'a pas encore de solution implémentée pour Cilium Gateway. Une approche similaire (reverse proxy nginx dans le namespace neuvector) serait nécessaire.
+
+**Providers supportés** :
+| Provider | Support HTTPS backend | Mécanisme |
+|----------|-----------------------|-----------|
+| APISIX | `appProtocol: https` sur le Service | Détection automatique |
+| nginx-gateway-fabric | `BackendTLSPolicy` | Gateway API standard |
+| Envoy Gateway | `Backend` CRD avec `appProtocol: https` | CRD natif |
+| Cilium | **Non supporté** | Pas de BackendTLSPolicy, pas d'appProtocol |
+
+> **Note** : Ce problème sera résolu quand Cilium implémentera le support de `BackendTLSPolicy`. En attendant, un reverse proxy HTTP-to-HTTPS (comme celui de Rook) peut être mis en place.
+
 ## References
 
 - [NeuVector Documentation](https://open-docs.neuvector.com/)
