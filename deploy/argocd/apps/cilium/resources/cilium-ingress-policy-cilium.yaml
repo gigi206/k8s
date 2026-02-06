@@ -43,3 +43,14 @@ spec:
         - ports:
             - port: "8081"
               protocol: TCP
+
+    # Allow from oauth2-auth-proxy (oauth2-proxy namespace)
+    # The nginx auth-proxy forwards authenticated requests to Hubble UI
+    # when using the Cilium Gateway oauth2-auth-proxy pattern.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: oauth2-proxy
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP

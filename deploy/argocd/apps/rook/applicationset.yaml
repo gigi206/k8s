@@ -197,6 +197,14 @@ spec:
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- if eq .features.gatewayAPI.controller.provider "cilium" }}
+                  - op: replace
+                    path: /spec/rules/0/backendRefs/0/name
+                    value: ceph-dashboard-http-proxy
+                  - op: replace
+                    path: /spec/rules/0/backendRefs/0/port
+                    value: 8080
+        {{- end }}
               - target:
                   kind: ReferenceGrant
                   name: gateway-rook-tls
@@ -267,6 +275,26 @@ spec:
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/rook/kustomize/certificates-envoy-gateway
+          kustomize:
+            images:
+              - 'rook/ceph:IMAGE_TAG=docker.io/rook/ceph:{{ .rook.operator.version }}'
+            patches:
+              - target:
+                  kind: Certificate
+                  name: ceph-dashboard-tls
+                patch: |
+                  - op: replace
+                    path: /spec/dnsNames/4
+                    value: ceph.{{ .common.domain }}
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+        # Source: HTTP-to-HTTPS proxy for Cilium Gateway (no BackendTLSPolicy support)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/kustomize/httproute-cilium
+        # Source: TLS certificates for HTTPS backend (Cilium)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rook/kustomize/certificates-cilium
           kustomize:
             images:
               - 'rook/ceph:IMAGE_TAG=docker.io/rook/ceph:{{ .rook.operator.version }}'
