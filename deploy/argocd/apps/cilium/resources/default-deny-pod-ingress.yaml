@@ -31,10 +31,18 @@ metadata:
 spec:
   description: "Default deny all pod ingress (Zero Trust) - baseline allows only"
 
-  # Apply to ALL pods EXCEPT those in kube-system
+  # Apply to ALL real pods EXCEPT those in kube-system
   # kube-system must remain unrestricted for DNS, CNI, metrics-server
+  #
+  # IMPORTANT: The "Exists" expression is required to exclude Cilium's
+  # internal pseudo-endpoints (e.g., Gateway API endpoint 0) which have
+  # NO labels. Without it, "NotIn: [kube-system]" matches any endpoint
+  # missing the namespace label, causing the cilium.l7policy filter to
+  # enforce default-deny on the Gateway listener (403 "Access denied").
   endpointSelector:
     matchExpressions:
+      - key: io.kubernetes.pod.namespace
+        operator: Exists
       - key: io.kubernetes.pod.namespace
         operator: NotIn
         values:
@@ -53,6 +61,15 @@ spec:
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
+
+    # Rule 3: Allow from Gateway API / Ingress proxy (reserved:ingress identity)
+    # Traffic processed by Gateway API (Cilium, Traefik, etc.) uses the
+    # reserved:ingress identity (8), NOT a kube-system pod identity.
+    # Without this rule, ALL traffic through the Gateway is denied with 403
+    # "Access denied" by Cilium's L7 policy filter (cilium.l7policy).
+    # See: https://github.com/cilium/cilium/issues/36509
+    - fromEntities:
+        - ingress
 
     # NO OTHER RULES = ALL OTHER INGRESS DENIED
     # Per-app CiliumNetworkPolicy must explicitly allow:
