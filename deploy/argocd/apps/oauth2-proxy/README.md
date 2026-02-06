@@ -22,13 +22,14 @@ Lors du démarrage du cluster, une **race condition** peut exposer les applicati
 │          │                                                                  │
 │          ▼                                                                  │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │ VULNÉRABILITÉ: HTTPRoute créé SANS protection OAuth2 !              │   │
+│  │ VULNÉRABILITÉ: HTTPRoute créé SANS protection OAuth2 !               │   │
 │  │ → Application accessible sans authentification                       │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Scénario de vulnérabilité** :
+
 1. Le cluster démarre, ArgoCD synchronise les applications
 2. L'HTTPRoute est créé (source 1 réussit)
 3. Le SnippetsFilter/AuthorizationPolicy échoue car le CRD n'existe pas encore (nginx-gateway-fabric/istio pas prêt)
@@ -66,23 +67,24 @@ Toutes les ressources (HTTPRoute + OAuth2) sont dans le **même source Kustomize
 
 ### Comportement par provider
 
-| Provider | Ressource Auth | Comportement si CRD manquant | Pattern utilisé |
-|----------|----------------|------------------------------|-----------------|
-| **nginx-gwf** | `SnippetsFilter` | ❌ Fail-open (route sans auth) | `httproute-oauth2-nginx-gwf/` |
-| **istio** | `AuthorizationPolicy` | ❌ Fail-open (route sans auth) | `httproute-oauth2-istio/` |
-| **envoy-gateway** | `SecurityPolicy` | ❌ Fail-open (route sans auth) | `httproute-oauth2-envoy-gateway/` |
-| **traefik** | `Middleware` | ✅ Fail-close (routing échoue) | Sources séparées OK |
-| **apisix** | Plugin inline | ✅ Intégré dans ApisixRoute | N/A (déjà atomique) |
+| Provider          | Ressource Auth        | Comportement si CRD manquant   | Pattern utilisé                   |
+| ----------------- | --------------------- | ------------------------------ | --------------------------------- |
+| **nginx-gwf**     | `SnippetsFilter`      | ❌ Fail-open (route sans auth) | `httproute-oauth2-nginx-gwf/`     |
+| **istio**         | `AuthorizationPolicy` | ❌ Fail-open (route sans auth) | `httproute-oauth2-istio/`         |
+| **envoy-gateway** | `SecurityPolicy`      | ❌ Fail-open (route sans auth) | `httproute-oauth2-envoy-gateway/` |
+| **traefik**       | `Middleware`          | ✅ Fail-close (routing échoue) | Sources séparées OK               |
+| **cilium**        | `oauth2-auth-proxy`   | ✅ Fail-close (auth_request)   | HTTPRoute patches inline          |
+| **apisix**        | Plugin inline         | ✅ Intégré dans ApisixRoute    | N/A (déjà atomique)               |
 
 ### Applications protégées par déploiement atomique
 
-| Application | nginx-gwf | istio | envoy-gateway |
-|-------------|-----------|-------|---------------|
-| prometheus-stack | `httproute-oauth2-nginx-gwf/` | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` |
-| cilium (hubble) | `httproute-oauth2-nginx-gwf/` | Via istio app | `httproute-oauth2-envoy-gateway/` |
-| oauth2-proxy | `httproute-nginx-gwf/` | N/A | N/A |
-| jaeger | N/A | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` |
-| longhorn | N/A | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` |
+| Application      | nginx-gwf                     | istio                     | envoy-gateway                     | cilium            |
+| ---------------- | ----------------------------- | ------------------------- | --------------------------------- | ----------------- |
+| prometheus-stack | `httproute-oauth2-nginx-gwf/` | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` | HTTPRoute patches |
+| cilium (hubble)  | `httproute-oauth2-nginx-gwf/` | Via istio app             | `httproute-oauth2-envoy-gateway/` | HTTPRoute patches |
+| oauth2-proxy     | `httproute-nginx-gwf/`        | N/A                       | N/A                               | N/A               |
+| jaeger           | N/A                           | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` | N/A               |
+| longhorn         | N/A                           | `httproute-oauth2-istio/` | `httproute-oauth2-envoy-gateway/` | N/A               |
 
 ### Mesures de sécurité supplémentaires
 
@@ -99,6 +101,7 @@ OAuth2 Proxy supporte plusieurs modes selon le Gateway API controller utilisé :
 ### Mode ext_authz (Istio)
 
 Utilisé avec Istio via `AuthorizationPolicy` :
+
 - **Authentification seulement** : ne proxifie pas le trafic
 - **Istio Gateway** : intercepte les requêtes et délègue l'auth à OAuth2 Proxy
 - **AuthorizationPolicy** : chaque application gère sa propre policy (pattern décentralisé)
@@ -120,6 +123,7 @@ Utilisé avec Istio via `AuthorizationPolicy` :
 ### Mode auth_request (nginx-gateway-fabric)
 
 Utilisé avec nginx-gateway-fabric via `SnippetsFilter` :
+
 - **Directive NGINX native** : `auth_request` pour l'authentification
 - **SnippetsFilter** : injecte la configuration NGINX dans le Gateway
 - **HTTPRoute filter** : chaque application référence le SnippetsFilter partagé
@@ -143,6 +147,7 @@ Utilisé avec nginx-gateway-fabric via `SnippetsFilter` :
 ### Mode forward-auth (APISIX)
 
 Utilisé avec APISIX via le plugin `forward-auth` :
+
 - **Plugin natif APISIX** : `forward-auth` pour valider les sessions
 - **ApisixUpstream** : accès cross-namespace à oauth2-proxy
 - **serverless-post-function** : convertit les réponses 401 en redirections 302
@@ -166,6 +171,7 @@ Utilisé avec APISIX via le plugin `forward-auth` :
 ### Mode forwardAuth (Traefik)
 
 Utilisé avec Traefik via le middleware `forwardAuth` :
+
 - **Middleware forwardAuth** : délègue l'authentification à OAuth2 Proxy
 - **Service nginx intermédiaire** : convertit les 401 en redirections 302
 - **Middleware chain** : forwardAuth → application
@@ -190,34 +196,96 @@ Utilisé avec Traefik via le middleware `forwardAuth` :
 Quand oauth2-proxy retourne 401 (non authentifié), Traefik passe ce 401 au navigateur au lieu de rediriger vers la page de login.
 
 **Comportement oauth2-proxy** : L'endpoint `/oauth2/auth` est conçu pour `auth_request` nginx et retourne :
+
 - `202 Accepted` si authentifié
 - `401 Unauthorized` si non authentifié (sans redirection)
 
 **Solution** : Le service `oauth2-auth-redirect` (nginx-unprivileged) :
+
 1. Proxifie les requêtes vers oauth2-proxy `/oauth2/auth`
 2. Intercepte les réponses 401
 3. Retourne une redirection 302 vers `/oauth2/start` pour initier le flow OAuth
 
 #### Pourquoi Traefik est le seul à nécessiter nginx ?
 
-| Provider | Mécanisme 401→302 | Service externe ? |
-|----------|-------------------|-------------------|
-| **Istio** | ext_authz natif | ❌ Non |
-| **nginx-gwf** | `auth_request` natif | ❌ Non |
-| **APISIX** | `serverless-post-function` plugin | ❌ Non (Lua intégré) |
-| **Envoy Gateway** | ext_authz natif | ❌ Non |
-| **Traefik** | nginx intermédiaire | ✅ **Oui** |
+| Provider          | Mécanisme 401→302                 | Service externe ?       |
+| ----------------- | --------------------------------- | ----------------------- |
+| **Istio**         | ext_authz natif                   | ❌ Non                  |
+| **nginx-gwf**     | `auth_request` natif              | ❌ Non                  |
+| **APISIX**        | `serverless-post-function` plugin | ❌ Non (Lua intégré)    |
+| **Envoy Gateway** | ext_authz natif                   | ❌ Non                  |
+| **Cilium**        | nginx auth-proxy                  | ✅ **Oui** (temporaire) |
+| **Traefik**       | nginx intermédiaire               | ✅ **Oui**              |
 
 Les autres providers ont des mécanismes natifs ou des plugins intégrés pour gérer la conversion 401→302.
 Traefik n'a pas cette fonctionnalité dans son middleware `forwardAuth`.
 
+### Mode auth-proxy (Cilium Gateway)
+
+> **SOLUTION TEMPORAIRE** : Cilium Gateway API n'a pas de mécanisme natif d'authentification
+> (contrairement à Istio AuthorizationPolicy, Traefik Middleware, nginx-gwf SnippetsFilter).
+> `CiliumEnvoyConfig` (CEC) avec le champ `services` est **incompatible** avec Gateway API
+> en mode shared proxy : les services sont "already registered for L7 LB redirection"
+> ([Issue #26941](https://github.com/cilium/cilium/issues/26941)).
+>
+> **Quand CiliumEnvoyConfig deviendra compatible avec Gateway API**, cette solution devra être
+> remplacée par un CEC `ext_authz` natif (voir section "Migration future vers CiliumEnvoyConfig"
+> ci-dessous).
+
+Utilisé avec Cilium Gateway via un nginx reverse-proxy `oauth2-auth-proxy` :
+
+- **auth_request nginx** : vérifie l'authentification via oauth2-proxy
+- **Backend dynamique** : lu depuis le header `X-Auth-Backend` injecté par HTTPRoute
+- **Fail-close** : si oauth2-proxy est indisponible → 503 (accès refusé)
+
+```
+Client → Cilium Gateway → HTTPRoute
+  ├─ Rule 0: /oauth2/* → oauth2-proxy:4180  (login flow, inchangé)
+  └─ Rule 1: /*        → oauth2-auth-proxy:8080  (auth + proxy)
+                              │
+                              ├─ auth_request → oauth2-proxy /oauth2/auth
+                              │   ├─ 202 OK → proxy_pass vers backend réel
+                              │   └─ 401    → 302 redirect /oauth2/start
+                              │
+                              └─ Backend lu depuis header X-Auth-Backend
+                                  (injecté par HTTPRoute RequestHeaderModifier)
+```
+
+**Mécanisme** :
+
+1. Le HTTPRoute ajoute un filtre `RequestHeaderModifier` (`set`) qui injecte `X-Auth-Backend: http://<service>.<ns>.svc.cluster.local:<port>`
+2. Le HTTPRoute redirige le `backendRef` de Rule 1 vers `oauth2-auth-proxy` (au lieu du vrai backend)
+3. nginx lit le header `X-Auth-Backend`, fait `auth_request`, puis `proxy_pass` vers le backend
+4. Le header `X-Auth-Backend` est supprimé avant la proxification (pas exposé au backend)
+
+**Sécurité** :
+
+- **FAIL-CLOSE** : `auth_request` retourne erreur si oauth2-proxy indisponible → 503
+- **Header non forgeable** : `X-Auth-Backend` est défini par le gateway via `RequestHeaderModifier` `set` (écrase toute valeur client)
+- **Validation backend** : nginx valide que l'URL match `*.svc.cluster.local` (défense en profondeur)
+- **ClusterIP** : auth-proxy non exposé en externe, accessible uniquement via le gateway
+
+#### Migration future vers CiliumEnvoyConfig
+
+Quand Cilium supportera `CiliumEnvoyConfig` compatible avec Gateway API (sans conflit `services` / L7 LB),
+remplacer la solution auth-proxy par un CEC `ext_authz` natif :
+
+1. **Supprimer** `kustomize/cilium/auth-proxy.yaml` (ConfigMap + Deployment + Service)
+2. **Supprimer** `kustomize/cilium/referencegrant-monitoring.yaml` et `referencegrant-kube-system.yaml`
+3. **Créer** `kustomize/cilium/ciliumenvoyconfig.yaml` avec filtre `ext_authz` HTTP pointant vers oauth2-proxy
+4. **Retirer** les patches HTTPRoute Cilium dans `prometheus-stack/applicationset.yaml` et `cilium/applicationset.yaml`
+   (restaurer les `backendRefs` originaux et supprimer les filtres `RequestHeaderModifier`)
+5. **Mettre à jour** `kustomize/cilium/kustomization.yaml` pour référencer le nouveau CEC
+
 #### Alternatives évaluées
 
-| Solution | Verdict |
-|----------|---------|
-| Traefik `errors` middleware (3.4+) | Nécessite toujours un service pour retourner la 302 |
-| forwardAuth vers `/oauth2/` (racine) | Retourne aussi 401, pas de redirection |
-| `traefik-forward-auth` | Projet alternatif dédié, moins de fonctionnalités qu'oauth2-proxy |
+| Solution                             | Verdict                                                           |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| Traefik `errors` middleware (3.4+)   | Nécessite toujours un service pour retourner la 302               |
+| forwardAuth vers `/oauth2/` (racine) | Retourne aussi 401, pas de redirection                            |
+| `traefik-forward-auth`               | Projet alternatif dédié, moins de fonctionnalités qu'oauth2-proxy |
+| CiliumEnvoyConfig avec `services`    | Incompatible Gateway API (conflit L7 LB, Issue #26941)            |
+| CiliumEnvoyConfig sans `services`    | Pas de sélecteur → pas d'interception du trafic                   |
 
 > **Référence** : [OAuth and Traefik 2024](https://farcaller.net/2024/oauth-and-traefik-how-to-protect-your-endpoints/)
 
@@ -226,16 +294,19 @@ Traefik n'a pas cette fonctionnalité dans son middleware `forwardAuth`.
 ### Automatiques (via ApplicationSets)
 
 - **Keycloak** : Fournit l'IdP OIDC
- - Client `oauth2-proxy` créé automatiquement
- - Realm `k8s` avec utilisateurs/groupes
+- Client `oauth2-proxy` créé automatiquement
+- Realm `k8s` avec utilisateurs/groupes
 
 - **Gateway Controller** (selon provider) :
- - **Istio** : Service mesh avec ext_authz
-   - ExtensionProvider `oauth2-proxy` configuré dans le mesh
- - **nginx-gateway-fabric** : Gateway API avec SnippetsFilter
-   - SnippetsFilter `oauth2-auth` déployé dans le namespace gateway
- - **APISIX** : API Gateway avec forward-auth plugin
-   - Plugin `forward-auth` + `serverless-post-function` configuré par route
+- **Istio** : Service mesh avec ext_authz
+  - ExtensionProvider `oauth2-proxy` configuré dans le mesh
+- **nginx-gateway-fabric** : Gateway API avec SnippetsFilter
+  - SnippetsFilter `oauth2-auth` déployé dans le namespace gateway
+- **APISIX** : API Gateway avec forward-auth plugin
+  - Plugin `forward-auth` + `serverless-post-function` configuré par route
+- **Cilium** : Gateway API avec nginx auth-proxy
+  - `oauth2-auth-proxy` déployé dans oauth2-proxy namespace
+  - HTTPRoute patches redirigent vers auth-proxy avec `X-Auth-Backend` header
 
 - **Cert-Manager** : Certificats TLS
 
@@ -245,30 +316,37 @@ Chaque application gère sa propre configuration OAuth2 selon le provider :
 
 **Avec Istio** (`oauth2-authz/`) :
 
-| Application | AuthorizationPolicy | Condition |
-|-------------|---------------------|-----------|
+| Application      | AuthorizationPolicy                                    | Condition                      |
+| ---------------- | ------------------------------------------------------ | ------------------------------ |
 | prometheus-stack | `oauth2-proxy-prometheus`, `oauth2-proxy-alertmanager` | `features.oauth2Proxy.enabled` |
-| cilium | `oauth2-proxy-hubble` | `features.oauth2Proxy.enabled` |
-| longhorn | `oauth2-proxy-longhorn` | `features.oauth2Proxy.enabled` |
+| cilium           | `oauth2-proxy-hubble`                                  | `features.oauth2Proxy.enabled` |
+| longhorn         | `oauth2-proxy-longhorn`                                | `features.oauth2Proxy.enabled` |
 
 **Avec nginx-gateway-fabric** (`oauth2-authz-nginx-gwf/`) :
 
-| Application | Ressources | Condition |
-|-------------|------------|-----------|
+| Application      | Ressources                        | Condition                                             |
+| ---------------- | --------------------------------- | ----------------------------------------------------- |
 | prometheus-stack | ReferenceGrant, HTTPRoute patches | `features.oauth2Proxy.enabled` + provider `nginx-gwf` |
-| cilium | ReferenceGrant, HTTPRoute patches | `features.oauth2Proxy.enabled` + provider `nginx-gwf` |
+| cilium           | ReferenceGrant, HTTPRoute patches | `features.oauth2Proxy.enabled` + provider `nginx-gwf` |
 
 **Avec APISIX** (`apisix/`) :
 
-| Application | Ressources | Condition |
-|-------------|------------|-----------|
+| Application      | Ressources                               | Condition                                          |
+| ---------------- | ---------------------------------------- | -------------------------------------------------- |
 | prometheus-stack | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
-| cilium | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
-| longhorn | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
-| jaeger | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
-| istio (kiali) | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| cilium           | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| longhorn         | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| jaeger           | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
+| istio (kiali)    | ApisixUpstream, ApisixRoute avec plugins | `features.oauth2Proxy.enabled` + provider `apisix` |
 
 > **Voir** : Configuration détaillée dans `apps/apisix/README.md` section "OAuth2 Authentication".
+
+**Avec Cilium** (HTTPRoute patches inline) :
+
+| Application      | Ressources                                                | Condition                                          |
+| ---------------- | --------------------------------------------------------- | -------------------------------------------------- |
+| prometheus-stack | HTTPRoute backendRef → auth-proxy + RequestHeaderModifier | `features.oauth2Proxy.enabled` + provider `cilium` |
+| cilium (hubble)  | HTTPRoute backendRef → auth-proxy + RequestHeaderModifier | `features.oauth2Proxy.enabled` + provider `cilium` |
 
 ## Configuration
 
@@ -278,17 +356,19 @@ Chaque application gère sa propre configuration OAuth2 selon le provider :
 # config/config.yaml
 features:
   oauth2Proxy:
-    enabled: true  # 
+    enabled: true #
 ```
 
 ### Environnements
 
 **Dev (`config/dev.yaml`):**
+
 - 1 replica
 - Skip SSL verification (self-signed certs)
 - Auto-sync activé
 
 **Prod (`config/prod.yaml`):**
+
 - 2+ replicas (HA)
 - SSL verification activé
 - Auto-sync désactivé
@@ -311,6 +391,7 @@ stringData:
 ```
 
 Générer un cookie-secret :
+
 ```bash
 openssl rand -base64 32 | tr -d '\n'
 ```
@@ -332,6 +413,7 @@ openssl rand -base64 32 | tr -d '\n'
 ### Cookie partagé
 
 Le cookie utilise le domaine parent (`.k8s.lan`) pour le SSO :
+
 - Une seule authentification pour toutes les apps
 - Cookie valide 7 jours, refresh toutes les heures
 
@@ -380,8 +462,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../httproute                    # Base HTTPRoutes
-  - authorization-policy.yaml       # OAuth2 AuthorizationPolicy
+  - ../httproute # Base HTTPRoutes
+  - authorization-policy.yaml # OAuth2 AuthorizationPolicy
 ```
 
 #### 4. ApplicationSet avec conditions atomiques
@@ -519,6 +601,7 @@ curl -I https://prometheus.k8s.lan
 **Cause** : AuthorizationPolicy mal configurée ou OAuth2 Proxy non accessible
 
 **Vérifications** :
+
 ```bash
 # AuthorizationPolicy existe ?
 kubectl get authorizationpolicy -n istio-system | grep oauth2
@@ -532,6 +615,7 @@ kubectl exec -n istio-system deploy/istiod -- curl -s http://oauth2-proxy.oauth2
 **Cause** : Cookie domain incorrect ou CORS issues
 
 **Vérifications** :
+
 ```bash
 # Vérifier cookie domain dans les logs
 kubectl logs -n oauth2-proxy deployment/oauth2-proxy | grep cookie

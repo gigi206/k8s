@@ -394,6 +394,25 @@ spec:
                           kind: Middleware
                           name: oauth2-proxy-auth
                   {{- end }}
+                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "cilium") }}
+                  - op: replace
+                    path: /spec/rules/1/backendRefs/0
+                    value:
+                      group: ""
+                      kind: Service
+                      name: oauth2-auth-proxy
+                      namespace: oauth2-proxy
+                      port: 8080
+                      weight: 1
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: RequestHeaderModifier
+                        requestHeaderModifier:
+                          set:
+                            - name: X-Auth-Backend
+                              value: "http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090"
+                  {{- end }}
               - target:
                   kind: HTTPRoute
                   name: alertmanager
@@ -413,6 +432,25 @@ spec:
                           group: traefik.io
                           kind: Middleware
                           name: oauth2-proxy-auth
+                  {{- end }}
+                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "cilium") }}
+                  - op: replace
+                    path: /spec/rules/1/backendRefs/0
+                    value:
+                      group: ""
+                      kind: Service
+                      name: oauth2-auth-proxy
+                      namespace: oauth2-proxy
+                      port: 8080
+                      weight: 1
+                  - op: add
+                    path: /spec/rules/1/filters
+                    value:
+                      - type: RequestHeaderModifier
+                        requestHeaderModifier:
+                          set:
+                            - name: X-Auth-Backend
+                              value: "http://prometheus-stack-kube-prom-alertmanager.monitoring.svc.cluster.local:9093"
                   {{- end }}
               - target:
                   kind: ReferenceGrant

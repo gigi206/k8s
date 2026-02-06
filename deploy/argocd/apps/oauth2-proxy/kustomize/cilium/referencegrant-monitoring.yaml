@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# ReferenceGrant - Allow monitoring HTTPRoutes to reference oauth2-auth-proxy
+# =============================================================================
+# Prometheus and Alertmanager HTTPRoutes (in monitoring namespace) need to
+# reference the oauth2-auth-proxy Service (in oauth2-proxy namespace) as
+# backendRef for Cilium Gateway authentication.
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-auth-proxy-from-monitoring
+  namespace: oauth2-proxy
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: monitoring
+  to:
+    - group: ""
+      kind: Service
+      name: oauth2-auth-proxy

@@ -1,0 +1,210 @@
+---
+# =============================================================================
+# OAuth2 Auth Proxy - nginx reverse-proxy with auth_request for Cilium Gateway
+# =============================================================================
+# Cilium Gateway API has no native authentication mechanism (no ext_authz,
+# no Middleware, no SecurityPolicy). CiliumEnvoyConfig with `services` field
+# is incompatible with Gateway API (services already registered for L7 LB).
+#
+# This nginx reverse-proxy implements auth_request to verify authentication
+# via oauth2-proxy before proxying to the real backend.
+#
+# How it works:
+# 1. HTTPRoute redirects protected traffic to oauth2-auth-proxy:8080
+# 2. HTTPRoute injects X-Auth-Backend header with the real backend URL
+# 3. nginx does auth_request to oauth2-proxy /oauth2/auth
+#    - 202 OK: proxy_pass to the real backend (from X-Auth-Backend)
+#    - 401 Unauthorized: 302 redirect to /oauth2/start
+#
+# Security:
+# - FAIL-CLOSE: if oauth2-proxy is unavailable, auth_request fails -> 503
+# - X-Auth-Backend is set by Gateway (RequestHeaderModifier set), not client
+# - nginx validates backend URL matches *.svc.cluster.local pattern
+# - ClusterIP only, not exposed externally
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-auth-proxy-config
+  namespace: oauth2-proxy
+data:
+  default.conf.template: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        # Temp paths for non-root operation (nginx-unprivileged)
+        client_body_temp_path /tmp/client_temp;
+        proxy_temp_path /tmp/proxy_temp;
+        fastcgi_temp_path /tmp/fastcgi_temp;
+        uwsgi_temp_path /tmp/uwsgi_temp;
+        scgi_temp_path /tmp/scgi_temp;
+
+        # Kubernetes DNS resolver (injected at startup from /etc/resolv.conf)
+        resolver ${RESOLVER} valid=30s;
+
+        # WebSocket connection upgrade map
+        map $http_upgrade $connection_upgrade {
+            default upgrade;
+            '' close;
+        }
+
+        server {
+            listen 8080;
+            server_name _;
+
+            # Health check
+            location = /healthz {
+                access_log off;
+                return 200 'OK';
+                add_header Content-Type text/plain;
+            }
+
+            # Internal auth subrequest to oauth2-proxy
+            location = /_oauth2_auth {
+                internal;
+                proxy_pass http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth;
+                proxy_pass_request_body off;
+                proxy_set_header Content-Length "";
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                proxy_set_header X-Forwarded-Host $http_host;
+                proxy_set_header Host $http_host;
+                # Forward cookies for session validation
+                proxy_set_header Cookie $http_cookie;
+            }
+
+            # Auth + reverse proxy to dynamic backend
+            location / {
+                auth_request /_oauth2_auth;
+
+                # Read backend URL from header injected by HTTPRoute RequestHeaderModifier
+                set $backend $http_x_auth_backend;
+
+                # Validate backend is an internal cluster service (defense in depth)
+                if ($backend !~* "^https?://[a-z0-9.-]+\.svc\.cluster\.local(:[0-9]+)?(/.*)?$") {
+                    return 503 "Invalid backend";
+                }
+
+                # Proxy to the real backend
+                proxy_pass $backend;
+                proxy_http_version 1.1;
+
+                # WebSocket support
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+
+                # Forward original headers
+                proxy_set_header Host $http_host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                proxy_set_header X-Forwarded-Host $http_host;
+
+                # Remove internal header before proxying to backend
+                proxy_set_header X-Auth-Backend "";
+
+                # 401 from auth_request -> redirect to oauth2 login
+                error_page 401 = @error401;
+            }
+
+            location @error401 {
+                return 302 https://$http_host/oauth2/start?rd=https://$http_host$request_uri;
+            }
+        }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-auth-proxy
+  namespace: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-auth-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-auth-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:alpine3.22
+          command:
+            - /bin/sh
+            - -c
+            - |
+              export RESOLVER=$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf)
+              envsubst '${RESOLVER}' < /etc/nginx/templates/default.conf.template > /tmp/nginx.conf
+              exec nginx -c /tmp/nginx.conf -g 'daemon off;'
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/templates
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: oauth2-auth-proxy-config
+        - name: tmp
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-auth-proxy
+  namespace: oauth2-proxy
+spec:
+  type: ClusterIP
+  selector:
+    app: oauth2-auth-proxy
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
