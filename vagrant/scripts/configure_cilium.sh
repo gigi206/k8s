@@ -18,9 +18,11 @@
 # =============================================================================
 # GATEWAY_API_PROVIDER=cilium: Cilium Gateway API controller
 #   - Enables gatewayAPI.enabled=true in Cilium config
-#   - Cilium creates GatewayClass "cilium" automatically
+#   - GatewayClass "cilium" normally created by Helm chart (gatewayClass.create="auto")
+#   - At first install, CRDs don't exist yet → Helm skips GatewayClass creation
+#   - deploy-applicationsets.sh creates the GatewayClass manually after CRDs arrive
+#   - On future RKE2 upgrades, Cilium Helm adopts the existing GatewayClass
 #   - Requires kubeProxyReplacement=true (already enabled)
-#   - Gateway API CRDs must be pre-installed
 #
 # GATEWAY_API_PROVIDER=<other>: External Gateway API controller (istio, traefik, etc.)
 #   - Cilium gatewayAPI.enabled=false (default)
@@ -160,6 +162,8 @@ ${CILIUM_DEVICES_YAML}
     gatewayAPI: # https://docs.cilium.io/en/stable/network/servicemesh/gateway-api/gateway-api/
       enabled: ${GATEWAY_API_ENABLED} # require kubeProxyReplacement=true
       enableAlpn: true # Required for gRPC over TLS (GRPCRoute)
+      gatewayClass:
+        create: "auto" # "auto" = create only if CRDs exist at Helm install time (see deploy-applicationsets.sh for re-reconciliation)
     # enableCiliumEndpointSlice: removed - deprecated in v1.16 and removed in v1.18
     ipMasqAgent:
       enabled: false
