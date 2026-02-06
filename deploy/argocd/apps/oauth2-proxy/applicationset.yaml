@@ -223,7 +223,9 @@ spec:
           path: deploy/argocd/apps/oauth2-proxy/kustomize/traefik-middleware
         {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
         # Source: CiliumEnvoyConfig for ext_authz (oauth2-proxy authentication)
-        # EXPERIMENTAL: May conflict with Gateway API auto-generated configs
+        # NOTE: Requires the default-deny-pod-ingress CCNP to use operator: Exists
+        # in endpointSelector to exclude the gateway pseudo-endpoint, otherwise
+        # cilium.l7policy denies all traffic with 403 "Access denied".
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/oauth2-proxy/kustomize/cilium
