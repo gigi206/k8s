@@ -198,6 +198,14 @@ spec:
           directory:
             include: "cilium-ingress-policy-coredns.yaml"
         {{- end }}
+        {{- if .features.cilium.mutualAuth.enabled }}
+        # Source: SPIRE ingress policy (allows Agent <-> Server communication in cilium-spire namespace)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "cilium-spire-ingress-policy.yaml"
+        {{- end }}
         {{- end }}
         {{- if .features.cilium.ingressPolicy.enabled }}
         # Source: Cilium ingress policy - conditional per Gateway provider
@@ -239,6 +247,16 @@ spec:
             include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
         {{- end }}
+        {{- if .features.cilium.mutualAuth.enabled }}
+        # Source: Mutual Authentication enforcement (authentication.mode: required)
+        # Equivalent of Istio PeerAuthentication mode: STRICT
+        # Requires SPIFFE/SPIRE identity for all pod-to-pod traffic
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "mutual-auth-required.yaml"
+        {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
         - repoURL: https://github.com/gigi206/k8s
@@ -246,6 +264,14 @@ spec:
           path: deploy/argocd/apps/cilium/resources
           directory:
             include: "kyverno-policy-exception.yaml"
+        {{- if .features.cilium.mutualAuth.enabled }}
+        # Source: Kyverno PolicyException for SPIRE (cilium-spire namespace)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/resources
+          directory:
+            include: "kyverno-policy-exception-spire.yaml"
+        {{- end }}
         {{- end }}
         {{- if and .features.gatewayAPI.enabled (eq .features.gatewayAPI.controller.provider "cilium") }}
         # Source: Cilium Gateway API resources (Gateway, Certificate)

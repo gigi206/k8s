@@ -688,6 +688,71 @@ kubectl exec -n kube-system ds/cilium -- \
 - La policy n'est pas encore synchronisée par ArgoCD
 - Le feature flag `features.cilium.egressPolicy.enabled` est désactivé
 
+## Stockage SPIRE (Mutual Authentication)
+
+### Problème Chicken-and-Egg
+
+SPIRE Server a besoin d'un PVC pour persister ses données (identités, bundles), mais au bootstrap RKE2 :
+- SPIRE boot **avant** le storage provider (Rook/Longhorn)
+- Le storage provider est déployé **via ArgoCD**, qui s'installe après Cilium
+- Aucun StorageClass n'existe encore quand Cilium démarre
+
+### Solution : Migration Automatique emptyDir → PVC
+
+**Phase 1 (Bootstrap)** : `configure_cilium.sh` crée le HelmChartConfig avec `dataStorage.enabled: false` (emptyDir). SPIRE fonctionne normalement mais perd ses données au restart (re-négociation ~30s).
+
+**Phase 2.5 (Post-déploiement)** : `deploy-applicationsets.sh` exécute la migration automatique une fois le storage prêt :
+1. Vérifie que `dataStorage.enabled=false` dans le HelmChartConfig K8s (skip si déjà migré)
+2. Attend que le storage provider soit Ready (CephCluster + CephBlockPool pour Rook, ou StorageClass pour Longhorn)
+3. Patche le HelmChartConfig K8s pour activer `dataStorage` avec le StorageClass et la taille configurés
+4. Supprime `rke2-cilium-config.yaml` du disque via un Job K8s (évite la ré-application au reboot)
+5. Le Helm controller détecte le changement et fait un `helm upgrade` automatique
+
+### Configuration
+
+```yaml
+# config.yaml
+features:
+  cilium:
+    mutualAuth:
+      enabled: true
+      port: 4250
+      spire:
+        dataStorage:
+          enabled: true    # Migrer vers PVC après déploiement storage
+          size: 1Gi        # Taille du PVC SPIRE Server
+  storage:
+    class: "ceph-block"    # StorageClass utilisé pour le PVC
+```
+
+### Comportement après migration
+
+- **Reboot du cluster** : Pas de fichier `rke2-cilium-config.yaml` sur le disque → le HelmChartConfig dans etcd (avec `dataStorage: true`) est la source de vérité
+- **Re-provisioning complet** : Le cycle complet Bootstrap → Migration se réexécute automatiquement
+- **Migration déjà faite** : Détection au début, skip complet (idempotent)
+
+### Vérification
+
+```bash
+# 1. Vérifier que le HelmChartConfig est patché
+kubectl get helmchartconfig rke2-cilium -n kube-system -o jsonpath='{.spec.valuesContent}' | yq '.authentication.mutual.spire.install.server.dataStorage'
+
+# 2. Vérifier que SPIRE utilise un PVC
+kubectl get pvc -n cilium-spire
+
+# 3. Vérifier que SPIRE est healthy
+kubectl get pods -n cilium-spire
+
+# 4. Vérifier que le fichier est supprimé du disque (SSH au master)
+ls -la /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
+# Attendu: No such file
+```
+
+### Impact
+
+- **SPIRE restart** : ~30s de re-négociation des identités SPIFFE. La policy `mutual-auth-required` exclut `kube-system` et `cilium-spire`, donc SPIRE n'est pas bloqué.
+- **Multi-master** : Le Job de suppression du fichier tourne sur un seul master. Les autres masters gardent le fichier, mais etcd est la source de vérité.
+
 ## Références
 
 - [Cilium Documentation](https://docs.cilium.io/en/stable/)

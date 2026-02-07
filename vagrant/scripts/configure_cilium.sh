@@ -68,6 +68,82 @@ else
   echo "Gateway API Provider: $GATEWAY_API_PROVIDER (Cilium gatewayAPI DISABLED)"
 fi
 
+# Determine encryption settings based on environment variables (from install_master.sh)
+CILIUM_ENCRYPTION_ENABLED="${CILIUM_ENCRYPTION_ENABLED:-false}"
+CILIUM_ENCRYPTION_TYPE="${CILIUM_ENCRYPTION_TYPE:-wireguard}"
+CILIUM_NODE_ENCRYPTION="${CILIUM_NODE_ENCRYPTION:-true}"
+CILIUM_STRICT_MODE="${CILIUM_STRICT_MODE:-false}"
+
+if [ "$CILIUM_ENCRYPTION_ENABLED" = "true" ]; then
+  ENCRYPTION_BLOCK="    encryption:
+      enabled: true
+      type: ${CILIUM_ENCRYPTION_TYPE}
+      nodeEncryption: ${CILIUM_NODE_ENCRYPTION}"
+  if [ "$CILIUM_STRICT_MODE" = "true" ]; then
+    ENCRYPTION_BLOCK="${ENCRYPTION_BLOCK}
+      strictMode:
+        enabled: true
+        cidr: 10.42.0.0/16
+        allowRemoteNodeIdentities: true"
+  fi
+  echo "Cilium Encryption: ENABLED (type=${CILIUM_ENCRYPTION_TYPE}, nodeEncryption=${CILIUM_NODE_ENCRYPTION}, strictMode=${CILIUM_STRICT_MODE})"
+else
+  ENCRYPTION_BLOCK="    # encryption: disabled (features.cilium.encryption.enabled=false)"
+  echo "Cilium Encryption: DISABLED"
+fi
+
+# Determine mutual authentication settings (SPIFFE/SPIRE)
+CILIUM_MUTUAL_AUTH="${CILIUM_MUTUAL_AUTH:-false}"
+CILIUM_MUTUAL_AUTH_PORT="${CILIUM_MUTUAL_AUTH_PORT:-4250}"
+
+if [ "$CILIUM_MUTUAL_AUTH" = "true" ]; then
+  # dataStorage disabled at bootstrap: storage provider (Rook/Longhorn) is not yet
+  # deployed. Migration to PVC happens post-deployment in deploy-applicationsets.sh
+  # when storage is ready (features.cilium.mutualAuth.spire.dataStorage.enabled=true).
+  # emptyDir is safe: SPIRE re-issues all identities on restart (~30s re-negotiation).
+  AUTH_BLOCK="    authentication:
+      mutual:
+        port: ${CILIUM_MUTUAL_AUTH_PORT}
+        spire:
+          enabled: true
+          install:
+            enabled: true
+            namespace: cilium-spire
+            server:
+              dataStorage:
+                enabled: false
+              podSecurityContext:
+                runAsUser: 0
+                runAsGroup: 0
+            agent:
+              podSecurityContext:
+                runAsUser: 0
+                runAsGroup: 0"
+  echo "Cilium Mutual Auth: ENABLED (SPIFFE/SPIRE on port ${CILIUM_MUTUAL_AUTH_PORT})"
+else
+  AUTH_BLOCK="    # authentication: disabled (features.cilium.mutualAuth.enabled=false)"
+  echo "Cilium Mutual Auth: DISABLED"
+fi
+
+# Determine Istio Ambient compatibility settings
+# When Istio service mesh is active, Cilium must adjust several settings:
+# - bpf.masquerade=false: BPF masq incompatible with Istio link-local IPs
+# - cni.exclusive=false: Allow istio-cni to chain with Cilium
+# - socketLB.hostNamespaceOnly=true: Prevent conflicts with ztunnel
+SERVICE_MESH_ENABLED="${SERVICE_MESH_ENABLED:-false}"
+SERVICE_MESH_PROVIDER="${SERVICE_MESH_PROVIDER:-none}"
+
+if [ "$SERVICE_MESH_ENABLED" = "true" ] && [ "$SERVICE_MESH_PROVIDER" = "istio" ]; then
+  BPF_MASQUERADE="false"
+  CNI_EXCLUSIVE="false"
+  SOCKET_LB_HOST_NS_ONLY="true"
+  echo "Service Mesh: Istio (bpf.masquerade=false, cni.exclusive=false, socketLB.hostNamespaceOnly=true)"
+else
+  BPF_MASQUERADE="true"
+  CNI_EXCLUSIVE="true"
+  SOCKET_LB_HOST_NS_ONLY="false"
+fi
+
 if [ "$LB_PROVIDER" = "cilium" ]; then
   L2_ANNOUNCEMENTS_ENABLED="true"
   # Both interfaces for Cilium L2 announcements
@@ -96,6 +172,27 @@ fi
 
 echo "Configuring Cilium HelmChartConfig..."
 mkdir -p /var/lib/rancher/rke2/server/manifests
+
+# Pre-create cilium-spire namespace with privileged PodSecurity labels
+# SPIRE requires hostNetwork, hostPID, hostPath, allowPrivilegeEscalation
+# which are blocked by the "restricted" PodSecurity profile
+if [ "$CILIUM_MUTUAL_AUTH" = "true" ]; then
+  cat <<EOF >/var/lib/rancher/rke2/server/manifests/cilium-spire-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cilium-spire
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: rke2-cilium
+    meta.helm.sh/release-namespace: kube-system
+EOF
+  echo "✓ cilium-spire namespace manifest created (PodSecurity: privileged, Helm-adopted)"
+fi
 cat <<EOF >/var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
@@ -129,7 +226,7 @@ ${CILIUM_DEVICES_YAML}
       enabled: false
     socketLB:
       enabled: true
-    #   hostNamespaceOnly: true # (For Istio by example) https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#socket-loadbalancer-bypass-in-pod-namespace
+      hostNamespaceOnly: ${SOCKET_LB_HOST_NS_ONLY} # true when Istio Ambient (prevents conflicts with ztunnel)
     # sessionAffinity: ClientIP # https://docs.cilium.io/en/latest/network/kubernetes/kubeproxy-free/#session-affinity
     ingressController:
       enabled: false
@@ -169,18 +266,11 @@ ${CILIUM_DEVICES_YAML}
       enabled: false
     bpf:
       preallocateMaps: true # Increase memory usage but can reduce latency
-      masquerade: false # REQUIRED for Istio Ambient (BPF masq incompatible with Istio link-local IPs)
+      masquerade: ${BPF_MASQUERADE} # false when Istio Ambient (BPF masq incompatible with link-local IPs)
       autoDirectNodeRoutes: true
       hostLegacyRouting: false
       lbExternalClusterIP: true # https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/#external-access-to-clusterip-services (hairpin NAT for pods accessing LoadBalancer IPs)
-    # authentication: # https://docs.cilium.io/en/latest/network/servicemesh/mutual-authentication/mutual-authentication/ (https://youtu.be/tE9U1gNWzqs)
-    #   mutual:
-    #     port: 4250
-    #     spire:
-    #       enabled: true
-    #       install:
-    #         enabled: true
-    #         namespace: cilium-spireauths
+${AUTH_BLOCK}
     # bandwidthManager: # https://docs.cilium.io/en/latest/network/kubernetes/bandwidth-manager/
     #   enabled: true
     #   bbr: true # https://docs.cilium.io/en/latest/network/kubernetes/bandwidth-manager/#bbr-for-pods
@@ -197,10 +287,7 @@ ${CILIUM_DEVICES_YAML}
       #   enabled: true # A activer une fois prometheus-stack installé (via cilium app)
       #   annotations:
       #     grafana_dashboard_folder: /tmp/dashboards/Cilium
-    # encryption:
-    #   enabled: true
-    #   type: wireguard # https://docs.cilium.io/en/latest/security/network/encryption-wireguard
-    #   # nodeEncryption: true # https://docs.cilium.io/en/latest/security/network/encryption-wireguard/#node-to-node-encryption-beta
+${ENCRYPTION_BLOCK}
     hostFirewall: # https://docs.cilium.io/en/stable/security/host-firewall/
       enabled: true
     policyEnforcementMode: default # https://docs.cilium.io/en/stable/security/policy/intro/
@@ -218,9 +305,7 @@ ${CILIUM_DEVICES_YAML}
     #   enabled: true
     cni:
       chainingMode: "none"
-      exclusive: false # REQUIRED for Istio Ambient (CNI chaining with istio-cni)
-    socketLB:
-      hostNamespaceOnly: true # REQUIRED for Istio Ambient (prevents socket LB conflicts with ztunnel)
+      exclusive: ${CNI_EXCLUSIVE} # false when Istio Ambient (CNI chaining with istio-cni)
 
     # L2 Announcements - Controlled by LB_PROVIDER
     # =============================================
@@ -390,5 +475,11 @@ fi
 echo "  - Hubble observability: enabled"
 echo "  - Prometheus metrics: enabled"
 echo "  - Host firewall: enabled"
+if [ "$CILIUM_ENCRYPTION_ENABLED" = "true" ]; then
+  echo "  - Encryption: ${CILIUM_ENCRYPTION_TYPE} (nodeEncryption=${CILIUM_NODE_ENCRYPTION}, strictMode=${CILIUM_STRICT_MODE})"
+fi
+if [ "$CILIUM_MUTUAL_AUTH" = "true" ]; then
+  echo "  - Mutual Authentication: SPIFFE/SPIRE (port=${CILIUM_MUTUAL_AUTH_PORT})"
+fi
 echo ""
 echo "✓ Cilium CNI configuration completed successfully"

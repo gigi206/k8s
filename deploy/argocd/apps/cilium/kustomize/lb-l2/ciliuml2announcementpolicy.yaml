@@ -16,7 +16,7 @@ spec:
     matchLabels: {}
   # Interface to announce on (must be in Cilium's devices list)
   interfaces:
-    - eth0
+    - eth1
   # Announce LoadBalancer and ExternalIPs
   loadBalancerIPs: true
   externalIPs: true

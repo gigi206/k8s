@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - Require Mutual Authentication (SPIFFE/SPIRE)
+# =============================================================================
+# Equivalent Cilium du PeerAuthentication mode: STRICT d'Istio.
+# Toute communication pod-to-pod doit être authentifiée mutuellement via
+# des identités SPIFFE délivrées par le SPIRE agent local.
+#
+# Les pods sans identité SPIFFE valide voient leur trafic refusé.
+#
+# Namespaces exclus:
+# - kube-system: Composants critiques du cluster (DNS, CNI, API)
+# - cilium-spire: SPIRE Server/Agent (éviter le problème chicken-and-egg)
+#
+# Requiert: features.cilium.mutualAuth.enabled=true dans config.yaml
+# Docs: https://docs.cilium.io/en/stable/network/servicemesh/mutual-authentication/
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: mutual-auth-required
+spec:
+  description: "Require SPIFFE/SPIRE mutual authentication for all pod-to-pod traffic"
+
+  # Apply to ALL pods EXCEPT kube-system and cilium-spire
+  endpointSelector:
+    matchExpressions:
+      - key: io.kubernetes.pod.namespace
+        operator: Exists
+      - key: io.kubernetes.pod.namespace
+        operator: NotIn
+        values:
+          - kube-system
+          - cilium-spire
+
+  ingress:
+    - fromEndpoints:
+        - {}
+      authentication:
+        mode: "required"

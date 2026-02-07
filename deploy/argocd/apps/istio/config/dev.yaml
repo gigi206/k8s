@@ -11,7 +11,7 @@ istio:
   # PERMISSIVE: Accept both plaintext and mTLS (default)
   # DISABLE: No mTLS
   mtls:
-    enabled: true
+    enabled: false
     mode: STRICT
 
   # Istiod (Control Plane)
