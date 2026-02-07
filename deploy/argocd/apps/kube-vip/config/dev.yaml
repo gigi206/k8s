@@ -5,7 +5,7 @@ appName: kube-vip
 
 kubeVip:
   # Version de l'image kube-vip
-  version: "v1.0.3"
+  version: "v1.0.4"
 
   # VIP is centralized in config.yaml: features.loadBalancer.staticIPs.kubernetesApi
 

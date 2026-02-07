@@ -4,7 +4,7 @@ appName: istio-gateway
 
 istio:
   namespace: istio-system
-  version: "1.28.2"  # Must match istio control plane version (used when features.ingress.enabled)
+  version: "1.28.3"  # Must match istio control plane version (used when features.ingress.enabled)
 
   # Istio Ingress Gateway (only used when features.ingress.enabled=true)
   # When disabled, only Gateway API is used (istio-gateway-istio service)
