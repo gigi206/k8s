@@ -395,7 +395,23 @@ FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enable
 FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
 FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled' 'true')
 FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.cilium.defaultDenyPodIngress.enabled' 'true')
+FEAT_CILIUM_ENCRYPTION=$(get_feature '.features.cilium.encryption.enabled' 'true')
+FEAT_CILIUM_ENCRYPTION_TYPE=$(get_feature '.features.cilium.encryption.type' 'wireguard')
+FEAT_CILIUM_MUTUAL_AUTH=$(get_feature '.features.cilium.mutualAuth.enabled' 'true')
 FEAT_KATA_CONTAINERS=$(get_feature '.features.kataContainers.enabled' 'false')
+
+# Read Istio mTLS setting from per-app config (if Istio service mesh is active)
+FEAT_ISTIO_MTLS="false"
+if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" == "istio" ]]; then
+  ISTIO_CONFIG="${SCRIPT_DIR}/apps/istio/config/${ENVIRONMENT}.yaml"
+  if [[ -f "$ISTIO_CONFIG" ]]; then
+    _istio_mtls_val=$(yq -r '.istio.mtls.enabled // "false"' "$ISTIO_CONFIG" 2>/dev/null)
+    case "$_istio_mtls_val" in
+      true|True|TRUE|yes|Yes|YES|1) FEAT_ISTIO_MTLS="true" ;;
+      *) FEAT_ISTIO_MTLS="false" ;;
+    esac
+  fi
+fi
 
 # CNI configuration
 FEAT_CNI_PRIMARY=$(get_feature '.cni.primary' 'cilium')
@@ -426,6 +442,8 @@ log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
 log_debug "  cilium.ingressPolicy: $FEAT_CILIUM_INGRESS_POLICY"
+log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
+log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
 log_debug "  kataContainers: $FEAT_KATA_CONTAINERS"
 log_debug "  cni.primary: $FEAT_CNI_PRIMARY"
 log_debug "  cni.multus: $FEAT_CNI_MULTUS"
@@ -631,6 +649,34 @@ validate_dependencies() {
     log_error "features.cilium.defaultDenyPodIngress.enabled=true nécessite cni.primary=cilium"
     log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
     errors=$((errors + 1))
+  fi
+
+  if [[ "$FEAT_CILIUM_ENCRYPTION" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.encryption.enabled=true nécessite cni.primary=cilium"
+    log_error "  Le chiffrement WireGuard/IPsec nécessite Cilium CNI"
+    errors=$((errors + 1))
+  fi
+
+  if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.mutualAuth.enabled=true nécessite cni.primary=cilium"
+    log_error "  L'authentification mutuelle SPIFFE/SPIRE nécessite Cilium CNI"
+    errors=$((errors + 1))
+  fi
+
+  # Vérifier les conflits entre Cilium et Istio mTLS
+  if [[ "$FEAT_ISTIO_MTLS" == "true" ]]; then
+    if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]]; then
+      log_error "Conflit: features.cilium.mutualAuth.enabled=true et istio.mtls.enabled=true"
+      log_error "  Cilium SPIFFE/SPIRE et Istio utilisent des systèmes d'identité SPIFFE concurrents"
+      log_error "  Désactiver l'un des deux: features.cilium.mutualAuth.enabled ou istio.mtls.enabled"
+      errors=$((errors + 1))
+    fi
+    if [[ "$FEAT_CILIUM_ENCRYPTION" == "true" ]]; then
+      log_error "Double chiffrement détecté: features.cilium.encryption.enabled=true et istio.mtls.enabled=true"
+      log_error "  Cilium WireGuard et Istio ztunnel chiffrent tous deux le trafic inter-pods"
+      log_error "  Désactiver l'un des deux pour éviter la surcharge de performance"
+      errors=$((errors + 1))
+    fi
   fi
 
   # Vérifier que loxilb avec Cilium nécessite Multus CNI pour isolation eBPF
@@ -1662,6 +1708,8 @@ echo "  Monitoring:        $FEAT_MONITORING"
 echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
 echo "  Cilium Egress:     $FEAT_CILIUM_EGRESS_POLICY"
 echo "  Cilium Ingress:    $FEAT_CILIUM_INGRESS_POLICY"
+echo "  Cilium Encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
+echo "  Cilium Mutual Auth: $FEAT_CILIUM_MUTUAL_AUTH"
 echo "  Tracing:           $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 echo "  ServiceMesh Waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
