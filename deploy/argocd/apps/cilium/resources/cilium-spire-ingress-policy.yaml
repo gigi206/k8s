@@ -1,0 +1,36 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - SPIRE Mutual Authentication (cilium-spire namespace)
+# =============================================================================
+# When Cilium mutual authentication (SPIFFE/SPIRE) is enabled, SPIRE Server
+# and SPIRE Agent are deployed in the cilium-spire namespace.
+#
+# The default-deny-pod-ingress policy blocks all pod-to-pod ingress except
+# from kube-system and host. This policy allows:
+# - Intra-namespace traffic (SPIRE Agent <-> SPIRE Server)
+# - From kube-system (Cilium agents interact with SPIRE)
+#
+# Note: Cilium agents communicate with the local SPIRE Agent via Unix domain
+# socket (/run/spire/sockets/agent/agent.sock), but SPIRE Agent -> SPIRE
+# Server uses gRPC over the network (port 8081).
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-spire-ingress
+  namespace: cilium-spire
+spec:
+  description: "Allow SPIRE internal communication (Agent <-> Server)"
+  endpointSelector: {}
+
+  ingress:
+    # Allow intra-namespace traffic (SPIRE Agent <-> SPIRE Server)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cilium-spire
+
+    # Allow from kube-system (Cilium agents)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system

@@ -54,6 +54,14 @@ spec:
           - resources:
               namespaces:
                 - kyverno
+          # === SPIRE (Cilium mutual auth) - fundamentally requires SA token ===
+          # SPIRE server uses k8sbundle Notifier and k8s NodeResolver which need
+          # the K8s API. Without the token, SPIRE crashes and mutual auth blocks
+          # ALL inter-pod traffic. Excluded here (not via PolicyException) because
+          # the Helm controller may update SPIRE before the PE is applied.
+          - resources:
+              namespaces:
+                - cilium-spire
       mutate:
         patchStrategicMerge:
           spec:

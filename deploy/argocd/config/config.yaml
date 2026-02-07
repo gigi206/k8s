@@ -142,7 +142,7 @@ features:
     httpRoute:
       enabled: true # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "nginx-gwf" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
+      provider: "envoy-gateway" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
@@ -150,7 +150,7 @@ features:
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
       # - cilium: kube-system (Cilium Gateway runs in kube-system)
-      gatewayNamespace: "nginx-gateway"
+      gatewayNamespace: "envoy-gateway-system"
   # === Legacy Ingress (déprécié) ===
   ingress:
     enabled: false # Support Ingress legacy (patch des ressources)
@@ -187,6 +187,29 @@ features:
       enabled: true # CiliumClusterwideNetworkPolicy default-deny pod-to-pod ingress (Zero Trust)
       # Requires per-app CiliumNetworkPolicy to allow traffic
       # Excludes: kube-system (DNS, API, CNI)
+    # === Encryption (WireGuard/IPsec) ===
+    # Chiffrement transparent du trafic inter-pods via le kernel Linux
+    # WireGuard (GA): ChaCha20-Poly1305, gestion automatique des clés, recommandé
+    # IPsec (GA): AES-GCM-128 (AES-NI), nécessite rotation manuelle des clés
+    # Docs: https://docs.cilium.io/en/stable/security/network/encryption-wireguard/
+    encryption:
+      enabled: true # Activer le chiffrement transparent du trafic inter-pods
+      type: "wireguard" # wireguard (recommandé, GA) | ipsec (FIPS, GA)
+      nodeEncryption: true # Chiffrer aussi le trafic noeud-a-noeud (pas seulement pod-a-pod)
+      strictMode:
+        enabled: true # Empêcher les fuites de trafic non-chiffré (drop si endpoint non découvert)
+    # === Mutual Authentication (SPIFFE/SPIRE) ===
+    # Authentification mutuelle par identité cryptographique workload (Beta)
+    # Complète le chiffrement avec la vérification d'identité SPIFFE
+    # Sidecarless: eBPF + SPIRE agent par noeud (pas de sidecar Envoy)
+    # Docs: https://docs.cilium.io/en/stable/network/servicemesh/mutual-authentication/
+    mutualAuth:
+      enabled: true # Activer l'authentification mutuelle SPIFFE/SPIRE (Beta)
+      port: 4250 # Port de communication de l'agent SPIRE
+      spire:
+        dataStorage:
+          enabled: true   # true = migrer vers PVC après déploiement storage (emptyDir au bootstrap)
+          size: 1Gi       # Taille du PVC SPIRE Server
   # === Observability: Logging ===
   logging:
     enabled: true # Active le logging centralisé
@@ -236,7 +259,7 @@ features:
 cni:
   primary: "cilium" # cilium (RKE2 default, eBPF-based)
   multus:
-    enabled: true # Enable multi-network support
+    enabled: false # Enable multi-network support
     whereabouts: true # Cluster-wide IPAM for secondary interfaces
 # =============================================================================
 # RKE2 Cluster Configuration

@@ -395,7 +395,26 @@ FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enable
 FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
 FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled' 'true')
 FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.cilium.defaultDenyPodIngress.enabled' 'true')
+FEAT_CILIUM_ENCRYPTION=$(get_feature '.features.cilium.encryption.enabled' 'true')
+FEAT_CILIUM_ENCRYPTION_TYPE=$(get_feature '.features.cilium.encryption.type' 'wireguard')
+FEAT_CILIUM_MUTUAL_AUTH=$(get_feature '.features.cilium.mutualAuth.enabled' 'true')
+FEAT_SPIRE_DATA_STORAGE=$(get_feature '.features.cilium.mutualAuth.spire.dataStorage.enabled' 'false')
+FEAT_SPIRE_DATA_STORAGE_SIZE=$(get_feature '.features.cilium.mutualAuth.spire.dataStorage.size' '1Gi')
+FEAT_STORAGE_CLASS=$(get_feature '.features.storage.class' 'ceph-block')
 FEAT_KATA_CONTAINERS=$(get_feature '.features.kataContainers.enabled' 'false')
+
+# Read Istio mTLS setting from per-app config (if Istio service mesh is active)
+FEAT_ISTIO_MTLS="false"
+if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" == "istio" ]]; then
+  ISTIO_CONFIG="${SCRIPT_DIR}/apps/istio/config/${ENVIRONMENT}.yaml"
+  if [[ -f "$ISTIO_CONFIG" ]]; then
+    _istio_mtls_val=$(yq -r '.istio.mtls.enabled // "false"' "$ISTIO_CONFIG" 2>/dev/null)
+    case "$_istio_mtls_val" in
+      true|True|TRUE|yes|Yes|YES|1) FEAT_ISTIO_MTLS="true" ;;
+      *) FEAT_ISTIO_MTLS="false" ;;
+    esac
+  fi
+fi
 
 # CNI configuration
 FEAT_CNI_PRIMARY=$(get_feature '.cni.primary' 'cilium')
@@ -426,6 +445,9 @@ log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
 log_debug "  cilium.ingressPolicy: $FEAT_CILIUM_INGRESS_POLICY"
+log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
+log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
+log_debug "  cilium.mutualAuth.spire.dataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
 log_debug "  kataContainers: $FEAT_KATA_CONTAINERS"
 log_debug "  cni.primary: $FEAT_CNI_PRIMARY"
 log_debug "  cni.multus: $FEAT_CNI_MULTUS"
@@ -631,6 +653,34 @@ validate_dependencies() {
     log_error "features.cilium.defaultDenyPodIngress.enabled=true nécessite cni.primary=cilium"
     log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
     errors=$((errors + 1))
+  fi
+
+  if [[ "$FEAT_CILIUM_ENCRYPTION" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.encryption.enabled=true nécessite cni.primary=cilium"
+    log_error "  Le chiffrement WireGuard/IPsec nécessite Cilium CNI"
+    errors=$((errors + 1))
+  fi
+
+  if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
+    log_error "features.cilium.mutualAuth.enabled=true nécessite cni.primary=cilium"
+    log_error "  L'authentification mutuelle SPIFFE/SPIRE nécessite Cilium CNI"
+    errors=$((errors + 1))
+  fi
+
+  # Vérifier les conflits entre Cilium et Istio mTLS
+  if [[ "$FEAT_ISTIO_MTLS" == "true" ]]; then
+    if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]]; then
+      log_error "Conflit: features.cilium.mutualAuth.enabled=true et istio.mtls.enabled=true"
+      log_error "  Cilium SPIFFE/SPIRE et Istio utilisent des systèmes d'identité SPIFFE concurrents"
+      log_error "  Désactiver l'un des deux: features.cilium.mutualAuth.enabled ou istio.mtls.enabled"
+      errors=$((errors + 1))
+    fi
+    if [[ "$FEAT_CILIUM_ENCRYPTION" == "true" ]]; then
+      log_error "Double chiffrement détecté: features.cilium.encryption.enabled=true et istio.mtls.enabled=true"
+      log_error "  Cilium WireGuard et Istio ztunnel chiffrent tous deux le trafic inter-pods"
+      log_error "  Désactiver l'un des deux pour éviter la surcharge de performance"
+      errors=$((errors + 1))
+    fi
   fi
 
   # Vérifier que loxilb avec Cilium nécessite Multus CNI pour isolation eBPF
@@ -1148,9 +1198,10 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
 
   for appset in "${APPLICATIONSETS[@]}"; do
     app_dir="${SCRIPT_DIR}/$(dirname "$appset")"
-    pe_file="${app_dir}/resources/kyverno-policy-exception.yaml"
 
-    if [[ -f "$pe_file" ]]; then
+    # Support multiple PolicyException files per app (kyverno-policy-exception*.yaml)
+    for pe_file in "${app_dir}"/resources/kyverno-policy-exception*.yaml; do
+      [[ -f "$pe_file" ]] || continue
       pe_ns=$(yq -r '.metadata.namespace' "$pe_file" 2>/dev/null)
 
       if [[ -n "$pe_ns" ]] && [[ "$pe_ns" != "null" ]]; then
@@ -1167,8 +1218,31 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
           log_warning "  Échec PolicyException: $pe_file"
         fi
       fi
-    fi
+    done
   done
+
+  # SPIRE PolicyException: must be applied regardless of whether the cilium
+  # ApplicationSet is in APPLICATIONSETS[] (it's conditional on monitoring).
+  # Without this, SPIRE pods lose their SA token when Kyverno mutates them,
+  # causing mutual auth to block ALL inter-pod traffic (deadlock).
+  if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]]; then
+    spire_pe="${SCRIPT_DIR}/apps/cilium/resources/kyverno-policy-exception-spire.yaml"
+    if [[ -f "$spire_pe" ]]; then
+      spire_ns=$(yq -r '.metadata.namespace' "$spire_pe" 2>/dev/null)
+      if [[ -n "$spire_ns" ]] && [[ "$spire_ns" != "null" ]]; then
+        if ! kubectl get namespace "$spire_ns" &> /dev/null; then
+          kubectl create namespace "$spire_ns" > /dev/null 2>&1 || true
+          log_debug "  Namespace créé: $spire_ns"
+        fi
+        if kubectl apply -f "$spire_pe" > /dev/null 2>&1; then
+          pe_count=$((pe_count + 1))
+          log_debug "  PolicyException SPIRE: $spire_ns (mutual auth)"
+        else
+          log_warning "  Échec PolicyException SPIRE: $spire_pe"
+        fi
+      fi
+    fi
+  fi
 
   log_success "PolicyExceptions pré-déployées: $pe_count"
 fi
@@ -1410,6 +1484,221 @@ GWEOF
   sleep $sync_interval
   sync_elapsed=$((sync_elapsed + sync_interval))
 done
+
+# =============================================================================
+# Phase 2.5: Migration SPIRE emptyDir -> PVC (stockage persistant)
+# =============================================================================
+# Au bootstrap, SPIRE utilise emptyDir car aucun storage provider n'existe encore
+# (chicken-and-egg: SPIRE boot avant Rook/Longhorn). Maintenant que toutes les
+# apps sont Synced+Healthy (incluant le storage provider), on peut migrer vers PVC.
+#
+# Séquence:
+# 1. Vérifier si la migration est nécessaire (dataStorage.enabled=false dans HelmChartConfig)
+# 2. Attendre que le storage provider soit Ready (CephCluster ou StorageClass)
+# 3. Patcher le HelmChartConfig K8s pour activer dataStorage
+# 4. Supprimer le fichier rke2-cilium-config.yaml du disque via un Job K8s
+# 5. Le Helm controller détecte le changement et fait un helm upgrade automatique
+
+migrate_spire_storage() {
+  echo ""
+  log_info "Phase 2.5: Migration SPIRE storage (emptyDir → PVC)..."
+
+  # --- Vérifier si la migration est nécessaire ---
+  local current_values
+  current_values=$(kubectl get helmchartconfig rke2-cilium -n kube-system -o jsonpath='{.spec.valuesContent}' 2>/dev/null)
+  if [[ -z "$current_values" ]]; then
+    log_warning "HelmChartConfig rke2-cilium non trouvé, skip migration"
+    return 0
+  fi
+
+  # Vérifier si dataStorage est déjà activé
+  local current_data_storage
+  current_data_storage=$(echo "$current_values" | yq -r '.authentication.mutual.spire.install.server.dataStorage.enabled // "false"' 2>/dev/null)
+  if [[ "$current_data_storage" == "true" ]]; then
+    log_success "SPIRE dataStorage déjà activé (PVC), migration non nécessaire"
+    return 0
+  fi
+
+  log_info "SPIRE dataStorage actuellement désactivé (emptyDir), migration vers PVC..."
+
+  # --- Attendre que le storage soit prêt ---
+  check_storage_ready() {
+    case "$FEAT_STORAGE_PROVIDER" in
+      rook)
+        # Vérifier CephCluster Ready
+        local ceph_phase
+        ceph_phase=$(kubectl get cephcluster -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+        if [[ "$ceph_phase" != "Ready" ]]; then
+          return 1
+        fi
+        # Vérifier CephBlockPool Ready
+        local pool_phase
+        pool_phase=$(kubectl get cephblockpool -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+        if [[ "$pool_phase" != "Ready" ]]; then
+          return 1
+        fi
+        log_success "Rook Ceph storage prêt (CephCluster: Ready, CephBlockPool: Ready)"
+        return 0
+        ;;
+      longhorn)
+        # Vérifier que la StorageClass existe
+        if kubectl get storageclass "$FEAT_STORAGE_CLASS" &>/dev/null; then
+          log_success "Longhorn storage prêt (StorageClass: $FEAT_STORAGE_CLASS)"
+          return 0
+        fi
+        return 1
+        ;;
+      *)
+        # Pour les autres providers, vérifier juste la StorageClass
+        if kubectl get storageclass "$FEAT_STORAGE_CLASS" &>/dev/null; then
+          log_success "Storage prêt (StorageClass: $FEAT_STORAGE_CLASS)"
+          return 0
+        fi
+        return 1
+        ;;
+    esac
+  }
+
+  if ! wait_for_condition \
+    "Attente du storage provider ($FEAT_STORAGE_PROVIDER)..." \
+    "$TIMEOUT_APPS_SYNC" \
+    check_storage_ready; then
+    log_warning "Storage non prêt dans le timeout, SPIRE reste en emptyDir (fonctionnel)"
+    return 0
+  fi
+
+  # --- Patcher le HelmChartConfig ---
+  log_info "Patch du HelmChartConfig rke2-cilium (activation dataStorage)..."
+
+  # Modifier le valuesContent avec yq
+  local new_values
+  new_values=$(echo "$current_values" | yq -r '
+    .authentication.mutual.spire.install.server.dataStorage.enabled = true |
+    .authentication.mutual.spire.install.server.dataStorage.storageClass = "'"$FEAT_STORAGE_CLASS"'" |
+    .authentication.mutual.spire.install.server.dataStorage.size = "'"$FEAT_SPIRE_DATA_STORAGE_SIZE"'"
+  ' 2>/dev/null)
+
+  if [[ -z "$new_values" ]] || [[ "$new_values" == "null" ]]; then
+    log_error "Échec de la modification du valuesContent avec yq"
+    return 0
+  fi
+
+  # Appliquer le patch via kubectl
+  local patch_json
+  patch_json=$(jq -n --arg vc "$new_values" '{"spec":{"valuesContent":$vc}}')
+
+  if kubectl patch helmchartconfig rke2-cilium -n kube-system --type merge -p "$patch_json" > /dev/null 2>&1; then
+    log_success "HelmChartConfig patché (dataStorage: enabled, storageClass: $FEAT_STORAGE_CLASS, size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
+  else
+    log_error "Échec du patch HelmChartConfig, skip la suppression du fichier"
+    return 0
+  fi
+
+  # --- Supprimer le fichier rke2-cilium-config.yaml du disque via Job ---
+  log_info "Suppression du fichier rke2-cilium-config.yaml du disque (Job K8s)..."
+
+  # Supprimer un éventuel Job précédent
+  kubectl delete job spire-storage-file-cleanup -n kube-system --ignore-not-found > /dev/null 2>&1
+
+  kubectl apply -f - <<'JOBEOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spire-storage-file-cleanup
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: spire-storage-migration
+    app.kubernetes.io/part-of: cilium
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 3
+  template:
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      restartPolicy: OnFailure
+      containers:
+        - name: cleanup
+          image: busybox:1.37
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f /manifests/rke2-cilium-config.yaml ]; then
+                rm -f /manifests/rke2-cilium-config.yaml
+                echo "rke2-cilium-config.yaml supprimé avec succès"
+              else
+                echo "rke2-cilium-config.yaml déjà absent"
+              fi
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: manifests
+              mountPath: /manifests
+      volumes:
+        - name: manifests
+          hostPath:
+            path: /var/lib/rancher/rke2/server/manifests
+            type: Directory
+JOBEOF
+
+  # Attendre la fin du Job
+  if kubectl wait --for=condition=complete job/spire-storage-file-cleanup -n kube-system --timeout=120s > /dev/null 2>&1; then
+    log_success "Fichier rke2-cilium-config.yaml supprimé du disque"
+  else
+    log_warning "Job de suppression non terminé (le fichier reste sur disque, non bloquant)"
+  fi
+
+  # --- Attendre que SPIRE soit fonctionnel après la migration ---
+  # Le Helm controller détecte le changement et fait un helm upgrade asynchrone.
+  # SPIRE redémarre avec PVC, et pendant ce temps le mutual auth bloque le trafic.
+  # On attend que spire-server et spire-agent soient Ready avant de continuer.
+  log_info "Attente du redémarrage SPIRE après migration..."
+
+  check_spire_healthy() {
+    # Vérifier que le spire-server StatefulSet a ses replicas ready
+    local server_ready
+    server_ready=$(kubectl get statefulset spire-server -n cilium-spire -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+    local server_replicas
+    server_replicas=$(kubectl get statefulset spire-server -n cilium-spire -o jsonpath='{.status.replicas}' 2>/dev/null)
+    if [[ -z "$server_ready" ]] || [[ "$server_ready" -lt 1 ]] || [[ "$server_ready" != "$server_replicas" ]]; then
+      return 1
+    fi
+    # Vérifier que le spire-agent DaemonSet a ses pods ready
+    local agent_desired
+    agent_desired=$(kubectl get daemonset spire-agent -n cilium-spire -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null)
+    local agent_ready
+    agent_ready=$(kubectl get daemonset spire-agent -n cilium-spire -o jsonpath='{.status.numberReady}' 2>/dev/null)
+    if [[ -z "$agent_ready" ]] || [[ "$agent_ready" -lt 1 ]] || [[ "$agent_ready" != "$agent_desired" ]]; then
+      return 1
+    fi
+    log_success "SPIRE opérationnel (server: $server_ready/$server_replicas, agent: $agent_ready/$agent_desired)"
+    return 0
+  }
+
+  if wait_for_condition \
+    "Attente de SPIRE (server + agent Ready)..." \
+    "$TIMEOUT_APPS_SYNC" \
+    check_spire_healthy; then
+    log_success "Migration SPIRE storage terminée!"
+  else
+    log_warning "SPIRE non Ready dans le timeout. Le mutual auth peut impacter la connectivité."
+    log_warning "  Vérifiez: kubectl get pods -n cilium-spire"
+  fi
+}
+
+# Condition d'entrée: mutual auth + storage + spire dataStorage activés
+if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]] && [[ "$FEAT_STORAGE" == "true" ]] && [[ "$FEAT_SPIRE_DATA_STORAGE" == "true" ]]; then
+  migrate_spire_storage
+else
+  log_debug "Migration SPIRE storage non applicable (mutualAuth=$FEAT_CILIUM_MUTUAL_AUTH, storage=$FEAT_STORAGE, spireDataStorage=$FEAT_SPIRE_DATA_STORAGE)"
+fi
 
 # =============================================================================
 # Mise à jour du kubeconfig avec l'IP du LoadBalancer
@@ -1662,6 +1951,9 @@ echo "  Monitoring:        $FEAT_MONITORING"
 echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
 echo "  Cilium Egress:     $FEAT_CILIUM_EGRESS_POLICY"
 echo "  Cilium Ingress:    $FEAT_CILIUM_INGRESS_POLICY"
+echo "  Cilium Encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
+echo "  Cilium Mutual Auth: $FEAT_CILIUM_MUTUAL_AUTH"
+echo "  SPIRE DataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE, class: $FEAT_STORAGE_CLASS)"
 echo "  Tracing:           $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 echo "  ServiceMesh Waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"

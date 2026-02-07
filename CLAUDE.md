@@ -36,6 +36,8 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 | `{{- if .features.oauth2Proxy.enabled }}` | kustomize/oauth2-authz/ |
 | `{{- if .features.cilium.egressPolicy.enabled }}` | resources/cilium-egress-policy.yaml |
 | `{{- if .features.cilium.ingressPolicy.enabled }}` | resources/default-deny-host-ingress.yaml |
+| `{{- if .features.cilium.encryption.enabled }}` | WireGuard/IPsec encryption (bootstrap) |
+| `{{- if .features.cilium.mutualAuth.enabled }}` | SPIFFE/SPIRE mutual authentication (bootstrap) |
 | `{{- if .features.sso.enabled }}` | secrets/, ExternalSecret, KeycloakClient |
 | `{{- if .features.tracing.enabled }}` | tracing config (Tempo/Jaeger) |
 | `{{- if .features.serviceMesh.enabled }}` | service mesh integration |
@@ -479,6 +481,17 @@ kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --last
 kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --to-namespace <ns>
 ```
 See `apps/cilium/README.md` for detailed troubleshooting.
+
+**Encryption & Mutual Authentication** (bootstrap-level, configured via `configure_cilium.sh`):
+- `features.cilium.encryption.enabled` → WireGuard/IPsec transparent encryption for inter-pod traffic
+  - `type`: `wireguard` (recommended, GA) or `ipsec` (FIPS-compliant, GA)
+  - `nodeEncryption`: encrypt node-to-node traffic (not just pod-to-pod)
+  - `strictMode.enabled`: drop unencrypted traffic (prevents leaks)
+- `features.cilium.mutualAuth.enabled` → SPIFFE/SPIRE mutual authentication (Beta)
+  - Sidecarless: eBPF + per-node SPIRE agent (no Envoy sidecar)
+  - `port`: SPIRE agent communication port (default: 4250)
+
+These are applied at RKE2 bootstrap via `install_master.sh` → `configure_cilium.sh` → HelmChartConfig, **not** through ArgoCD ApplicationSet.
 
 ### HTTPRoute Structure
 

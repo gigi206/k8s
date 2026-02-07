@@ -239,7 +239,7 @@ plugins:
     exemptions:
       usernames: []
       runtimeClasses: []
-      namespaces: [kube-system, cis-operator-system, tigera-operator]
+      namespaces: [kube-system, cis-operator-system, tigera-operator, cilium-spire]
 - name: EventRateLimit
   configuration:
     apiVersion: eventratelimit.admission.k8s.io/v1alpha1
@@ -289,6 +289,32 @@ if [ "$LB_PROVIDER" = "klipper" ]; then
   echo "Enabling ServiceLB (Klipper) in RKE2 config..."
   echo "enable-servicelb: true" >> /etc/rancher/rke2/config.yaml
 fi
+
+# Read Cilium encryption settings from ArgoCD config (features.cilium.encryption)
+CILIUM_ENCRYPTION_ENABLED=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+CILIUM_ENCRYPTION_ENABLED=${CILIUM_ENCRYPTION_ENABLED:-true}
+CILIUM_ENCRYPTION_TYPE=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "type:" | head -1 | awk -F'"' '{print $2}')
+CILIUM_ENCRYPTION_TYPE=${CILIUM_ENCRYPTION_TYPE:-wireguard}
+CILIUM_NODE_ENCRYPTION=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "nodeEncryption:" | head -1 | awk '{print $2}')
+CILIUM_NODE_ENCRYPTION=${CILIUM_NODE_ENCRYPTION:-true}
+CILIUM_STRICT_MODE=$(grep -A10 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -A3 "strictMode:" | grep -m1 "enabled:" | awk '{print $2}')
+CILIUM_STRICT_MODE=${CILIUM_STRICT_MODE:-true}
+# Read Cilium mutual authentication settings (features.cilium.mutualAuth)
+CILIUM_MUTUAL_AUTH=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+CILIUM_MUTUAL_AUTH=${CILIUM_MUTUAL_AUTH:-true}
+CILIUM_MUTUAL_AUTH_PORT=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep "port:" | head -1 | awk '{print $2}')
+CILIUM_MUTUAL_AUTH_PORT=${CILIUM_MUTUAL_AUTH_PORT:-4250}
+export CILIUM_ENCRYPTION_ENABLED CILIUM_ENCRYPTION_TYPE CILIUM_NODE_ENCRYPTION CILIUM_STRICT_MODE
+export CILIUM_MUTUAL_AUTH CILIUM_MUTUAL_AUTH_PORT
+echo "Cilium encryption: $CILIUM_ENCRYPTION_ENABLED (type=$CILIUM_ENCRYPTION_TYPE, nodeEncryption=$CILIUM_NODE_ENCRYPTION, strictMode=$CILIUM_STRICT_MODE)"
+echo "Cilium mutual auth: $CILIUM_MUTUAL_AUTH (port=$CILIUM_MUTUAL_AUTH_PORT)"
+# Read Service Mesh settings from ArgoCD config (features.serviceMesh)
+SERVICE_MESH_ENABLED=$(grep -A5 "^  serviceMesh:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+SERVICE_MESH_ENABLED=${SERVICE_MESH_ENABLED:-false}
+SERVICE_MESH_PROVIDER=$(grep -A5 "^  serviceMesh:" "$ARGOCD_CONFIG_FILE" | grep "provider:" | head -1 | awk -F'"' '{print $2}')
+SERVICE_MESH_PROVIDER=${SERVICE_MESH_PROVIDER:-none}
+export SERVICE_MESH_ENABLED SERVICE_MESH_PROVIDER
+echo "Service mesh: $SERVICE_MESH_ENABLED (provider=$SERVICE_MESH_PROVIDER)"
 
 $SCRIPT_DIR/configure_cilium.sh
 
