@@ -21,10 +21,10 @@ fi
 curl -sfL https://get.rke2.io | sh -
 mkdir -p /etc/rancher/rke2
 
-# Read CIS configuration from vagrant/config/rke2.yaml (structure: rke2.cis.enabled/profile)
-CONFIG_FILE="$SCRIPT_DIR/../config/rke2.yaml"
-CIS_ENABLED=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
-CIS_PROFILE=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
+# Read CIS configuration from ArgoCD config (single source of truth)
+ARGOCD_CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
+CIS_ENABLED=$(grep -A5 "^rke2:" "$ARGOCD_CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
+CIS_PROFILE=$(grep -A5 "^rke2:" "$ARGOCD_CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
 
 # CIS Hardening: Apply required kernel parameters and create etcd user if enabled
 # https://docs.rke2.io/security/hardening_guide
@@ -45,18 +45,18 @@ if [ "$CIS_ENABLED" = "true" ]; then
   systemctl restart systemd-sysctl
 
   # Read CIS hardening options from config (with defaults)
-  DENY_SERVICE_EXTERNAL_IPS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "denyServiceExternalIPs:" | awk '{print $2}' | tr -d ' ')
-  EVENT_RATE_LIMIT=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "eventRateLimit:" | awk '{print $2}' | tr -d ' ')
-  ALWAYS_PULL_IMAGES=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "alwaysPullImages:" | awk '{print $2}' | tr -d ' ')
-  REQUEST_TIMEOUT=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "requestTimeout:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
-  SERVICE_ACCOUNT_LOOKUP=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "serviceAccountLookup:" | awk '{print $2}' | tr -d ' ')
-  EVENT_QPS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "eventQps:" | awk '{print $2}' | tr -d ' ')
-  POD_MAX_PIDS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "podMaxPids:" | awk '{print $2}' | tr -d ' ')
-  ANONYMOUS_AUTH=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "anonymousAuth:" | awk '{print $2}' | tr -d ' ')
-  MAKE_IPTABLES_UTIL_CHAINS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "makeIptablesUtilChains:" | awk '{print $2}' | tr -d ' ')
-  PROTECT_KERNEL_DEFAULTS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "protectKernelDefaults:" | awk '{print $2}' | tr -d ' ')
-  FIX_ETCD_OWNERSHIP=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "fixEtcdOwnership:" | awk '{print $2}' | tr -d ' ')
-  FIX_PKI_PERMISSIONS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "fixPkiPermissions:" | awk '{print $2}' | tr -d ' ')
+  DENY_SERVICE_EXTERNAL_IPS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "denyServiceExternalIPs:" | awk '{print $2}' | tr -d ' ')
+  EVENT_RATE_LIMIT=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "eventRateLimit:" | awk '{print $2}' | tr -d ' ')
+  ALWAYS_PULL_IMAGES=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "alwaysPullImages:" | awk '{print $2}' | tr -d ' ')
+  REQUEST_TIMEOUT=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "requestTimeout:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
+  SERVICE_ACCOUNT_LOOKUP=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "serviceAccountLookup:" | awk '{print $2}' | tr -d ' ')
+  EVENT_QPS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "eventQps:" | awk '{print $2}' | tr -d ' ')
+  POD_MAX_PIDS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "podMaxPids:" | awk '{print $2}' | tr -d ' ')
+  ANONYMOUS_AUTH=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "anonymousAuth:" | awk '{print $2}' | tr -d ' ')
+  MAKE_IPTABLES_UTIL_CHAINS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "makeIptablesUtilChains:" | awk '{print $2}' | tr -d ' ')
+  PROTECT_KERNEL_DEFAULTS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "protectKernelDefaults:" | awk '{print $2}' | tr -d ' ')
+  FIX_ETCD_OWNERSHIP=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "fixEtcdOwnership:" | awk '{print $2}' | tr -d ' ')
+  FIX_PKI_PERMISSIONS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "fixPkiPermissions:" | awk '{print $2}' | tr -d ' ')
 
   # Set defaults if not specified
   DENY_SERVICE_EXTERNAL_IPS=${DENY_SERVICE_EXTERNAL_IPS:-true}
@@ -77,7 +77,6 @@ fi
 # echo "RKE2_CNI=calico" >> "${CONFIG_PATH}"
 
 # Read CNI configuration from ArgoCD config (using grep/awk for portability)
-ARGOCD_CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
 # CNI primary (under cni: section)
 CNI_PRIMARY=$(grep -A2 "^cni:" "$ARGOCD_CONFIG_FILE" | grep "primary:" | awk -F'"' '{print $2}')
 CNI_PRIMARY=${CNI_PRIMARY:-cilium}
@@ -321,8 +320,7 @@ $SCRIPT_DIR/configure_cilium.sh
 # CoreDNS k8s.lan forwarding to external-dns (only for providers with static IPs)
 # Klipper uses node IPs so static IP forwarding is not supported
 if [ "$LB_PROVIDER" != "klipper" ]; then
-  # Read external-dns static IP from ArgoCD config (not rke2.yaml)
-  ARGOCD_CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
+  # Read external-dns static IP from ArgoCD config
   EXTERNAL_DNS_IP=$(grep -A10 "staticIPs:" "$ARGOCD_CONFIG_FILE" | grep "externalDns:" | awk -F'"' '{print $2}')
   if [ -n "$EXTERNAL_DNS_IP" ]; then
     echo "Configuring CoreDNS to forward k8s.lan to external-dns ($EXTERNAL_DNS_IP)..."

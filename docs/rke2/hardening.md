@@ -6,7 +6,7 @@ This cluster implements CIS Kubernetes Benchmark hardening via RKE2's built-in p
 
 ### Configuration
 
-All CIS hardening settings are centralized in `vagrant/config/rke2.yaml`:
+All CIS hardening settings are centralized in `deploy/argocd/config/config.yaml` (section `rke2:`):
 
 ```yaml
 rke2:

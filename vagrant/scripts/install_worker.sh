@@ -7,17 +7,19 @@ export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
   SCRIPT_DIR="/vagrant/vagrant/scripts"
   VAGRANT_DIR="/vagrant/vagrant"
+  PROJECT_ROOT="/vagrant"
 else
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   VAGRANT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 fi
 
 . "$SCRIPT_DIR/RKE2_ENV.sh"
 curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
 mkdir -p /etc/rancher/rke2/
 
-# Read CIS configuration from vagrant/config/rke2.yaml (structure: rke2.cis.enabled/profile)
-CONFIG_FILE="$VAGRANT_DIR/config/rke2.yaml"
+# Read CIS configuration from ArgoCD config (single source of truth)
+CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
 CIS_ENABLED=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
 CIS_PROFILE=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
 
