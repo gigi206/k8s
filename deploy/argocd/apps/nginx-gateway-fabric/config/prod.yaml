@@ -4,7 +4,7 @@ environment: prod
 appName: nginx-gateway-fabric
 
 nginxGatewayFabric:
-  version: "v2.3.0"
+  version: "v2.4.1"
   replicas: 2             # HA en prod
   serviceType: LoadBalancer
   gatewayClassName: nginx-gwf
