@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - APISIX Dashboard Pod Ingress
+# =============================================================================
+# Allows traffic to APISIX Dashboard from APISIX Gateway.
+#
+# Calico equivalent of: cilium-dashboard-policy.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apisix-dashboard-ingress
+  namespace: apisix
+spec:
+  selector: app.kubernetes.io/name == "apisix-dashboard"
+  types:
+    - Ingress
+  ingress:
+    # Allow from APISIX Gateway pods
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "apisix"
+      destination:
+        ports:
+          - 9000

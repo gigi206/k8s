@@ -1,0 +1,55 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - APISIX ETCD Ingress Security
+# =============================================================================
+# Allows APISIX components to communicate with embedded ETCD.
+#
+# Calico equivalent of: cilium-etcd-policy.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: apisix-etcd-ingress
+  namespace: apisix
+spec:
+  selector: app.kubernetes.io/name == "etcd" && app.kubernetes.io/instance == "apisix-etcd"
+  types:
+    - Ingress
+  ingress:
+    # Allow from APISIX gateway pods
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "apisix" && app.kubernetes.io/instance == "apisix"
+      destination:
+        ports:
+          - 2379
+
+    # Allow from APISIX dashboard pods
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "apisix-dashboard" && app.kubernetes.io/instance == "apisix-dashboard"
+      destination:
+        ports:
+          - 2379
+
+    # Allow ETCD cluster communication (peer)
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "etcd" && app.kubernetes.io/instance == "apisix-etcd"
+      destination:
+        ports:
+          - 2379
+          - 2380
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == "monitoring"
+      destination:
+        ports:
+          - 2379

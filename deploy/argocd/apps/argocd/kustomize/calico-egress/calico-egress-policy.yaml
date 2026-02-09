@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - ArgoCD Keycloak OIDC Egress (APISIX only)
+# =============================================================================
+# Additional egress rule for Keycloak OIDC authentication.
+# Only needed when:
+# - Gateway provider is APISIX (other providers don't need this)
+# - SSO is enabled with Keycloak
+#
+# The LoadBalancer IP is a private RFC1918 IP, so we need an explicit rule
+# to allow egress to the gateway LB IP. The IP placeholder is patched
+# via Kustomize in the ApplicationSet using staticIPs.gateway.
+#
+# Note: RKE2 Calico (crd.projectcalico.org/v1) does NOT support the
+# "domains" field. We use "nets" with the LB IP instead.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-allow-keycloak-egress
+  namespace: argo-cd
+spec:
+  selector: all()
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - "PLACEHOLDER_IP/32"
+        ports:
+          - 443
