@@ -178,7 +178,7 @@ features:
   # === Network Policy (CNI-agnostic) ===
   # These flags control default-deny network policies regardless of CNI provider.
   # When cni.primary=cilium: uses CiliumClusterwideNetworkPolicy + CiliumNetworkPolicy
-  # When cni.primary=calico: uses GlobalNetworkPolicy + NetworkPolicy (projectcalico.org/v3)
+  # When cni.primary=calico: uses GlobalNetworkPolicy + NetworkPolicy (crd.projectcalico.org/v1)
   networkPolicy:
     egressPolicy:
       enabled: true # Default-deny egress + per-app exceptions

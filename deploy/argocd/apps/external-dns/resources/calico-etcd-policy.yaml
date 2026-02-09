@@ -1,0 +1,55 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - External-DNS ETCD Ingress Security
+# =============================================================================
+# Allows External-DNS components to communicate with ETCD backend.
+#
+# Calico equivalent of: cilium-etcd-policy.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: external-dns-etcd-ingress
+  namespace: external-dns
+spec:
+  selector: app.kubernetes.io/name == "etcd" && app.kubernetes.io/instance == "external-dns-etcd"
+  types:
+    - Ingress
+  ingress:
+    # Allow from External-DNS pods
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "external-dns"
+      destination:
+        ports:
+          - 2379
+
+    # Allow from CoreDNS pods
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "coredns"
+      destination:
+        ports:
+          - 2379
+
+    # Allow ETCD cluster communication (peer)
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "etcd" && app.kubernetes.io/instance == "external-dns-etcd"
+      destination:
+        ports:
+          - 2379
+          - 2380
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == "monitoring"
+      destination:
+        ports:
+          - 2379
