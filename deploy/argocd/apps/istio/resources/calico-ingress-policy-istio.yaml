@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Kiali Gateway Ingress (Istio)
+# =============================================================================
+# Allows ingress from Istio Gateway to Kiali for external access.
+# This policy is only deployed when:
+# - features.calico.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "istio"
+#
+# Note: When Istio is both the Gateway provider AND the service mesh, Kiali
+# is in the same namespace as the Gateway (istio-system), so internal
+# communication is already allowed by the calico-ingress-policy.yaml
+#
+# Calico equivalent of: cilium-ingress-policy-istio.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kiali-gateway-istio
+  namespace: istio-system
+spec:
+  selector: 'app.kubernetes.io/name == "kiali"'
+  types:
+    - Ingress
+  ingress:
+    # Allow from Istio namespace (gateway ingress) - same namespace but explicit
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 20001

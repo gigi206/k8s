@@ -160,7 +160,7 @@ spec:
           path: deploy/argocd/apps/cilium/kustomize/lb-l2
         {{- end }}
         {{- end }}
-        {{- if .features.cilium.egressPolicy.enabled }}
+        {{- if .features.networkPolicy.egressPolicy.enabled }}
         # Source 1: Egress Policy - blocks external egress, allows internal cluster traffic
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -168,7 +168,7 @@ spec:
           directory:
             include: "default-deny-external-egress.yaml"
         {{- end }}
-        {{- if .features.cilium.ingressPolicy.enabled }}
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
         # Source 2: Host Ingress Policy - protects nodes (SSH, API, HTTP/HTTPS allowed)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -176,7 +176,7 @@ spec:
           directory:
             include: "default-deny-host-ingress.yaml"
         {{- end }}
-        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
         # Source 3: Pod Ingress Policy - Zero Trust (deny all pod-to-pod except explicit allows)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -207,7 +207,7 @@ spec:
             include: "cilium-spire-ingress-policy.yaml"
         {{- end }}
         {{- end }}
-        {{- if .features.cilium.ingressPolicy.enabled }}
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
         # Source: Cilium ingress policy - conditional per Gateway provider
         {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
@@ -484,7 +484,7 @@ spec:
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
-        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
         # Source: Tetragon ingress policy (allows Prometheus scraping)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

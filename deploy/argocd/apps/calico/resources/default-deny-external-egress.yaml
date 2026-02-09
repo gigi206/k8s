@@ -1,0 +1,61 @@
+---
+# =============================================================================
+# GlobalNetworkPolicy - Default Deny External Egress (Calico)
+# =============================================================================
+# Blocks ALL external egress traffic from the cluster.
+# Each application needing external access must define its own NetworkPolicy.
+# Internal cluster traffic (DNS, API, pod-to-pod, node-to-node) remains unrestricted.
+#
+# IMPORTANT (Calico BPF mode): Service ClusterIPs are DNATed to backend IPs
+# BEFORE policy evaluation. Traffic to the Kubernetes API (10.43.0.1:443) is
+# DNATed to the master node IP (e.g. 192.168.121.176:6443). Therefore we must
+# allow traffic to node endpoints via selector, not just by CIDR.
+#
+# Calico equivalent of: apps/cilium/resources/default-deny-external-egress.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-deny-external-egress
+spec:
+  order: 500
+  namespaceSelector: >-
+    kubernetes.io/metadata.name not in {"calico-system", "calico-apiserver", "kube-system", "kube-public", "kube-node-lease", "tigera-operator"}
+  types: [Egress]
+  egress:
+    # Rule 1: Allow DNS resolution (kube-dns)
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: 'k8s-app == "kube-dns"'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'k8s-app == "kube-dns"'
+        ports: [53]
+    # Rule 2: Allow all traffic to cluster-internal CIDRs (pod + service)
+    - action: Allow
+      destination:
+        nets: ["10.42.0.0/16", "10.43.0.0/16"]
+    # Rule 3: Allow traffic to cluster nodes (required for BPF DNAT)
+    # In BPF mode, ClusterIP traffic is DNATed to backend IPs before policy
+    # evaluation. Services backed by host-network pods (kube-apiserver, etcd)
+    # resolve to node IPs which are outside pod/service CIDRs.
+    # The node network CIDR must be included to allow this DNATed traffic.
+    - action: Allow
+      destination:
+        nets: ["192.168.121.0/24"]
+    # Rule 4: Allow DNS forwarding to external resolvers (required for kube-dns)
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports: [53]
+        notNets: ["10.42.0.0/16", "10.43.0.0/16"]
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports: [53]
+        notNets: ["10.42.0.0/16", "10.43.0.0/16"]
+    # Implicit deny for everything else (world egress blocked)

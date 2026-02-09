@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - NeuVector Gateway Ingress (Envoy Gateway)
+# Calico equivalent of: cilium-ingress-policy-envoy-gateway.yaml
+# =============================================================================
+# Allows ingress from Envoy Gateway to NeuVector Manager for external access.
+# This policy is only deployed when:
+# - features.calico.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "envoy-gateway"
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: neuvector-gateway-envoy-gateway
+  namespace: neuvector
+spec:
+  selector: 'app == "neuvector-manager-pod"'
+  types:
+    - Ingress
+  ingress:
+    # Allow from Envoy Gateway namespace (gateway ingress)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "envoy-gateway-system"'
+      destination:
+        ports:
+          - 8443    # Manager web UI (HTTPS)

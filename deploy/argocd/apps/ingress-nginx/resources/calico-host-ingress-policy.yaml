@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - Ingress-Nginx Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress-policy.yaml
+#
+# Allow external HTTP/HTTPS traffic to nodes for Ingress-Nginx LoadBalancer.
+# This complements the default-deny-host-ingress policy.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: ingress-nginx-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    # HTTP/HTTPS for Ingress-Nginx LoadBalancer
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 80
+          - 443

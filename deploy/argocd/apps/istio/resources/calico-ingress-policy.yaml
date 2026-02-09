@@ -1,0 +1,70 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Istio Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to Istio control plane and Kiali to authorized sources:
+# - All namespaces: xDS configuration (sidecars/ztunnel connect to istiod)
+# - monitoring: Prometheus metrics scraping
+# - istio-system: Internal communication
+# - kube-system: CNI and system components
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: istio-ingress
+  namespace: istio-system
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from all namespaces for xDS configuration
+    # Sidecars and ztunnel connect to istiod for service discovery and config
+    # matchExpressions with operator: Exists -> no source restriction
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 15010
+          - 15012
+          - 15014
+          - 15017
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 15014
+          - 15020
+          - 15090
+          - 20001
+
+    # Allow from kube-system (CNI, kubelet probes, webhook calls)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 15017
+
+    # Allow internal istio-system communication (Gateway, ztunnel, istiod, Kiali)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 15010
+          - 15012
+          - 15014
+          - 15017
+          - 15020
+          - 15090
+          - 20001

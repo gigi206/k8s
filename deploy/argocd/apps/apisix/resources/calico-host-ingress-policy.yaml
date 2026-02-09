@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - APISIX Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress-policy.yaml
+#
+# Allow external HTTP/HTTPS traffic to nodes for APISIX LoadBalancer.
+# This complements the default-deny-host-ingress policy.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: apisix-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    # HTTP/HTTPS for APISIX LoadBalancer
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 80
+          - 443
+          - 9100
+
+    # Stream proxy ports (Layer 4 - UDPRoute)
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 9200

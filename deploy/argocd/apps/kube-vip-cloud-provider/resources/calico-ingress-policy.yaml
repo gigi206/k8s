@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - kube-vip-cloud-provider Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows:
+# - Ingress from Prometheus (metrics scraping)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kube-vip-cloud-provider
+  namespace: kube-system
+spec:
+  selector: app.kubernetes.io/name == "kube-vip-cloud-provider"
+  types:
+    - Ingress
+  ingress:
+    # Allow Prometheus scraping (metrics port)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8080

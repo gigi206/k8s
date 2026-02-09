@@ -1,0 +1,134 @@
+---
+# =============================================================================
+# Calico ApplicationSet (After Prometheus-Stack)
+# =============================================================================
+# Calico CNI is installed by RKE2 during cluster bootstrap. This ApplicationSet
+# deploys additional resources:
+# - ServiceMonitors for Prometheus scraping (Felix, Typha, kube-controllers)
+# - Grafana dashboards for Calico metrics
+# - GlobalNetworkPolicy for cluster-wide default-deny
+# - Per-provider host ingress policies
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: calico
+  namespace: argo-cd
+  annotations:
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par defaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config specifique a l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/calico/config/*.yaml
+
+  template:
+    metadata:
+      name: calico
+      namespace: argo-cd
+      annotations:
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/gigi206/k8s
+        targetRevision: '{{ .git.revision }}'
+        path: deploy/argocd/apps/calico/kustomize/monitoring
+        kustomize:
+          commonLabels:
+            release: '{{ .features.monitoring.release }}'
+            grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+          commonAnnotations:
+            "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: calico-system
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      ignoreDifferences:
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .spec.data[].remoteRef.conversionStrategy
+            - .spec.data[].remoteRef.decodingStrategy
+            - .spec.data[].remoteRef.metadataPolicy
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if .features.networkPolicy.egressPolicy.enabled }}
+        # Source: Egress Policy - blocks external egress, allows internal cluster traffic
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/calico/resources
+          directory:
+            include: "default-deny-external-egress.yaml"
+        {{- end }}
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+        # Source: Host Ingress Policy - protects nodes (SSH, API allowed)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/calico/resources
+          directory:
+            include: "default-deny-host-ingress.yaml"
+        {{- end }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+        # Source: Pod Ingress Policy - Zero Trust (deny all pod-to-pod except explicit allows)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/calico/resources
+          directory:
+            include: "default-deny-pod-ingress.yaml"
+        {{- end }}
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/calico/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
+        # Source: Kustomize monitoring resources (ServiceMonitors, PrometheusRules, dashboards)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/calico/kustomize/monitoring
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'

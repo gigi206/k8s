@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - Nginx Gateway Fabric Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress-policy.yaml
+#
+# Allow external HTTP/HTTPS traffic to nodes for Nginx Gateway Fabric LoadBalancer.
+# This complements the default-deny-host-ingress policy.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: nginx-gateway-fabric-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    # HTTP/HTTPS for Nginx Gateway Fabric LoadBalancer
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 80
+          - 443

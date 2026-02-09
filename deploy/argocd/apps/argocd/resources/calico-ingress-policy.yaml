@@ -1,0 +1,62 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - ArgoCD Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows internal communication within argo-cd namespace and from
+# dependent namespaces (monitoring, kube-system)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-internal
+  namespace: argo-cd
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8080
+          - 8082
+          - 8083
+          - 8084
+          - 8085
+          - 8087
+          - 9001
+          - 9121
+
+    # Allow from kube-system (API server webhook calls)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 8443
+
+    # Allow internal ArgoCD communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "argo-cd"'
+      destination:
+        ports:
+          - 8080
+          - 8443
+          - 8081
+          - 6379
+          - 8083
+          - 8084
+          - 8085
+          - 8086
+          - 8087
+          - 9121

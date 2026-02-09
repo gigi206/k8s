@@ -1,0 +1,53 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Prometheus Stack Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows internal communication within monitoring namespace and from
+# dependent namespaces (alloy, oauth2-proxy)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-stack-internal
+  namespace: monitoring
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from alloy namespace (remote write for self-metrics)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "alloy"'
+      destination:
+        ports:
+          - 9090
+
+    # Allow from oauth2-proxy namespace (OAuth callbacks + auth-proxy backend access)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "oauth2-proxy"'
+      destination:
+        ports:
+          - 3000
+          - 9090
+          - 9093
+
+    # Allow internal monitoring communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8080
+          - 9090
+          - 3000
+          - 9093
+          - 9094
+          - 10250

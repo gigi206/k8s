@@ -392,9 +392,12 @@ FEAT_KUBESCAPE=$(get_feature '.features.kubescape.enabled' 'false')
 FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
 FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
 FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enabled' 'false')
-FEAT_CILIUM_EGRESS_POLICY=$(get_feature '.features.cilium.egressPolicy.enabled' 'true')
-FEAT_CILIUM_INGRESS_POLICY=$(get_feature '.features.cilium.ingressPolicy.enabled' 'true')
-FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.cilium.defaultDenyPodIngress.enabled' 'true')
+# CNI-agnostic network policy flags (moved from features.cilium.* to features.networkPolicy.*)
+FEAT_NP_EGRESS_POLICY=$(get_feature '.features.networkPolicy.egressPolicy.enabled' 'true')
+FEAT_NP_INGRESS_POLICY=$(get_feature '.features.networkPolicy.ingressPolicy.enabled' 'true')
+FEAT_NP_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.networkPolicy.defaultDenyPodIngress.enabled' 'true')
+# Calico-specific features
+FEAT_CALICO_MONITORING=$(get_feature '.features.calico.monitoring.enabled' 'true')
 FEAT_CILIUM_ENCRYPTION=$(get_feature '.features.cilium.encryption.enabled' 'true')
 FEAT_CILIUM_ENCRYPTION_TYPE=$(get_feature '.features.cilium.encryption.type' 'wireguard')
 FEAT_CILIUM_MUTUAL_AUTH=$(get_feature '.features.cilium.mutualAuth.enabled' 'true')
@@ -443,8 +446,10 @@ log_debug "  neuvector: $FEAT_NEUVECTOR"
 log_debug "  kubescape: $FEAT_KUBESCAPE"
 log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
-log_debug "  cilium.egressPolicy: $FEAT_CILIUM_EGRESS_POLICY"
-log_debug "  cilium.ingressPolicy: $FEAT_CILIUM_INGRESS_POLICY"
+log_debug "  networkPolicy.egressPolicy: $FEAT_NP_EGRESS_POLICY"
+log_debug "  networkPolicy.ingressPolicy: $FEAT_NP_INGRESS_POLICY"
+log_debug "  networkPolicy.defaultDenyPodIngress: $FEAT_NP_DEFAULT_DENY_POD_INGRESS"
+log_debug "  calico.monitoring: $FEAT_CALICO_MONITORING"
 log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
 log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
 log_debug "  cilium.mutualAuth.spire.dataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
@@ -630,45 +635,24 @@ validate_dependencies() {
     fi
   fi
 
-  # Vérifier que les features Cilium nécessitent CNI Cilium
-  if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
-    log_error "features.cilium.monitoring.enabled=true nécessite cni.primary=cilium"
-    log_error "  Les ServiceMonitors Cilium/Hubble ne fonctionnent qu'avec Cilium CNI"
+  # Vérifier que les features Calico-specific nécessitent CNI Calico
+  if [[ "$FEAT_CALICO_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "calico" ]]; then
+    log_error "features.calico.monitoring.enabled=true nécessite cni.primary=calico"
+    log_error "  Les ServiceMonitors Calico ne fonctionnent qu'avec Calico CNI"
     errors=$((errors + 1))
   fi
 
-  if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
-    log_error "features.cilium.egressPolicy.enabled=true nécessite cni.primary=cilium"
-    log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
-    errors=$((errors + 1))
-  fi
+  # Vérifier CNI primary est valide
+  case "$FEAT_CNI_PRIMARY" in
+    cilium|calico) ;;
+    *)
+      log_error "cni.primary=$FEAT_CNI_PRIMARY non supporté (valeurs: cilium, calico)"
+      errors=$((errors + 1))
+      ;;
+  esac
 
-  if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
-    log_error "features.cilium.ingressPolicy.enabled=true nécessite cni.primary=cilium"
-    log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
-    errors=$((errors + 1))
-  fi
-
-  if [[ "$FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
-    log_error "features.cilium.defaultDenyPodIngress.enabled=true nécessite cni.primary=cilium"
-    log_error "  Les CiliumClusterwideNetworkPolicy ne fonctionnent qu'avec Cilium CNI"
-    errors=$((errors + 1))
-  fi
-
-  if [[ "$FEAT_CILIUM_ENCRYPTION" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
-    log_error "features.cilium.encryption.enabled=true nécessite cni.primary=cilium"
-    log_error "  Le chiffrement WireGuard/IPsec nécessite Cilium CNI"
-    errors=$((errors + 1))
-  fi
-
-  if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "cilium" ]]; then
-    log_error "features.cilium.mutualAuth.enabled=true nécessite cni.primary=cilium"
-    log_error "  L'authentification mutuelle SPIFFE/SPIRE nécessite Cilium CNI"
-    errors=$((errors + 1))
-  fi
-
-  # Vérifier les conflits entre Cilium et Istio mTLS
-  if [[ "$FEAT_ISTIO_MTLS" == "true" ]]; then
+  # Vérifier les conflits entre Cilium et Istio mTLS (uniquement si Cilium est le CNI actif)
+  if [[ "$FEAT_ISTIO_MTLS" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" == "cilium" ]]; then
     if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]]; then
       log_error "Conflit: features.cilium.mutualAuth.enabled=true et istio.mtls.enabled=true"
       log_error "  Cilium SPIFFE/SPIRE et Istio utilisent des systèmes d'identité SPIFFE concurrents"
@@ -895,8 +879,13 @@ if [[ "$FEAT_MONITORING" == "true" ]]; then
 fi
 
 # Cilium (CNI installé par RKE2, cette app ajoute monitoring + network policies)
-if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]]; then
+if [[ "$FEAT_CILIUM_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" == "cilium" ]]; then
   APPLICATIONSETS+=("apps/cilium/applicationset.yaml")
+fi
+
+# Calico (CNI installé par RKE2, cette app ajoute monitoring + network policies)
+if [[ "$FEAT_CALICO_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" == "calico" ]]; then
+  APPLICATIONSETS+=("apps/calico/applicationset.yaml")
 fi
 
 # Distributed Tracing
@@ -970,20 +959,20 @@ fi
 log_success "Tous les fichiers ApplicationSets sont présents"
 
 # =============================================================================
-# Pré-déploiement des CiliumNetworkPolicies (bootstrap)
+# Pré-déploiement des NetworkPolicies (bootstrap)
 # =============================================================================
 # Ordre d'application:
-# 1. CiliumClusterwideNetworkPolicy (default-deny-external-egress)
+# 1. ClusterwideNetworkPolicy (default-deny-external-egress)
 #    → Autorise le trafic interne (cluster, kube-apiserver, DNS) pour tous les pods
 #    → Bloque l'egress externe (world) par défaut
-# 2. CiliumNetworkPolicy ArgoCD
+# 2. NetworkPolicy ArgoCD
 #    → Ajoute l'accès externe (GitHub, Helm registries) pour ArgoCD uniquement
 #
 # Sans ces policies pré-appliquées, ArgoCD ne peut pas accéder à GitHub pour
 # récupérer sa propre configuration (chicken-and-egg problem).
 
-apply_bootstrap_network_policies() {
-  if [[ "$FEAT_CILIUM_EGRESS_POLICY" != "true" ]] && [[ "$FEAT_CILIUM_INGRESS_POLICY" != "true" ]]; then
+apply_bootstrap_network_policies_cilium() {
+  if [[ "$FEAT_NP_EGRESS_POLICY" != "true" ]] && [[ "$FEAT_NP_INGRESS_POLICY" != "true" ]]; then
     log_debug "Cilium policies désactivées, pas de pré-déploiement nécessaire"
     return 0
   fi
@@ -991,7 +980,7 @@ apply_bootstrap_network_policies() {
   log_info "Pré-déploiement des CiliumNetworkPolicies pour bootstrap..."
 
   # 1. Egress clusterwide policy - bloque le trafic externe, autorise le trafic interne
-  if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]]; then
+  if [[ "$FEAT_NP_EGRESS_POLICY" == "true" ]]; then
     local egress_policy="${SCRIPT_DIR}/apps/cilium/resources/default-deny-external-egress.yaml"
     if [[ -f "$egress_policy" ]]; then
       if kubectl apply -f "$egress_policy" > /dev/null 2>&1; then
@@ -1005,7 +994,7 @@ apply_bootstrap_network_policies() {
   fi
 
   # 2. Host ingress policy - protège les nœuds (SSH, API, HTTP/HTTPS autorisés)
-  if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]]; then
+  if [[ "$FEAT_NP_INGRESS_POLICY" == "true" ]]; then
     local ingress_policy="${SCRIPT_DIR}/apps/cilium/resources/default-deny-host-ingress.yaml"
     if [[ -f "$ingress_policy" ]]; then
       if kubectl apply -f "$ingress_policy" > /dev/null 2>&1; then
@@ -1021,7 +1010,7 @@ apply_bootstrap_network_policies() {
   # 3. ArgoCD egress policy - ajoute l'accès externe (GitHub, Helm)
   # Note: La règle Keycloak OIDC est ajoutée conditionnellement par l'ApplicationSet
   # uniquement si provider=apisix + sso.enabled + sso.provider=keycloak
-  if [[ "$FEAT_CILIUM_EGRESS_POLICY" == "true" ]]; then
+  if [[ "$FEAT_NP_EGRESS_POLICY" == "true" ]]; then
     local argocd_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-egress-policy.yaml"
     if [[ -f "$argocd_policy" ]]; then
       if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
@@ -1038,7 +1027,7 @@ apply_bootstrap_network_policies() {
   # CRITIQUE: Doit être déployé AVANT default-deny-pod-ingress pour permettre
   # la communication controller <-> repo-server (port 8081)
   # Policy interne (pod-to-pod dans argo-cd namespace)
-  if [[ "$FEAT_CILIUM_DEFAULT_DENY_POD_INGRESS" == "true" ]]; then
+  if [[ "$FEAT_NP_DEFAULT_DENY_POD_INGRESS" == "true" ]]; then
     local argocd_internal_policy="${SCRIPT_DIR}/apps/argocd/resources/cilium-ingress-policy.yaml"
     if [[ -f "$argocd_internal_policy" ]]; then
       if kubectl apply -f "$argocd_internal_policy" > /dev/null 2>&1; then
@@ -1050,7 +1039,7 @@ apply_bootstrap_network_policies() {
   fi
 
   # Policy gateway (external access) - séparée par provider
-  if [[ "$FEAT_CILIUM_INGRESS_POLICY" == "true" ]]; then
+  if [[ "$FEAT_NP_INGRESS_POLICY" == "true" ]]; then
     local argocd_ingress_policy=""
     case "$FEAT_GATEWAY_CONTROLLER" in
       istio)
@@ -1089,7 +1078,114 @@ apply_bootstrap_network_policies() {
   sleep 10
 }
 
-apply_bootstrap_network_policies
+apply_bootstrap_network_policies_calico() {
+  if [[ "$FEAT_NP_EGRESS_POLICY" != "true" ]] && [[ "$FEAT_NP_INGRESS_POLICY" != "true" ]]; then
+    log_debug "Network policies désactivées, pas de pré-déploiement nécessaire"
+    return 0
+  fi
+
+  log_info "Pré-déploiement des GlobalNetworkPolicies Calico pour bootstrap..."
+
+  # 1. Egress clusterwide policy - bloque le trafic externe, autorise le trafic interne
+  if [[ "$FEAT_NP_EGRESS_POLICY" == "true" ]]; then
+    local egress_policy="${SCRIPT_DIR}/apps/calico/resources/default-deny-external-egress.yaml"
+    if [[ -f "$egress_policy" ]]; then
+      if kubectl apply -f "$egress_policy" > /dev/null 2>&1; then
+        log_success "GlobalNetworkPolicy egress appliquée (trafic interne autorisé)"
+      else
+        log_warning "Impossible d'appliquer la GlobalNetworkPolicy egress"
+      fi
+    else
+      log_debug "Pas de egress policy trouvée: $egress_policy"
+    fi
+  fi
+
+  # 2. Host ingress policy - protège les nœuds (SSH, API, HTTP/HTTPS autorisés)
+  if [[ "$FEAT_NP_INGRESS_POLICY" == "true" ]]; then
+    local ingress_policy="${SCRIPT_DIR}/apps/calico/resources/default-deny-host-ingress.yaml"
+    if [[ -f "$ingress_policy" ]]; then
+      if kubectl apply -f "$ingress_policy" > /dev/null 2>&1; then
+        log_success "GlobalNetworkPolicy host ingress appliquée (SSH, API, Kubelet, ICMP)"
+      else
+        log_warning "Impossible d'appliquer la GlobalNetworkPolicy host ingress"
+      fi
+    else
+      log_debug "Pas de host ingress policy trouvée: $ingress_policy"
+    fi
+  fi
+
+  # 3. ArgoCD egress policy - ajoute l'accès externe (GitHub, Helm)
+  if [[ "$FEAT_NP_EGRESS_POLICY" == "true" ]]; then
+    local argocd_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-egress-policy.yaml"
+    if [[ -f "$argocd_policy" ]]; then
+      if kubectl apply -f "$argocd_policy" > /dev/null 2>&1; then
+        log_success "Calico NetworkPolicy ArgoCD egress appliquée (accès GitHub/Helm)"
+      else
+        log_warning "Impossible d'appliquer la Calico NetworkPolicy ArgoCD egress"
+      fi
+    else
+      log_debug "Pas de egress policy ArgoCD trouvée: $argocd_policy"
+    fi
+  fi
+
+  # 4. ArgoCD ingress policy - permet la communication interne ArgoCD
+  if [[ "$FEAT_NP_DEFAULT_DENY_POD_INGRESS" == "true" ]]; then
+    local argocd_internal_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-ingress-policy.yaml"
+    if [[ -f "$argocd_internal_policy" ]]; then
+      if kubectl apply -f "$argocd_internal_policy" > /dev/null 2>&1; then
+        log_success "Calico NetworkPolicy ArgoCD ingress appliquée (internal)"
+      else
+        log_warning "Impossible d'appliquer la Calico NetworkPolicy ArgoCD ingress (internal)"
+      fi
+    fi
+  fi
+
+  # Policy gateway (external access) - séparée par provider
+  if [[ "$FEAT_NP_INGRESS_POLICY" == "true" ]]; then
+    local argocd_ingress_policy=""
+    case "$FEAT_GATEWAY_CONTROLLER" in
+      istio)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-ingress-policy-istio.yaml"
+        ;;
+      apisix)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-ingress-policy-apisix.yaml"
+        ;;
+      traefik)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-ingress-policy-traefik.yaml"
+        ;;
+      nginx-gateway-fabric|nginx-gwf)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-ingress-policy-nginx-gwf.yaml"
+        ;;
+      envoy-gateway)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-ingress-policy-envoy-gateway.yaml"
+        ;;
+      cilium)
+        argocd_ingress_policy="${SCRIPT_DIR}/apps/argocd/resources/calico-ingress-policy-cilium.yaml"
+        ;;
+      *)
+        log_warning "Provider Gateway inconnu: $FEAT_GATEWAY_CONTROLLER - pas de policy gateway ArgoCD"
+        ;;
+    esac
+    if [[ -n "$argocd_ingress_policy" && -f "$argocd_ingress_policy" ]]; then
+      if kubectl apply -f "$argocd_ingress_policy" > /dev/null 2>&1; then
+        log_success "Calico NetworkPolicy ArgoCD ingress appliquée ($FEAT_GATEWAY_CONTROLLER)"
+      else
+        log_warning "Impossible d'appliquer la Calico NetworkPolicy ArgoCD ingress ($FEAT_GATEWAY_CONTROLLER)"
+      fi
+    fi
+  fi
+
+  # Wait for Calico to propagate policies
+  log_info "Attente de la propagation des policies Calico (10s)..."
+  sleep 10
+}
+
+# Dispatch bootstrap network policies based on CNI
+if [[ "$FEAT_CNI_PRIMARY" == "cilium" ]]; then
+  apply_bootstrap_network_policies_cilium
+elif [[ "$FEAT_CNI_PRIMARY" == "calico" ]]; then
+  apply_bootstrap_network_policies_calico
+fi
 
 # =============================================================================
 # Attente du repo-server (requis AVANT déploiement des ApplicationSets)
@@ -1225,7 +1321,7 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
   # ApplicationSet is in APPLICATIONSETS[] (it's conditional on monitoring).
   # Without this, SPIRE pods lose their SA token when Kyverno mutates them,
   # causing mutual auth to block ALL inter-pod traffic (deadlock).
-  if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]]; then
+  if [[ "$FEAT_CNI_PRIMARY" == "cilium" ]] && [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]]; then
     spire_pe="${SCRIPT_DIR}/apps/cilium/resources/kyverno-policy-exception-spire.yaml"
     if [[ -f "$spire_pe" ]]; then
       spire_ns=$(yq -r '.metadata.namespace' "$spire_pe" 2>/dev/null)
@@ -1505,7 +1601,7 @@ migrate_spire_storage() {
 
   # --- Vérifier si la migration est nécessaire ---
   local current_values
-  current_values=$(kubectl get helmchartconfig rke2-cilium -n kube-system -o jsonpath='{.spec.valuesContent}' 2>/dev/null)
+  current_values=$(kubectl get helmchartconfig rke2-cilium -n kube-system -o jsonpath='{.spec.valuesContent}' 2>/dev/null || true)
   if [[ -z "$current_values" ]]; then
     log_warning "HelmChartConfig rke2-cilium non trouvé, skip migration"
     return 0
@@ -1693,11 +1789,11 @@ JOBEOF
   fi
 }
 
-# Condition d'entrée: mutual auth + storage + spire dataStorage activés
-if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]] && [[ "$FEAT_STORAGE" == "true" ]] && [[ "$FEAT_SPIRE_DATA_STORAGE" == "true" ]]; then
+# Condition d'entrée: cilium CNI + mutual auth + storage + spire dataStorage activés
+if [[ "$FEAT_CNI_PRIMARY" == "cilium" ]] && [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]] && [[ "$FEAT_STORAGE" == "true" ]] && [[ "$FEAT_SPIRE_DATA_STORAGE" == "true" ]]; then
   migrate_spire_storage
 else
-  log_debug "Migration SPIRE storage non applicable (mutualAuth=$FEAT_CILIUM_MUTUAL_AUTH, storage=$FEAT_STORAGE, spireDataStorage=$FEAT_SPIRE_DATA_STORAGE)"
+  log_debug "Migration SPIRE storage non applicable (cni=$FEAT_CNI_PRIMARY, mutualAuth=$FEAT_CILIUM_MUTUAL_AUTH, storage=$FEAT_STORAGE, spireDataStorage=$FEAT_SPIRE_DATA_STORAGE)"
 fi
 
 # =============================================================================
@@ -1948,9 +2044,10 @@ echo "  Service Mesh:      $FEAT_SERVICE_MESH ($FEAT_SERVICE_MESH_PROVIDER)"
 echo "  Storage:           $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
 echo "  Database Operator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 echo "  Monitoring:        $FEAT_MONITORING"
-echo "  Cilium Monitoring: $FEAT_CILIUM_MONITORING"
-echo "  Cilium Egress:     $FEAT_CILIUM_EGRESS_POLICY"
-echo "  Cilium Ingress:    $FEAT_CILIUM_INGRESS_POLICY"
+echo "  CNI Monitoring:    Cilium=$FEAT_CILIUM_MONITORING Calico=$FEAT_CALICO_MONITORING"
+echo "  NP Egress:         $FEAT_NP_EGRESS_POLICY"
+echo "  NP Ingress:        $FEAT_NP_INGRESS_POLICY"
+echo "  NP Pod Ingress:    $FEAT_NP_DEFAULT_DENY_POD_INGRESS"
 echo "  Cilium Encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
 echo "  Cilium Mutual Auth: $FEAT_CILIUM_MUTUAL_AUTH"
 echo "  SPIRE DataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE, class: $FEAT_STORAGE_CLASS)"

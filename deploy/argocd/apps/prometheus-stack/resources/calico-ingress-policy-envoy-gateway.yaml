@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Prometheus Stack Ingress from Envoy Gateway
+# Calico equivalent of: cilium-ingress-policy-envoy-gateway.yaml
+# =============================================================================
+# Allows access to Prometheus/Grafana/Alertmanager web UIs from Envoy Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-stack-ingress-envoy-gateway
+  namespace: monitoring
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Envoy Gateway (envoy-gateway-system namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "envoy-gateway-system"'
+      destination:
+        ports:
+          - 3000    # Grafana web UI
+          - 9090    # Prometheus web UI / API
+          - 9093    # Alertmanager web UI / API

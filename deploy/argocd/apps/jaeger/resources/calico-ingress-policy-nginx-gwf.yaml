@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Jaeger Ingress from NGINX Gateway Fabric
+# =============================================================================
+# Allows access to Jaeger Query UI from NGINX Gateway Fabric
+# Internal communication is handled by calico-ingress-policy.yaml
+#
+# Calico equivalent of: cilium-ingress-policy-nginx-gwf.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: jaeger-ingress-nginx-gwf
+  namespace: jaeger
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from NGINX Gateway Fabric (nginx-gateway namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "nginx-gateway"'
+      destination:
+        ports:
+          - 16686

@@ -1,0 +1,65 @@
+---
+# =============================================================================
+# Calico ServiceMonitors for Prometheus
+# =============================================================================
+# These ServiceMonitors enable Prometheus to scrape Calico metrics from
+# Felix, Typha, and kube-controllers components.
+# Docs: https://docs.tigera.io/calico/latest/operations/monitor/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+#       from features.monitoring.release in config.yaml
+# =============================================================================
+
+# ServiceMonitor for Calico Felix metrics (per-node dataplane agent)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: calico-felix
+  namespace: calico-system
+spec:
+  namespaceSelector:
+    matchNames:
+    - calico-system
+  selector:
+    matchLabels:
+      k8s-app: calico-node
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+    path: /metrics
+---
+# ServiceMonitor for Calico Typha metrics (fan-out datastore proxy)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: calico-typha
+  namespace: calico-system
+spec:
+  namespaceSelector:
+    matchNames:
+    - calico-system
+  selector:
+    matchLabels:
+      k8s-app: calico-typha
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+    path: /metrics
+---
+# ServiceMonitor for Calico kube-controllers metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: calico-kube-controllers
+  namespace: calico-system
+spec:
+  namespaceSelector:
+    matchNames:
+    - calico-system
+  selector:
+    matchLabels:
+      k8s-app: calico-kube-controllers
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+    path: /metrics

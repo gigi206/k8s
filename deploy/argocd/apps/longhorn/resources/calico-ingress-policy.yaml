@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Longhorn Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows internal communication within longhorn-system namespace and from
+# dependent namespaces (monitoring, kube-system)
+# Note: CSI driver uses local Unix sockets on nodes, no network policy needed.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-internal
+  namespace: longhorn-system
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 9500
+
+    # Allow from kube-system (API server webhook calls)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 9443
+
+    # Allow internal Longhorn communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "longhorn-system"'
+      destination:
+        ports:
+          - 80
+          - 8500
+          - 9500
+          - 9501
+          - 9443

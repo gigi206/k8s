@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - Traefik Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress-policy.yaml
+#
+# Allow external HTTP/HTTPS traffic to nodes for Traefik LoadBalancer.
+# This complements the default-deny-host-ingress policy.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: traefik-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    # HTTP/HTTPS for Traefik LoadBalancer
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 80
+          - 443
