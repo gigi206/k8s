@@ -181,7 +181,7 @@ kind: Service
 metadata:
   name: my-service
   annotations:
-    metallb.universe.tf/address-pool: default  # Pool name
+    metallb.io/address-pool: default  # Pool name
 spec:
   type: LoadBalancer
   ports:
@@ -198,7 +198,7 @@ kind: Service
 metadata:
   name: my-service-http
   annotations:
-    metallb.universe.tf/allow-shared-ip: "my-shared-ip"
+    metallb.io/allow-shared-ip: "my-shared-ip"
 spec:
   type: LoadBalancer
   loadBalancerIP: 192.168.1.230
@@ -213,7 +213,7 @@ kind: Service
 metadata:
   name: my-service-https
   annotations:
-    metallb.universe.tf/allow-shared-ip: "my-shared-ip"
+    metallb.io/allow-shared-ip: "my-shared-ip"
 spec:
   type: LoadBalancer
   loadBalancerIP: 192.168.1.230
@@ -356,7 +356,7 @@ kubectl get svc --all-namespaces -o jsonpath='{range .items[?(@.spec.type=="Load
 **Solutions**:
 - **Augmenter le range**: Modifier IPAddressPool
 - **Libérer des IPs**: Supprimer les services non utilisés
-- **Partager des IPs**: Utiliser `metallb.universe.tf/allow-shared-ip`
+- **Partager des IPs**: Utiliser `metallb.io/allow-shared-ip`
 
 ### Speaker crashloop
 
@@ -434,7 +434,7 @@ apiVersion: v1
 kind: Service
 metadata:
   annotations:
-    metallb.universe.tf/address-pool: production
+    metallb.io/address-pool: production
 spec:
   type: LoadBalancer
 ```
