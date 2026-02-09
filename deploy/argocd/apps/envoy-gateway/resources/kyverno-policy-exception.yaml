@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: envoy-gateway-automount-sa-token
   namespace: envoy-gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

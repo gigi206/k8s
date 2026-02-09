@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: cloudnative-pg-automount-sa-token
   namespace: cnpg-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token
