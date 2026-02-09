@@ -1,0 +1,48 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Cilium/Hubble Internal Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to Cilium/Hubble pods to authorized internal sources:
+# - monitoring: Prometheus metrics scraping
+# - kube-system: Internal pod communication (cilium, hubble, coredns, etc.)
+#
+# NOTE: This is for Hubble UI monitoring only in kube-system namespace.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: cilium-hubble-ingress
+  namespace: kube-system
+spec:
+  selector: k8s-app in {"cilium", "hubble-ui", "hubble-relay"}
+  types:
+    - Ingress
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 9962
+          - 9963
+          - 9964
+          - 9966
+          - 4244
+
+    # Allow internal kube-system communication
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 4244
+          - 4245
+          - 80
+          - 9962
+          - 9963

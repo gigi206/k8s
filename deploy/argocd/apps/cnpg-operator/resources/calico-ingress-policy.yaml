@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - CNPG Operator Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to CloudNativePG Operator to authorized sources:
+# - kube-system: Webhook calls from kube-apiserver (Cluster CR validation)
+# - monitoring: Prometheus metrics scraping
+# - cnpg-system: Internal communication
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: cnpg-operator-ingress
+  namespace: cnpg-system
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from kube-system (API server webhook calls)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 9443
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8080
+
+    # Allow internal cnpg-system communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "cnpg-system"'
+      destination:
+        ports:
+          - 9443
+          - 8080

@@ -1,0 +1,32 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Keycloak Ingress from Cilium Gateway
+# Calico equivalent of: cilium-ingress-policy-cilium.yaml
+# =============================================================================
+# Allows access to Keycloak from Cilium Gateway
+# Cilium Gateway routes to Keycloak HTTP port (8080), not HTTPS (8443),
+# because Cilium does not support BackendTLSPolicy for HTTPS backends.
+# TLS is terminated at the Gateway level.
+# NOTE: Cilium uses fromEntities: [ingress]; Calico uses kube-system namespace
+# selector as the equivalent (Cilium Gateway runs envoy pods in kube-system).
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-ingress-cilium
+  namespace: keycloak
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Cilium Gateway (kube-system namespace)
+    # Equivalent of Cilium's fromEntities: [ingress]
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 8080    # Keycloak HTTP

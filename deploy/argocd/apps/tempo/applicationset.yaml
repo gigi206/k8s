@@ -85,13 +85,22 @@ spec:
           path: deploy/argocd/apps/tempo/resources
           directory:
             include: "namespace.yaml"
-        {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source 1: Cilium ingress policy - conditional
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source 1: Cilium ingress policy
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/tempo/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source 1: Calico ingress policy
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/tempo/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)

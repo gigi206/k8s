@@ -86,13 +86,22 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        {{- if .features.cilium.ingressPolicy.enabled }}
-        # Source: Cilium ingress policy - conditional
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium ingress policy
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/metallb/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico ingress policy
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/metallb/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)

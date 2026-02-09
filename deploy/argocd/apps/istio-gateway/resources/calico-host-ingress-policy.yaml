@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - Istio Gateway Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress-policy.yaml
+#
+# Allow external HTTP/HTTPS traffic to nodes for Istio Gateway LoadBalancer.
+# This complements the default-deny-host-ingress policy.
+#
+# Only enable this when using Istio as ingress controller.
+# Other ingress controllers (Traefik, nginx, etc.) should define similar
+# policies in their respective app directories.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: istio-gateway-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    # HTTP/HTTPS for Istio Gateway LoadBalancer
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 80
+          - 443

@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Keycloak Ingress from Istio Gateway
+# Calico equivalent of: cilium-ingress-policy-istio.yaml
+# =============================================================================
+# Allows access to Keycloak web UI from Istio Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-ingress-istio
+  namespace: keycloak
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Istio Gateway (istio-system namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 8443    # Keycloak HTTPS

@@ -1,0 +1,55 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Kubescape Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows incoming traffic to Kubescape pods:
+# - Prometheus scraping (monitoring namespace)
+# - Inter-component communication
+# - kube-system for API server webhook calls
+#
+# Required when default-deny pod ingress is enabled.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kubescape-allow-internal-ingress
+  namespace: kubescape
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow Prometheus to scrape metrics
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8080
+          - 8000
+
+    # Allow internal Kubescape communication
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kubescape"'
+      destination:
+        ports:
+          - 8080
+          - 8443
+          - 4002
+          - 8089
+          - 8000
+
+    # Allow kube-system for API server communication (webhooks)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 8443

@@ -1,0 +1,57 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - NeuVector Internal Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to NeuVector pods to authorized internal sources:
+# - neuvector: Internal pod communication (controller, scanner, enforcer, manager)
+# - monitoring: Prometheus metrics scraping
+#
+# Gateway-specific ingress rules are in separate files.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: neuvector-ingress
+  namespace: neuvector
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow internal NeuVector communication (same namespace, TCP)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "neuvector"'
+      destination:
+        ports:
+          - 8443
+          - 10443
+          - 18300
+          - 18301
+          - 18400
+          - 18401
+          - 18402
+          - 8068
+
+    # Allow internal NeuVector communication (same namespace, UDP)
+    - action: Allow
+      protocol: UDP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "neuvector"'
+      destination:
+        ports:
+          - 18300
+          - 18301
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8068

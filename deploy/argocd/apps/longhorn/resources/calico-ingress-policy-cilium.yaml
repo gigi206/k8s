@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Longhorn Ingress from Cilium Gateway
+# =============================================================================
+# Allows access to Longhorn UI from Cilium Gateway (kube-system namespace)
+# Internal communication is handled by calico-ingress-policy.yaml
+#
+# Note: This policy is only relevant when using Cilium as Gateway API controller
+# while using Calico as CNI. Unusual combination but supported.
+#
+# Calico equivalent of: cilium-ingress-policy-cilium.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-ingress-cilium
+  namespace: longhorn-system
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Cilium Gateway (kube-system namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 80

@@ -1,0 +1,59 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Loki Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to Loki to authorized namespaces only:
+# - alloy: Log push (loki.source.kubernetes, loki.source.journal, etc.)
+# - monitoring: Grafana queries + Prometheus metrics scraping
+# - loki: Internal communication (memberlist clustering)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: loki-ingress
+  namespace: loki
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Alloy namespace (log push)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "alloy"'
+      destination:
+        ports:
+          - 3100
+
+    # Allow from Monitoring namespace (Grafana queries + Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 3100
+          - 3500
+
+    # Allow internal Loki communication (same namespace, TCP)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "loki"'
+      destination:
+        ports:
+          - 3100
+          - 7946
+
+    # Allow internal Loki communication (same namespace, UDP memberlist)
+    - action: Allow
+      protocol: UDP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "loki"'
+      destination:
+        ports:
+          - 7946

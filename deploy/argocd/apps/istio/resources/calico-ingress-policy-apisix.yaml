@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Kiali Gateway Ingress (APISIX)
+# =============================================================================
+# Allows ingress from APISIX Gateway to Kiali for external access.
+# This policy is only deployed when:
+# - features.calico.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "apisix"
+#
+# Calico equivalent of: cilium-ingress-policy-apisix.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kiali-gateway-apisix
+  namespace: istio-system
+spec:
+  selector: 'app.kubernetes.io/name == "kiali"'
+  types:
+    - Ingress
+  ingress:
+    # Allow from APISIX namespace (gateway ingress)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "apisix"'
+      destination:
+        ports:
+          - 20001
