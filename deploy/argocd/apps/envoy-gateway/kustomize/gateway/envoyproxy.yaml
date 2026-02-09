@@ -11,4 +11,4 @@ spec:
     kubernetes:
       envoyService:
         annotations:
-          metallb.universe.tf/address-pool: gateway
+          metallb.io/address-pool: gateway
