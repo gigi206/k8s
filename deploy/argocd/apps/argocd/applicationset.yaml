@@ -107,7 +107,8 @@ spec:
           {{- end }}
         {{- end }}
         {{- if and .features.networkPolicy.egressPolicy.enabled (eq .features.gatewayAPI.controller.provider "apisix") .features.sso.enabled (eq .features.sso.provider "keycloak") }}
-        # Source: Keycloak OIDC egress (APISIX only - LoadBalancer IP is RFC1918)
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Keycloak OIDC egress - Cilium (APISIX only - LoadBalancer IP is RFC1918)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/kustomize/cilium-egress
@@ -120,6 +121,21 @@ spec:
                   - op: replace
                     path: /spec/egress/0/toFQDNs/0/matchName
                     value: keycloak.{{ .common.domain }}
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Keycloak OIDC egress - Calico (APISIX only - LoadBalancer IP is RFC1918)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/kustomize/calico-egress
+          kustomize:
+            patches:
+              - target:
+                  kind: NetworkPolicy
+                  name: argocd-allow-keycloak-egress
+                patch: |
+                  - op: replace
+                    path: /spec/egress/0/destination/nets/0
+                    value: '{{ .features.loadBalancer.staticIPs.gateway }}/32'
+          {{- end }}
         {{- end }}
         {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
           {{- if eq .cni.primary "cilium" }}
