@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: ingress-nginx-automount-sa-token
   namespace: ingress-nginx
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

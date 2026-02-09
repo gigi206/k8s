@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: cilium-automount-sa-token
   namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

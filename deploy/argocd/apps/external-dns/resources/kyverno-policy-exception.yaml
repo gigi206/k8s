@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: external-dns-automount-sa-token
   namespace: external-dns
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

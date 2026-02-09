@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: metallb-automount-sa-token
   namespace: metallb-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token
