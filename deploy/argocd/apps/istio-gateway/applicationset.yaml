@@ -73,7 +73,8 @@ spec:
       {{- end }}
 
       sources:
-        {{- if .features.cilium.ingressPolicy.enabled }}
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -86,6 +87,20 @@ spec:
           path: deploy/argocd/apps/istio-gateway/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Calico Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/istio-gateway/resources
+          directory:
+            include: "calico-host-ingress-policy.yaml"
+        # Calico Ingress Policy (pod-to-pod access control)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/istio-gateway/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
         # Gateway API resources (Gateway + Certificate)
         # Istio automatically creates a Deployment and LoadBalancer Service for the Gateway
@@ -143,7 +158,7 @@ spec:
                 {{- if and .features.loadBalancer.enabled .features.loadBalancer.staticIPs.gateway (ne .features.loadBalancer.provider "klipper") }}
                 annotations:
                   {{- if eq .features.loadBalancer.provider "metallb" }}
-                  metallb.universe.tf/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                  metallb.io/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
                   {{- else if eq .features.loadBalancer.provider "cilium" }}
                   lbipam.cilium.io/ips: '{{ .features.loadBalancer.staticIPs.gateway }}'
                   {{- else if eq .features.loadBalancer.provider "loxilb" }}

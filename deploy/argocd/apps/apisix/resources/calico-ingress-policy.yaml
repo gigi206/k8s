@@ -1,0 +1,73 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - APISIX Gateway Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to APISIX Gateway to authorized sources:
+# - world: External clients via LoadBalancer (MetalLB)
+# - cluster: Internal pods accessing via LoadBalancer IP (hairpin NAT)
+# - monitoring: Prometheus metrics scraping
+# - apisix namespace: Internal communication (admin, etcd)
+#
+# Note: calico-host-ingress-policy.yaml allows traffic to the NODE.
+#       This policy allows traffic to the POD after kube-proxy routing.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: apisix-gateway-ingress
+  namespace: apisix
+spec:
+  selector: app.kubernetes.io/name == "apisix"
+  types:
+    - Ingress
+  ingress:
+    # Allow external traffic from anywhere (LoadBalancer clients, TCP)
+    # fromEntities: [world, cluster] -> no source restriction
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 9080
+          - 9443
+          - 9100
+
+    # Allow external traffic from anywhere (stream proxy, UDP)
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 9200
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 9091
+          - 9080
+
+    # Allow internal APISIX namespace communication
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "apisix"'
+      destination:
+        ports:
+          - 9080
+          - 9443
+          - 9180
+          - 9090
+
+    # Allow ingress-controller to access Admin API
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/name == "ingress-controller"
+      destination:
+        ports:
+          - 9180

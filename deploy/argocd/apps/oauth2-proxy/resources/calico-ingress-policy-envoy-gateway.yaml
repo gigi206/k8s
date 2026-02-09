@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - OAuth2 Proxy Ingress from Envoy Gateway
+# Calico equivalent of: cilium-ingress-policy-envoy-gateway.yaml
+# =============================================================================
+# Allows ext_authz requests from Envoy Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress-envoy-gateway
+  namespace: oauth2-proxy
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Envoy Gateway (ext_authz from Envoy)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "envoy-gateway-system"'
+      destination:
+        ports:
+          - 4180    # OAuth2 Proxy main port

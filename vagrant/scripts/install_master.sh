@@ -110,29 +110,21 @@ if [ "$CNI_PRIMARY" = "cilium" ] && [ "$LB_PROVIDER_CONFIG" = "loxilb" ] && [ "$
 fi
 
 if [ "$CNI_MULTUS_ENABLED" = "true" ]; then
-  echo "CNI: Multus + Cilium (multi-network enabled)"
+  echo "CNI: Multus + $CNI_PRIMARY (multi-network enabled)"
   echo "  - Whereabouts IPAM: $CNI_WHEREABOUTS_ENABLED"
 else
-  echo "CNI: Cilium (single network)"
+  echo "CNI: $CNI_PRIMARY (single network)"
 fi
 
 echo "disable:
 - rke2-ingress-nginx
-- rke2-kube-proxy # Disable kube-proxy with Cilium => https://docs.rke2.io/install/network_options/
-- rke2-canal # disable it with cilium
+$([ "$CNI_PRIMARY" = "cilium" ] && echo "- rke2-kube-proxy # Cilium eBPF replaces kube-proxy at bootstrap")
+- rke2-canal # disable default CNI (using $CNI_PRIMARY instead)
 # - rke2-metrics-server
 # - rke2-ingress-nginx
 # - rke2-coredns
 # disable: [rke2-ingress-nginx, rke2-coredns]
-disable-kube-proxy: true
-# kube-controller-manager-arg:
-#   - feature-gates=TopologyAwareHints=true
-# cluster-cidr: 10.220.0.0/16
-# service-cidr: 10.221.0.0/16
-# node-label:
-# - xxx=yyy
-# system-default-registry: xxx.fr
-disable-kube-proxy: true # Disable kube-proxy with Cilium => https://docs.rke2.io/install/network_options/
+$([ "$CNI_PRIMARY" = "cilium" ] && echo 'disable-kube-proxy: true # Cilium eBPF replaces kube-proxy' || echo '# kube-proxy kept active for Calico BPF bootstrap (Calico takes over once running)')
 write-kubeconfig-mode: "0644"
 tls-san:
 - k8s-api.k8s.lan
@@ -160,11 +152,11 @@ etcd-expose-metrics: true
 # etcd-s3-secret-key: **************************" \
 >>/etc/rancher/rke2/config.yaml
 
-# Configure CNI (Cilium or Multus+Cilium)
+# Configure CNI (Cilium/Calico, with optional Multus)
 if [ "$CNI_MULTUS_ENABLED" = "true" ]; then
   echo "cni:" >> /etc/rancher/rke2/config.yaml
   echo "- multus" >> /etc/rancher/rke2/config.yaml
-  echo "- cilium" >> /etc/rancher/rke2/config.yaml
+  echo "- $CNI_PRIMARY" >> /etc/rancher/rke2/config.yaml
 
   # Create HelmChartConfig for Multus with Whereabouts IPAM
   mkdir -p /var/lib/rancher/rke2/server/manifests
@@ -182,7 +174,7 @@ EOF
   echo "✓ Multus HelmChartConfig created (Whereabouts IPAM: $CNI_WHEREABOUTS_ENABLED)"
 else
   echo "cni:" >> /etc/rancher/rke2/config.yaml
-  echo "- cilium" >> /etc/rancher/rke2/config.yaml
+  echo "- $CNI_PRIMARY" >> /etc/rancher/rke2/config.yaml
 fi
 
 # Add CIS profile if enabled in config.yaml
@@ -267,46 +259,21 @@ fi
 # echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
 # echo "node-label: [site=xxx, room=xxx]" >> /etc/rancher/rke2/config.yaml
 
-# Configure Cilium CNI
+# Configure CNI-specific settings
 # LB_PROVIDER is passed from Vagrantfile (metallb, cilium, loxilb, or klipper)
-# - metallb: Cilium L2 announcements disabled, MetalLB handles LoadBalancer IPs
-# - cilium: Cilium L2 announcements enabled, Cilium LB-IPAM handles LoadBalancer IPs
-# - loxilb: LoxiLB eBPF-based load balancer (CNI-agnostic, DSR support)
-# - klipper: ServiceLB (built-in RKE2/K3s), uses node IPs, no static IP support
 export LB_PROVIDER="${LB_PROVIDER:-metallb}"
 echo "LoadBalancer provider: $LB_PROVIDER"
 
 # GATEWAY_API_PROVIDER is passed from Vagrantfile (cilium, traefik, istio, etc.)
-# - cilium: Cilium Gateway API controller (requires CNI=cilium)
-# - traefik/istio/etc: External Gateway API controllers
 export GATEWAY_API_PROVIDER="${GATEWAY_API_PROVIDER:-traefik}"
 echo "Gateway API provider: $GATEWAY_API_PROVIDER"
 
 # Enable ServiceLB (Klipper) if provider is klipper
-# ServiceLB is disabled by default in RKE2 (unlike K3s)
 if [ "$LB_PROVIDER" = "klipper" ]; then
   echo "Enabling ServiceLB (Klipper) in RKE2 config..."
   echo "enable-servicelb: true" >> /etc/rancher/rke2/config.yaml
 fi
 
-# Read Cilium encryption settings from ArgoCD config (features.cilium.encryption)
-CILIUM_ENCRYPTION_ENABLED=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
-CILIUM_ENCRYPTION_ENABLED=${CILIUM_ENCRYPTION_ENABLED:-true}
-CILIUM_ENCRYPTION_TYPE=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "type:" | head -1 | awk -F'"' '{print $2}')
-CILIUM_ENCRYPTION_TYPE=${CILIUM_ENCRYPTION_TYPE:-wireguard}
-CILIUM_NODE_ENCRYPTION=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "nodeEncryption:" | head -1 | awk '{print $2}')
-CILIUM_NODE_ENCRYPTION=${CILIUM_NODE_ENCRYPTION:-true}
-CILIUM_STRICT_MODE=$(grep -A10 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -A3 "strictMode:" | grep -m1 "enabled:" | awk '{print $2}')
-CILIUM_STRICT_MODE=${CILIUM_STRICT_MODE:-true}
-# Read Cilium mutual authentication settings (features.cilium.mutualAuth)
-CILIUM_MUTUAL_AUTH=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
-CILIUM_MUTUAL_AUTH=${CILIUM_MUTUAL_AUTH:-true}
-CILIUM_MUTUAL_AUTH_PORT=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep "port:" | head -1 | awk '{print $2}')
-CILIUM_MUTUAL_AUTH_PORT=${CILIUM_MUTUAL_AUTH_PORT:-4250}
-export CILIUM_ENCRYPTION_ENABLED CILIUM_ENCRYPTION_TYPE CILIUM_NODE_ENCRYPTION CILIUM_STRICT_MODE
-export CILIUM_MUTUAL_AUTH CILIUM_MUTUAL_AUTH_PORT
-echo "Cilium encryption: $CILIUM_ENCRYPTION_ENABLED (type=$CILIUM_ENCRYPTION_TYPE, nodeEncryption=$CILIUM_NODE_ENCRYPTION, strictMode=$CILIUM_STRICT_MODE)"
-echo "Cilium mutual auth: $CILIUM_MUTUAL_AUTH (port=$CILIUM_MUTUAL_AUTH_PORT)"
 # Read Service Mesh settings from ArgoCD config (features.serviceMesh)
 SERVICE_MESH_ENABLED=$(grep -A5 "^  serviceMesh:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
 SERVICE_MESH_ENABLED=${SERVICE_MESH_ENABLED:-false}
@@ -315,7 +282,43 @@ SERVICE_MESH_PROVIDER=${SERVICE_MESH_PROVIDER:-none}
 export SERVICE_MESH_ENABLED SERVICE_MESH_PROVIDER
 echo "Service mesh: $SERVICE_MESH_ENABLED (provider=$SERVICE_MESH_PROVIDER)"
 
-$SCRIPT_DIR/configure_cilium.sh
+if [ "$CNI_PRIMARY" = "cilium" ]; then
+  # Read Cilium encryption settings from ArgoCD config (features.cilium.encryption)
+  CILIUM_ENCRYPTION_ENABLED=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+  CILIUM_ENCRYPTION_ENABLED=${CILIUM_ENCRYPTION_ENABLED:-true}
+  CILIUM_ENCRYPTION_TYPE=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "type:" | head -1 | awk -F'"' '{print $2}')
+  CILIUM_ENCRYPTION_TYPE=${CILIUM_ENCRYPTION_TYPE:-wireguard}
+  CILIUM_NODE_ENCRYPTION=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "nodeEncryption:" | head -1 | awk '{print $2}')
+  CILIUM_NODE_ENCRYPTION=${CILIUM_NODE_ENCRYPTION:-true}
+  CILIUM_STRICT_MODE=$(grep -A10 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -A3 "strictMode:" | grep -m1 "enabled:" | awk '{print $2}')
+  CILIUM_STRICT_MODE=${CILIUM_STRICT_MODE:-true}
+  # Read Cilium mutual authentication settings (features.cilium.mutualAuth)
+  CILIUM_MUTUAL_AUTH=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+  CILIUM_MUTUAL_AUTH=${CILIUM_MUTUAL_AUTH:-true}
+  CILIUM_MUTUAL_AUTH_PORT=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep "port:" | head -1 | awk '{print $2}')
+  CILIUM_MUTUAL_AUTH_PORT=${CILIUM_MUTUAL_AUTH_PORT:-4250}
+  export CILIUM_ENCRYPTION_ENABLED CILIUM_ENCRYPTION_TYPE CILIUM_NODE_ENCRYPTION CILIUM_STRICT_MODE
+  export CILIUM_MUTUAL_AUTH CILIUM_MUTUAL_AUTH_PORT
+  echo "Cilium encryption: $CILIUM_ENCRYPTION_ENABLED (type=$CILIUM_ENCRYPTION_TYPE, nodeEncryption=$CILIUM_NODE_ENCRYPTION, strictMode=$CILIUM_STRICT_MODE)"
+  echo "Cilium mutual auth: $CILIUM_MUTUAL_AUTH (port=$CILIUM_MUTUAL_AUTH_PORT)"
+
+  $SCRIPT_DIR/configure_cilium.sh
+elif [ "$CNI_PRIMARY" = "calico" ]; then
+  # Read Calico settings from ArgoCD config (features.calico)
+  CALICO_DATAPLANE=$(grep -A5 "^  calico:" "$ARGOCD_CONFIG_FILE" | grep "dataplane:" | head -1 | awk -F'"' '{print $2}')
+  CALICO_DATAPLANE=${CALICO_DATAPLANE:-bpf}
+  CALICO_ENCAPSULATION=$(grep -A5 "^  calico:" "$ARGOCD_CONFIG_FILE" | grep "encapsulation:" | head -1 | awk -F'"' '{print $2}')
+  CALICO_ENCAPSULATION=${CALICO_ENCAPSULATION:-VXLAN}
+  CALICO_BGP_ENABLED=$(grep -A10 "^  calico:" "$ARGOCD_CONFIG_FILE" | grep -A3 "bgp:" | grep "enabled:" | head -1 | awk '{print $2}')
+  CALICO_BGP_ENABLED=${CALICO_BGP_ENABLED:-false}
+  export CALICO_DATAPLANE CALICO_ENCAPSULATION CALICO_BGP_ENABLED
+  echo "Calico dataplane: $CALICO_DATAPLANE (encapsulation=$CALICO_ENCAPSULATION, bgp=$CALICO_BGP_ENABLED)"
+
+  $SCRIPT_DIR/configure_calico.sh
+else
+  echo "ERROR: Unsupported CNI primary: $CNI_PRIMARY (supported: cilium, calico)"
+  exit 1
+fi
 
 # CoreDNS k8s.lan forwarding to external-dns (only for providers with static IPs)
 # Klipper uses node IPs so static IP forwarding is not supported

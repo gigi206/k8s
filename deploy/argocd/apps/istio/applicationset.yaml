@@ -101,15 +101,25 @@ spec:
           path: deploy/argocd/apps/istio/resources
           directory:
             include: "ingressclass.yaml"
-        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
-        # Source 0c: Cilium internal ingress policy (monitoring, kube-system, istio-system)
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium internal ingress policy (monitoring, kube-system, istio-system)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
           path: deploy/argocd/apps/istio/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico internal ingress policy (monitoring, kube-system, istio-system)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
-        {{- if .features.cilium.ingressPolicy.enabled }}
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Source: Cilium ingress policy - conditional per Gateway provider
         {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
@@ -142,6 +152,40 @@ spec:
           directory:
             include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "calico-ingress-policy-istio.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "calico-ingress-policy-apisix.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "calico-ingress-policy-traefik.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "calico-ingress-policy-nginx-gwf.yaml"
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: {{ .git.revision }}
+          path: deploy/argocd/apps/istio/resources
+          directory:
+            include: "calico-ingress-policy-cilium.yaml"
+        {{- end }}
+          {{- end }}
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
@@ -470,11 +514,15 @@ spec:
                 istioNamespace: {{ .istio.namespace }}
 
               cni:
-                # CNI chaining with Cilium
+                # CNI chaining with primary CNI
                 chained: true
                 cniBinDir: /opt/cni/bin
                 cniConfDir: /etc/cni/net.d
+                {{- if eq .cni.primary "calico" }}
+                cniConfFileName: "10-calico.conflist"
+                {{- else }}
                 cniConfFileName: "05-cilium.conflist"
+                {{- end }}
 
                 # Resources for CNI DaemonSet
                 resources:

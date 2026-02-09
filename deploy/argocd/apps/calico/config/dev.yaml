@@ -1,0 +1,14 @@
+---
+# Configuration Calico - Dev
+environment: dev
+appName: calico
+
+# Dashboard configuration
+dashboard:
+  folder: "Calico"  # Subfolder under baseFolder for Calico dashboards
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

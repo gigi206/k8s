@@ -1,0 +1,36 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - External-DNS Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress-policy.yaml
+#
+# Allow external DNS traffic (port 53) to nodes for CoreDNS LoadBalancer.
+# This complements the default-deny-host-ingress policy.
+#
+# Only needed when using external-dns with CoreDNS provider and LoadBalancer
+# service type to expose DNS to external clients.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: external-dns-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    # DNS for External-DNS CoreDNS LoadBalancer (TCP)
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 53
+
+    # DNS for External-DNS CoreDNS LoadBalancer (UDP)
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 53

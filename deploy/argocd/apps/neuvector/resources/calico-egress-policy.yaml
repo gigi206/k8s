@@ -1,0 +1,73 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - NeuVector External Egress
+# =============================================================================
+# Calico equivalent of cilium-egress-policy.yaml
+#
+# Allows NeuVector to reach external services:
+# - CVE database updates (NIST NVD, etc.)
+# - Container registry scanning
+# - License validation
+#
+# Also allows internal NeuVector inter-component communication.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: neuvector-allow-external-egress
+  namespace: neuvector
+spec:
+  selector: all()
+  types:
+    - Egress
+  egress:
+    # Allow DNS (required: this policy creates implicit deny on all egress)
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports: [53]
+    # Allow cluster-internal traffic (pod + service + node CIDRs)
+    # Node CIDR required for BPF DNAT (ClusterIP -> node IP before policy eval)
+    - action: Allow
+      destination:
+        nets:
+          - "10.42.0.0/16"
+          - "10.43.0.0/16"
+          - "192.168.121.0/24"
+    # Allow internal NeuVector communication (same namespace, TCP)
+    - action: Allow
+      protocol: TCP
+      destination:
+        namespaceSelector: 'kubernetes.io/metadata.name == "neuvector"'
+        ports:
+          - 8443
+          - 10443
+          - 18300
+          - 18301
+          - 18400
+          - 18401
+          - 18402
+
+    # Allow internal NeuVector communication (same namespace, UDP)
+    - action: Allow
+      protocol: UDP
+      destination:
+        namespaceSelector: 'kubernetes.io/metadata.name == "neuvector"'
+        ports:
+          - 18300
+          - 18301
+
+    # Allow HTTPS to external services (CVE databases, registries)
+    - action: Allow
+      protocol: TCP
+      destination:
+        notNets:
+          - "10.42.0.0/16"
+          - "10.43.0.0/16"
+        ports:
+          - 443

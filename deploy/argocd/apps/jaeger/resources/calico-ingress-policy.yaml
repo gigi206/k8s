@@ -1,0 +1,39 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Jaeger Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows internal communication within jaeger namespace and from
+# dependent namespaces (monitoring)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: jaeger-internal
+  namespace: jaeger
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 14269
+
+    # Allow internal Jaeger communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "jaeger"'
+      destination:
+        ports:
+          - 16686
+          - 9411
+          - 14269

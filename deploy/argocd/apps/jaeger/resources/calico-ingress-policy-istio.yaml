@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Jaeger Ingress from Istio Gateway
+# =============================================================================
+# Allows access to Jaeger Query UI from Istio Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+#
+# Calico equivalent of: cilium-ingress-policy-istio.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: jaeger-ingress-istio
+  namespace: jaeger
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Istio Gateway (istio-system namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 16686

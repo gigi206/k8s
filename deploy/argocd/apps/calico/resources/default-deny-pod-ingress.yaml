@@ -1,0 +1,36 @@
+---
+# =============================================================================
+# GlobalNetworkPolicy - Default Deny Pod Ingress (Zero Trust) (Calico)
+# =============================================================================
+# Implements Zero Trust networking by blocking ALL pod-to-pod ingress by default.
+# Only explicitly allowed traffic passes.
+#
+# BASELINE ALLOWS (minimal for cluster operation):
+# - Health probes from kubelet (host)
+# - Traffic from kube-system (DNS, metrics-server, CNI)
+#
+# EXCLUDED: calico-system, kube-system, kube-public, tigera-operator
+#
+# Calico equivalent of: apps/cilium/resources/default-deny-pod-ingress.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-deny-pod-ingress
+spec:
+  order: 500
+  namespaceSelector: >-
+    kubernetes.io/metadata.name not in {"calico-system", "calico-apiserver", "kube-system", "kube-public", "kube-node-lease", "tigera-operator"}
+  types: [Ingress]
+  ingress:
+    # Rule 1: Allow health checks from kubelet (host endpoints)
+    - action: Allow
+      source:
+        selector: has(kubernetes-host)
+    # Rule 2: Allow from kube-system (essential cluster services: DNS, metrics-server, CNI)
+    - action: Allow
+      source:
+        namespaceSelector: kubernetes.io/metadata.name == "kube-system"
+    # NO OTHER RULES = ALL OTHER INGRESS DENIED
+    # Per-app NetworkPolicy must explicitly allow traffic

@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - NeuVector Gateway Ingress (Istio)
+# Calico equivalent of: cilium-ingress-policy-istio.yaml
+# =============================================================================
+# Allows ingress from Istio Gateway to NeuVector Manager for external access.
+# This policy is only deployed when:
+# - features.calico.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "istio"
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: neuvector-gateway-istio
+  namespace: neuvector
+spec:
+  selector: 'app == "neuvector-manager-pod"'
+  types:
+    - Ingress
+  ingress:
+    # Allow from Istio namespace (gateway ingress)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 8443    # Manager web UI (HTTPS)

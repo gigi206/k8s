@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Kiali Gateway Ingress (Cilium)
+# =============================================================================
+# Allows ingress from Cilium Gateway to Kiali for external access.
+# This policy is only deployed when:
+# - features.calico.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "cilium"
+#
+# Note: This policy is only relevant when using Cilium as Gateway API controller
+# while using Calico as CNI. Unusual combination but supported.
+#
+# Calico equivalent of: cilium-ingress-policy-cilium.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kiali-gateway-cilium
+  namespace: istio-system
+spec:
+  selector: 'app.kubernetes.io/name == "kiali"'
+  types:
+    - Ingress
+  ingress:
+    # Allow from Cilium Gateway (kube-system namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 20001

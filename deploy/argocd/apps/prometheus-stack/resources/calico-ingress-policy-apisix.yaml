@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Prometheus Stack Ingress from APISIX Gateway
+# Calico equivalent of: cilium-ingress-policy-apisix.yaml
+# =============================================================================
+# Allows access to Prometheus/Grafana/Alertmanager web UIs from APISIX Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-stack-ingress-apisix
+  namespace: monitoring
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from APISIX Gateway (apisix namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "apisix"'
+      destination:
+        ports:
+          - 3000    # Grafana web UI
+          - 9090    # Prometheus web UI / API
+          - 9093    # Alertmanager web UI / API

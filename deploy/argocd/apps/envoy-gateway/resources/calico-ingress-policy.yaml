@@ -1,0 +1,83 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Envoy Gateway Controller Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml (first document)
+#
+# Allows traffic to the Envoy Gateway controller:
+# - xDS from proxy pods (18000/18001)
+# - Prometheus metrics (19001)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: envoy-gateway-controller-ingress
+  namespace: envoy-gateway-system
+spec:
+  selector: app.kubernetes.io/name == "gateway-helm"
+  types:
+    - Ingress
+  ingress:
+    # Allow xDS from proxy pods within namespace
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "envoy-gateway-system"'
+      destination:
+        ports:
+          - 18000
+          - 18001
+          - 18002
+          - 9443
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 19001
+
+---
+# =============================================================================
+# Calico NetworkPolicy - Envoy Proxy Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml (second document)
+#
+# Allows traffic to Envoy proxy pods:
+# - External clients via LoadBalancer (80/443)
+# - Internal cluster traffic (hairpin NAT)
+# - Prometheus metrics (19001)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: envoy-gateway-proxy-ingress
+  namespace: envoy-gateway-system
+spec:
+  selector: app.kubernetes.io/name == "envoy"
+  types:
+    - Ingress
+  ingress:
+    # Allow external traffic from anywhere (LoadBalancer clients + cluster hairpin)
+    # fromEntities: [world, cluster] -> no source restriction
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 80
+          - 443
+          - 10080
+          - 10443
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 19001

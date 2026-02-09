@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - OAuth2 Proxy Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows internal communication within oauth2-proxy namespace and from
+# dependent namespaces (monitoring)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-internal
+  namespace: oauth2-proxy
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 44180
+
+    # Allow internal OAuth2 Proxy communication (same namespace)
+    # Including Redis-HA for session storage
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "oauth2-proxy"'
+      destination:
+        ports:
+          - 4180
+          - 44180
+          - 6379
+          - 26379

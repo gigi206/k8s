@@ -1,0 +1,54 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Tempo Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to Tempo to authorized namespaces only:
+# - istio-system: Trace push (OTLP, Zipkin from Envoy sidecars)
+# - monitoring: Grafana queries + Prometheus metrics scraping
+# - tempo: Internal communication
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: tempo-ingress
+  namespace: tempo
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Istio namespace (trace push from Envoy sidecars + HBONE tunnel)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 4317
+          - 4318
+          - 9411
+          - 15008
+
+    # Allow from Monitoring namespace (Grafana queries + Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 3100
+
+    # Allow internal Tempo communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "tempo"'
+      destination:
+        ports:
+          - 3100
+          - 4317
+          - 4318
+          - 9411

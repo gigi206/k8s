@@ -78,21 +78,39 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        {{- if .features.cilium.egressPolicy.enabled }}
+        {{- if .features.networkPolicy.egressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Source: Cilium egress policy - allows external access for CVE DB updates
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kubescape/resources
           directory:
             include: "cilium-egress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico egress policy - allows external access for CVE DB updates
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kubescape/resources
+          directory:
+            include: "calico-egress-policy.yaml"
+          {{- end }}
         {{- end }}
-        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Source: Cilium internal ingress policy (monitoring, kubescape namespace)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kubescape/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico internal ingress policy (monitoring, kubescape namespace)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kubescape/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
         {{- if .rke2.cis.enabled }}
         # Source: Namespace with PSA labels for CIS profile compatibility

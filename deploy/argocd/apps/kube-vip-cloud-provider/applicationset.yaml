@@ -67,13 +67,22 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        {{- if .features.cilium.ingressPolicy.enabled }}
-        # Cilium ingress policy for kube-vip-cloud-provider
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium ingress policy for kube-vip-cloud-provider
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kube-vip-cloud-provider/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico ingress policy for kube-vip-cloud-provider
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kube-vip-cloud-provider/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Kyverno PolicyException (allows SA token mount for K8s API access)

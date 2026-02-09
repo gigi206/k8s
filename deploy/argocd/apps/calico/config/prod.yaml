@@ -1,0 +1,14 @@
+---
+# Configuration Calico - Prod
+environment: prod
+appName: calico
+
+# Dashboard configuration
+dashboard:
+  folder: "Calico"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false

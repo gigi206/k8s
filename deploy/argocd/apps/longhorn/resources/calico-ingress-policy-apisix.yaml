@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Longhorn Ingress from APISIX Gateway
+# =============================================================================
+# Allows access to Longhorn UI from APISIX Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+#
+# Calico equivalent of: cilium-ingress-policy-apisix.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: longhorn-ingress-apisix
+  namespace: longhorn-system
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from APISIX Gateway (apisix namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "apisix"'
+      destination:
+        ports:
+          - 80

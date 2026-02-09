@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Rook-Ceph Ingress from APISIX Gateway
+# =============================================================================
+# Allows access to Rook-Ceph Dashboard and S3 from APISIX Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+#
+# Calico equivalent of: cilium-ingress-policy-apisix.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: rook-ceph-ingress-apisix
+  namespace: rook-ceph
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from APISIX Gateway (apisix namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "apisix"'
+      destination:
+        ports:
+          - 8443
+          - 8080
