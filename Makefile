@@ -20,6 +20,12 @@ CONFIG_YAML := $(ARGOCD_DIR)/config/config.yaml
 # When cilium: Cilium L2 announcements are enabled, Cilium LB-IPAM handles LoadBalancer IPs
 LB_PROVIDER := $(shell yq -r '.features.loadBalancer.provider // "metallb"' $(CONFIG_YAML) 2>/dev/null || echo "metallb")
 
+# Read CNI primary provider from config.yaml
+# CNI_PRIMARY: cilium (default) or calico - controls which CNI is installed and configured
+# When cilium: Cilium eBPF CNI with kube-proxy replacement, Hubble observability
+# When calico: Calico eBPF CNI with kube-proxy replacement, Felix metrics
+CNI_PRIMARY := $(shell yq -r '.cni.primary // "cilium"' $(CONFIG_YAML) 2>/dev/null || echo "cilium")
+
 # Read Gateway API controller provider from config.yaml
 # GATEWAY_API_PROVIDER: istio (default), cilium, apisix, traefik, etc.
 # Passed to Vagrant so configure_cilium.sh generates HelmChartConfig with correct gatewayAPI settings
@@ -77,7 +83,7 @@ vagrant-dev-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🚀 Démarrage du cluster DEV (RKE2)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=dev LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
+	cd vagrant && K8S_ENV=dev CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
 	@echo ""
 	@echo "$(GREEN)✅ Cluster RKE2 DEV démarré!$(NC)"
 	@echo ""
@@ -142,7 +148,7 @@ vagrant-staging-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🏗️  Démarrage du cluster STAGING$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=staging LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
+	cd vagrant && K8S_ENV=staging CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
 
 vagrant-staging-status:
 	@echo "$(BLUE)📊 Statut du cluster STAGING:$(NC)"
@@ -198,7 +204,7 @@ vagrant-prod-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous démarrez un environnement de PRODUCTION$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=prod LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
+	cd vagrant && K8S_ENV=prod CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
 
 vagrant-prod-status:
 	@echo "$(BLUE)📊 Statut du cluster PROD:$(NC)"
@@ -277,15 +283,20 @@ argocd-install-dev:
 		--dry-run=client -o yaml | kubectl apply -f - && \
 	echo "" && \
 	echo "$(GREEN)⚙️  Étape 4/6: Installation ArgoCD via Helm (avec KSOPS)...$(NC)" && \
-	K8S_VERSION=$$(kubectl version -o json | jq -r '.serverVersion.gitVersion' | sed 's/^v//; s/+.*//' ) && \
-	ARGOCD_VERSION=$$(yq -r '.argocd.version' $(ARGOCD_DIR)/apps/argocd/config/dev.yaml) && \
-	helm template argocd argo/argo-cd \
-		--namespace $(ARGOCD_NAMESPACE) \
-		--version $$ARGOCD_VERSION \
-		--kube-version $$K8S_VERSION \
-		-f $(ARGOCD_DIR)/argocd-bootstrap-values.yaml | kubectl apply --server-side -f - && \
-	echo "   Attente du démarrage d'ArgoCD..." && \
-	kubectl wait --for=condition=available deployment -l app.kubernetes.io/name=argocd-server -n $(ARGOCD_NAMESPACE) --timeout=10m && \
+	if kubectl get application argocd -n $(ARGOCD_NAMESPACE) >/dev/null 2>&1 && \
+	   kubectl get deployment argocd-server -n $(ARGOCD_NAMESPACE) -o jsonpath='{.status.availableReplicas}' 2>/dev/null | grep -q '[1-9]'; then \
+		echo "   $(YELLOW)⏭️  ArgoCD déjà déployé et se gère lui-même, skip bootstrap Helm$(NC)"; \
+	else \
+		K8S_VERSION=$$(kubectl version -o json | jq -r '.serverVersion.gitVersion' | sed 's/^v//; s/+.*//' ) && \
+		ARGOCD_VERSION=$$(yq -r '.argocd.version' $(ARGOCD_DIR)/apps/argocd/config/dev.yaml) && \
+		helm template argocd argo/argo-cd \
+			--namespace $(ARGOCD_NAMESPACE) \
+			--version $$ARGOCD_VERSION \
+			--kube-version $$K8S_VERSION \
+			-f $(ARGOCD_DIR)/argocd-bootstrap-values.yaml | kubectl apply --server-side --force-conflicts -f - && \
+		echo "   Attente du démarrage d'ArgoCD..." && \
+		kubectl wait --for=condition=available deployment -l app.kubernetes.io/name=argocd-server -n $(ARGOCD_NAMESPACE) --timeout=10m; \
+	fi && \
 	echo "" && \
 	echo "$(GREEN)🚀 Étape 5/6: Déploiement des ApplicationSets...$(NC)" && \
 	cd $(ARGOCD_DIR) && bash deploy-applicationsets.sh --wait-healthy && \
