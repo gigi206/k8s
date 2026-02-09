@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: reloader-automount-sa-token
   namespace: reloader
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

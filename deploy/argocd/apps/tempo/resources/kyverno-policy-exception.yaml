@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: tempo-automount-sa-token
   namespace: tempo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token
