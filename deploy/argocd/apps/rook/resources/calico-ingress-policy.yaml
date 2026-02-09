@@ -1,0 +1,40 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Rook/Ceph Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Rook/Ceph requires extensive internal communication between components:
+# - Operator -> Mon, Mgr, OSD (management)
+# - Mon <-> Mon (quorum)
+# - OSD <-> OSD (replication)
+# - CSI plugins -> Mon, OSD (storage operations)
+# - All components -> Mon (cluster coordination)
+#
+# This policy allows all pods in rook-ceph namespace to communicate freely.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rook-internal
+  namespace: rook-ceph
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape MGR + Exporter metrics)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 9283
+          - 9926
+
+    # Allow all traffic from rook-ceph namespace (no port restriction)
+    - action: Allow
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "rook-ceph"'

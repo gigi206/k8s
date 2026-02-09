@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - OAuth2 Proxy Ingress from Cilium Gateway
+# Calico equivalent of: cilium-ingress-policy-cilium.yaml
+# =============================================================================
+# Allows ext_authz and forward-auth requests from Cilium Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress-cilium
+  namespace: oauth2-proxy
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Cilium Gateway (ext_authz requests and OAuth2 flow)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 4180    # OAuth2 Proxy main port (auth + callback)
+          - 8080    # Error handler (redirect to login)

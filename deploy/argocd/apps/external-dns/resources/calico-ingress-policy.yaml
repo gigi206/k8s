@@ -1,0 +1,59 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - External-DNS Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to External-DNS to authorized sources:
+# - world: External DNS queries via LoadBalancer (MetalLB)
+# - monitoring: Prometheus metrics scraping
+# - external-dns: Internal communication (etcd backend)
+#
+# Note: calico-host-ingress-policy.yaml allows traffic to the NODE.
+#       This policy allows traffic to the POD after kube-proxy routing.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: external-dns-ingress
+  namespace: external-dns
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow external DNS queries from anywhere (LoadBalancer clients via MetalLB + cluster)
+    # fromEntities: [world, cluster] -> no source restriction
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports:
+          - 53
+
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 53
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 7979
+
+    # Allow internal External-DNS communication (same namespace)
+    # etcd client (2379), etcd peer (2380), metrics (7979)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "external-dns"'
+      destination:
+        ports:
+          - 2379
+          - 2380
+          - 7979

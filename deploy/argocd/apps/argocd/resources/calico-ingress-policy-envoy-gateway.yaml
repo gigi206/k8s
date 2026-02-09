@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - ArgoCD Ingress from Envoy Gateway
+# =============================================================================
+# Allows access to ArgoCD UI/API from Envoy Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+#
+# Calico equivalent of: cilium-ingress-policy-envoy-gateway.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: argocd-ingress-envoy-gateway
+  namespace: argo-cd
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Envoy Gateway (envoy-gateway-system namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "envoy-gateway-system"'
+      destination:
+        ports:
+          - 8080
+          - 8443

@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - OAuth2 Proxy Ingress from NGINX Gateway Fabric
+# Calico equivalent of: cilium-ingress-policy-nginx-gwf.yaml
+# =============================================================================
+# Allows forward-auth requests from NGINX Gateway Fabric
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress-nginx-gwf
+  namespace: oauth2-proxy
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from NGINX Gateway Fabric (forward-auth requests and error handling)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "nginx-gateway"'
+      destination:
+        ports:
+          - 4180    # OAuth2 Proxy main port
+          - 8080    # Error handler (redirect to login)

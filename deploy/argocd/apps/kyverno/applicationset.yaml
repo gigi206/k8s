@@ -87,13 +87,22 @@ spec:
           directory:
             include: "namespace.yaml"
 
-        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Source: Cilium ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kyverno/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico ingress policy (pod-to-pod communication)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kyverno/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
 
         # Source: Kyverno Helm Chart

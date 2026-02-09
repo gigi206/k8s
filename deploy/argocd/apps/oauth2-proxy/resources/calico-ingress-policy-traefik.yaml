@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - OAuth2 Proxy Ingress from Traefik Gateway
+# Calico equivalent of: cilium-ingress-policy-traefik.yaml
+# =============================================================================
+# Allows forward-auth requests from Traefik Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress-traefik
+  namespace: oauth2-proxy
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Traefik Gateway (forward-auth requests and error handling)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "traefik"'
+      destination:
+        ports:
+          - 4180    # OAuth2 Proxy main port
+          - 8080    # Error handler (redirect to login)

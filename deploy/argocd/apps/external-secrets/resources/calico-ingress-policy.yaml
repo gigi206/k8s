@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - External Secrets Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to External Secrets Operator to authorized sources:
+# - kube-system: Webhook calls from kube-apiserver
+# - monitoring: Prometheus metrics scraping
+# - external-secrets: Internal communication
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: external-secrets-ingress
+  namespace: external-secrets
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from kube-system (API server webhook calls)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 10250
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8080
+
+    # Allow internal external-secrets communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "external-secrets"'
+      destination:
+        ports:
+          - 10250
+          - 8080

@@ -92,21 +92,39 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        {{- if .features.cilium.ingressPolicy.enabled }}
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Cilium Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/nginx-gateway-fabric/resources
           directory:
             include: "cilium-host-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Calico Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/nginx-gateway-fabric/resources
+          directory:
+            include: "calico-host-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
-        {{- if .features.cilium.defaultDenyPodIngress.enabled }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Cilium Pod Ingress Policy (allow traffic to pods)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/nginx-gateway-fabric/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Calico Pod Ingress Policy (allow traffic to pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/nginx-gateway-fabric/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
@@ -191,7 +209,7 @@ spec:
                     value:
                       annotations:
                         {{- if eq .features.loadBalancer.provider "metallb" }}
-                        metallb.universe.tf/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
+                        metallb.io/loadBalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
                         {{- else if eq .features.loadBalancer.provider "cilium" }}
                         lbipam.cilium.io/ips: '{{ .features.loadBalancer.staticIPs.gateway }}'
                         {{- else if eq .features.loadBalancer.provider "loxilb" }}

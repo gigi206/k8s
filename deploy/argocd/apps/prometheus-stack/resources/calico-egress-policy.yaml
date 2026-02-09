@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Prometheus Stack External Egress
+# =============================================================================
+# Calico equivalent of cilium-egress-policy.yaml
+#
+# Allows monitoring components to reach external services:
+# - grafana.com: Plugin downloads, manifest keys, angular patterns
+# - LoadBalancer IPs: OIDC authentication (Keycloak via istio-gateway)
+#
+# notNets excludes internal cluster CIDRs (pod + service) so this rule
+# only matches traffic destined for external endpoints.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-stack-allow-external-egress
+  namespace: monitoring
+spec:
+  selector: all()
+  types:
+    - Egress
+  egress:
+    # Allow DNS (required: this policy creates implicit deny on all egress)
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports: [53]
+    # Allow cluster-internal traffic (pod + service + node CIDRs)
+    # Node CIDR required for BPF DNAT (ClusterIP -> node IP before policy eval)
+    - action: Allow
+      destination:
+        nets:
+          - "10.42.0.0/16"
+          - "10.43.0.0/16"
+          - "192.168.121.0/24"
+    # Allow HTTPS to external services (grafana.com plugins, OIDC via LoadBalancer)
+    - action: Allow
+      protocol: TCP
+      destination:
+        notNets:
+          - "10.42.0.0/16"
+          - "10.43.0.0/16"
+        ports:
+          - 443

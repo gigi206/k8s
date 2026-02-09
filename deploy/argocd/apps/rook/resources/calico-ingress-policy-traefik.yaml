@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Rook-Ceph Ingress from Traefik Gateway
+# =============================================================================
+# Allows access to Rook-Ceph Dashboard and S3 from Traefik Gateway
+# Internal communication is handled by calico-ingress-policy.yaml
+#
+# Calico equivalent of: cilium-ingress-policy-traefik.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: rook-ceph-ingress-traefik
+  namespace: rook-ceph
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from Traefik Gateway (traefik namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "traefik"'
+      destination:
+        ports:
+          - 8443
+          - 8080

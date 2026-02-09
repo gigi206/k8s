@@ -1,0 +1,46 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Kyverno Pod Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows traffic to Kyverno admission controller webhook from kube-apiserver.
+# Required when default-deny pod ingress is enabled.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kyverno-ingress
+  namespace: kyverno
+spec:
+  selector: app.kubernetes.io/instance == "kyverno"
+  types:
+    - Ingress
+  ingress:
+    # Allow webhook calls from kube-apiserver (all nodes)
+    # fromEntities: [host, remote-node] -> no source restriction (host-level traffic)
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 9443
+
+    # Allow Prometheus scraping (from monitoring namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8000
+
+    # Allow internal communication between Kyverno components
+    - action: Allow
+      protocol: TCP
+      source:
+        selector: app.kubernetes.io/instance == "kyverno"
+      destination:
+        ports:
+          - 9443
+          - 8000

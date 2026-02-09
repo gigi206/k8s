@@ -1,0 +1,55 @@
+---
+# =============================================================================
+# GlobalNetworkPolicy - Default Deny Host Ingress (Calico)
+# =============================================================================
+# Blocks ALL external ingress to Kubernetes nodes by default.
+# Only essential services are allowed:
+# - SSH (22) - for node administration
+# - Kubernetes API (6443) - for kubectl access
+# - Kubelet (10250) - for metrics-server and API health probes
+# - ICMP Echo - for diagnostics
+#
+# Applications needing additional host ports must define their own
+# GlobalNetworkPolicy with host endpoint selectors.
+#
+# Calico equivalent of: apps/cilium/resources/default-deny-host-ingress.yaml
+# Requires: kubeControllersConfiguration.controllers.node.hostEndpoint.autoCreate: Enabled
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-deny-host-ingress
+spec:
+  order: 500
+  selector: has(kubernetes-host)
+  types: [Ingress]
+  ingress:
+    # Allow all cluster-internal traffic (pod-to-node, node-to-node)
+    - action: Allow
+      source:
+        nets: ["10.42.0.0/16", "10.43.0.0/16"]
+    - action: Allow
+      source:
+        selector: has(kubernetes-host)
+    # SSH - accessible from everywhere
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports: [22]
+    # Kubernetes API - required for kubectl access
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports: [6443]
+    # Kubelet API - required for metrics-server and API health probes
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports: [10250]
+    # ICMP Echo (ping) - for diagnostics
+    - action: Allow
+      protocol: ICMP
+      icmp:
+        type: 8
+    # Implicit deny for all other external ingress

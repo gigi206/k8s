@@ -175,25 +175,30 @@ features:
       label: "1" # Label value for grafana_dashboard (enables auto-import)
       baseFolder: "/tmp/dashboards" # Base folder for dashboard organization
       folderAnnotation: "grafana_dashboard_folder" # Annotation name for dashboard folder path
+  # === Network Policy (CNI-agnostic) ===
+  # These flags control default-deny network policies regardless of CNI provider.
+  # When cni.primary=cilium: uses CiliumClusterwideNetworkPolicy + CiliumNetworkPolicy
+  # When cni.primary=calico: uses GlobalNetworkPolicy + NetworkPolicy (projectcalico.org/v3)
+  networkPolicy:
+    egressPolicy:
+      enabled: true # Default-deny egress + per-app exceptions
+    ingressPolicy:
+      enabled: true # Default-deny host ingress (SSH, API, HTTP/HTTPS) + per-app exceptions
+    defaultDenyPodIngress:
+      enabled: true # Zero Trust pod-to-pod ingress + per-app exceptions
+      # Requires per-app NetworkPolicy to allow traffic
+      # Excludes: kube-system (DNS, API, CNI)
   # === Cilium (CNI installé par RKE2) ===
   cilium:
     monitoring:
-      enabled: true # ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled)
-    egressPolicy:
-      enabled: true # CiliumClusterwideNetworkPolicy default-deny egress + per-app policies
-    ingressPolicy:
-      enabled: true # CiliumClusterwideNetworkPolicy default-deny host ingress (SSH, API, HTTP/HTTPS)
-    defaultDenyPodIngress:
-      enabled: true # CiliumClusterwideNetworkPolicy default-deny pod-to-pod ingress (Zero Trust)
-      # Requires per-app CiliumNetworkPolicy to allow traffic
-      # Excludes: kube-system (DNS, API, CNI)
+      enabled: true # ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled + cni.primary=cilium)
     # === Encryption (WireGuard/IPsec) ===
     # Chiffrement transparent du trafic inter-pods via le kernel Linux
     # WireGuard (GA): ChaCha20-Poly1305, gestion automatique des clés, recommandé
     # IPsec (GA): AES-GCM-128 (AES-NI), nécessite rotation manuelle des clés
     # Docs: https://docs.cilium.io/en/stable/security/network/encryption-wireguard/
     encryption:
-      enabled: true # Activer le chiffrement transparent du trafic inter-pods
+      enabled: true # Activer le chiffrement transparent du trafic inter-pods (Cilium-only)
       type: "wireguard" # wireguard (recommandé, GA) | ipsec (FIPS, GA)
       nodeEncryption: true # Chiffrer aussi le trafic noeud-a-noeud (pas seulement pod-a-pod)
       strictMode:
@@ -204,12 +209,23 @@ features:
     # Sidecarless: eBPF + SPIRE agent par noeud (pas de sidecar Envoy)
     # Docs: https://docs.cilium.io/en/stable/network/servicemesh/mutual-authentication/
     mutualAuth:
-      enabled: true # Activer l'authentification mutuelle SPIFFE/SPIRE (Beta)
+      enabled: true # Activer l'authentification mutuelle SPIFFE/SPIRE (Cilium-only, Beta)
       port: 4250 # Port de communication de l'agent SPIRE
       spire:
         dataStorage:
           enabled: true   # true = migrer vers PVC après déploiement storage (emptyDir au bootstrap)
           size: 1Gi       # Taille du PVC SPIRE Server
+  # === Calico (alternative CNI) ===
+  # Only used when cni.primary=calico. Calico is installed by RKE2 with eBPF dataplane.
+  # Calico eBPF replaces kube-proxy (like Cilium), provides native network policy enforcement.
+  # Docs: https://docs.tigera.io/calico/latest/operations/ebpf/enabling-ebpf
+  calico:
+    monitoring:
+      enabled: true # ServiceMonitors for Felix, Typha, kube-controllers (requires monitoring.enabled)
+    dataplane: "bpf" # bpf (eBPF, kube-proxy replacement) | iptables
+    encapsulation: "VXLAN" # VXLAN | IPIP | None (BGP pur)
+    bgp:
+      enabled: false # Enable BGP peering for Calico
   # === Observability: Logging ===
   logging:
     enabled: true # Active le logging centralisé
@@ -257,7 +273,7 @@ features:
 #   - whereabouts: active l'IPAM cluster-wide (utilisé par install_master.sh)
 # =============================================================================
 cni:
-  primary: "cilium" # cilium (RKE2 default, eBPF-based)
+  primary: "cilium" # cilium | calico (eBPF-based, kube-proxy replacement)
   multus:
     enabled: false # Enable multi-network support
     whereabouts: true # Cluster-wide IPAM for secondary interfaces

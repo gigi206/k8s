@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Cert-Manager Ingress Security
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Restricts access to Cert-Manager to authorized sources:
+# - kube-system: Webhook calls from kube-apiserver
+# - monitoring: Prometheus metrics scraping
+# - cert-manager: Internal communication
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-ingress
+  namespace: cert-manager
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from kube-system (API server webhook calls)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 10250
+          - 9402
+
+    # Allow from monitoring namespace (Prometheus scrape)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 9402
+
+    # Allow internal cert-manager communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "cert-manager"'
+      destination:
+        ports:
+          - 10250
+          - 9402

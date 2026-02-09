@@ -105,13 +105,22 @@ spec:
                     value: "true"
               {{- end }}
 
-        {{- if .features.cilium.ingressPolicy.enabled }}
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
         # Source: Cilium host ingress policy - allows external access to API VIP
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kube-vip/resources
           directory:
             include: "cilium-host-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico host ingress policy - allows external access to API VIP
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kube-vip/resources
+          directory:
+            include: "calico-host-ingress-policy.yaml"
+          {{- end }}
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)

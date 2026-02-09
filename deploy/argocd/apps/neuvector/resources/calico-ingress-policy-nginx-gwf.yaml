@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - NeuVector Gateway Ingress (NGINX Gateway Fabric)
+# Calico equivalent of: cilium-ingress-policy-nginx-gwf.yaml
+# =============================================================================
+# Allows ingress from NGINX Gateway Fabric to NeuVector Manager for external access.
+# This policy is only deployed when:
+# - features.calico.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "nginx-gwf"
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: neuvector-gateway-nginx-gwf
+  namespace: neuvector
+spec:
+  selector: 'app == "neuvector-manager-pod"'
+  types:
+    - Ingress
+  ingress:
+    # Allow from nginx-gateway namespace (gateway ingress)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "nginx-gateway"'
+      destination:
+        ports:
+          - 8443    # Manager web UI (HTTPS)

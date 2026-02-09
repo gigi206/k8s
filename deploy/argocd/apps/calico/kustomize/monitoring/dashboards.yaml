@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# Calico Grafana Dashboards
+# =============================================================================
+# Auto-imported by Grafana sidecar via grafana_dashboard label.
+# Dashboard folder is set via grafana_dashboard_folder annotation.
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: calico-grafana-dashboards
+  namespace: calico-system
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_dashboard_folder: /tmp/dashboards/Calico
+data:
+  calico-felix.json: |
+    {"__inputs":[],"__requires":[],"description":"Calico Felix Dashboard","editable":true,"gnetId":12175,"graphTooltip":0,"id":null,"links":[],"panels":[{"title":"Active Local Endpoints","type":"stat","datasource":"Prometheus","targets":[{"expr":"felix_active_local_endpoints","legendFormat":"{{instance}}"}],"gridPos":{"h":4,"w":6,"x":0,"y":0}},{"title":"Dataplane Failures Rate","type":"timeseries","datasource":"Prometheus","targets":[{"expr":"rate(felix_int_dataplane_failures[5m])","legendFormat":"{{instance}}"}],"gridPos":{"h":8,"w":12,"x":0,"y":4}},{"title":"Policy Latency","type":"timeseries","datasource":"Prometheus","targets":[{"expr":"rate(felix_calc_graph_update_time_seconds_sum[5m]) / rate(felix_calc_graph_update_time_seconds_count[5m])","legendFormat":"{{instance}}"}],"gridPos":{"h":8,"w":12,"x":12,"y":4}}],"schemaVersion":30,"style":"dark","tags":["calico","felix"],"templating":{"list":[]},"time":{"from":"now-1h","to":"now"},"timepicker":{},"timezone":"","title":"Calico Felix","uid":"calico-felix","version":1}

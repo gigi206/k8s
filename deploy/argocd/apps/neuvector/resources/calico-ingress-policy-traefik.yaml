@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - NeuVector Gateway Ingress (Traefik)
+# Calico equivalent of: cilium-ingress-policy-traefik.yaml
+# =============================================================================
+# Allows ingress from Traefik Gateway to NeuVector Manager for external access.
+# This policy is only deployed when:
+# - features.calico.ingressPolicy.enabled = true
+# - features.gatewayAPI.controller.provider = "traefik"
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: neuvector-gateway-traefik
+  namespace: neuvector
+spec:
+  selector: 'app == "neuvector-manager-pod"'
+  types:
+    - Ingress
+  ingress:
+    # Allow from Traefik namespace (gateway ingress)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "traefik"'
+      destination:
+        ports:
+          - 8443    # Manager web UI (HTTPS)

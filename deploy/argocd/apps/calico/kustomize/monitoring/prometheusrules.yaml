@@ -1,0 +1,66 @@
+---
+# =============================================================================
+# Calico PrometheusRules
+# =============================================================================
+# Alerting rules for Calico components: Felix dataplane, Typha, and BPF.
+# Docs: https://docs.tigera.io/calico/latest/operations/monitor/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: calico-alerts
+  namespace: calico-system
+spec:
+  groups:
+  - name: calico.rules
+    rules:
+    - alert: CalicoNodeNotReady
+      expr: felix_active_local_endpoints == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Calico node {{ $labels.instance }} has no active endpoints"
+        description: "Felix on {{ $labels.instance }} reports 0 active local endpoints for 5 minutes."
+    - alert: CalicoFelixDataplaneFailures
+      expr: rate(felix_int_dataplane_failures[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Calico Felix dataplane failures on {{ $labels.instance }}"
+        description: "Felix is experiencing dataplane programming failures."
+    - alert: CalicoBPFEndpointsDirty
+      expr: felix_bpf_dirty_dataplane_endpoints > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Calico BPF has dirty endpoints on {{ $labels.instance }}"
+        description: "{{ $value }} BPF endpoints need reprogramming for 10+ minutes."
+    - alert: CalicoTyphaConnectionsDropped
+      expr: rate(typha_connections_dropped[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Calico Typha dropping connections"
+        description: "Typha is dropping client connections, possible network issues."
+    - alert: CalicoFelixResyncNotInSync
+      expr: felix_resync_state != 3
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Calico Felix not in sync on {{ $labels.instance }}"
+        description: "Felix resync state is not 'in-sync' (3) for 10+ minutes."
+    - alert: CalicoIptablesRestoreErrors
+      expr: rate(felix_iptables_restore_errors[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Calico iptables restore errors on {{ $labels.instance }}"
+        description: "Felix is encountering iptables restore errors."

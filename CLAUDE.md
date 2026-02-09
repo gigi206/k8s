@@ -34,10 +34,11 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 | `{{- if .features.gatewayAPI.enabled }}` | Gateway API routing (parent condition) |
 | `{{- if .features.gatewayAPI.httpRoute.enabled }}` | kustomize/httproute/ (Gateway API standard) |
 | `{{- if .features.oauth2Proxy.enabled }}` | kustomize/oauth2-authz/ |
-| `{{- if .features.cilium.egressPolicy.enabled }}` | resources/cilium-egress-policy.yaml |
-| `{{- if .features.cilium.ingressPolicy.enabled }}` | resources/default-deny-host-ingress.yaml |
-| `{{- if .features.cilium.encryption.enabled }}` | WireGuard/IPsec encryption (bootstrap) |
-| `{{- if .features.cilium.mutualAuth.enabled }}` | SPIFFE/SPIRE mutual authentication (bootstrap) |
+| `{{- if .features.networkPolicy.egressPolicy.enabled }}` | resources/cilium-egress-policy.yaml or calico-egress-policy.yaml |
+| `{{- if .features.networkPolicy.ingressPolicy.enabled }}` | resources/cilium-host-ingress-policy.yaml or calico-host-ingress-policy.yaml |
+| `{{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}` | resources/cilium-ingress-policy.yaml or calico-ingress-policy.yaml |
+| `{{- if .features.cilium.encryption.enabled }}` | WireGuard/IPsec encryption (Cilium-only, bootstrap) |
+| `{{- if .features.cilium.mutualAuth.enabled }}` | SPIFFE/SPIRE mutual authentication (Cilium-only, bootstrap) |
 | `{{- if .features.sso.enabled }}` | secrets/, ExternalSecret, KeycloakClient |
 | `{{- if .features.tracing.enabled }}` | tracing config (Tempo/Jaeger) |
 | `{{- if .features.serviceMesh.enabled }}` | service mesh integration |
@@ -49,6 +50,21 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 - `{{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}`
 - `{{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}`
 - `{{- if and .features.storage.enabled .persistence.enabled }}` (storage + app persistence)
+
+**CNI-aware network policy conditions** (use nested `if` for CNI branching):
+```yaml
+{{- if .features.networkPolicy.egressPolicy.enabled }}
+  {{- if eq .cni.primary "cilium" }}
+  - path: deploy/argocd/apps/<app>/resources
+    directory:
+      include: "cilium-egress-policy.yaml"
+  {{- else if eq .cni.primary "calico" }}
+  - path: deploy/argocd/apps/<app>/resources
+    directory:
+      include: "calico-egress-policy.yaml"
+  {{- end }}
+{{- end }}
+```
 
 **Gateway API Routing Conditional Logic**:
 ```yaml
@@ -183,6 +199,7 @@ Use `argocd.argoproj.io/sync-wave` annotation on resources to control deployment
 Feature flags in `config/config.yaml` control which ApplicationSets are deployed.
 
 Examples:
+- `cni.primary` → cilium | calico (CNI selection, default: cilium)
 - `features.loadBalancer.provider` → metallb | cilium | loxilb | kube-vip | klipper
 - `features.monitoring.enabled` → prometheus-stack
 - `features.sso.enabled` + `provider=keycloak` → keycloak
@@ -200,6 +217,7 @@ Examples:
 - When using `klipper`, staticIP annotations are ignored as Klipper uses node IPs directly.
 - When using `cilium`, the L2 announcement interface must be in Cilium's `devices` list (see `apps/cilium/README.md`).
 - When using `kube-vip`, kube-vip-cloud-provider handles IPAM and kube-vip handles ARP announcements (automatic `svc_enable=true`). **Requires `features.kubeVip.enabled: true`**.
+- `features.loadBalancer.provider=cilium` requires `cni.primary=cilium` (LB-IPAM is Cilium-specific).
 
 See `deploy-applicationsets.sh` for the complete list and automatic dependency resolution (e.g., `sso.provider=keycloak` enables `databaseOperator`, `externalSecrets`, `certManager`).
 
@@ -448,50 +466,67 @@ argocd appset generate apps/my-app/applicationset.yaml --dry-run
 
 Structure: `kustomization.yaml` (with `generators: [ksops-generator.yaml]`) → `ksops-generator.yaml` (references `secret.yaml`) → `secret.yaml` (SOPS-encrypted).
 
-### CiliumNetworkPolicy Pattern
+### CNI Selection (`cni.primary`)
 
-**Configuration flags** (`config/config.yaml`): When enabled (default), these create default-deny policies requiring per-app exceptions:
-- `features.cilium.egressPolicy.enabled` → Blocks pod → external traffic. Apps needing external access require `cilium-egress-policy.yaml`.
-- `features.cilium.ingressPolicy.enabled` → Blocks external → node traffic. LoadBalancer apps require `cilium-host-ingress-policy.yaml`.
-- `features.cilium.defaultDenyPodIngress.enabled` → Blocks pod → pod traffic (Zero Trust). All apps require `cilium-ingress-policy.yaml` to receive traffic.
+The CNI is selectable via `cni.primary: "cilium" | "calico"` in `config/config.yaml`. Both use eBPF dataplane with kube-proxy replacement.
 
-**Egress policies** (pod → external):
-1. **`apps/cilium/resources/default-deny-external-egress.yaml`** - `CiliumClusterwideNetworkPolicy` (blocks egress to world by default, allows internal cluster traffic)
-2. **`apps/argocd/resources/cilium-egress-policy.yaml`** - `CiliumNetworkPolicy` (allows ArgoCD to reach Git repos and Helm registries)
+| CNI | Dataplane | Policy API | Host Firewall | Encryption | Mutual Auth |
+|-----|-----------|-----------|---------------|------------|-------------|
+| **Cilium** | eBPF | `cilium.io/v2` (CiliumNetworkPolicy) | CiliumClusterwideNetworkPolicy + nodeSelector | WireGuard/IPsec | SPIFFE/SPIRE |
+| **Calico** | eBPF | `projectcalico.org/v3` (NetworkPolicy/GlobalNetworkPolicy) | GlobalNetworkPolicy + HostEndpoints | Not supported | Not supported |
 
-Each application needing external access defines its own `CiliumNetworkPolicy` in `resources/cilium-egress-policy.yaml`.
+**Bootstrap**: `install_master.sh` dispatches to `configure_cilium.sh` or `configure_calico.sh` based on `CNI_PRIMARY`.
 
-**Host firewall policies** (external → node):
-1. **`apps/cilium/resources/default-deny-host-ingress.yaml`** - `CiliumClusterwideNetworkPolicy` with `nodeSelector` (blocks external ingress to nodes, allows only SSH 22, API 6443, ICMP)
-2. **Per-app policies** for LoadBalancer ports (in each app's `resources/cilium-host-ingress-policy.yaml`):
-   - **Ingress controllers** (80/443): istio-gateway, ingress-nginx, traefik, apisix, envoy-gateway, nginx-gateway-fabric
-   - **DNS** (53): external-dns
+### Network Policy Pattern
 
-All policies use `nodeSelector` with specific labels (`node-role.kubernetes.io/ingress` or `node-role.kubernetes.io/dns`). Label your nodes accordingly:
+**Configuration flags** (`config/config.yaml`) - CNI-agnostic, apply to both Cilium and Calico:
+- `features.networkPolicy.egressPolicy.enabled` → Blocks pod → external traffic. Apps needing external access require `{cilium,calico}-egress-policy.yaml`.
+- `features.networkPolicy.ingressPolicy.enabled` → Blocks external → node traffic. LoadBalancer apps require `{cilium,calico}-host-ingress-policy.yaml`.
+- `features.networkPolicy.defaultDenyPodIngress.enabled` → Blocks pod → pod traffic (Zero Trust). All apps require `{cilium,calico}-ingress-policy.yaml` to receive traffic.
+
+**Per-CNI policy file naming**:
+| Type | Cilium file | Calico file |
+|------|------------|-------------|
+| Egress | `cilium-egress-policy.yaml` | `calico-egress-policy.yaml` |
+| Pod ingress | `cilium-ingress-policy.yaml` | `calico-ingress-policy.yaml` |
+| Host ingress | `cilium-host-ingress-policy.yaml` | `calico-host-ingress-policy.yaml` |
+| Provider ingress | `cilium-ingress-policy-{provider}.yaml` | `calico-ingress-policy-{provider}.yaml` |
+
+**Cluster-wide default-deny policies**:
+- Cilium: `apps/cilium/resources/default-deny-*.yaml` (CiliumClusterwideNetworkPolicy)
+- Calico: `apps/calico/resources/default-deny-*.yaml` (GlobalNetworkPolicy)
+
+**Host firewall**:
+- Cilium: `nodeSelector` on CiliumClusterwideNetworkPolicy
+- Calico: `selector: has(kubernetes-host)` on GlobalNetworkPolicy (requires HostEndpoint auto-creation)
+
+All host policies use node labels (`node-role.kubernetes.io/ingress` or `node-role.kubernetes.io/dns`):
 ```bash
 kubectl label node <worker> node-role.kubernetes.io/ingress=""
 ```
 
-**Troubleshooting with Hubble**: When connections fail, use Hubble to identify dropped packets:
+**Troubleshooting** (Cilium with Hubble):
 ```bash
-# See dropped packets
 kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --last 50
-
-# Filter by namespace
 kubectl exec -n kube-system ds/cilium -- hubble observe --verdict DROPPED --to-namespace <ns>
 ```
 See `apps/cilium/README.md` for detailed troubleshooting.
 
-**Encryption & Mutual Authentication** (bootstrap-level, configured via `configure_cilium.sh`):
-- `features.cilium.encryption.enabled` → WireGuard/IPsec transparent encryption for inter-pod traffic
+**Cilium-only features** (encryption & mutual authentication, bootstrap-level via `configure_cilium.sh`):
+- `features.cilium.encryption.enabled` → WireGuard/IPsec transparent encryption
   - `type`: `wireguard` (recommended, GA) or `ipsec` (FIPS-compliant, GA)
   - `nodeEncryption`: encrypt node-to-node traffic (not just pod-to-pod)
   - `strictMode.enabled`: drop unencrypted traffic (prevents leaks)
 - `features.cilium.mutualAuth.enabled` → SPIFFE/SPIRE mutual authentication (Beta)
   - Sidecarless: eBPF + per-node SPIRE agent (no Envoy sidecar)
-  - `port`: SPIRE agent communication port (default: 4250)
 
 These are applied at RKE2 bootstrap via `install_master.sh` → `configure_cilium.sh` → HelmChartConfig, **not** through ArgoCD ApplicationSet.
+
+**Calico-specific settings** (`features.calico.*`):
+- `features.calico.monitoring.enabled` → ServiceMonitors + PrometheusRules + dashboards
+- `features.calico.dataplane` → `bpf` (eBPF, default) or `iptables`
+- `features.calico.encapsulation` → `VXLAN` (default), `IPIP`, or `None` (BGP)
+- `features.calico.bgp.enabled` → BGP peering (default: false)
 
 ### HTTPRoute Structure
 

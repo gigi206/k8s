@@ -1,0 +1,28 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - Kube-VIP Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress-policy.yaml
+#
+# Allows external access to Kubernetes API VIP on control-plane nodes.
+# Kube-VIP provides HA virtual IP for the Kubernetes API server.
+#
+# Applied only to control-plane nodes via selector.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: kube-vip-host-ingress
+spec:
+  order: 400
+  selector: has(node-role.kubernetes.io/control-plane)
+  types:
+    - Ingress
+  ingress:
+    # Allow external and internal access to Kubernetes API VIP
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 6443

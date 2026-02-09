@@ -1,0 +1,66 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Keycloak Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+#
+# Allows internal communication within keycloak namespace and from
+# dependent namespaces (monitoring for metrics, cnpg for DB management,
+# all namespaces for OIDC authentication)
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-internal
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow from all namespaces for OIDC authentication
+    # matchExpressions with operator: Exists -> no source restriction
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports:
+          - 8080
+          - 8443
+          - 9000
+
+    # Allow from monitoring namespace (Prometheus scrape PostgreSQL metrics)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 9187
+          - 8000
+
+    # Allow internal Keycloak communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "keycloak"'
+      destination:
+        ports:
+          - 8080
+          - 8443
+          - 9000
+          - 5432
+          - 9187
+          - 8000
+
+    # Allow from cnpg-system (CNPG operator manages PostgreSQL)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "cnpg-system"'
+      destination:
+        ports:
+          - 8000
+          - 8080
