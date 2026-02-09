@@ -6,6 +6,8 @@ kind: PolicyException
 metadata:
   name: keycloak-automount-sa-token
   namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

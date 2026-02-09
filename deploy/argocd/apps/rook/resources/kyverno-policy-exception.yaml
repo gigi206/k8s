@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: rook-ceph-automount-sa-token
   namespace: rook-ceph
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

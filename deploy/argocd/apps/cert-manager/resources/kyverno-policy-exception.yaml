@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: cert-manager-automount-sa-token
   namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: alloy-automount-sa-token
   namespace: alloy
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

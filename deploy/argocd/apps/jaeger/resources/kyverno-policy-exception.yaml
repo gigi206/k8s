@@ -5,6 +5,8 @@ kind: PolicyException
 metadata:
   name: jaeger-automount-sa-token
   namespace: jaeger
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token
