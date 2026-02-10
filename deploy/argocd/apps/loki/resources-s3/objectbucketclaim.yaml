@@ -8,6 +8,8 @@ kind: ObjectBucketClaim
 metadata:
   name: loki-storage
   namespace: loki
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   generateBucketName: loki
   storageClassName: ceph-bucket
