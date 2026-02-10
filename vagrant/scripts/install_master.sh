@@ -294,6 +294,8 @@ rules:
     resources:
       - group: ""
         resources: ["events", "endpoints"]
+      - group: "events.k8s.io"
+        resources: ["events"]
 
   # Internal system components read operations (very high volume)
   # Mutations by system accounts are still logged via subsequent rules
@@ -353,11 +355,12 @@ rules:
   # ============================================================
 
   # Interactive container access: full forensic trail (post-exploitation detection)
+  # Includes "get" because kubectl exec uses WebSocket upgrade (GET) since K8s 1.30+
   - level: RequestResponse
     resources:
       - group: ""
         resources: ["pods/exec", "pods/portforward", "pods/attach"]
-    verbs: ["create"]
+    verbs: ["create", "get"]
 
   # RBAC changes: full audit trail for forensics
   - level: RequestResponse
