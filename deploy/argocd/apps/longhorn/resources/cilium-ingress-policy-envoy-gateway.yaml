@@ -21,5 +21,5 @@ spec:
             io.kubernetes.pod.namespace: envoy-gateway-system
       toPorts:
         - ports:
-            - port: "80"      # Frontend UI
+            - port: "8000"    # Frontend UI
               protocol: TCP
