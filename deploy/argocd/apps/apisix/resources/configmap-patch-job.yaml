@@ -47,6 +47,16 @@ spec:
               set -e
               echo "=== Patching APISIX ConfigMap ==="
 
+              # Wait for ConfigMap to be available
+              echo "Waiting for APISIX ConfigMap..."
+              for i in $(seq 1 30); do
+                if kubectl get configmap apisix -n apisix >/dev/null 2>&1; then
+                  break
+                fi
+                echo "  ConfigMap not yet available, retrying ($i/30)..."
+                sleep 5
+              done
+
               # Get current config
               echo "Reading current configuration..."
               kubectl get configmap apisix -n apisix -o jsonpath='{.data.config\.yaml}' > /tmp/config.yaml
@@ -85,7 +95,11 @@ spec:
 
                 echo "Restarting APISIX deployment..."
                 kubectl rollout restart deployment/apisix -n apisix
-                kubectl rollout status deployment/apisix -n apisix --timeout=120s
+                # Wait for rollout but don't fail the job if it times out
+                # (the ConfigMap patch is already applied, APISIX will pick it up on next restart)
+                if ! kubectl rollout status deployment/apisix -n apisix --timeout=180s; then
+                  echo "⚠ Rollout not yet complete, but ConfigMap patch is applied"
+                fi
               else
                 echo "No changes needed"
               fi
@@ -109,7 +123,7 @@ rules:
     verbs: ["get", "patch", "create", "update"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    verbs: ["get", "patch"]
+    verbs: ["get", "list", "watch", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
