@@ -535,6 +535,18 @@
     },
     {
       "customType": "regex",
+      "description": "yq CLI (mikefarah/yq GitHub releases)",
+      "managerFilePatterns": [
+        "/^vagrant/scripts/install_common\\.sh$/"
+      ],
+      "matchStrings": [
+        "YQ_VERSION=\"(?<currentValue>v[^\"]+)\""
+      ],
+      "depNameTemplate": "mikefarah/yq",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
       "description": "LoxiLB image (ghcr.io/loxilb-io/loxilb)",
       "managerFilePatterns": [
         "/^deploy/argocd/apps/loxilb/config/.*\\.yaml$/"
