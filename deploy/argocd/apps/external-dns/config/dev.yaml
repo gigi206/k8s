@@ -55,7 +55,7 @@ externalDns:
 
   # CoreDNS configuration (only when provider=coredns)
   coredns:
-    version: "1.45.0"
+    version: "1.45.2"
     enabled: true
     replicas: 1
     serviceType: "LoadBalancer"
@@ -71,7 +71,7 @@ externalDns:
 
   # etcd configuration (only when provider=coredns)
   etcd:
-    version: "0.5.1"
+    version: "0.5.3"
     enabled: true
     replicas: 1
     # mTLS configuration (authentication via client certificates)

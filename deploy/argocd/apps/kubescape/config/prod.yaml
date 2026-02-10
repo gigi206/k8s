@@ -5,7 +5,7 @@ appName: kubescape
 
 kubescape:
   # Helm chart version (kubescape-operator)
-  version: "1.30.2"
+  version: "1.30.3"
 
   # Cluster name for identification
   clusterName: "prod-cluster"
