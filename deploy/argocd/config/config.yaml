@@ -83,7 +83,7 @@ features:
   # =============================================================================
   loadBalancer:
     enabled: true # LoadBalancer for Services
-    provider: "cilium" # metallb | cilium | loxilb | kube-vip | klipper
+    provider: "metallb" # metallb | cilium | loxilb | kube-vip | klipper
     mode: "l2" # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
     # BGP configuration (used when mode == "bgp")
     bgp:
@@ -143,7 +143,7 @@ features:
     httpRoute:
       enabled: true # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "envoy-gateway" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
+      provider: "apisix" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
@@ -151,7 +151,7 @@ features:
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
       # - cilium: kube-system (Cilium Gateway runs in kube-system)
-      gatewayNamespace: "envoy-gateway-system"
+      gatewayNamespace: "apisix"
   # === Legacy Ingress (déprécié) ===
   ingress:
     enabled: false # Support Ingress legacy (patch des ressources)
@@ -159,15 +159,15 @@ features:
   # === Storage ===
   storage:
     enabled: true # Stockage distribué
-    provider: "rook" # Provider selection: longhorn | rook
-    class: "ceph-block" # Kubernetes StorageClass name: longhorn | ceph-block (rook)
+    provider: "longhorn" # Provider selection: longhorn | rook
+    class: "longhorn" # Kubernetes StorageClass name: longhorn | ceph-block (rook)
     csiSnapshotter: true # CSI External Snapshotter (requis pour snapshots)
   # === Object Storage (S3) ===
   # Stockage objet S3-compatible (buckets, ObjectBucketClaim)
   # Pour activer S3 avec Ceph: storage.enabled + s3.enabled + storage.provider=rook + s3.provider=rook
   # Dépendances automatiques: s3.provider=rook → active storage (rook)
   s3:
-    enabled: true # Stockage objet S3-compatible
+    enabled: false # Stockage objet S3-compatible
     provider: "rook" # Provider S3: rook (Ceph RGW)
   # === Database Operator ===
   databaseOperator:
@@ -281,7 +281,7 @@ features:
 #   - whereabouts: active l'IPAM cluster-wide (utilisé par install_master.sh)
 # =============================================================================
 cni:
-  primary: "cilium" # cilium | calico (eBPF-based, kube-proxy replacement)
+  primary: "calico" # cilium | calico (eBPF-based, kube-proxy replacement)
   multus:
     enabled: false # Enable multi-network support
     whereabouts: true # Cluster-wide IPAM for secondary interfaces
