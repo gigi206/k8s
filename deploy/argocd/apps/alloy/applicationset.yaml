@@ -490,26 +490,28 @@ spec:
                       // Parse JSON audit log entries
                       stage.json {
                         expressions = {
-                          level      = "level",
-                          verb       = "verb",
-                          user       = "user.username",
-                          resource   = "objectRef.resource",
-                          namespace  = "objectRef.namespace",
-                          name       = "objectRef.name",
-                          stage      = "stage",
-                          statusCode = "responseStatus.code",
+                          level       = "level",
+                          verb        = "verb",
+                          user        = "user.username",
+                          resource    = "objectRef.resource",
+                          subresource = "objectRef.subresource",
+                          namespace   = "objectRef.namespace",
+                          name        = "objectRef.name",
+                          stage       = "stage",
+                          statusCode  = "responseStatus.code",
                         }
                       }
 
                       // Add extracted fields as labels for querying
                       stage.labels {
                         values = {
-                          audit_level     = "level",
-                          audit_verb      = "verb",
-                          audit_user      = "user",
-                          audit_resource  = "resource",
-                          audit_namespace = "namespace",
-                          audit_stage     = "stage",
+                          audit_level       = "level",
+                          audit_verb        = "verb",
+                          audit_user        = "user",
+                          audit_resource    = "resource",
+                          audit_subresource = "subresource",
+                          audit_namespace   = "namespace",
+                          audit_stage       = "stage",
                         }
                       }
                     }
