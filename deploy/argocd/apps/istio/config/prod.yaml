@@ -62,7 +62,7 @@ istio:
 # Kiali (Service Mesh Observability)
 kiali:
   enabled: true
-  version: "2.20.0"  # Latest Kiali stable version
+  version: "2.21.0"  # Latest Kiali stable version
   replicas: 2  # Prod: HA with 2 replicas
 
   resources:
