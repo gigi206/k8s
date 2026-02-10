@@ -4,7 +4,7 @@ environment: dev
 appName: envoy-gateway
 
 envoyGateway:
-  version: "1.6.2"
+  version: "1.7.0"
   replicas: 1
   gatewayClassName: envoy  # GatewayClass name pour Envoy Gateway
   # Certgen job resources (crypto operations)
