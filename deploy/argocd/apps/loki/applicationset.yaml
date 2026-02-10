@@ -143,8 +143,8 @@ spec:
                     drop: ["ALL"]
                   readOnlyRootFilesystem: false
                 storage:
-                  type: '{{ .loki.storage.type }}'
-                  {{- if eq .loki.storage.type "s3" }}
+                  {{- if and (eq .loki.storage.type "s3") .features.s3.enabled }}
+                  type: s3
                   bucketNames:
                     chunks: ${BUCKET_NAME}
                     ruler: ${BUCKET_NAME}
@@ -156,12 +156,14 @@ spec:
                     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
                     s3ForcePathStyle: true
                     insecure: true
+                  {{- else }}
+                  type: filesystem
                   {{- end }}
                 schemaConfig:
                   configs:
                     - from: "2024-01-01"
                       store: tsdb
-                      object_store: '{{ .loki.storage.type }}'
+                      object_store: '{{- if and (eq .loki.storage.type "s3") .features.s3.enabled }}s3{{- else }}filesystem{{- end }}'
                       schema: v13
                       index:
                         prefix: index_
@@ -179,7 +181,7 @@ spec:
                 persistence:
                   enabled: {{ and .loki.singleBinary.persistence.enabled .features.storage.enabled }}
                   {{- if and .loki.singleBinary.persistence.enabled .features.storage.enabled }}
-                  {{- if eq .loki.storage.type "s3" }}
+                  {{- if and (eq .loki.storage.type "s3") .features.s3.enabled }}
                   size: 1Gi
                   {{- else }}
                   size: '{{ .loki.singleBinary.persistence.size }}'
@@ -194,7 +196,7 @@ spec:
                     cpu: '{{ .loki.singleBinary.resources.limits.cpu }}'
                     memory: '{{ .loki.singleBinary.resources.limits.memory }}'
                 {{- end }}
-                {{- if eq .loki.storage.type "s3" }}
+                {{- if and (eq .loki.storage.type "s3") .features.s3.enabled }}
                 extraEnv:
                   - name: AWS_ACCESS_KEY_ID
                     valueFrom:
@@ -251,7 +253,7 @@ spec:
                     cpu: '{{ .loki.backend.resources.limits.cpu }}'
                     memory: '{{ .loki.backend.resources.limits.memory }}'
                 {{- end }}
-                {{- if eq .loki.storage.type "s3" }}
+                {{- if and (eq .loki.storage.type "s3") .features.s3.enabled }}
                 extraEnv:
                   - name: AWS_ACCESS_KEY_ID
                     valueFrom:
@@ -291,7 +293,7 @@ spec:
                     cpu: '{{ .loki.read.resources.limits.cpu }}'
                     memory: '{{ .loki.read.resources.limits.memory }}'
                 {{- end }}
-                {{- if eq .loki.storage.type "s3" }}
+                {{- if and (eq .loki.storage.type "s3") .features.s3.enabled }}
                 extraEnv:
                   - name: AWS_ACCESS_KEY_ID
                     valueFrom:
@@ -336,7 +338,7 @@ spec:
                     cpu: '{{ .loki.write.resources.limits.cpu }}'
                     memory: '{{ .loki.write.resources.limits.memory }}'
                 {{- end }}
-                {{- if eq .loki.storage.type "s3" }}
+                {{- if and (eq .loki.storage.type "s3") .features.s3.enabled }}
                 extraEnv:
                   - name: AWS_ACCESS_KEY_ID
                     valueFrom:
