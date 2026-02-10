@@ -4,7 +4,7 @@ appName: istio
 
 istio:
   namespace: istio-system
-  version: "1.28.2"  # Latest Istio 1.28.x with improved ambient mesh support
+  version: "1.28.3"  # Latest Istio 1.28.x with improved ambient mesh support
 
   # mTLS mode for service-to-service communication
   # STRICT: Only mTLS traffic allowed (recommended for production)
