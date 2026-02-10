@@ -377,6 +377,8 @@ FEAT_SERVICE_MESH_PROVIDER=$(get_feature '.features.serviceMesh.provider' 'istio
 FEAT_STORAGE=$(get_feature '.features.storage.enabled' 'true')
 FEAT_STORAGE_PROVIDER=$(get_feature '.features.storage.provider' 'longhorn')
 FEAT_CSI_SNAPSHOTTER=$(get_feature '.features.storage.csiSnapshotter' 'true')
+FEAT_S3=$(get_feature '.features.s3.enabled' 'false')
+FEAT_S3_PROVIDER=$(get_feature '.features.s3.provider' 'rook')
 FEAT_DATABASE_OPERATOR=$(get_feature '.features.databaseOperator.enabled' 'true')
 FEAT_DATABASE_PROVIDER=$(get_feature '.features.databaseOperator.provider' 'cnpg')
 FEAT_MONITORING=$(get_feature '.features.monitoring.enabled' 'true')
@@ -435,6 +437,7 @@ log_debug "  reloader: $FEAT_RELOADER"
 log_debug "  externalDns: $FEAT_EXTERNAL_DNS"
 log_debug "  serviceMesh: $FEAT_SERVICE_MESH ($FEAT_SERVICE_MESH_PROVIDER)"
 log_debug "  storage: $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
+log_debug "  s3: $FEAT_S3 (provider: $FEAT_S3_PROVIDER)"
 log_debug "  csiSnapshotter: $FEAT_CSI_SNAPSHOTTER"
 log_debug "  databaseOperator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 log_debug "  monitoring: $FEAT_MONITORING"
@@ -533,6 +536,22 @@ resolve_dependencies() {
       if [[ "$FEAT_MONITORING" != "true" ]]; then
         log_info "  → Activation de monitoring (requis par cilium)"
         FEAT_MONITORING="true"
+        changes_made=true
+      fi
+    fi
+
+    # =========================================================================
+    # s3.provider=rook → storage.enabled + storage.provider=rook
+    # =========================================================================
+    if [[ "$FEAT_S3" == "true" ]] && [[ "$FEAT_S3_PROVIDER" == "rook" ]]; then
+      if [[ "$FEAT_STORAGE" != "true" ]]; then
+        log_info "  → Activation de storage (requis par s3.provider=rook)"
+        FEAT_STORAGE="true"
+        FEAT_STORAGE_PROVIDER="rook"
+        changes_made=true
+      elif [[ "$FEAT_STORAGE_PROVIDER" != "rook" ]]; then
+        log_warning "  → Changement storage.provider vers 'rook' (requis par s3.provider=rook)"
+        FEAT_STORAGE_PROVIDER="rook"
         changes_made=true
       fi
     fi
@@ -715,6 +734,23 @@ validate_dependencies() {
         errors=$((errors + 1))
         ;;
     esac
+  fi
+
+  # Vérifier que le S3 provider est supporté
+  if [[ "$FEAT_S3" == "true" ]]; then
+    case "$FEAT_S3_PROVIDER" in
+      rook) ;;  # OK
+      *)
+        log_error "S3 provider '$FEAT_S3_PROVIDER' non supporté (seul 'rook' est disponible)"
+        errors=$((errors + 1))
+        ;;
+    esac
+
+    # Vérifier cohérence s3.provider=rook + storage.provider=rook
+    if [[ "$FEAT_S3_PROVIDER" == "rook" ]] && [[ "$FEAT_STORAGE_PROVIDER" != "rook" ]]; then
+      log_error "s3.provider=rook nécessite storage.provider=rook (actuel: $FEAT_STORAGE_PROVIDER)"
+      errors=$((errors + 1))
+    fi
   fi
 
   # Vérifier que le gateway controller est supporté

@@ -93,7 +93,7 @@ rook:
     enabled: false
     replicaSize: 1
 
-  # Object Store (S3 compatible)
+  # Object Store (S3 compatible) - activé par features.s3.enabled + features.s3.provider=rook + objectStore.enabled
   objectStore:
     enabled: true
     replicaSize: 1

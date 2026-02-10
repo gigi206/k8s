@@ -358,7 +358,7 @@ spec:
                     value: ceph.{{ .common.domain }}
         {{- end }}
 
-        {{- if .rook.objectStore.enabled }}
+        {{- if and .features.s3.enabled (eq .features.s3.provider "rook") .rook.objectStore.enabled }}
         # Source: HTTPRoute (Gateway API standard) - S3 Object Store
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -639,7 +639,7 @@ spec:
               cephFileSystems: []
               {{- end }}
 
-              {{- if .rook.objectStore.enabled }}
+              {{- if and .features.s3.enabled (eq .features.s3.provider "rook") .rook.objectStore.enabled }}
               cephObjectStores:
                 - name: ceph-objectstore
                   spec:

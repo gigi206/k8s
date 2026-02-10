@@ -60,6 +60,7 @@ git:
 #   - gatewayAPI.controller.provider=istio → active serviceMesh (istio), gatewayAPI
 #   - cilium.monitoring.enabled → active monitoring
 #   - storage.provider=longhorn → active csiSnapshotter (recommandé)
+#   - s3.provider=rook → active storage (rook)
 # =============================================================================
 features:
   # === Infrastructure Core ===
@@ -161,6 +162,13 @@ features:
     provider: "rook" # Provider selection: longhorn | rook
     class: "ceph-block" # Kubernetes StorageClass name: longhorn | ceph-block (rook)
     csiSnapshotter: true # CSI External Snapshotter (requis pour snapshots)
+  # === Object Storage (S3) ===
+  # Stockage objet S3-compatible (buckets, ObjectBucketClaim)
+  # Pour activer S3 avec Ceph: storage.enabled + s3.enabled + storage.provider=rook + s3.provider=rook
+  # Dépendances automatiques: s3.provider=rook → active storage (rook)
+  s3:
+    enabled: true # Stockage objet S3-compatible
+    provider: "rook" # Provider S3: rook (Ceph RGW)
   # === Database Operator ===
   databaseOperator:
     enabled: true # Opérateur PostgreSQL
