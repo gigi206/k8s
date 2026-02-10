@@ -33,6 +33,10 @@ rke2:
 |---------|-------------|---------|
 | K.1.2.3 | Block ExternalIP hijacking | `DenyServiceExternalIPs` admission plugin |
 | K.1.2.9 | Limit API event flooding | `EventRateLimit` admission plugin |
+| K.1.2.11 | Audit policy file | Custom policy via `rke2.cis.hardening.audit.enabled` |
+| K.1.2.12 | Audit log max age | `30` days (CIS profile default) |
+| K.1.2.13 | Audit log max backup | `10` files (CIS profile default) |
+| K.1.2.14 | Audit log max size | `100` MB (CIS profile default) |
 | K.1.2.21 | Request timeout | `request-timeout=60s` |
 | K.1.2.22 | Service account validation | `service-account-lookup=true` |
 
