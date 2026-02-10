@@ -28,4 +28,4 @@ spec:
         namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
       destination:
         ports:
-          - 80
+          - 8000

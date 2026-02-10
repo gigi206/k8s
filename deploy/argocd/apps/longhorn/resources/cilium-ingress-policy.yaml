@@ -36,18 +36,31 @@ spec:
 
     # Allow internal Longhorn communication (same namespace)
     # Manager <-> Manager, UI <-> Manager, Operator <-> Manager
+    # Instance Manager gRPC: 8500 (API), 8501 (Proxy), 8502 (Disk), 8503 (Instance)
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: longhorn-system
       toPorts:
         - ports:
-            - port: "80"      # Frontend UI
+            - port: "8000"    # Frontend UI
               protocol: TCP
-            - port: "8500"    # Manager API
+            - port: "3260"    # iSCSI target (tgtd)
+              protocol: TCP
+            - port: "8500"    # Instance Manager gRPC API
+              protocol: TCP
+            - port: "8501"    # Instance Manager Proxy Service
+              protocol: TCP
+            - port: "8502"    # Instance Manager Disk Service
+              protocol: TCP
+            - port: "8503"    # Instance Manager Instance Service
               protocol: TCP
             - port: "9500"    # Manager metrics/communication
               protocol: TCP
             - port: "9501"    # Manager WebSocket
               protocol: TCP
             - port: "9443"    # Webhooks
+              protocol: TCP
+            - port: "9502"    # Admission webhook
+              protocol: TCP
+            - port: "9503"    # Recovery backend
               protocol: TCP

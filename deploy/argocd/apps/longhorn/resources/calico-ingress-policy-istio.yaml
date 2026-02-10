@@ -25,4 +25,4 @@ spec:
         namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
       destination:
         ports:
-          - 80
+          - 8000

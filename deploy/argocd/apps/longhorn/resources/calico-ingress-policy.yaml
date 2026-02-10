@@ -38,14 +38,22 @@ spec:
           - 9443
 
     # Allow internal Longhorn communication (same namespace)
+    # Instance Manager gRPC: 8500 (API), 8501 (Proxy), 8502 (Disk), 8503 (Instance)
+    # iSCSI target: 3260, Manager: 9500/9501, Webhook: 9443/9502, Recovery: 9503
     - action: Allow
       protocol: TCP
       source:
         namespaceSelector: 'kubernetes.io/metadata.name == "longhorn-system"'
       destination:
         ports:
-          - 80
+          - 8000
+          - 3260
           - 8500
+          - 8501
+          - 8502
+          - 8503
           - 9500
           - 9501
           - 9443
+          - 9502
+          - 9503
