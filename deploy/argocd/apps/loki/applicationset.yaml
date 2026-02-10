@@ -98,11 +98,13 @@ spec:
           {{- end }}
         {{- end }}
 
-        {{- if and (eq .loki.storage.type "s3") (eq .features.storage.provider "rook") }}
+        {{- if and (eq .loki.storage.type "s3") .features.s3.enabled (eq .features.s3.provider "rook") }}
         # Source: S3 ObjectBucketClaim (creates bucket + credentials via Rook-Ceph)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/loki/resources-s3
+          path: deploy/argocd/apps/loki/resources
+          directory:
+            include: "objectbucketclaim.yaml"
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)

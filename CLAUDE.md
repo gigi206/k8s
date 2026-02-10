@@ -39,6 +39,7 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 | `{{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}` | resources/cilium-ingress-policy.yaml or calico-ingress-policy.yaml |
 | `{{- if .features.cilium.encryption.enabled }}` | WireGuard/IPsec encryption (Cilium-only, bootstrap) |
 | `{{- if .features.cilium.mutualAuth.enabled }}` | SPIFFE/SPIRE mutual authentication (Cilium-only, bootstrap) |
+| `{{- if .features.s3.enabled }}` | S3 object storage (CephObjectStore, ObjectBucketClaim) |
 | `{{- if .features.sso.enabled }}` | secrets/, ExternalSecret, KeycloakClient |
 | `{{- if .features.tracing.enabled }}` | tracing config (Tempo/Jaeger) |
 | `{{- if .features.serviceMesh.enabled }}` | service mesh integration |
@@ -50,6 +51,7 @@ This is a GitOps infrastructure project that manages Kubernetes applications usi
 - `{{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}`
 - `{{- if and .features.serviceMesh.enabled (eq .features.serviceMesh.provider "istio") }}`
 - `{{- if and .features.storage.enabled .persistence.enabled }}` (storage + app persistence)
+- `{{- if and .features.s3.enabled (eq .features.s3.provider "rook") }}` (S3 via Rook-Ceph RGW)
 
 **CNI-aware network policy conditions** (use nested `if` for CNI branching):
 ```yaml
@@ -203,6 +205,7 @@ Examples:
 - `features.loadBalancer.provider` → metallb | cilium | loxilb | kube-vip | klipper
 - `features.monitoring.enabled` → prometheus-stack
 - `features.sso.enabled` + `provider=keycloak` → keycloak
+- `features.s3.enabled` + `s3.provider=rook` → CephObjectStore + ceph-bucket StorageClass (requiert storage.enabled + storage.provider=rook)
 
 **LoadBalancer Providers**:
 | Provider | Description | Static IPs | IP Pool |
