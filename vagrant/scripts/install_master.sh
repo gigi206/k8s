@@ -503,6 +503,30 @@ while true; do
   sleep 1
 done
 
+# Disable kube-proxy after Calico BPF is ready (post-bootstrap)
+# kube-proxy is needed at bootstrap for Tigera operator to reach API server via ClusterIP.
+# Once Calico BPF takes over service routing, kube-proxy becomes redundant and conflicts
+# on port 10256 (healthz). We wait for Calico BPF to be ready, then remove kube-proxy.
+if [ "$CNI_PRIMARY" = "calico" ] && [ "$CALICO_DATAPLANE" = "bpf" ]; then
+  echo "Waiting for Calico BPF to be ready before disabling kube-proxy..."
+  for i in $(seq 1 120); do
+    if kubectl get pods -n calico-system -l k8s-app=calico-node -o jsonpath='{.items[0].status.phase}' 2>/dev/null | grep -q "Running"; then
+      # Verify calico-node container is actually ready (not just Running)
+      if kubectl wait --for=condition=Ready pod -l k8s-app=calico-node -n calico-system --timeout=5s 2>/dev/null; then
+        echo "Calico BPF is ready, disabling kube-proxy..."
+        # Add disable-kube-proxy to RKE2 config (prevents kube-proxy on restart)
+        echo "disable-kube-proxy: true # Calico BPF replaced kube-proxy (added post-bootstrap)" >> /etc/rancher/rke2/config.yaml
+        # Remove kube-proxy static pod manifest (kubelet stops it automatically)
+        rm -f /var/lib/rancher/rke2/agent/pod-manifests/kube-proxy.yaml
+        echo "✓ kube-proxy disabled (Calico BPF handles service routing)"
+        break
+      fi
+    fi
+    [ "$i" -eq 120 ] && echo "⚠ Timeout waiting for Calico BPF - kube-proxy kept active"
+    sleep 2
+  done
+fi
+
 # Configure default PriorityClass to avoid preemption
 cat <<EOF | kubectl apply -f -
 apiVersion: scheduling.k8s.io/v1
