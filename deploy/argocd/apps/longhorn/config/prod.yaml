@@ -8,7 +8,7 @@ dashboard:
   folder: "Longhorn"  # Sous-dossier pour les dashboards Longhorn
 
 longhorn:
-  version: "1.10.1"
+  version: "1.11.0"
   # CSI Components (prod: HA with 3 replicas)
   csi:
     attacherReplicaCount: 3
