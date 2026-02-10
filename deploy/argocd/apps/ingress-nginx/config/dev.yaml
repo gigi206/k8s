@@ -8,7 +8,7 @@ dashboard:
   folder: "Ingress-NGINX"  # Sous-dossier pour les dashboards Ingress-NGINX
 
 ingressNginx:
-  version: "4.14.1"
+  version: "4.14.3"
   controller:
     # Kind: Deployment or DaemonSet
     kind: "Deployment"
