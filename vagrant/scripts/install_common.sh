@@ -15,6 +15,17 @@ apt update
 apt full-upgrade -y
 apt install -y curl git jq htop cloud-guest-utils
 
+# Install yq (YAML processor by Mike Farah) - used by install_master.sh and install_worker.sh
+# NOTE: The apt 'yq' package (kislyuk/yq) is a Python/jq wrapper with incompatible syntax.
+# We need mikefarah/yq which supports 'yq eval' and direct 'yq .path file' syntax.
+if [ ! -x /usr/local/bin/yq ] || ! /usr/local/bin/yq --version 2>&1 | grep -q "mikefarah"; then
+  YQ_VERSION="v4.44.6"
+  echo "Installing yq ${YQ_VERSION} (mikefarah)..."
+  curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_$(dpkg --print-architecture)" -o /usr/local/bin/yq
+  chmod +x /usr/local/bin/yq
+  echo "yq installed: $(yq --version)"
+fi
+
 # Expand root partition to use full disk
 echo "Expanding root partition to use full disk..."
 ROOT_DEV=$(findmnt -n -o SOURCE /)
@@ -55,7 +66,7 @@ then
         STORAGE_PROVIDER=""
         CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
         if [ -f "$CONFIG_FILE" ]; then
-            STORAGE_PROVIDER=$(grep -A5 "storage:" "$CONFIG_FILE" | grep "provider:" | awk -F'"' '{print $2}')
+            STORAGE_PROVIDER=$(yq '.features.storage.provider' "$CONFIG_FILE")
         fi
 
         # Only format for Longhorn (Rook needs raw disk)

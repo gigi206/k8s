@@ -18,13 +18,27 @@ fi
 # /var/lib/rancher/rke2/bin/kubectl --kubeconfig /etc/rancher/rke2/rke2.yaml get nodes
 # ln -s /etc/rancher/rke2/rke2.yaml ~/.kube/config
 
+# Verify yq (mikefarah) is available (installed by install_common.sh)
+if ! command -v yq &>/dev/null || ! yq --version 2>&1 | grep -q "mikefarah"; then
+  echo "ERROR: yq (mikefarah) is required but not found. Ensure install_common.sh ran first."
+  echo "Note: The apt 'yq' package (kislyuk/yq) is NOT compatible."
+  exit 1
+fi
+
+# Helper: read YAML value with yq, returns empty string if null/missing
+yq_read() {
+  local result
+  result=$(yq eval "$1" "$2" 2>/dev/null)
+  [ "$result" = "null" ] && echo "" || echo "$result"
+}
+
 curl -sfL https://get.rke2.io | sh -
 mkdir -p /etc/rancher/rke2
 
 # Read CIS configuration from ArgoCD config (single source of truth)
 ARGOCD_CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
-CIS_ENABLED=$(grep -A5 "^rke2:" "$ARGOCD_CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
-CIS_PROFILE=$(grep -A5 "^rke2:" "$ARGOCD_CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
+CIS_ENABLED=$(yq_read '.rke2.cis.enabled' "$ARGOCD_CONFIG_FILE")
+CIS_PROFILE=$(yq_read '.rke2.cis.profile' "$ARGOCD_CONFIG_FILE")
 
 # CIS Hardening: Apply required kernel parameters and create etcd user if enabled
 # https://docs.rke2.io/security/hardening_guide
@@ -45,18 +59,18 @@ if [ "$CIS_ENABLED" = "true" ]; then
   systemctl restart systemd-sysctl
 
   # Read CIS hardening options from config (with defaults)
-  DENY_SERVICE_EXTERNAL_IPS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "denyServiceExternalIPs:" | awk '{print $2}' | tr -d ' ')
-  EVENT_RATE_LIMIT=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "eventRateLimit:" | awk '{print $2}' | tr -d ' ')
-  ALWAYS_PULL_IMAGES=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "alwaysPullImages:" | awk '{print $2}' | tr -d ' ')
-  REQUEST_TIMEOUT=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "requestTimeout:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
-  SERVICE_ACCOUNT_LOOKUP=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "serviceAccountLookup:" | awk '{print $2}' | tr -d ' ')
-  EVENT_QPS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "eventQps:" | awk '{print $2}' | tr -d ' ')
-  POD_MAX_PIDS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "podMaxPids:" | awk '{print $2}' | tr -d ' ')
-  ANONYMOUS_AUTH=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "anonymousAuth:" | awk '{print $2}' | tr -d ' ')
-  MAKE_IPTABLES_UTIL_CHAINS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "makeIptablesUtilChains:" | awk '{print $2}' | tr -d ' ')
-  PROTECT_KERNEL_DEFAULTS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "protectKernelDefaults:" | awk '{print $2}' | tr -d ' ')
-  FIX_ETCD_OWNERSHIP=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "fixEtcdOwnership:" | awk '{print $2}' | tr -d ' ')
-  FIX_PKI_PERMISSIONS=$(grep -A20 "hardening:" "$ARGOCD_CONFIG_FILE" | grep "fixPkiPermissions:" | awk '{print $2}' | tr -d ' ')
+  DENY_SERVICE_EXTERNAL_IPS=$(yq_read '.rke2.cis.hardening.admissionPlugins.denyServiceExternalIPs' "$ARGOCD_CONFIG_FILE")
+  EVENT_RATE_LIMIT=$(yq_read '.rke2.cis.hardening.admissionPlugins.eventRateLimit' "$ARGOCD_CONFIG_FILE")
+  ALWAYS_PULL_IMAGES=$(yq_read '.rke2.cis.hardening.admissionPlugins.alwaysPullImages' "$ARGOCD_CONFIG_FILE")
+  REQUEST_TIMEOUT=$(yq_read '.rke2.cis.hardening.apiServer.requestTimeout' "$ARGOCD_CONFIG_FILE")
+  SERVICE_ACCOUNT_LOOKUP=$(yq_read '.rke2.cis.hardening.apiServer.serviceAccountLookup' "$ARGOCD_CONFIG_FILE")
+  EVENT_QPS=$(yq_read '.rke2.cis.hardening.kubelet.eventQps' "$ARGOCD_CONFIG_FILE")
+  POD_MAX_PIDS=$(yq_read '.rke2.cis.hardening.kubelet.podMaxPids' "$ARGOCD_CONFIG_FILE")
+  ANONYMOUS_AUTH=$(yq_read '.rke2.cis.hardening.kubelet.anonymousAuth' "$ARGOCD_CONFIG_FILE")
+  MAKE_IPTABLES_UTIL_CHAINS=$(yq_read '.rke2.cis.hardening.kubelet.makeIptablesUtilChains' "$ARGOCD_CONFIG_FILE")
+  PROTECT_KERNEL_DEFAULTS=$(yq_read '.rke2.cis.hardening.kubelet.protectKernelDefaults' "$ARGOCD_CONFIG_FILE")
+  FIX_ETCD_OWNERSHIP=$(yq_read '.rke2.cis.hardening.filePermissions.fixEtcdOwnership' "$ARGOCD_CONFIG_FILE")
+  FIX_PKI_PERMISSIONS=$(yq_read '.rke2.cis.hardening.filePermissions.fixPkiPermissions' "$ARGOCD_CONFIG_FILE")
 
   # Set defaults if not specified
   DENY_SERVICE_EXTERNAL_IPS=${DENY_SERVICE_EXTERNAL_IPS:-true}
@@ -76,18 +90,14 @@ fi
 # echo "RKE2_CNI=calico" >> /usr/local/lib/systemd/system/rke2-server.env
 # echo "RKE2_CNI=calico" >> "${CONFIG_PATH}"
 
-# Read CNI configuration from ArgoCD config (using grep/awk for portability)
-# CNI primary (under cni: section)
-CNI_PRIMARY=$(grep -A2 "^cni:" "$ARGOCD_CONFIG_FILE" | grep "primary:" | awk -F'"' '{print $2}')
+# Read CNI configuration from ArgoCD config (using yq for reliable YAML parsing)
+CNI_PRIMARY=$(yq_read '.cni.primary' "$ARGOCD_CONFIG_FILE")
 CNI_PRIMARY=${CNI_PRIMARY:-cilium}
-# Multus enabled (under cni.multus: section)
-CNI_MULTUS_ENABLED=$(grep -A10 "^cni:" "$ARGOCD_CONFIG_FILE" | grep -A5 "multus:" | grep "enabled:" | head -1 | awk '{print $2}')
+CNI_MULTUS_ENABLED=$(yq_read '.cni.multus.enabled' "$ARGOCD_CONFIG_FILE")
 CNI_MULTUS_ENABLED=${CNI_MULTUS_ENABLED:-false}
-# Whereabouts IPAM (under cni.multus: section)
-CNI_WHEREABOUTS_ENABLED=$(grep -A10 "^cni:" "$ARGOCD_CONFIG_FILE" | grep -A5 "multus:" | grep "whereabouts:" | head -1 | awk '{print $2}')
+CNI_WHEREABOUTS_ENABLED=$(yq_read '.cni.multus.whereabouts' "$ARGOCD_CONFIG_FILE")
 CNI_WHEREABOUTS_ENABLED=${CNI_WHEREABOUTS_ENABLED:-true}
-# LoadBalancer provider (under features.loadBalancer: section)
-LB_PROVIDER_CONFIG=$(grep -A5 "loadBalancer:" "$ARGOCD_CONFIG_FILE" | grep "provider:" | head -1 | awk -F'"' '{print $2}')
+LB_PROVIDER_CONFIG=$(yq_read '.features.loadBalancer.provider' "$ARGOCD_CONFIG_FILE")
 LB_PROVIDER_CONFIG=${LB_PROVIDER_CONFIG:-metallb}
 export CNI_MULTUS_ENABLED
 
@@ -275,27 +285,27 @@ if [ "$LB_PROVIDER" = "klipper" ]; then
 fi
 
 # Read Service Mesh settings from ArgoCD config (features.serviceMesh)
-SERVICE_MESH_ENABLED=$(grep -A5 "^  serviceMesh:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+SERVICE_MESH_ENABLED=$(yq_read '.features.serviceMesh.enabled' "$ARGOCD_CONFIG_FILE")
 SERVICE_MESH_ENABLED=${SERVICE_MESH_ENABLED:-false}
-SERVICE_MESH_PROVIDER=$(grep -A5 "^  serviceMesh:" "$ARGOCD_CONFIG_FILE" | grep "provider:" | head -1 | awk -F'"' '{print $2}')
+SERVICE_MESH_PROVIDER=$(yq_read '.features.serviceMesh.provider' "$ARGOCD_CONFIG_FILE")
 SERVICE_MESH_PROVIDER=${SERVICE_MESH_PROVIDER:-none}
 export SERVICE_MESH_ENABLED SERVICE_MESH_PROVIDER
 echo "Service mesh: $SERVICE_MESH_ENABLED (provider=$SERVICE_MESH_PROVIDER)"
 
 if [ "$CNI_PRIMARY" = "cilium" ]; then
   # Read Cilium encryption settings from ArgoCD config (features.cilium.encryption)
-  CILIUM_ENCRYPTION_ENABLED=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+  CILIUM_ENCRYPTION_ENABLED=$(yq_read '.features.cilium.encryption.enabled' "$ARGOCD_CONFIG_FILE")
   CILIUM_ENCRYPTION_ENABLED=${CILIUM_ENCRYPTION_ENABLED:-true}
-  CILIUM_ENCRYPTION_TYPE=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "type:" | head -1 | awk -F'"' '{print $2}')
+  CILIUM_ENCRYPTION_TYPE=$(yq_read '.features.cilium.encryption.type' "$ARGOCD_CONFIG_FILE")
   CILIUM_ENCRYPTION_TYPE=${CILIUM_ENCRYPTION_TYPE:-wireguard}
-  CILIUM_NODE_ENCRYPTION=$(grep -A5 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep "nodeEncryption:" | head -1 | awk '{print $2}')
+  CILIUM_NODE_ENCRYPTION=$(yq_read '.features.cilium.encryption.nodeEncryption' "$ARGOCD_CONFIG_FILE")
   CILIUM_NODE_ENCRYPTION=${CILIUM_NODE_ENCRYPTION:-true}
-  CILIUM_STRICT_MODE=$(grep -A10 "^    encryption:" "$ARGOCD_CONFIG_FILE" | grep -A3 "strictMode:" | grep -m1 "enabled:" | awk '{print $2}')
+  CILIUM_STRICT_MODE=$(yq_read '.features.cilium.encryption.strictMode.enabled' "$ARGOCD_CONFIG_FILE")
   CILIUM_STRICT_MODE=${CILIUM_STRICT_MODE:-true}
   # Read Cilium mutual authentication settings (features.cilium.mutualAuth)
-  CILIUM_MUTUAL_AUTH=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep -m1 "enabled:" | awk '{print $2}')
+  CILIUM_MUTUAL_AUTH=$(yq_read '.features.cilium.mutualAuth.enabled' "$ARGOCD_CONFIG_FILE")
   CILIUM_MUTUAL_AUTH=${CILIUM_MUTUAL_AUTH:-true}
-  CILIUM_MUTUAL_AUTH_PORT=$(grep -A5 "^    mutualAuth:" "$ARGOCD_CONFIG_FILE" | grep "port:" | head -1 | awk '{print $2}')
+  CILIUM_MUTUAL_AUTH_PORT=$(yq_read '.features.cilium.mutualAuth.port' "$ARGOCD_CONFIG_FILE")
   CILIUM_MUTUAL_AUTH_PORT=${CILIUM_MUTUAL_AUTH_PORT:-4250}
   export CILIUM_ENCRYPTION_ENABLED CILIUM_ENCRYPTION_TYPE CILIUM_NODE_ENCRYPTION CILIUM_STRICT_MODE
   export CILIUM_MUTUAL_AUTH CILIUM_MUTUAL_AUTH_PORT
@@ -305,11 +315,11 @@ if [ "$CNI_PRIMARY" = "cilium" ]; then
   $SCRIPT_DIR/configure_cilium.sh
 elif [ "$CNI_PRIMARY" = "calico" ]; then
   # Read Calico settings from ArgoCD config (features.calico)
-  CALICO_DATAPLANE=$(grep -A5 "^  calico:" "$ARGOCD_CONFIG_FILE" | grep "dataplane:" | head -1 | awk -F'"' '{print $2}')
+  CALICO_DATAPLANE=$(yq_read '.features.calico.dataplane' "$ARGOCD_CONFIG_FILE")
   CALICO_DATAPLANE=${CALICO_DATAPLANE:-bpf}
-  CALICO_ENCAPSULATION=$(grep -A5 "^  calico:" "$ARGOCD_CONFIG_FILE" | grep "encapsulation:" | head -1 | awk -F'"' '{print $2}')
+  CALICO_ENCAPSULATION=$(yq_read '.features.calico.encapsulation' "$ARGOCD_CONFIG_FILE")
   CALICO_ENCAPSULATION=${CALICO_ENCAPSULATION:-VXLAN}
-  CALICO_BGP_ENABLED=$(grep -A10 "^  calico:" "$ARGOCD_CONFIG_FILE" | grep -A3 "bgp:" | grep "enabled:" | head -1 | awk '{print $2}')
+  CALICO_BGP_ENABLED=$(yq_read '.features.calico.bgp.enabled' "$ARGOCD_CONFIG_FILE")
   CALICO_BGP_ENABLED=${CALICO_BGP_ENABLED:-false}
   export CALICO_DATAPLANE CALICO_ENCAPSULATION CALICO_BGP_ENABLED
   echo "Calico dataplane: $CALICO_DATAPLANE (encapsulation=$CALICO_ENCAPSULATION, bgp=$CALICO_BGP_ENABLED)"
@@ -324,7 +334,7 @@ fi
 # Klipper uses node IPs so static IP forwarding is not supported
 if [ "$LB_PROVIDER" != "klipper" ]; then
   # Read external-dns static IP from ArgoCD config
-  EXTERNAL_DNS_IP=$(grep -A10 "staticIPs:" "$ARGOCD_CONFIG_FILE" | grep "externalDns:" | awk -F'"' '{print $2}')
+  EXTERNAL_DNS_IP=$(yq_read '.features.loadBalancer.staticIPs.externalDns' "$ARGOCD_CONFIG_FILE")
   if [ -n "$EXTERNAL_DNS_IP" ]; then
     echo "Configuring CoreDNS to forward k8s.lan to external-dns ($EXTERNAL_DNS_IP)..."
     mkdir -p /var/lib/rancher/rke2/server/manifests

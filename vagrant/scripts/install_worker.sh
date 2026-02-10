@@ -15,13 +15,28 @@ else
 fi
 
 . "$SCRIPT_DIR/RKE2_ENV.sh"
+
+# Verify yq (mikefarah) is available (installed by install_common.sh)
+if ! command -v yq &>/dev/null || ! yq --version 2>&1 | grep -q "mikefarah"; then
+  echo "ERROR: yq (mikefarah) is required but not found. Ensure install_common.sh ran first."
+  echo "Note: The apt 'yq' package (kislyuk/yq) is NOT compatible."
+  exit 1
+fi
+
+# Helper: read YAML value with yq, returns empty string if null/missing
+yq_read() {
+  local result
+  result=$(yq eval "$1" "$2" 2>/dev/null)
+  [ "$result" = "null" ] && echo "" || echo "$result"
+}
+
 curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
 mkdir -p /etc/rancher/rke2/
 
 # Read CIS configuration from ArgoCD config (single source of truth)
 CONFIG_FILE="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
-CIS_ENABLED=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "enabled:" | awk '{print $2}' | tr -d ' ')
-CIS_PROFILE=$(grep -A5 "^rke2:" "$CONFIG_FILE" | grep "profile:" | awk '{print $2}' | tr -d '"' | tr -d ' ')
+CIS_ENABLED=$(yq_read '.rke2.cis.enabled' "$CONFIG_FILE")
+CIS_PROFILE=$(yq_read '.rke2.cis.profile' "$CONFIG_FILE")
 
 # CIS Hardening: Apply required kernel parameters and create etcd user if enabled
 # https://docs.rke2.io/security/hardening_guide
@@ -42,11 +57,11 @@ if [ "$CIS_ENABLED" = "true" ]; then
   systemctl restart systemd-sysctl
 
   # Read kubelet hardening options from config (with defaults)
-  EVENT_QPS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "eventQps:" | awk '{print $2}' | tr -d ' ')
-  POD_MAX_PIDS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "podMaxPids:" | awk '{print $2}' | tr -d ' ')
-  ANONYMOUS_AUTH=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "anonymousAuth:" | awk '{print $2}' | tr -d ' ')
-  MAKE_IPTABLES_UTIL_CHAINS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "makeIptablesUtilChains:" | awk '{print $2}' | tr -d ' ')
-  PROTECT_KERNEL_DEFAULTS=$(grep -A20 "hardening:" "$CONFIG_FILE" | grep "protectKernelDefaults:" | awk '{print $2}' | tr -d ' ')
+  EVENT_QPS=$(yq_read '.rke2.cis.hardening.kubelet.eventQps' "$CONFIG_FILE")
+  POD_MAX_PIDS=$(yq_read '.rke2.cis.hardening.kubelet.podMaxPids' "$CONFIG_FILE")
+  ANONYMOUS_AUTH=$(yq_read '.rke2.cis.hardening.kubelet.anonymousAuth' "$CONFIG_FILE")
+  MAKE_IPTABLES_UTIL_CHAINS=$(yq_read '.rke2.cis.hardening.kubelet.makeIptablesUtilChains' "$CONFIG_FILE")
+  PROTECT_KERNEL_DEFAULTS=$(yq_read '.rke2.cis.hardening.kubelet.protectKernelDefaults' "$CONFIG_FILE")
 
   # Set defaults if not specified
   EVENT_QPS=${EVENT_QPS:-5}
