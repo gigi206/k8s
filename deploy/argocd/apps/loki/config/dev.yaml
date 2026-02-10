@@ -27,7 +27,7 @@ loki:
 
   # Stockage
   storage:
-    type: s3  # filesystem ou s3
+    type: s3  # filesystem ou s3 (auto-fallback to filesystem if features.s3.enabled=false)
     # S3 configuration (used when type: s3)
     s3:
       secretName: loki-storage  # Secret créé par ObjectBucketClaim
