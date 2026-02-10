@@ -321,6 +321,27 @@ spec:
                           kind: Middleware
                           name: oauth2-proxy-auth
                   {{- end }}
+                  {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "apisix") }}
+                  # Add oauth2-protected label for APISIX global rule discovery
+                  # and /oauth2/ route for OAuth2 Proxy callback flow
+                  - op: add
+                    path: /metadata/labels/oauth2-protected
+                    value: "true"
+                  - op: add
+                    path: /spec/rules/0
+                    value:
+                      matches:
+                        - path:
+                            type: PathPrefix
+                            value: /oauth2/
+                      backendRefs:
+                        - group: ""
+                          kind: Service
+                          name: oauth2-proxy
+                          namespace: oauth2-proxy
+                          port: 4180
+                          weight: 1
+                  {{- end }}
               - target:
                   kind: ReferenceGrant
                   name: gateway-longhorn-tls
@@ -349,6 +370,9 @@ spec:
                 patch: |
                   - op: replace
                     path: /spec/http/0/match/hosts/0
+                    value: longhorn.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/http/1/match/hosts/0
                     value: longhorn.{{ .common.domain }}
         {{- end }}
         {{- end }}
