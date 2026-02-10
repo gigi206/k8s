@@ -257,6 +257,157 @@ ADMISSIONEOF
     echo "Created admission config with EventRateLimit: $ADMISSION_CONFIG_FILE"
   fi
 
+  # Audit logging (K.1.2.11-14)
+  # CIS profile auto-configures kube-apiserver flags:
+  #   --audit-policy-file=/etc/rancher/rke2/audit-policy.yaml
+  #   --audit-log-path=/var/lib/rancher/rke2/server/logs/audit.log
+  #   --audit-log-maxage=30, --audit-log-maxbackup=10, --audit-log-maxsize=100
+  # We pre-create the audit policy file BEFORE RKE2 starts so it uses our custom
+  # policy instead of generating the default (level: None) which logs nothing.
+  AUDIT_ENABLED=$(yq_read '.rke2.cis.hardening.audit.enabled' "$ARGOCD_CONFIG_FILE")
+  AUDIT_ENABLED=${AUDIT_ENABLED:-true}
+
+  if [ "$AUDIT_ENABLED" = "true" ]; then
+    echo "Creating custom audit policy: /etc/rancher/rke2/audit-policy.yaml"
+    cat > /etc/rancher/rke2/audit-policy.yaml <<'AUDITEOF'
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Skip RequestReceived stage (fires before handler, ~50% volume reduction)
+omitStages:
+  - "RequestReceived"
+rules:
+  # ============================================================
+  # EXCLUSIONS (high-volume, low-value)
+  # ============================================================
+
+  # Health/readiness probes and metrics endpoints
+  - level: None
+    nonResourceURLs:
+      - "/healthz*"
+      - "/livez*"
+      - "/readyz*"
+      - "/version"
+      - "/metrics"
+
+  # Events and endpoints (informational, not security-relevant)
+  - level: None
+    resources:
+      - group: ""
+        resources: ["events", "endpoints"]
+
+  # Internal system components read operations (very high volume)
+  # Mutations by system accounts are still logged via subsequent rules
+  - level: None
+    users:
+      - "system:kube-scheduler"
+      - "system:kube-proxy"
+      - "system:apiserver"
+      - "system:kube-controller-manager"
+      - "system:serviceaccount:kube-system:generic-garbage-collector"
+      - "system:serviceaccount:kube-system:namespace-controller"
+      - "system:serviceaccount:kube-system:resourcequota-controller"
+      - "system:serviceaccount:kube-system:coredns"
+      - "system:serviceaccount:kube-system:endpointslice-controller"
+      - "system:serviceaccount:kube-system:endpoint-controller"
+    verbs: ["get", "list", "watch"]
+
+  # Read-only operations on high-churn resources
+  - level: None
+    verbs: ["get", "list"]
+    resources:
+      - group: ""
+        resources: ["nodes/status", "pods/status"]
+
+  # ============================================================
+  # SENSITIVE RESOURCES (metadata only - never log body)
+  # Placed BEFORE watch exclusion so watches on secrets/configmaps
+  # are still captured at Metadata level
+  # ============================================================
+
+  # Secrets: metadata only to prevent credential leakage in audit logs
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  # ConfigMaps: metadata only (may contain sensitive configuration)
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["configmaps"]
+
+  # Token reviews: metadata only
+  - level: Metadata
+    resources:
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+
+  # Watch operations (continuous streams, very high volume)
+  # Placed AFTER sensitive resources rules so watches on
+  # secrets/configmaps/tokenreviews are still logged at Metadata
+  - level: None
+    verbs: ["watch"]
+
+  # ============================================================
+  # SECURITY-CRITICAL MUTATIONS (full request+response)
+  # ============================================================
+
+  # Interactive container access: full forensic trail (post-exploitation detection)
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/portforward", "pods/attach"]
+    verbs: ["create"]
+
+  # RBAC changes: full audit trail for forensics
+  - level: RequestResponse
+    resources:
+      - group: "rbac.authorization.k8s.io"
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Namespace and ServiceAccount lifecycle
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["namespaces", "serviceaccounts"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # ============================================================
+  # WORKLOAD MUTATIONS (request body for change tracking)
+  # ============================================================
+
+  # Pod and workload operations
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["pods"]
+      - group: "apps"
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - group: "batch"
+        resources: ["jobs", "cronjobs"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Network and storage mutations
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["services", "persistentvolumeclaims", "persistentvolumes"]
+      - group: "networking.k8s.io"
+      - group: "cilium.io"
+      - group: "crd.projectcalico.org"
+      - group: "gateway.networking.k8s.io"
+    verbs: ["create", "delete", "update", "patch"]
+
+  # ============================================================
+  # CATCH-ALL: metadata for everything else
+  # ============================================================
+  - level: Metadata
+AUDITEOF
+    echo "✓ Custom audit policy created (replaces CIS default level: None)"
+  else
+    echo "⚠ Audit logging disabled in config - CIS default policy (level: None) will be used"
+  fi
+
   # Add kubelet args for CIS hardening (K.4.2.1, K.4.2.6, K.4.2.8, K.4.2.11, K.4.2.13)
   echo "kubelet-arg:" >> /etc/rancher/rke2/config.yaml
   echo "- anonymous-auth=$ANONYMOUS_AUTH" >> /etc/rancher/rke2/config.yaml

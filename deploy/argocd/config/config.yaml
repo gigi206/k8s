@@ -314,6 +314,11 @@ rke2:
         eventQps: 5                     # K.4.2.8 - Limit kubelet event rate
         podMaxPids: 4096                # K.4.2.13 - Limit PIDs per pod (DoS protection)
         protectKernelDefaults: true     # K.4.2.11 - Protect kernel tunable parameters
+      # Audit logging (K.1.2.11-14)
+      # CIS profile auto-configures kube-apiserver flags (audit-log-path, maxage, maxbackup, maxsize)
+      # This creates a custom audit policy to replace the CIS default (level: None)
+      audit:
+        enabled: true                   # K.1.2.11 - Create custom audit policy (replaces CIS default level: None)
       # File permissions fixes (K.1.1.12, K.1.1.20)
       filePermissions:
         fixEtcdOwnership: true          # K.1.1.12 - chown etcd:etcd on etcd data
