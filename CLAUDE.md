@@ -525,6 +525,12 @@ See `apps/cilium/README.md` for detailed troubleshooting.
 
 These are applied at RKE2 bootstrap via `install_master.sh` → `configure_cilium.sh` → HelmChartConfig, **not** through ArgoCD ApplicationSet.
 
+**Audit logging** (bootstrap-level via `install_master.sh`):
+- `rke2.cis.hardening.audit.enabled` → Custom audit policy replacing CIS default (`level: None`)
+  - CIS profile auto-configures kube-apiserver flags (audit-log-path, maxage, maxbackup, maxsize)
+  - Pre-creates `/etc/rancher/rke2/audit-policy.yaml` before RKE2 starts
+  - Alloy collects audit logs when `rke2.cis.enabled` AND `alloy.logs.audit.enabled` (already configured)
+
 **Calico-specific settings** (`features.calico.*`):
 - `features.calico.monitoring.enabled` → ServiceMonitors + PrometheusRules + dashboards
 - `features.calico.dataplane` → `bpf` (eBPF, default) or `iptables`
