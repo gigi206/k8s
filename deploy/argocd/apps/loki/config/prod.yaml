@@ -4,7 +4,7 @@ appName: loki
 
 loki:
   namespace: loki
-  version: "6.49.0"  # Helm chart version - Renovate will update this
+  version: "6.53.0"  # Helm chart version - Renovate will update this
 
   # Mode déploiement: SingleBinary, SimpleScalable, Distributed
   deploymentMode: SimpleScalable
