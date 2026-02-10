@@ -22,7 +22,7 @@ rook:
 
   # Cluster configuration
   cluster:
-    version: "v1.18.9"
+    version: "v1.19.1"
     cephVersion: "19.2.0"
     osdPoolDefaultSize: 3
     mon:
