@@ -8,7 +8,7 @@ dashboard:
   folder: "CloudNativePG"
 
 cnpgOperator:
-  version: "0.27.0"
+  version: "0.27.1"
   # Single replica for dev
   replicaCount: 1
 
