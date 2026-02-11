@@ -70,6 +70,21 @@ spec:
 
   templatePatch: |
     spec:
+      # Ignore default fields added by controllers (ExternalSecrets, Envoy Gateway)
+      ignoreDifferences:
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .spec.data[].remoteRef.conversionStrategy
+            - .spec.data[].remoteRef.decodingStrategy
+            - .spec.data[].remoteRef.metadataPolicy
+        - group: gateway.envoyproxy.io
+          kind: SecurityPolicy
+          jqPathExpressions:
+            - .spec.oidc.clientSecret.group
+            - .spec.oidc.clientSecret.kind
+            - .spec.oidc.provider.backendRefs[].weight
+            - .spec.oidc.refreshToken
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}

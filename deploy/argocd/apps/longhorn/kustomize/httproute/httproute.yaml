@@ -4,7 +4,6 @@ kind: HTTPRoute
 metadata:
   name: longhorn-ui
   namespace: longhorn-system
-  labels: {}
   annotations:
     # cert-manager will create longhorn-cert-tls secret in longhorn-system
     cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
