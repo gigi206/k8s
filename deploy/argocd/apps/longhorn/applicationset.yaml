@@ -212,7 +212,32 @@ spec:
         {{- end }}
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
+        {{- if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "nginx-gwf") }}
+        # Source: HTTPRoute + OAuth2 SnippetsFilter for nginx-gwf (atomic deployment)
+        # SECURITY: HTTPRoutes and SnippetsFilter in same source = fail together if CRD missing
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/longhorn/kustomize/httproute-oauth2-nginx-gwf
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: longhorn-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: longhorn.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-longhorn-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- else if and .features.oauth2Proxy.enabled (eq .features.gatewayAPI.controller.provider "istio") }}
         # Source: HTTPRoute + OAuth2 AuthorizationPolicy for Istio (atomic deployment)
         # SECURITY: HTTPRoutes and AuthorizationPolicy in same source = fail together if CRD missing
         - repoURL: https://github.com/gigi206/k8s
