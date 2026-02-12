@@ -497,6 +497,7 @@ spec:
               configOverride: |
                 [global]
                 osd_pool_default_size = {{ .rook.cluster.osdPoolDefaultSize }}
+                mon_warn_on_pool_no_redundancy = {{ .rook.cluster.monWarnOnPoolNoRedundancy }}
 
               monitoring:
                 enabled: {{ .features.monitoring.enabled }}
