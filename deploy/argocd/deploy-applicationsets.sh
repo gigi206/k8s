@@ -654,13 +654,6 @@ validate_dependencies() {
     fi
   fi
 
-  # Vérifier que les features Calico-specific nécessitent CNI Calico
-  if [[ "$FEAT_CALICO_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" != "calico" ]]; then
-    log_error "features.calico.monitoring.enabled=true nécessite cni.primary=calico"
-    log_error "  Les ServiceMonitors Calico ne fonctionnent qu'avec Calico CNI"
-    errors=$((errors + 1))
-  fi
-
   # Vérifier CNI primary est valide
   case "$FEAT_CNI_PRIMARY" in
     cilium|calico) ;;
