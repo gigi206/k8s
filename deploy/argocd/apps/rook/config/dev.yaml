@@ -25,6 +25,7 @@ rook:
     version: "v1.19.1"
     cephVersion: "19.2.0"
     osdPoolDefaultSize: 1
+    monWarnOnPoolNoRedundancy: false
     mon:
       count: 1
       allowMultiplePerNode: true
