@@ -56,18 +56,41 @@ spec:
                 -o jsonpath='{.spec.template.spec.initContainers[?(@.name=="wait-for-ca")].name}' 2>/dev/null || echo "")
 
               if [ "$EXISTING_VOL" = "root-ca" ] && [ "$EXISTING_INIT" = "wait-for-ca" ]; then
-                echo "CA volume and initContainer already configured, restarting controller to pick up any CA updates..."
-                kubectl rollout restart deployment/neuvector-controller-pod -n neuvector
+                echo "CA volume and initContainer already configured"
+
+                # Only restart if the CA cert has actually changed
+                # Go caches SSL_CERT_FILE at startup, so a restart is needed on CA rotation
+                CURRENT_HASH=$(kubectl get secret root-ca -n neuvector -o jsonpath='{.data.ca\.crt}' | sha256sum | awk '{print $1}')
+                LAST_HASH=$(kubectl get deployment neuvector-controller-pod -n neuvector \
+                  -o jsonpath='{.spec.template.metadata.annotations.neuvector\.io/ca-hash}' 2>/dev/null || echo "")
+
+                if [ "$CURRENT_HASH" = "$LAST_HASH" ]; then
+                  echo "CA cert unchanged (hash: ${CURRENT_HASH:0:12}...), no restart needed"
+                  exit 0
+                fi
+
+                echo "CA cert changed (old: ${LAST_HASH:0:12}... new: ${CURRENT_HASH:0:12}...), restarting controllers..."
+                kubectl patch deployment neuvector-controller-pod -n neuvector --type=merge -p \
+                  "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"neuvector.io/ca-hash\":\"$CURRENT_HASH\"}}}}}"
                 exit 0
               fi
 
-              # Apply strategic merge patch to add initContainer, volume and volumeMount
+              # Compute initial CA hash for change detection on subsequent syncs
+              CURRENT_HASH=$(kubectl get secret root-ca -n neuvector -o jsonpath='{.data.ca\.crt}' | sha256sum | awk '{print $1}')
+
+              # Apply strategic merge patch to add initContainer, volume, volumeMount and CA hash annotation
               # The initContainer waits for the CA secret to be ready before starting the controller
+              # The ca-hash annotation enables change detection on subsequent syncs
               echo "Patching NeuVector controller deployment..."
               kubectl patch deployment neuvector-controller-pod -n neuvector --type=strategic -p '
               {
                 "spec": {
                   "template": {
+                    "metadata": {
+                      "annotations": {
+                        "neuvector.io/ca-hash": "'"$CURRENT_HASH"'"
+                      }
+                    },
                     "spec": {
                       "initContainers": [
                         {
