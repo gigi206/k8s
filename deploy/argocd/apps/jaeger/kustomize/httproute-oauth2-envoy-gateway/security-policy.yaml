@@ -30,6 +30,7 @@ spec:
         kind: Backend
         name: backend-keycloak
         port: 443
+        weight: 1
       issuer: "https://keycloak.PLACEHOLDER.example.com/realms/k8s"  # Patched via Kustomize
       authorizationEndpoint: "https://keycloak.PLACEHOLDER.example.com/realms/k8s/protocol/openid-connect/auth"
       tokenEndpoint: "https://keycloak.PLACEHOLDER.example.com/realms/k8s/protocol/openid-connect/token"
@@ -45,6 +46,9 @@ spec:
             triggers: ["5xx", "gateway-error", "reset", "connect-failure"]
     clientID: "oauth2-proxy"
     clientSecret:
+      group: ""
+      kind: Secret
       name: "oidc-client-secret"
     redirectURL: "https://jaeger.PLACEHOLDER.example.com/oauth2/callback"  # Patched via Kustomize
     logoutPath: "/oauth2/sign_out"
+    refreshToken: true
