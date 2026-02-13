@@ -494,6 +494,24 @@ spec:
         {{- end }}
         {{- end }}
 
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak - Register OAuth2 Proxy redirect URIs for Hubble UI
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/cilium/kustomize/sso-keycloak
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: cilium-oauth2-proxy-uris
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+        {{- end }}
+
         # Source 3: Kustomize monitoring resources
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

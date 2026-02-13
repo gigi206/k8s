@@ -419,6 +419,23 @@ spec:
         {{- end }}
         {{- end }}
 
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak - Register OAuth2 Proxy redirect URIs for Jaeger
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/jaeger/kustomize/sso-keycloak
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: jaeger-oauth2-proxy-uris
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+        {{- end }}
         {{- if .features.monitoring.enabled }}
         # Source 5: PrometheusRules for Jaeger monitoring
         - repoURL: https://github.com/gigi206/k8s
