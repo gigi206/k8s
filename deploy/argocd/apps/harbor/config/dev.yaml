@@ -28,12 +28,15 @@ harbor:
       size: "10Gi"
     jobservice:
       size: "1Gi"
-    database:
-      size: "2Gi"
     redis:
       size: "1Gi"
     trivy:
       size: "5Gi"
+
+  # PostgreSQL CNPG configuration
+  database:
+    instances: 1
+    storageSize: "2Gi"
 
   # Component replicas (dev: single instance)
   portal:

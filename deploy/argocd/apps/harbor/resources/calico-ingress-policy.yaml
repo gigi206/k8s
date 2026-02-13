@@ -33,6 +33,16 @@ spec:
           - 6379
           - 8001
 
+    # Allow from cnpg-system (CNPG operator manages PostgreSQL)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "cnpg-system"'
+      destination:
+        ports:
+          - 8000
+          - 8080
+
     # Allow from monitoring namespace (Prometheus scrape metrics)
     - action: Allow
       protocol: TCP
@@ -41,3 +51,4 @@ spec:
       destination:
         ports:
           - 8001
+          - 9187

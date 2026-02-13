@@ -76,6 +76,17 @@ spec:
             - .spec.data[].remoteRef.metadataPolicy
             - .spec.target.deletionPolicy
             - .status
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+            - manager
+          jqPathExpressions:
+            - .spec
+        - group: monitoring.coreos.com
+          kind: PodMonitor
+          jqPathExpressions:
+            - .spec.selector
+            - .spec.podMetricsEndpoints
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
@@ -106,7 +117,28 @@ spec:
             include: "ceph-storage-presync-check.yaml"
         {{- end }}
 
-        # Source: SOPS-encrypted secrets (admin credentials + OIDC client secret)
+        # Source: PreSync hook - Wait for CNPG webhook before creating PostgreSQL Cluster
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/harbor/resources
+          directory:
+            include: "cnpg-webhook-presync-check.yaml"
+
+        # Source: PostgreSQL Cluster (CNPG) - sync-wave -1
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/harbor/resources
+          directory:
+            include: "cluster-postgresql.yaml"
+
+        # Source: DB Readiness Check - Sync hook
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/harbor/resources
+          directory:
+            include: "db-readiness-check.yaml"
+
+        # Source: SOPS-encrypted secrets (admin credentials + OIDC client secret + DB credentials)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/harbor/secrets/{{ .environment }}
@@ -321,6 +353,15 @@ spec:
               existingSecretAdminPassword: "harbor-admin-credentials"
               existingSecretAdminPasswordKey: "HARBOR_ADMIN_PASSWORD"
               caBundleSecretName: "root-ca"
+              database:
+                type: external
+                external:
+                  host: harbor-db-rw.harbor.svc
+                  port: "5432"
+                  username: harbor
+                  coreDatabase: registry
+                  existingSecret: harbor-db-credentials
+                  sslmode: disable
               persistence:
                 persistentVolumeClaim:
                   registry:
@@ -334,11 +375,6 @@ spec:
                       size: '{{ .harbor.persistence.jobservice.size }}'
                       annotations:
                         argocd.argoproj.io/sync-options: Prune=false
-                  database:
-                    storageClass: '{{ .features.storage.class }}'
-                    size: '{{ .harbor.persistence.database.size }}'
-                    annotations:
-                      argocd.argoproj.io/sync-options: Prune=false
                   redis:
                     storageClass: '{{ .features.storage.class }}'
                     size: '{{ .harbor.persistence.redis.size }}'

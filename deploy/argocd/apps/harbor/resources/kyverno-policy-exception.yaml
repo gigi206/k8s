@@ -1,7 +1,8 @@
 ---
 # PolicyException for Harbor namespace
-# Only the ceph storage presync check Job needs SA token mount (uses kubectl).
-# All Harbor Helm chart components already set automountServiceAccountToken: false.
+# CNPG pods and PreSync/Sync check Jobs need SA token mount.
+# Harbor Helm chart components already set automountServiceAccountToken: false,
+# so we exclude them via label selector (same pattern as Keycloak).
 apiVersion: kyverno.io/v2
 kind: PolicyException
 metadata:
@@ -21,8 +22,16 @@ spec:
       - resources:
           namespaces:
             - harbor
-          names:
-            - "harbor-ceph-storage-check*"
           kinds:
             - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
             - Job
+            - CronJob
+          selector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: NotIn
+                values:
+                  - harbor
