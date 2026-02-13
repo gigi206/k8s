@@ -1,0 +1,54 @@
+---
+# Configuration Harbor - Dev
+# Single instance, minimal resources, PVC storage
+environment: dev
+appName: harbor
+
+# Dashboard configuration for Grafana
+dashboard:
+  folder: "Harbor"
+
+harbor:
+  version: "1.18.2"
+
+  # External URL (built from common.domain in ApplicationSet)
+  # externalURL set dynamically via ApplicationSet Go template
+
+  # Expose configuration
+  expose:
+    type: "clusterIP"
+
+  # Internal TLS between Harbor components
+  internalTLS:
+    enabled: false
+
+  # Persistence (PVC-based, uses storage.class from config.yaml)
+  persistence:
+    registry:
+      size: "10Gi"
+    jobservice:
+      size: "1Gi"
+    database:
+      size: "2Gi"
+    redis:
+      size: "1Gi"
+    trivy:
+      size: "5Gi"
+
+  # Component replicas (dev: single instance)
+  portal:
+    replicas: 1
+  core:
+    replicas: 1
+  jobservice:
+    replicas: 1
+  registry:
+    replicas: 1
+  trivy:
+    replicas: 1
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

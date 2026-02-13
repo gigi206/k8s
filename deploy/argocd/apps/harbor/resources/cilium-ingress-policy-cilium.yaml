@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Harbor Ingress from Cilium Gateway
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-ingress-cilium
+  namespace: harbor
+spec:
+  description: "Allow ingress to Harbor from Cilium Gateway"
+  endpointSelector: {}
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

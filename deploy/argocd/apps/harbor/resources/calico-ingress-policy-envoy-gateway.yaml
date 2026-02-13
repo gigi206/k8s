@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Harbor Ingress from Envoy Gateway
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-ingress-envoy-gateway
+  namespace: harbor
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "envoy-gateway-system"'
+      destination:
+        ports:
+          - 80
+          - 443

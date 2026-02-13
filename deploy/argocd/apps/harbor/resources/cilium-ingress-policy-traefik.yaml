@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Harbor Ingress from Traefik
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-ingress-traefik
+  namespace: harbor
+spec:
+  description: "Allow ingress to Harbor from Traefik"
+  endpointSelector: {}
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

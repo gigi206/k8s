@@ -1,0 +1,43 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Harbor Internal Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress-policy.yaml
+# Allows internal communication within harbor namespace
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-internal
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow internal Harbor communication (same namespace)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "harbor"'
+      destination:
+        ports:
+          - 80
+          - 443
+          - 8080
+          - 8443
+          - 5000
+          - 5432
+          - 6379
+          - 8001
+
+    # Allow from monitoring namespace (Prometheus scrape metrics)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 8001

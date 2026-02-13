@@ -391,6 +391,8 @@ FEAT_SSO_PROVIDER=$(get_feature '.features.sso.provider' 'keycloak')
 FEAT_OAUTH2_PROXY=$(get_feature '.features.oauth2Proxy.enabled' 'true')
 FEAT_NEUVECTOR=$(get_feature '.features.neuvector.enabled' 'false')
 FEAT_KUBESCAPE=$(get_feature '.features.kubescape.enabled' 'false')
+FEAT_REGISTRY=$(get_feature '.features.registry.enabled' 'false')
+FEAT_REGISTRY_PROVIDER=$(get_feature '.features.registry.provider' 'harbor')
 FEAT_TRACING=$(get_feature '.features.tracing.enabled' 'false')
 FEAT_TRACING_PROVIDER=$(get_feature '.features.tracing.provider' 'jaeger')
 FEAT_SERVICEMESH_WAYPOINTS=$(get_feature '.features.serviceMesh.waypoints.enabled' 'false')
@@ -447,6 +449,7 @@ log_debug "  sso: $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 log_debug "  oauth2Proxy: $FEAT_OAUTH2_PROXY"
 log_debug "  neuvector: $FEAT_NEUVECTOR"
 log_debug "  kubescape: $FEAT_KUBESCAPE"
+log_debug "  registry: $FEAT_REGISTRY ($FEAT_REGISTRY_PROVIDER)"
 log_debug "  tracing: $FEAT_TRACING ($FEAT_TRACING_PROVIDER)"
 log_debug "  serviceMesh.waypoints: $FEAT_SERVICEMESH_WAYPOINTS"
 log_debug "  networkPolicy.egressPolicy: $FEAT_NP_EGRESS_POLICY"
@@ -946,6 +949,15 @@ fi
 
 # NeuVector (container security platform)
 [[ "$FEAT_NEUVECTOR" == "true" ]] && APPLICATIONSETS+=("apps/neuvector/applicationset.yaml")
+
+# Container Registry
+if [[ "$FEAT_REGISTRY" == "true" ]]; then
+  case "$FEAT_REGISTRY_PROVIDER" in
+    harbor)
+      APPLICATIONSETS+=("apps/harbor/applicationset.yaml")
+      ;;
+  esac
+fi
 
 # Kubescape (Kubernetes security scanning)
 [[ "$FEAT_KUBESCAPE" == "true" ]] && APPLICATIONSETS+=("apps/kubescape/applicationset.yaml")

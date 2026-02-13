@@ -40,6 +40,7 @@ deploy/argocd/
     │   ├── monitoring/             # ServiceMonitors, PrometheusRules, dashboards
     │   ├── httproute/              # HTTPRoute (Gateway API)
     │   ├── apisix/                 # ApisixRoute/ApisixUpstream
+    │   ├── httproute-oauth2-envoy-gateway/  # HTTPRoute + SecurityPolicy OIDC (Envoy Gateway)
     │   ├── oauth2-authz/           # AuthorizationPolicy
     │   ├── sso/                    # ExternalSecrets, Keycloak clients
     │   └── gateway/                # Gateway API resources
@@ -81,6 +82,7 @@ Always use conditions based on `config/config.yaml` to enable optional features:
 | `{{- if .features.tracing.enabled }}` | tracing config |
 | `{{- if .features.serviceMesh.enabled }}` | service mesh integration |
 | `{{- if .features.ingress.enabled }}` | Ingress config |
+| `{{- if .features.registry.enabled }}` | Container registry (harbor) |
 | `{{- if .features.certManager.enabled }}` | TLS annotations |
 | `{{- if .syncPolicy.automated.enabled }}` | automated sync block |
 
@@ -156,6 +158,8 @@ sops decrypt apps/<app>/secrets/dev/secret.yaml              # View
 - **Network policies**: CNI-specific files (`cilium-*-policy.yaml` / `calico-*-policy.yaml`). See `apps/cilium/README.md`
 - **CNI selection**: `cni.primary: "cilium" | "calico"` in `config/config.yaml`. See `apps/cilium/README.md`, `apps/calico/README.md` (if exists)
 - **LoadBalancer providers**: metallb, cilium, loxilb, kube-vip, klipper. See `deploy-applicationsets.sh`
+- **PostSync hooks**: use `hook-delete-policy: BeforeHookCreation,HookSucceeded` for idempotent Jobs (allows re-sync after failure)
+- **Helm admin secrets**: use `existingSecret*` pattern + SOPS instead of hardcoding passwords in values
 - **Bootstrap features** (Cilium encryption, mutual auth, audit logging): applied via `install_master.sh`, NOT ArgoCD
 
 ## Common Commands

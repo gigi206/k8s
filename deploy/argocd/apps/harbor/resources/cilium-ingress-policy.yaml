@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Harbor Internal Ingress
+# =============================================================================
+# Allows internal communication within harbor namespace.
+# Harbor components (core, portal, registry, jobservice, trivy, database, redis)
+# need to communicate with each other.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-internal
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  description: "Allow internal ingress to Harbor"
+  endpointSelector: {}  # Applies to all pods in harbor namespace
+
+  ingress:
+    # Allow internal Harbor communication (same namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: harbor
+      toPorts:
+        - ports:
+            - port: "80"       # Harbor nginx/portal HTTP
+              protocol: TCP
+            - port: "443"      # Harbor nginx HTTPS
+              protocol: TCP
+            - port: "8080"     # Core, Portal, JobService, Trivy HTTP
+              protocol: TCP
+            - port: "8443"     # Core HTTPS (internal TLS)
+              protocol: TCP
+            - port: "5000"     # Registry
+              protocol: TCP
+            - port: "5432"     # PostgreSQL
+              protocol: TCP
+            - port: "6379"     # Redis
+              protocol: TCP
+            - port: "8001"     # Metrics (registry, jobservice, core, exporter)
+              protocol: TCP
+
+    # Allow from monitoring namespace (Prometheus scrape metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8001"     # Harbor metrics
+              protocol: TCP

@@ -129,7 +129,7 @@ spec:
               {
                 "clientId": "${CLIENT_ID}",
                 "name": "OAuth2 Proxy",
-                "description": "OAuth2 Proxy for protecting apps (Prometheus, Alertmanager, Hubble, Longhorn)",
+                "description": "OAuth2 Proxy for protecting apps (Prometheus, Alertmanager, Hubble, Longhorn, Harbor)",
                 "enabled": true,
                 "clientAuthenticatorType": "client-secret",
                 "secret": "${CLIENT_SECRET}",
@@ -139,13 +139,15 @@ spec:
                   "https://alertmanager.${DOMAIN}/oauth2/callback",
                   "https://hubble.${DOMAIN}/oauth2/callback",
                   "https://longhorn.${DOMAIN}/oauth2/callback",
-                  "https://jaeger.${DOMAIN}/oauth2/callback"
+                  "https://jaeger.${DOMAIN}/oauth2/callback",
+                  "https://harbor.${DOMAIN}/oauth2/callback"
                 ],
                 "webOrigins": [
                   "https://prometheus.${DOMAIN}",
                   "https://alertmanager.${DOMAIN}",
                   "https://hubble.${DOMAIN}",
-                  "https://longhorn.${DOMAIN}"
+                  "https://longhorn.${DOMAIN}",
+                  "https://harbor.${DOMAIN}"
                 ],
                 "publicClient": false,
                 "protocol": "openid-connect",
@@ -155,7 +157,7 @@ spec:
                 "serviceAccountsEnabled": false,
                 "attributes": {
                   "pkce.code.challenge.method": "S256",
-                  "post.logout.redirect.uris": "https://prometheus.${DOMAIN}/*##https://alertmanager.${DOMAIN}/*##https://hubble.${DOMAIN}/*##https://longhorn.${DOMAIN}/*"
+                  "post.logout.redirect.uris": "https://prometheus.${DOMAIN}/*##https://alertmanager.${DOMAIN}/*##https://hubble.${DOMAIN}/*##https://longhorn.${DOMAIN}/*##https://harbor.${DOMAIN}/*"
                 },
                 "defaultClientScopes": [
                   "openid",
@@ -174,7 +176,7 @@ spec:
 
               if echo "$EXISTING_CLIENT" | grep -q "\"id\""; then
                 # Client exists, get ID and update
-                CLIENT_UUID=$(echo "$EXISTING_CLIENT" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+                CLIENT_UUID=$(echo "$EXISTING_CLIENT" | sed -n 's/\[{"id":"\([^"]*\)".*/\1/p')
                 echo "Client exists with ID: ${CLIENT_UUID}, updating..."
 
                 RESPONSE=$(curl -sk -w "\n%{http_code}" -X PUT \

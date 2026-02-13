@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Harbor Ingress from APISIX
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-ingress-apisix
+  namespace: harbor
+spec:
+  description: "Allow ingress to Harbor from APISIX"
+  endpointSelector: {}
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: apisix
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

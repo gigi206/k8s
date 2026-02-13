@@ -271,6 +271,10 @@ features:
     enabled: false # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
   neuvector:
     enabled: true # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+  # === Container Registry ===
+  registry:
+    enabled: true # Container registry
+    provider: "harbor" # harbor
 # =============================================================================
 # CNI Configuration
 # =============================================================================

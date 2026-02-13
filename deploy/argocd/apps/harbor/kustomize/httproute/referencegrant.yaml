@@ -1,0 +1,15 @@
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: gateway-harbor-tls
+  namespace: harbor
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    namespace: PLACEHOLDER_GATEWAY_NS  # Patched via Kustomize from gatewayAPI.controller.gatewayNamespace
+  to:
+  - group: ""
+    kind: Secret
+    name: harbor-cert-tls

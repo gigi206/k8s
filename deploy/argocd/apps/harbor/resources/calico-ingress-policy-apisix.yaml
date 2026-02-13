@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Harbor Ingress from APISIX
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-ingress-apisix
+  namespace: harbor
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "apisix"'
+      destination:
+        ports:
+          - 80
+          - 443

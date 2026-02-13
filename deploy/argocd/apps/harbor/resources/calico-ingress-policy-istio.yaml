@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Harbor Ingress from Istio Gateway
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: harbor-ingress-istio
+  namespace: harbor
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 80
+          - 443
