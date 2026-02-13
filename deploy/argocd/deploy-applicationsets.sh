@@ -875,7 +875,6 @@ APPLICATIONSETS+=("apps/argocd/applicationset.yaml")
 # Storage
 if [[ "$FEAT_STORAGE" == "true" ]]; then
   [[ "$FEAT_CSI_SNAPSHOTTER" == "true" ]] && APPLICATIONSETS+=("apps/csi-external-snapshotter/applicationset.yaml")
-
   case "$FEAT_STORAGE_PROVIDER" in
     longhorn)
       APPLICATIONSETS+=("apps/longhorn/applicationset.yaml")
@@ -1307,6 +1306,9 @@ apply_manifest_patches() {
     sed -i "s|targetRevision: '{{ .git.revision }}'|targetRevision: '${CI_GIT_BRANCH}'|g" "$manifest_file"
   fi
 
+  # Strip monitoring blocks from templates when monitoring is disabled
+  # Required because ArgoCD merge generator converts all values to strings,
+  # making {{- if .features.monitoring.enabled }} truthy even when "false"
   if [[ "$FEAT_MONITORING" == "false" ]]; then
     log_info "Stripping monitoring blocks from templates (monitoring disabled)"
     if command -v perl &> /dev/null; then
@@ -1519,10 +1521,17 @@ while true; do
   # Timeout
   if [[ $apps_gen_elapsed -ge $TIMEOUT_APPS_GENERATION ]]; then
     printf "\n"
-    log_warning "Timeout après ${TIMEOUT_APPS_GENERATION}s: $current_apps/$EXPECTED_APPS_COUNT Applications générées"
-    log_info "Vérifiez les logs du ApplicationSet Controller:"
-    echo "  kubectl logs -n $ARGOCD_NAMESPACE -l app.kubernetes.io/name=argocd-applicationset-controller"
-    break
+    log_error "Timeout après ${TIMEOUT_APPS_GENERATION}s: $current_apps/$EXPECTED_APPS_COUNT Applications générées"
+    echo ""
+    log_info "État des Applications ArgoCD:"
+    kubectl get applications -A -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,NAMESPACE:.spec.destination.namespace' 2>/dev/null || echo "  (aucune application trouvée)"
+    echo ""
+    log_info "État des ApplicationSets:"
+    kubectl get applicationsets -A -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[0].type,MESSAGE:.status.conditions[0].message' 2>/dev/null || echo "  (aucun applicationset trouvé)"
+    echo ""
+    log_info "Logs du ApplicationSet Controller:"
+    kubectl logs -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-applicationset-controller --tail=20 2>/dev/null || echo "  (logs indisponibles)"
+    exit 1
   fi
 
   # Barre de progression
@@ -1605,11 +1614,11 @@ while true; do
   # Timeout (sauf si --wait-healthy)
   if [[ $WAIT_HEALTHY -eq 0 ]] && [[ $sync_elapsed -ge $TIMEOUT_APPS_SYNC ]]; then
     printf "\n"
-    log_warning "Timeout après ${TIMEOUT_APPS_SYNC}s: $SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT apps Synced + Healthy"
+    log_error "Timeout après ${TIMEOUT_APPS_SYNC}s: $SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT apps Synced + Healthy"
     echo ""
-    log_warning "Applications avec problèmes:"
+    log_error "Applications avec problèmes:"
     echo "$APPS_JSON" | jq -r '.items[] | select(.status.sync.status!="Synced" or .status.health.status!="Healthy") | "  - \(.metadata.name): Sync=\(.status.sync.status // "Unknown") Health=\(.status.health.status // "Unknown")"'
-    break
+    exit 1
   fi
 
   # Cilium Gateway API: bootstrap one-shot du GatewayClass + restart Operator
