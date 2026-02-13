@@ -388,7 +388,7 @@ spec:
               {{- end }}
         {{- end }}
 
-        {{- /* Monitoring - common to all providers */ -}}
+        {{- /* Monitoring - common to all providers */}}
         {{- if .features.monitoring.enabled }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

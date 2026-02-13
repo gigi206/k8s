@@ -288,6 +288,8 @@ jobs:
           echo "::notice::CI branch created: $CI_BRANCH"
 
       - name: Deploy ApplicationSets
+        env:
+          CI_GIT_BRANCH: ${{ steps.ci-branch.outputs.branch }}
         run: |
           cd deploy/argocd
 
@@ -297,7 +299,7 @@ jobs:
           export TIMEOUT_APPS_GENERATION=300
           export TIMEOUT_APPS_SYNC=900
 
-          # Deploy (git.revision is already set in config.yaml to point to CI branch)
+          # Deploy (CI_GIT_BRANCH triggers sed patching of revision: HEAD → CI branch)
           bash deploy-applicationsets.sh --verbose
 
       - name: Wait for applications to sync
