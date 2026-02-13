@@ -34,3 +34,10 @@ spec:
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
+
+    # Allow from host (SPIRE Agent runs in hostNetwork: true)
+    # Traffic from SPIRE Agent to SPIRE Server appears as "host" entity,
+    # not from cilium-spire namespace. This makes the policy self-sufficient
+    # regardless of default-deny-pod-ingress configuration.
+    - fromEntities:
+        - host
