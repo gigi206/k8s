@@ -6,8 +6,9 @@ Cet ApplicationSet deploie Harbor, un registre de conteneurs open-source avec ge
 
 **Harbor** est deploye via le chart Helm officiel (`helm.goharbor.io`) avec les integrations suivantes :
 
-- **Stockage** : PVC  (avec PreSync hook pour attendre le storage)
-- **Monitoring** : ServiceMonitor + PrometheusRules (alertes core, registry, database, trivy)
+- **Stockage** : PVC (avec PreSync hook pour attendre le storage)
+- **Base de donnees** : PostgreSQL externe via CNPG (CloudNativePG) avec failover automatique
+- **Monitoring** : ServiceMonitor + PrometheusRules + PodMonitor CNPG (alertes core, registry, database, trivy)
 - **SSO/OIDC** : Double couche - SecurityPolicy Envoy Gateway (web UI) + configuration OIDC native Harbor (Docker CLI)
 - **Routing** : Gateway API HTTPRoute avec TLS via cert-manager
 - **Securite** : PSA restricted profile, network policies (Cilium/Calico), Kyverno PolicyException scopee
@@ -35,7 +36,7 @@ Cet ApplicationSet deploie Harbor, un registre de conteneurs open-source avec ge
            │               │         └───────────┘
      ┌─────▼──────┐  ┌─────▼─────┐
      │ PostgreSQL │  │   PVC     │
-     │ (internal) │  │ (Registry)│
+     │  (CNPG)    │  │ (Registry)│
      └────────────┘  └───────────┘
 ```
 
@@ -64,10 +65,11 @@ Cet ApplicationSet deploie Harbor, un registre de conteneurs open-source avec ge
 | Replicas (portal, core, jobservice, registry) | 1 | 2 |
 | Replicas Trivy | 1 | 1 |
 | Registry PVC | 10Gi | 50Gi |
-| Database PVC | 2Gi | 10Gi |
 | Redis PVC | 1Gi | 5Gi |
 | Trivy PVC | 5Gi | 10Gi |
 | JobService PVC | 1Gi | 5Gi |
+| CNPG instances | 1 | 3 (HA) |
+| CNPG storage | 2Gi | 10Gi |
 | Internal TLS | false | true |
 | Auto-sync | true | false |
 
@@ -87,15 +89,18 @@ secrets/{dev,prod}/
 └── secret.yaml            # Multi-document YAML (chiffre SOPS)
 ```
 
-Le fichier `secret.yaml` contient **deux Secrets** (multi-document YAML) :
+Le fichier `secret.yaml` contient **trois Secrets** (multi-document YAML) :
 
 1. **`harbor-admin-credentials`** (namespace `harbor`) :
    - `HARBOR_ADMIN_PASSWORD` : Mot de passe admin Harbor
    - `HARBOR_OIDC_CLIENT_SECRET` : Secret OIDC pour la config Harbor
 2. **`harbor-oidc-credentials`** (namespace `keycloak`) :
    - `HARBOR_OIDC_CLIENT_SECRET` : Meme secret OIDC pour la creation du client Keycloak
+3. **`harbor-db-credentials`** (namespace `harbor`, sync-wave `-2`) :
+   - `username` : Utilisateur PostgreSQL CNPG (`harbor`)
+   - `password` : Mot de passe PostgreSQL CNPG
 
-Cette approche multi-document permet de partager le secret OIDC entre les namespaces `harbor` et `keycloak` depuis une source unique chiffree.
+Cette approche multi-document permet de partager le secret OIDC entre les namespaces `harbor` et `keycloak` depuis une source unique chiffree. Le secret DB est deploye en sync-wave `-2` pour etre disponible avant la creation du cluster CNPG (sync-wave `-1`).
 
 ### Commandes SOPS
 
@@ -148,6 +153,28 @@ Les deux Jobs utilisent les bonnes pratiques :
 - Resources requests/limits : `cpu: 5m-50m`, `memory: 32Mi-64Mi`
 - SecurityContext : `runAsNonRoot`, `readOnlyRootFilesystem`, drop `ALL` capabilities
 
+## Base de donnees PostgreSQL (CNPG)
+
+Harbor utilise un cluster PostgreSQL externe gere par CloudNativePG (CNPG). Ce pattern est identique a celui de Keycloak.
+
+### Architecture
+
+- **Cluster CNPG** : `harbor-db` (namespace `harbor`)
+- **Service RW** : `harbor-db-rw.harbor.svc:5432` (endpoint read-write)
+- **Base de donnees** : `registry` (owner: `harbor`)
+- **Credentials** : Secret `harbor-db-credentials` (gere via SOPS)
+
+### Sync Waves
+
+1. **Wave -2** : Secret `harbor-db-credentials` (SOPS)
+2. **Wave -1** : Cluster CNPG `harbor-db`
+3. **Wave 0** : Chart Helm Harbor (utilise la DB externe)
+
+### PreSync/Sync Hooks
+
+1. **PreSync** : `harbor-cnpg-webhook-presync-check` - Attend que le webhook CNPG soit operationnel
+2. **Sync** : `db-readiness-check` - Attend que le cluster CNPG soit healthy et le service `harbor-db-rw` ait des endpoints
+
 ## Stockage et PreSync Hook
 
 ### Ceph PreSync Check
@@ -162,13 +189,13 @@ Le Job a ses propres RBAC (ServiceAccount + ClusterRole + ClusterRoleBinding) ca
 
 ### Protection PVC
 
-Toutes les 5 PVCs Harbor sont protegees contre la suppression accidentelle :
+Les PVCs Harbor sont protegees contre la suppression accidentelle :
 ```yaml
 annotations:
   argocd.argoproj.io/sync-options: Prune=false
 ```
 
-PVCs : `registry`, `jobservice`, `database`, `redis`, `trivy`.
+PVCs : `registry`, `jobservice`, `redis`, `trivy`.
 
 ## Monitoring
 
@@ -186,9 +213,14 @@ Alertes deployees via `kustomize/monitoring/` :
 | `HarborCorePodRestarting` | high | Pod Core en restart pendant 10m |
 | `HarborRegistryDown` | critical | Aucun pod Registry disponible pendant 5m |
 | `HarborRegistryStorageHigh` | warning | Stockage registry < 20% disponible |
-| `HarborDatabaseDown` | critical | Base de donnees interne indisponible pendant 5m |
-| `HarborDatabaseStorageLow` | warning | Stockage database < 20% disponible |
+| `HarborDatabaseDown` | critical | Cluster CNPG `harbor-db` injoignable pendant 5m |
+| `HarborDatabaseHighReplicationLag` | warning | Lag de replication CNPG > 30s pendant 5m |
+| `HarborDatabaseStorageLow` | warning | Stockage CNPG database < 20% disponible |
 | `HarborTrivyDown` | warning | Scanner Trivy indisponible pendant 10m |
+
+### PodMonitor CNPG
+
+Un `PodMonitor` (`harbor-postgresql`) collecte les metriques de l'exporter CNPG sur le port `metrics`.
 
 ## Network Policies
 
@@ -220,9 +252,12 @@ Autorise le Gateway (dans son namespace) a referencer le service Harbor dans le 
 
 Active quand `features.kyverno.enabled: true`.
 
-Exception scopee **uniquement** au Job PreSync `harbor-ceph-storage-check*` (Pod + Job) pour permettre le montage du token ServiceAccount (requis par `kubectl`).
+Exception scopee aux Jobs PreSync/Sync qui utilisent `kubectl` :
+- `harbor-ceph-storage-check*` : PreSync Ceph storage
+- `harbor-cnpg-webhook-presync*` : PreSync CNPG webhook
+- `db-readiness*` : Sync DB readiness check
 
-Le chart Helm Harbor definit deja `automountServiceAccountToken: false` sur tous ses composants, donc seul le Job PreSync a besoin de cette exception.
+Le chart Helm Harbor definit deja `automountServiceAccountToken: false` sur tous ses composants, donc seuls ces Jobs ont besoin de cette exception.
 
 ## Structure des fichiers
 
@@ -235,8 +270,11 @@ harbor/
 │   └── prod.yaml                                # Config prod (2 replicas, 50Gi)
 ├── resources/
 │   ├── namespace.yaml                           # Namespace PSA restricted
+│   ├── cluster-postgresql.yaml                  # Cluster CNPG PostgreSQL (sync-wave -1)
+│   ├── cnpg-webhook-presync-check.yaml          # PreSync: attente webhook CNPG
+│   ├── db-readiness-check.yaml                  # Sync: attente DB ready
 │   ├── ceph-storage-presync-check.yaml          # PreSync: attente Ceph (SA+RBAC+Job)
-│   ├── kyverno-policy-exception.yaml            # PolicyException PreSync Job
+│   ├── kyverno-policy-exception.yaml            # PolicyException PreSync/Sync Jobs
 │   ├── cilium-ingress-policy.yaml               # CiliumNetworkPolicy (pod ingress)
 │   ├── cilium-ingress-policy-*.yaml             # 6 variantes par provider Gateway
 │   ├── calico-ingress-policy.yaml               # NetworkPolicy Calico (pod ingress)
@@ -252,7 +290,7 @@ harbor/
 │   │   ├── external-secret-ca.yaml
 │   │   ├── oidc-secret.yaml
 │   │   └── security-policy.yaml
-│   ├── monitoring/                              # PrometheusRules
+│   ├── monitoring/                              # PrometheusRules + PodMonitor CNPG
 │   │   ├── kustomization.yaml
 │   │   └── prometheusrules.yaml
 │   ├── oauth2-authz/                            # Istio AuthorizationPolicy
@@ -277,11 +315,12 @@ harbor/
 
 ### Prerequis
 
-1. **Stockage** : Rook/Ceph ou Longhorn deploye et pret
-2. **Monitoring** : prometheus-stack deploye (pour ServiceMonitor)
-3. **Gateway API** : Controller Gateway API deploye (pour HTTPRoute)
-4. **Keycloak** : Keycloak deploye avec realm `k8s` (pour SSO)
-5. **Secrets** : Fichiers SOPS chiffres dans `secrets/dev/` et `secrets/prod/`
+1. **CNPG** : Operateur CloudNativePG deploye (pour PostgreSQL)
+2. **Stockage** : Rook/Ceph ou Longhorn deploye et pret
+3. **Monitoring** : prometheus-stack deploye (pour ServiceMonitor)
+4. **Gateway API** : Controller Gateway API deploye (pour HTTPRoute)
+5. **Keycloak** : Keycloak deploye avec realm `k8s` (pour SSO)
+6. **Secrets** : Fichiers SOPS chiffres dans `secrets/dev/` et `secrets/prod/`
 
 ### Activation
 
@@ -346,6 +385,30 @@ kubectl exec -it deploy/harbor-core -n harbor -- \
   -u "admin:<password>" | jq '.auth_mode, .oidc_endpoint'
 ```
 
+### Base de donnees CNPG
+
+```bash
+# Verifier le cluster CNPG
+kubectl get cluster harbor-db -n harbor
+
+# Verifier le statut detaille
+kubectl describe cluster harbor-db -n harbor
+
+# Verifier les pods CNPG
+kubectl get pods -n harbor -l app.kubernetes.io/instance=harbor-db
+
+# Logs du pod PostgreSQL
+kubectl logs -n harbor harbor-db-1 -c postgres
+
+# Verifier le service RW
+kubectl get endpoints harbor-db-rw -n harbor
+
+# Verifier les Jobs presync/sync
+kubectl get jobs -n harbor | grep -E "cnpg-webhook|db-readiness"
+kubectl logs -n harbor job/harbor-cnpg-webhook-presync-check
+kubectl logs -n harbor job/db-readiness-check
+```
+
 ### Docker push/pull echoue
 
 ```bash
@@ -376,3 +439,4 @@ kubectl port-forward -n monitoring svc/prometheus-stack-kube-prom-prometheus 909
 - [Harbor Helm Chart](https://github.com/goharbor/harbor-helm)
 - [Harbor OIDC Configuration](https://goharbor.io/docs/latest/administration/configure-authentication/oidc-auth/)
 - [Harbor API v2.0](https://editor.swagger.io/?url=https://raw.githubusercontent.com/goharbor/harbor/main/api/v2.0/swagger.yaml)
+- [CloudNativePG Documentation](https://cloudnative-pg.io/documentation/)

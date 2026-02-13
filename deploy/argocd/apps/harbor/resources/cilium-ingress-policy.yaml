@@ -41,6 +41,17 @@ spec:
             - port: "8001"     # Metrics (registry, jobservice, core, exporter)
               protocol: TCP
 
+    # Allow from cnpg-system (CNPG operator manages PostgreSQL)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cnpg-system
+      toPorts:
+        - ports:
+            - port: "8000"     # PostgreSQL status endpoint
+              protocol: TCP
+            - port: "8080"     # PostgreSQL metrics/admin
+              protocol: TCP
+
     # Allow from monitoring namespace (Prometheus scrape metrics)
     - fromEndpoints:
         - matchLabels:
@@ -48,4 +59,6 @@ spec:
       toPorts:
         - ports:
             - port: "8001"     # Harbor metrics
+              protocol: TCP
+            - port: "9187"     # PostgreSQL metrics (CNPG exporter)
               protocol: TCP
