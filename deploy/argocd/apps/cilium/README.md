@@ -707,6 +707,7 @@ SPIRE Server a besoin d'un PVC pour persister ses données (identités, bundles)
 3. Patche le HelmChartConfig K8s pour activer `dataStorage` avec le StorageClass et la taille configurés
 4. Supprime `rke2-cilium-config.yaml` du disque via un Job K8s (évite la ré-application au reboot)
 5. Le Helm controller détecte le changement et fait un `helm upgrade` automatique
+6. **Séquençage Cilium-first** : Attend le rollout Cilium DaemonSet, puis SPIRE Server, puis force un restart propre du SPIRE Agent (prévention deadlock mutual auth)
 
 ### Configuration
 
@@ -752,6 +753,74 @@ ls -la /var/lib/rancher/rke2/server/manifests/rke2-cilium-config.yaml
 
 - **SPIRE restart** : ~30s de re-négociation des identités SPIFFE. La policy `mutual-auth-required` exclut `kube-system` et `cilium-spire`, donc SPIRE n'est pas bloqué.
 - **Multi-master** : Le Job de suppression du fichier tourne sur un seul master. Les autres masters gardent le fichier, mais etcd est la source de vérité.
+
+### Deadlock SPIRE/Cilium Mutual Auth après restart
+
+**Problème** : Le patch HelmChartConfig déclenche un `helm upgrade` asynchrone qui rolling-update Cilium (wipe de l'auth table eBPF), recrée le StatefulSet SPIRE server, et rolling-update le SPIRE agent **simultanément**. Le SPIRE agent tente de se reconnecter au server pendant que Cilium recharge ses programmes eBPF, cassant les connexions gRPC. L'agent entre en backoff exponentiel et ne récupère pas. La policy `mutual-auth-required` drop tout le trafic pod-to-pod (auth table vide).
+
+**Symptôme** : `cilium-dbg monitor --type drop` montre 100% des drops avec raison `Authentication required`.
+
+**Solution (séquençage Cilium-first)** :
+1. Attendre le rollout complet du DaemonSet Cilium (`kubectl rollout status ds/rke2-cilium`)
+2. Attendre que SPIRE Server soit Ready (`kubectl rollout status sts/spire-server`)
+3. Forcer un restart propre du SPIRE Agent (`kubectl rollout restart ds/spire-agent`) pour casser le backoff exponentiel
+4. Restart du Cilium Operator (`kubectl rollout restart deployment/cilium-operator`) pour forcer la reconnexion gRPC au SPIRE Agent via le Unix socket. Sans ce restart, l'operator ne re-enregistre pas les nouvelles identités Cilium créées après le batch initial (erreurs `no SPIFFE ID`)
+5. Vérifier que l'auth table eBPF se remplit (>5 entrées "spire") et l'absence d'erreurs dans les logs agent
+
+**Defense-in-depth** :
+- **Policy SPIRE ingress** : La policy `cilium-spire-ingress` inclut `fromEntities: host` car le SPIRE agent tourne en `hostNetwork: true` et son trafic vers le SPIRE server est identifié comme venant de l'entité `host`, pas du namespace `cilium-spire`.
+- **Policy default-deny-pod-ingress** : Exclut `cilium-spire` du default-deny (en plus de `kube-system`). Si la `cilium-spire-ingress` CiliumNetworkPolicy n'est pas encore synchronisée par ArgoCD, le SPIRE server resterait inaccessible sans cette exclusion.
+
+**Debugging** :
+```bash
+# Vérifier les drops authentication
+kubectl exec -n kube-system ds/cilium -- cilium-dbg monitor --type drop
+
+# Vérifier si l'auth table eBPF est vide (signe de deadlock)
+kubectl exec -n kube-system ds/cilium -- cilium-dbg bpf auth list
+
+# Logs SPIRE agent (chercher backoff/connexion refusée)
+kubectl logs -n cilium-spire -l app=spire-agent --tail=20
+
+# Logs SPIRE server (chercher "context canceled", "Rows are closed")
+kubectl logs -n cilium-spire -l app=spire-server -c spire-server --tail=20
+```
+
+**Recovery manuelle si deadlock établi** (auth table vide, SPIRE agent en CrashLoop ou backoff) :
+
+Le deadlock est circulaire : SPIRE a besoin du réseau pour attester, mais le réseau (mutual auth) a besoin de SPIRE pour peupler l'auth table. La seule façon de casser ce cycle est de supprimer temporairement la policy mutual-auth.
+
+```bash
+# 1. Diagnostic : confirmer le deadlock
+kubectl exec -n kube-system ds/cilium -- cilium-dbg bpf auth list
+# Si "No entries found" -> deadlock confirmé
+
+# 2. Supprimer temporairement la policy mutual-auth (casse le cycle)
+kubectl delete ciliumclusterwidenetworkpolicy mutual-auth-required
+
+# 3. Redémarrer SPIRE server (nettoie les erreurs SQLite accumulées)
+kubectl rollout restart statefulset/spire-server -n cilium-spire
+kubectl rollout status statefulset/spire-server -n cilium-spire --timeout=120s
+
+# 4. Redémarrer SPIRE agent (reconnexion propre sans backoff)
+kubectl rollout restart daemonset/spire-agent -n cilium-spire
+kubectl rollout status daemonset/spire-agent -n cilium-spire --timeout=120s
+
+# 5. Vérifier que SPIRE est opérationnel
+kubectl get pods -n cilium-spire  # Tous Ready
+
+# 6. Réappliquer la policy mutual-auth
+kubectl apply -f deploy/argocd/apps/cilium/resources/mutual-auth-required.yaml
+
+# 7. Vérifier que l'auth table se remplit (entrées "spire" apparaissent)
+sleep 20
+kubectl exec -n kube-system ds/cilium -- cilium-dbg bpf auth list | head -20
+
+# 8. Confirmer : 0 drops Authentication required
+timeout 10 kubectl exec -n kube-system ds/cilium -- cilium-dbg monitor --type drop
+```
+
+> **Important** : Entre les étapes 2 et 6 (~2-3 minutes), le trafic pod-to-pod n'est plus soumis à mutual authentication. C'est une fenêtre de sécurité réduite mais nécessaire pour casser le deadlock. Les autres policies (egress deny, host ingress, pod ingress) restent actives.
 
 ## Références
 

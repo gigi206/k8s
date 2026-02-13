@@ -31,8 +31,12 @@ metadata:
 spec:
   description: "Default deny all pod ingress (Zero Trust) - baseline allows only"
 
-  # Apply to ALL real pods EXCEPT those in kube-system
+  # Apply to ALL real pods EXCEPT those in kube-system and cilium-spire
   # kube-system must remain unrestricted for DNS, CNI, metrics-server
+  # cilium-spire must remain unrestricted: SPIRE is critical infrastructure
+  # for mutual auth. If cilium-spire-ingress CiliumNetworkPolicy isn't synced
+  # yet (ArgoCD timing), SPIRE server becomes unreachable, breaking all
+  # pod-to-pod traffic that requires authentication.
   #
   # IMPORTANT: The "Exists" expression is required to exclude Cilium's
   # internal pseudo-endpoints (e.g., Gateway API endpoint 0) which have
@@ -47,6 +51,7 @@ spec:
         operator: NotIn
         values:
           - kube-system
+          - cilium-spire
 
   ingress:
     # Rule 1: Allow health checks from kubelet (liveness/readiness probes)
