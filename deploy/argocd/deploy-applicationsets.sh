@@ -1114,6 +1114,36 @@ apply_bootstrap_network_policies_cilium() {
     fi
   fi
 
+  # 5. Default deny pod ingress (Zero Trust baseline)
+  if [[ "$FEAT_NP_DEFAULT_DENY_POD_INGRESS" == "true" ]]; then
+    local pod_ingress_policy="${SCRIPT_DIR}/apps/cilium/resources/default-deny-pod-ingress.yaml"
+    if [[ -f "$pod_ingress_policy" ]]; then
+      if kubectl apply -f "$pod_ingress_policy" > /dev/null 2>&1; then
+        log_success "CiliumClusterwideNetworkPolicy default-deny-pod-ingress appliquée"
+      else
+        log_warning "Impossible d'appliquer la CiliumClusterwideNetworkPolicy default-deny-pod-ingress"
+      fi
+    else
+      log_debug "Pas de pod ingress policy trouvée: $pod_ingress_policy"
+    fi
+
+    # 6. SPIRE ingress policy (Agent <-> Server communication)
+    # Must be applied WITH default-deny-pod-ingress to avoid blocking SPIRE
+    # during Cilium restarts (mutual auth deadlock prevention)
+    if [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]]; then
+      local spire_ingress_policy="${SCRIPT_DIR}/apps/cilium/resources/cilium-spire-ingress-policy.yaml"
+      if [[ -f "$spire_ingress_policy" ]]; then
+        if kubectl apply -f "$spire_ingress_policy" > /dev/null 2>&1; then
+          log_success "CiliumNetworkPolicy SPIRE ingress appliquée (Agent <-> Server)"
+        else
+          log_warning "Impossible d'appliquer la CiliumNetworkPolicy SPIRE ingress"
+        fi
+      else
+        log_debug "Pas de SPIRE ingress policy trouvée: $spire_ingress_policy"
+      fi
+    fi
+  fi
+
   # Wait for Cilium to propagate policies to endpoints
   log_info "Attente de la propagation des policies Cilium (10s)..."
   sleep 10
@@ -1792,13 +1822,69 @@ JOBEOF
     log_warning "Job de suppression non terminé (le fichier reste sur disque, non bloquant)"
   fi
 
-  # --- Attendre que SPIRE soit fonctionnel après la migration ---
+  # --- Séquençage post-migration: Cilium -> SPIRE Server -> SPIRE Agent ---
   # Le Helm controller détecte le changement et fait un helm upgrade asynchrone.
-  # SPIRE redémarre avec PVC, et pendant ce temps le mutual auth bloque le trafic.
-  # On attend que spire-server et spire-agent soient Ready avant de continuer.
-  log_info "Attente du redémarrage SPIRE après migration..."
+  # Ce helm upgrade rolling-update Cilium (wipe auth table eBPF), recrée le
+  # StatefulSet SPIRE server, et rolling-update le SPIRE agent.
+  # Sans séquençage, Cilium et SPIRE redémarrent simultanément: le SPIRE agent
+  # tente de se reconnecter pendant le rechargement eBPF, les connexions gRPC
+  # cassent, l'agent entre en backoff exponentiel -> deadlock mutual auth.
 
-  check_spire_healthy() {
+  # Étape 1: Attendre la fin du rollout Cilium DaemonSet
+  # Le rollout Cilium DOIT être terminé avant que SPIRE tente de se reconnecter.
+  # Les programmes eBPF en cours de rechargement cassent les connexions gRPC.
+  log_info "Attente du rollout Cilium DaemonSet..."
+  if kubectl rollout status daemonset/rke2-cilium -n kube-system --timeout=300s > /dev/null 2>&1; then
+    log_success "Cilium DaemonSet rollout terminé"
+  else
+    log_warning "Cilium DaemonSet rollout timeout (300s), tentative de continuer..."
+  fi
+
+  # Étape 2: Attendre SPIRE Server Ready
+  log_info "Attente du SPIRE Server StatefulSet..."
+  if kubectl rollout status statefulset/spire-server -n cilium-spire --timeout=300s > /dev/null 2>&1; then
+    log_success "SPIRE Server StatefulSet prêt"
+  else
+    log_warning "SPIRE Server rollout timeout (300s), tentative de continuer..."
+  fi
+
+  # Étape 3: Forcer un restart propre du SPIRE Agent
+  # Sans ce restart, le SPIRE agent reste dans un cycle de backoff exponentiel
+  # après les connexions gRPC cassées par le rechargement eBPF de Cilium.
+  # Le restart force une reconnexion propre sans backoff.
+  log_info "Restart propre du SPIRE Agent (évite backoff exponentiel)..."
+  if kubectl rollout restart daemonset/spire-agent -n cilium-spire > /dev/null 2>&1; then
+    if kubectl rollout status daemonset/spire-agent -n cilium-spire --timeout=120s > /dev/null 2>&1; then
+      log_success "SPIRE Agent DaemonSet redémarré avec succès"
+    else
+      log_warning "SPIRE Agent rollout timeout (120s), tentative de continuer..."
+    fi
+  else
+    log_warning "Impossible de restart le SPIRE Agent (resource non trouvée ou helm upgrade en cours)"
+  fi
+
+  # Étape 3.5: Restart Cilium Operator (reconnexion au SPIRE Agent)
+  # Le restart du SPIRE Agent (étape 3) casse la connexion gRPC Unix socket
+  # du Cilium Operator vers le SPIRE Agent. Sans ce restart, l'operator ne
+  # re-enregistre pas les nouvelles identités Cilium créées par les workloads
+  # ArgoCD déployés après le batch initial, causant des erreurs
+  # "no SPIFFE ID for spiffe://spiffe.cilium/identity/XXXX".
+  log_info "Restart du Cilium Operator (reconnexion SPIRE agent)..."
+  if kubectl rollout restart deployment/cilium-operator -n kube-system > /dev/null 2>&1; then
+    if kubectl rollout status deployment/cilium-operator -n kube-system --timeout=120s > /dev/null 2>&1; then
+      log_success "Cilium Operator redémarré avec succès"
+    else
+      log_warning "Cilium Operator rollout timeout (120s), tentative de continuer..."
+    fi
+  else
+    log_warning "Impossible de restart le Cilium Operator"
+  fi
+
+  # Attendre que l'operator re-enregistre les identités dans SPIRE
+  sleep 15
+
+  # Étape 4: Vérifier la connectivité SPIRE (agent peut communiquer avec server)
+  check_spire_operational() {
     # Vérifier que le spire-server StatefulSet a ses replicas ready
     local server_ready
     server_ready=$(kubectl get statefulset spire-server -n cilium-spire -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
@@ -1815,18 +1901,37 @@ JOBEOF
     if [[ -z "$agent_ready" ]] || [[ "$agent_ready" -lt 1 ]] || [[ "$agent_ready" != "$agent_desired" ]]; then
       return 1
     fi
-    log_success "SPIRE opérationnel (server: $server_ready/$server_replicas, agent: $agent_ready/$agent_desired)"
+    # Vérifier que l'agent n'a pas d'erreurs récentes (backoff, connexion refusée)
+    local agent_pod
+    agent_pod=$(kubectl get pods -n cilium-spire -l app=spire-agent -o name 2>/dev/null | head -1)
+    if [[ -n "$agent_pod" ]]; then
+      local recent_errors
+      recent_errors=$(kubectl logs "$agent_pod" -n cilium-spire --tail=5 --since=10s 2>/dev/null | grep -ci "error" || true)
+      if [[ "$recent_errors" -gt 0 ]]; then
+        return 1
+      fi
+    fi
+    # Vérifier que l'auth table eBPF se remplit (SPIRE émet des identités)
+    # Sans cette vérification, on peut passer avec un SPIRE "healthy" mais
+    # dont le Cilium Operator n'a pas re-enregistré les identités après restart.
+    local auth_entries
+    auth_entries=$(kubectl exec -n kube-system ds/rke2-cilium -- cilium-dbg bpf auth list 2>/dev/null | grep -c "spire" || echo "0")
+    if [[ "$auth_entries" -lt 5 ]]; then
+      return 1
+    fi
+    log_success "SPIRE opérationnel (server: $server_ready/$server_replicas, agent: $agent_ready/$agent_desired, auth_entries: $auth_entries, pas d'erreurs récentes)"
     return 0
   }
 
   if wait_for_condition \
-    "Attente de SPIRE (server + agent Ready)..." \
+    "Vérification connectivité SPIRE (server + agent + pas d'erreurs)..." \
     "$TIMEOUT_APPS_SYNC" \
-    check_spire_healthy; then
+    check_spire_operational; then
     log_success "Migration SPIRE storage terminée!"
   else
-    log_warning "SPIRE non Ready dans le timeout. Le mutual auth peut impacter la connectivité."
-    log_warning "  Vérifiez: kubectl get pods -n cilium-spire"
+    log_warning "SPIRE non pleinement opérationnel dans le timeout. Le mutual auth peut impacter la connectivité."
+    log_warning "  Debug: kubectl logs -n cilium-spire -l app=spire-agent --tail=20"
+    log_warning "  Debug: cilium-dbg monitor --type drop (chercher 'Authentication required')"
   fi
 }
 
