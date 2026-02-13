@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# Deployed conditionally when rke2.cis.enabled=true
+# Harbor uses restricted PSA profile (all containers run as non-root)
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harbor
+  labels:
+    # PSA: Enforce restricted profile (Harbor containers are PSA-compliant)
+    pod-security.kubernetes.io/enforce: restricted
+    # PSA: Warn on restricted violations
+    pod-security.kubernetes.io/warn: restricted
+    # PSA: Audit restricted violations
+    pod-security.kubernetes.io/audit: restricted

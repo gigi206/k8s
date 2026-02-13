@@ -1,0 +1,51 @@
+---
+# Configuration Harbor - Prod
+# HA configuration with multiple replicas
+environment: prod
+appName: harbor
+
+# Dashboard configuration for Grafana
+dashboard:
+  folder: "Harbor"
+
+harbor:
+  version: "1.18.2"
+
+  # Expose configuration
+  expose:
+    type: "clusterIP"
+
+  # Internal TLS between Harbor components
+  internalTLS:
+    enabled: true
+
+  # Persistence (PVC-based, larger for production)
+  persistence:
+    registry:
+      size: "50Gi"
+    jobservice:
+      size: "5Gi"
+    database:
+      size: "10Gi"
+    redis:
+      size: "5Gi"
+    trivy:
+      size: "10Gi"
+
+  # Component replicas (prod: HA)
+  portal:
+    replicas: 2
+  core:
+    replicas: 2
+  jobservice:
+    replicas: 2
+  registry:
+    replicas: 2
+  trivy:
+    replicas: 1
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

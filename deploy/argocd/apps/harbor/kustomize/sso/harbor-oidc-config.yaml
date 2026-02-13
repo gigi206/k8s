@@ -1,0 +1,115 @@
+---
+# =============================================================================
+# Job - Configure Harbor OIDC Authentication
+# =============================================================================
+# Configures Harbor to use OIDC authentication mode via the Harbor API.
+# This enables SSO login for both the web UI and Docker CLI.
+# Admin password and OIDC client secret are read from Kubernetes Secrets
+# (created via SOPS/KSOPS from secrets/dev/ or secrets/prod/).
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: harbor-oidc-config
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: configure-oidc
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          image: curlimages/curl:8.18.0
+          resources:
+            requests:
+              cpu: 5m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+          env:
+            - name: DOMAIN
+              value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            - name: HARBOR_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: harbor-admin-credentials
+                  key: HARBOR_ADMIN_PASSWORD
+            - name: HARBOR_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: harbor-admin-credentials
+                  key: HARBOR_OIDC_CLIENT_SECRET
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              HARBOR_URL="http://harbor-core.harbor.svc.cluster.local"
+
+              echo "=== Harbor OIDC Configuration ==="
+              echo "Harbor URL: $HARBOR_URL"
+              echo "OIDC Endpoint: https://keycloak.${DOMAIN}/realms/k8s"
+
+              # Wait for Harbor to be ready
+              echo "Waiting for Harbor..."
+              HARBOR_READY=false
+              for i in $(seq 1 120); do
+                if curl -sk -o /dev/null -w "%{http_code}" "$HARBOR_URL/api/v2.0/health" | grep -q "200"; then
+                  echo "Harbor is ready (after $i attempts)"
+                  HARBOR_READY=true
+                  break
+                fi
+                [ $((i % 10)) -eq 0 ] && echo "Attempt $i/120 - Harbor not ready, waiting..."
+                sleep 5
+              done
+
+              if [ "$HARBOR_READY" != "true" ]; then
+                echo "ERROR: Harbor not ready after 10 minutes"
+                exit 1
+              fi
+
+              # Configure OIDC auth mode
+              echo "Configuring OIDC authentication..."
+              RESPONSE=$(curl -sk -w "\n%{http_code}" -X PUT "$HARBOR_URL/api/v2.0/configurations" \
+                -u "admin:${HARBOR_ADMIN_PASSWORD}" \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"auth_mode\": \"oidc_auth\",
+                  \"oidc_name\": \"Keycloak\",
+                  \"oidc_endpoint\": \"https://keycloak.${DOMAIN}/realms/k8s\",
+                  \"oidc_client_id\": \"harbor\",
+                  \"oidc_client_secret\": \"${HARBOR_OIDC_CLIENT_SECRET}\",
+                  \"oidc_groups_claim\": \"groups\",
+                  \"oidc_admin_group\": \"harbor-admins\",
+                  \"oidc_scope\": \"openid,profile,email,groups\",
+                  \"oidc_auto_onboard\": true,
+                  \"oidc_user_claim\": \"email\"
+                }")
+
+              HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "OIDC configuration applied successfully"
+              else
+                echo "ERROR: Failed to apply OIDC configuration (HTTP $HTTP_CODE)"
+                echo "$RESPONSE"
+                exit 1
+              fi
+
+              echo "=== Harbor OIDC Configuration Complete ==="

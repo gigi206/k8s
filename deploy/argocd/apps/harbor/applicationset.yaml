@@ -1,16 +1,17 @@
 ---
 # =============================================================================
-# Keycloak ApplicationSet (Identity & Access Management)
+# Harbor ApplicationSet (Container Registry)
 # =============================================================================
-# Deploie l'operateur Keycloak officiel et une instance Keycloak
-# avec PostgreSQL gere par CloudNativePG
-# Docs: https://www.keycloak.org/operator/installation
+# Deploys Harbor container registry with Helm chart
+# Integrates with: Rook/Ceph (storage), Prometheus (monitoring),
+# Keycloak (SSO/OIDC), Gateway API (routing)
+# Docs: https://goharbor.io/docs/
 # =============================================================================
 
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: keycloak
+  name: harbor
   namespace: argo-cd
   annotations:
 spec:
@@ -22,37 +23,39 @@ spec:
         mergeKeys:
           - environment
         generators:
-          # Config de base (valeurs par defaut)
+          # Global config
           - git:
               repoURL: https://github.com/gigi206/k8s
               revision: 'HEAD'
               files:
                 - path: deploy/argocd/config/config.yaml
 
-          # Config specifique a l'application
+          # App-specific config
           - git:
               repoURL: https://github.com/gigi206/k8s
               revision: 'HEAD'
               files:
-                - path: deploy/argocd/apps/keycloak/config/*.yaml
+                - path: deploy/argocd/apps/harbor/config/*.yaml
 
   template:
     metadata:
-      name: keycloak
+      name: harbor
       namespace: argo-cd
       annotations:
     spec:
       project: default
 
       sources:
-        # Source 1: Keycloak Operator (CRDs + Deployment) - repo officiel
-        - repoURL: https://github.com/keycloak/keycloak-k8s-resources
-          targetRevision: '{{ .keycloak.operatorVersion }}'
-          path: kubernetes
+        # Source: Harbor Helm Chart
+        - repoURL: https://helm.goharbor.io
+          targetRevision: '{{ .harbor.version }}'
+          chart: harbor
+          helm:
+            releaseName: harbor
 
       destination:
         server: https://kubernetes.default.svc
-        namespace: keycloak
+        namespace: harbor
 
       syncPolicy:
         retry:
@@ -64,18 +67,7 @@ spec:
 
   templatePatch: |
     spec:
-      # Ignore fields managed by controllers (CNPG, Prometheus Operator, External Secrets)
       ignoreDifferences:
-        - group: postgresql.cnpg.io
-          kind: Cluster
-          managedFieldsManagers:
-            - manager
-          jqPathExpressions:
-            - .spec
-        - group: monitoring.coreos.com
-          kind: PodMonitor
-          jqPathExpressions:
-            - .spec.podMetricsEndpoints
         - group: external-secrets.io
           kind: ExternalSecret
           jqPathExpressions:
@@ -94,122 +86,44 @@ spec:
           prune: {{ .syncPolicy.automated.prune }}
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
+
       sources:
-        # Source: PreSync hook - Wait for CNPG webhook before creating PostgreSQL Cluster
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "cnpg-webhook-presync-check.yaml"
-
-        {{- if eq .features.storage.provider "rook" }}
-        # Source: PreSync hook - Wait for Ceph storage before creating PostgreSQL PVC
-        # Prevents ~9 min wait when PVC is created before Ceph is ready
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "ceph-storage-presync-check.yaml"
-        {{- end }}
-
         {{- if .rke2.cis.enabled }}
         # Source: Namespace with PSA labels for CIS profile compatibility
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "namespace.yaml"
         {{- end }}
-        # Source 1: Keycloak Operator (CRDs + Deployment) - repo officiel
-        - repoURL: https://github.com/keycloak/keycloak-k8s-resources
-          targetRevision: '{{ .keycloak.operatorVersion }}'
-          path: kubernetes
 
-        # Source 2: PostgreSQL Cluster (CNPG) - sync-wave -1
+        {{- if eq .features.storage.provider "rook" }}
+        # Source: PreSync hook - Wait for Ceph storage before creating PVCs
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
-            include: "cluster-postgresql.yaml"
+            include: "ceph-storage-presync-check.yaml"
+        {{- end }}
 
-        # Source 2b: DB Readiness Check Job - sync-wave 0
-        # Waits for PostgreSQL to be ready before Keycloak CR is created
+        # Source: SOPS-encrypted secrets (admin credentials + OIDC client secret)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "db-readiness-check.yaml"
-
-        # Source 3: Keycloak CR instance (with domain patches) - sync-wave 1
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/kustomize/custom-resources
-          kustomize:
-            patches:
-              - target:
-                  kind: Keycloak
-                  name: keycloak
-                patch: |
-                  - op: replace
-                    path: /spec/hostname/hostname
-                    value: https://keycloak.{{ .common.domain }}
-              - target:
-                  kind: Certificate
-                  name: keycloak-tls-cert
-                patch: |
-                  - op: replace
-                    path: /spec/commonName
-                    value: keycloak.{{ .common.domain }}
-                  - op: replace
-                    path: /spec/dnsNames/0
-                    value: keycloak.{{ .common.domain }}
-
-        # Source 4: KeycloakRealmImport - Realm k8s (base: groups, roles, scopes, admin)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/kustomize/realm
-          kustomize:
-            patches:
-              - target:
-                  kind: KeycloakRealmImport
-                  name: k8s-realm
-                patch: |
-                  - op: replace
-                    path: /spec/realm/users/0/email
-                    value: admin@{{ .common.domain }}
-
-        # Source 5: ClusterSecretStore (pour ExternalSecrets cross-namespace)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "cluster-secret-store.yaml"
-
-        # Source 6: ExternalSecrets for OIDC clients (reverse sync from app namespaces)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
-          directory:
-            include: "external-secrets-oidc-clients.yaml"
-
-        # Source 7: Secrets (KSOPS) - environment specific
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/secrets/{{ .environment }}
+          path: deploy/argocd/apps/harbor/secrets/{{ .environment }}
 
         {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
           {{- if eq .cni.primary "cilium" }}
         # Source: Cilium internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "cilium-ingress-policy.yaml"
           {{- else if eq .cni.primary "calico" }}
         # Source: Calico internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "calico-ingress-policy.yaml"
           {{- end }}
@@ -221,37 +135,37 @@ spec:
         {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "cilium-ingress-policy-istio.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "cilium-ingress-policy-apisix.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "cilium-ingress-policy-traefik.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "cilium-ingress-policy-nginx-gwf.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
@@ -260,91 +174,86 @@ spec:
         {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "calico-ingress-policy-istio.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "calico-ingress-policy-apisix.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "calico-ingress-policy-traefik.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "calico-ingress-policy-nginx-gwf.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "calico-ingress-policy-envoy-gateway.yaml"
         {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "calico-ingress-policy-cilium.yaml"
         {{- end }}
           {{- end }}
         {{- end }}
+
         {{- if .features.kyverno.enabled }}
-        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        # Source: Kyverno PolicyException (allows SA token mount for Harbor jobs)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/resources
+          path: deploy/argocd/apps/harbor/resources
           directory:
             include: "kyverno-policy-exception.yaml"
         {{- end }}
 
         {{- if .features.gatewayAPI.enabled }}
         {{- if .features.gatewayAPI.httpRoute.enabled }}
-        # Source 9: HTTPRoute (Gateway API standard)
+        # Source: HTTPRoute (Gateway API standard)
+        # NOTE: Harbor supports native OIDC - no gateway-level oauth2-proxy needed
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/kustomize/httproute
+          path: deploy/argocd/apps/harbor/kustomize/httproute
           kustomize:
             patches:
               - target:
                   kind: HTTPRoute
-                  name: keycloak
+                  name: harbor
                 patch: |
                   - op: replace
                     path: /spec/hostnames/0
-                    value: keycloak.{{ .common.domain }}
+                    value: harbor.{{ .common.domain }}
                   - op: replace
                     path: /spec/parentRefs/0/namespace
                     value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
-        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
-        # Source 9: APISIX native CRDs (when HTTPRoute disabled and provider is apisix)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/kustomize/apisix
-          kustomize:
-            patches:
               - target:
-                  kind: ApisixRoute
-                  name: keycloak
+                  kind: ReferenceGrant
+                  name: gateway-harbor-tls
                 patch: |
                   - op: replace
-                    path: /spec/http/0/match/hosts/0
-                    value: keycloak.{{ .common.domain }}
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
         {{- end }}
         {{- end }}
 
         {{- if .features.monitoring.enabled }}
-        # Source 10: Prometheus monitoring (conditional)
+        # Source: Prometheus monitoring (ServiceMonitor + PrometheusRules)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/keycloak/kustomize/monitoring
+          path: deploy/argocd/apps/harbor/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
@@ -352,3 +261,98 @@ spec:
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
         {{- end }}
+
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: SSO - Keycloak OIDC client + Harbor OIDC configuration
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/harbor/kustomize/sso
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: harbor-keycloak-oidc-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+              - target:
+                  kind: Job
+                  name: harbor-oidc-config
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+        {{- end }}
+
+        # Source: Harbor Helm Chart
+        - repoURL: https://helm.goharbor.io
+          targetRevision: '{{ .harbor.version }}'
+          chart: harbor
+          helm:
+            releaseName: harbor
+            valuesObject:
+              expose:
+                type: '{{ .harbor.expose.type }}'
+                tls:
+                  enabled: false
+                clusterIP:
+                  name: harbor
+              externalURL: https://harbor.{{ .common.domain }}
+              internalTLS:
+                enabled: {{ .harbor.internalTLS.enabled }}
+              existingSecretAdminPassword: "harbor-admin-credentials"
+              existingSecretAdminPasswordKey: "HARBOR_ADMIN_PASSWORD"
+              caBundleSecretName: "root-ca"
+              persistence:
+                persistentVolumeClaim:
+                  registry:
+                    storageClass: '{{ .features.storage.class }}'
+                    size: '{{ .harbor.persistence.registry.size }}'
+                    annotations:
+                      argocd.argoproj.io/sync-options: Prune=false
+                  jobservice:
+                    jobLog:
+                      storageClass: '{{ .features.storage.class }}'
+                      size: '{{ .harbor.persistence.jobservice.size }}'
+                      annotations:
+                        argocd.argoproj.io/sync-options: Prune=false
+                  database:
+                    storageClass: '{{ .features.storage.class }}'
+                    size: '{{ .harbor.persistence.database.size }}'
+                    annotations:
+                      argocd.argoproj.io/sync-options: Prune=false
+                  redis:
+                    storageClass: '{{ .features.storage.class }}'
+                    size: '{{ .harbor.persistence.redis.size }}'
+                    annotations:
+                      argocd.argoproj.io/sync-options: Prune=false
+                  trivy:
+                    storageClass: '{{ .features.storage.class }}'
+                    size: '{{ .harbor.persistence.trivy.size }}'
+                    annotations:
+                      argocd.argoproj.io/sync-options: Prune=false
+              portal:
+                replicas: {{ .harbor.portal.replicas }}
+              core:
+                replicas: {{ .harbor.core.replicas }}
+              jobservice:
+                replicas: {{ .harbor.jobservice.replicas }}
+              registry:
+                replicas: {{ .harbor.registry.replicas }}
+              trivy:
+                enabled: true
+                replicas: {{ .harbor.trivy.replicas }}
+              {{- if .features.monitoring.enabled }}
+              metrics:
+                enabled: true
+                serviceMonitor:
+                  enabled: true
+                  additionalLabels:
+                    release: '{{ .features.monitoring.release }}'
+              {{- end }}
+              cache:
+                enabled: true
+                expireHours: 24

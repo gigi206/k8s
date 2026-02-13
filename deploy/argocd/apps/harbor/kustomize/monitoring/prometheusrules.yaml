@@ -1,0 +1,144 @@
+---
+# =============================================================================
+# Harbor - Prometheus Rules
+# =============================================================================
+# Alertes for Harbor container registry components
+# =============================================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: harbor-prometheus-rules
+  namespace: harbor
+  labels:
+    prometheus: harbor
+    role: alert-rules
+spec:
+  groups:
+    # =========================================================================
+    # Harbor Core Rules
+    # =========================================================================
+    - name: harbor-core.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Harbor core is down
+        - alert: HarborCoreDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="harbor-core",
+              namespace="harbor"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Harbor Core is down"
+            description: "All Harbor Core pods are unavailable for 5 minutes."
+
+        # HIGH: Harbor core pod restarting
+        - alert: HarborCorePodRestarting
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              pod=~"harbor-core-.*",
+              namespace="harbor"
+            }[15m]) > 0
+          for: 10m
+          labels:
+            severity: high
+          annotations:
+            summary: "Harbor Core pod is restarting"
+            description: "Harbor Core pod {{ $labels.pod }} has been restarting."
+
+    # =========================================================================
+    # Harbor Registry Rules
+    # =========================================================================
+    - name: harbor-registry.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Harbor registry is down
+        - alert: HarborRegistryDown
+          expr: |
+            kube_deployment_status_replicas_available{
+              deployment="harbor-registry",
+              namespace="harbor"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Harbor Registry is down"
+            description: "All Harbor Registry pods are unavailable. Docker push/pull will fail."
+
+        # WARNING: Harbor registry high storage usage
+        - alert: HarborRegistryStorageHigh
+          expr: |
+            kubelet_volume_stats_available_bytes{
+              persistentvolumeclaim=~"harbor-registry.*",
+              namespace="harbor"
+            } / kubelet_volume_stats_capacity_bytes{
+              persistentvolumeclaim=~"harbor-registry.*",
+              namespace="harbor"
+            } < 0.2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Harbor Registry storage running low"
+            description: "Harbor Registry storage is below 20% available."
+
+    # =========================================================================
+    # Harbor Database Rules
+    # =========================================================================
+    - name: harbor-database.rules
+      interval: 30s
+      rules:
+        # CRITICAL: Harbor database is down
+        - alert: HarborDatabaseDown
+          expr: |
+            kube_statefulset_status_replicas_ready{
+              statefulset="harbor-database",
+              namespace="harbor"
+            } == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Harbor Database is down"
+            description: "Harbor internal PostgreSQL database is unavailable."
+
+        # WARNING: Harbor database storage running low
+        - alert: HarborDatabaseStorageLow
+          expr: |
+            kubelet_volume_stats_available_bytes{
+              persistentvolumeclaim=~".*harbor-database.*",
+              namespace="harbor"
+            } / kubelet_volume_stats_capacity_bytes{
+              persistentvolumeclaim=~".*harbor-database.*",
+              namespace="harbor"
+            } < 0.2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Harbor Database storage running low"
+            description: "Harbor Database storage is below 20% available."
+
+    # =========================================================================
+    # Harbor Trivy Rules
+    # =========================================================================
+    - name: harbor-trivy.rules
+      interval: 30s
+      rules:
+        # WARNING: Trivy vulnerability scanner is down
+        - alert: HarborTrivyDown
+          expr: |
+            kube_statefulset_status_replicas_ready{
+              statefulset="harbor-trivy",
+              namespace="harbor"
+            } == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Harbor Trivy scanner is down"
+            description: "Trivy vulnerability scanner is unavailable. Image scanning will not work."

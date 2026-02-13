@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Harbor Ingress from Envoy Gateway
+# =============================================================================
+# Allows access to Harbor from Envoy Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: harbor-ingress-envoy-gateway
+  namespace: harbor
+spec:
+  description: "Allow ingress to Harbor from Envoy Gateway"
+  endpointSelector: {}  # Applies to all pods in harbor namespace
+
+  ingress:
+    # Allow from Envoy Gateway (envoy-gateway-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "80"      # Harbor ClusterIP HTTP
+              protocol: TCP
+            - port: "443"     # Harbor ClusterIP HTTPS
+              protocol: TCP
