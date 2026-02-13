@@ -263,6 +263,21 @@ spec:
         {{- end }}
 
         {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: Keycloak - Register OAuth2 Proxy redirect URIs for Harbor
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/harbor/kustomize/sso-keycloak
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: harbor-oauth2-proxy-uris
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
         # Source: SSO - Keycloak OIDC client + Harbor OIDC configuration
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

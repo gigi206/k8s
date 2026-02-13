@@ -1,0 +1,188 @@
+---
+# =============================================================================
+# Job - Register OAuth2 Proxy redirect URIs for Longhorn
+# =============================================================================
+# Adds this app's redirect URIs to the shared oauth2-proxy Keycloak client.
+# Each app owns its own URI registration (decentralized pattern).
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: longhorn-oauth2-proxy-uris
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: register-uris
+          image: curlimages/curl:8.17.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DOMAIN
+              value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            - name: KEYCLOAK_URL
+              value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
+            - name: KEYCLOAK_HEALTH_URL
+              value: "https://keycloak-service.keycloak.svc.cluster.local:9000"
+            - name: REALM
+              value: "k8s"
+            - name: OAUTH2_CLIENT_ID
+              value: "oauth2-proxy"
+            - name: SUBDOMAINS
+              value: "longhorn"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: password
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "=== Registering OAuth2 Proxy redirect URIs for longhorn ==="
+              echo "Subdomains: ${SUBDOMAINS}"
+
+              # Wait for Keycloak to be ready
+              echo "Waiting for Keycloak..."
+              for i in $(seq 1 240); do
+                if curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_HEALTH_URL}/health/ready" | grep -q "200"; then
+                  echo "Keycloak is ready (after $i attempts)"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/240 - Keycloak not ready, waiting..."
+                sleep 5
+                if [ "$i" -eq 240 ]; then
+                  echo "ERROR: Keycloak not ready after 20 minutes"
+                  exit 1
+                fi
+              done
+
+              # Wait for realm
+              echo "Waiting for realm '${REALM}'..."
+              for i in $(seq 1 120); do
+                if curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_URL}/realms/${REALM}/.well-known/openid-configuration" | grep -q "200"; then
+                  echo "Realm '${REALM}' is ready (after $i attempts)"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120 - Realm not ready, waiting..."
+                sleep 5
+                if [ "$i" -eq 120 ]; then
+                  echo "ERROR: Realm not ready after 10 minutes"
+                  exit 1
+                fi
+              done
+
+              # Get admin token
+              echo "Getting admin token..."
+              TOKEN=$(curl -sk -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli" \
+                -d "username=${KEYCLOAK_ADMIN}" \
+                -d "password=${KEYCLOAK_ADMIN_PASSWORD}" | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+
+              if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+                echo "ERROR: Failed to get admin token"
+                exit 1
+              fi
+              echo "Admin token obtained"
+
+              # Wait for oauth2-proxy client to exist (created by central Job)
+              echo "Waiting for oauth2-proxy client..."
+              CLIENT_UUID=""
+              for i in $(seq 1 60); do
+                EXISTING=$(curl -sk -H "Authorization: Bearer ${TOKEN}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${OAUTH2_CLIENT_ID}")
+                if echo "$EXISTING" | grep -q '"id"'; then
+                  CLIENT_UUID=$(echo "$EXISTING" | sed 's/\[{"id":"\([^"]*\)".*/\1/')
+                  echo "Found client (UUID: ${CLIENT_UUID})"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/60 - client not found, waiting..."
+                sleep 5
+              done
+
+              if [ -z "$CLIENT_UUID" ]; then
+                echo "ERROR: oauth2-proxy client not found after 5 minutes"
+                exit 1
+              fi
+
+              # Get current client configuration
+              CLIENT_JSON=$(curl -sk -H "Authorization: Bearer ${TOKEN}" \
+                "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}")
+
+              # Add redirect URIs for each subdomain
+              UPDATED=false
+              for SUBDOMAIN in ${SUBDOMAINS}; do
+                REDIRECT_URI="https://${SUBDOMAIN}.${DOMAIN}/oauth2/callback"
+                WEB_ORIGIN="https://${SUBDOMAIN}.${DOMAIN}"
+                LOGOUT_URI="https://${SUBDOMAIN}.${DOMAIN}/*"
+
+                if ! echo "$CLIENT_JSON" | grep -q "${REDIRECT_URI}"; then
+                  echo "Adding redirect URI: ${REDIRECT_URI}"
+                  CLIENT_JSON=$(echo "$CLIENT_JSON" | sed "s|\"redirectUris\":\[|\"redirectUris\":[\"${REDIRECT_URI}\",|")
+                  UPDATED=true
+                else
+                  echo "Redirect URI already present: ${REDIRECT_URI}"
+                fi
+
+                if ! echo "$CLIENT_JSON" | grep -q "\"${WEB_ORIGIN}\""; then
+                  echo "Adding web origin: ${WEB_ORIGIN}"
+                  CLIENT_JSON=$(echo "$CLIENT_JSON" | sed "s|\"webOrigins\":\[|\"webOrigins\":[\"${WEB_ORIGIN}\",|")
+                  UPDATED=true
+                else
+                  echo "Web origin already present: ${WEB_ORIGIN}"
+                fi
+
+                if ! echo "$CLIENT_JSON" | grep -q "${SUBDOMAIN}.${DOMAIN}/\*"; then
+                  echo "Adding post-logout redirect URI: ${LOGOUT_URI}"
+                  CLIENT_JSON=$(echo "$CLIENT_JSON" | sed "s|\"post.logout.redirect.uris\":\"|\"post.logout.redirect.uris\":\"${LOGOUT_URI}##|")
+                  UPDATED=true
+                else
+                  echo "Post-logout redirect URI already present: ${LOGOUT_URI}"
+                fi
+              done
+
+              if [ "$UPDATED" = "true" ]; then
+                echo "Updating client with new URIs..."
+                RESPONSE=$(curl -sk -w "\n%{http_code}" -X PUT \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d "$CLIENT_JSON" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}")
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+
+                if [ "$HTTP_CODE" = "204" ]; then
+                  echo "Client updated successfully"
+                else
+                  echo "ERROR: Failed to update client (HTTP $HTTP_CODE)"
+                  echo "$RESPONSE"
+                  exit 1
+                fi
+              else
+                echo "All URIs already present, no update needed"
+              fi
+
+              echo "=== Done ==="

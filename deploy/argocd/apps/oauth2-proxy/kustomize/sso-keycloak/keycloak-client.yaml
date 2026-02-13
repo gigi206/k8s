@@ -123,31 +123,21 @@ spec:
                 -H "Authorization: Bearer ${TOKEN}" \
                 "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}")
 
-              # Client payload - OAuth2 Proxy needs specific redirect URIs
-              # Also includes redirect URIs for Envoy Gateway native OIDC
+              # Base client payload - only oauth2-proxy's own redirect URI
+              # Per-app redirect URIs are managed by each app's own Job
               CLIENT_PAYLOAD=$(cat <<EOF
               {
                 "clientId": "${CLIENT_ID}",
                 "name": "OAuth2 Proxy",
-                "description": "OAuth2 Proxy for protecting apps (Prometheus, Alertmanager, Hubble, Longhorn, Harbor)",
+                "description": "OAuth2 Proxy for protecting apps via ext_authz",
                 "enabled": true,
                 "clientAuthenticatorType": "client-secret",
                 "secret": "${CLIENT_SECRET}",
                 "redirectUris": [
-                  "https://oauth2.${DOMAIN}/oauth2/callback",
-                  "https://prometheus.${DOMAIN}/oauth2/callback",
-                  "https://alertmanager.${DOMAIN}/oauth2/callback",
-                  "https://hubble.${DOMAIN}/oauth2/callback",
-                  "https://longhorn.${DOMAIN}/oauth2/callback",
-                  "https://jaeger.${DOMAIN}/oauth2/callback",
-                  "https://harbor.${DOMAIN}/oauth2/callback"
+                  "https://oauth2.${DOMAIN}/oauth2/callback"
                 ],
                 "webOrigins": [
-                  "https://prometheus.${DOMAIN}",
-                  "https://alertmanager.${DOMAIN}",
-                  "https://hubble.${DOMAIN}",
-                  "https://longhorn.${DOMAIN}",
-                  "https://harbor.${DOMAIN}"
+                  "https://oauth2.${DOMAIN}"
                 ],
                 "publicClient": false,
                 "protocol": "openid-connect",
@@ -157,7 +147,7 @@ spec:
                 "serviceAccountsEnabled": false,
                 "attributes": {
                   "pkce.code.challenge.method": "S256",
-                  "post.logout.redirect.uris": "https://prometheus.${DOMAIN}/*##https://alertmanager.${DOMAIN}/*##https://hubble.${DOMAIN}/*##https://longhorn.${DOMAIN}/*##https://harbor.${DOMAIN}/*"
+                  "post.logout.redirect.uris": "https://oauth2.${DOMAIN}/*"
                 },
                 "defaultClientScopes": [
                   "openid",
@@ -175,26 +165,33 @@ spec:
                 "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}")
 
               if echo "$EXISTING_CLIENT" | grep -q "\"id\""; then
-                # Client exists, get ID and update
+                # Client exists - update secret only, preserve redirect URIs added by per-app Jobs
                 CLIENT_UUID=$(echo "$EXISTING_CLIENT" | sed -n 's/\[{"id":"\([^"]*\)".*/\1/p')
-                echo "Client exists with ID: ${CLIENT_UUID}, updating..."
+                echo "Client exists with ID: ${CLIENT_UUID}, updating (preserving redirect URIs)..."
+
+                CURRENT_CLIENT=$(curl -sk \
+                  -H "Authorization: Bearer ${TOKEN}" \
+                  "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}")
+
+                # Update only the secret field, preserving all other config (especially URIs)
+                UPDATED_CLIENT=$(echo "$CURRENT_CLIENT" | sed "s|\"secret\":\"[^\"]*\"|\"secret\":\"${CLIENT_SECRET}\"|")
 
                 RESPONSE=$(curl -sk -w "\n%{http_code}" -X PUT \
                   -H "Authorization: Bearer ${TOKEN}" \
                   -H "Content-Type: application/json" \
-                  -d "${CLIENT_PAYLOAD}" \
+                  -d "${UPDATED_CLIENT}" \
                   "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}")
                 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 
                 if [ "$HTTP_CODE" = "204" ]; then
-                  echo "Client updated successfully"
+                  echo "Client updated successfully (secret refreshed, URIs preserved)"
                 else
                   echo "ERROR: Failed to update client (HTTP $HTTP_CODE)"
                   echo "$RESPONSE"
                   exit 1
                 fi
               else
-                # Client doesn't exist, create it
+                # Client doesn't exist, create it with base config
                 echo "Creating new client..."
                 RESPONSE=$(curl -sk -w "\n%{http_code}" -X POST \
                   -H "Authorization: Bearer ${TOKEN}" \
