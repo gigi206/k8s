@@ -65,6 +65,12 @@ yq -i '.features.tracing.enabled = false' "$CONFIG_FILE"
 yq -i '.features.sso.enabled = false' "$CONFIG_FILE"
 yq -i '.features.oauth2Proxy.enabled = false' "$CONFIG_FILE"
 yq -i '.features.neuvector.enabled = false' "$CONFIG_FILE"
+yq -i '.features.s3.enabled = false' "$CONFIG_FILE"
+yq -i '.features.registry.enabled = false' "$CONFIG_FILE"
+yq -i '.features.reloader.enabled = false' "$CONFIG_FILE"
+yq -i '.features.cilium.encryption.enabled = false' "$CONFIG_FILE"
+yq -i '.features.cilium.mutualAuth.enabled = false' "$CONFIG_FILE"
+yq -i '.features.cilium.mutualAuth.spire.dataStorage.enabled = false' "$CONFIG_FILE"
 
 # Disable all ingress controllers by default
 yq -i '.features.traefik.enabled = false' "$CONFIG_FILE" 2>/dev/null || true
@@ -82,8 +88,12 @@ log_info "Enabling features for detected apps..."
 for app in $ALL_APPS; do
   case $app in
     # Base apps (always enabled)
-    metallb|cert-manager|external-dns|external-secrets|cilium|gateway-api-controller)
+    cert-manager|external-dns|external-secrets)
       # Already enabled by default
+      ;;
+    metallb)
+      log_info "  Enabling metallb"
+      yq -i '.features.loadBalancer.provider = "metallb"' "$CONFIG_FILE"
       ;;
 
     # Ingress controllers
@@ -212,6 +222,9 @@ yq -i '.environment = "ci"' "$CONFIG_FILE"
 
 # Enable auto-sync for faster CI
 yq -i '.syncPolicy.automated.enabled = true' "$CONFIG_FILE"
+
+# Set LoadBalancer provider to metallb (Cilium K3d doesn't have L2 announcements)
+yq -i '.features.loadBalancer.provider = "metallb"' "$CONFIG_FILE"
 
 # Reduce retry limits for faster failure detection
 yq -i '.syncPolicy.retry.limit = 3' "$CONFIG_FILE"
