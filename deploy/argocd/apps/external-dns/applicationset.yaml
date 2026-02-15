@@ -117,6 +117,15 @@ spec:
             include: "kyverno-policy-exception.yaml"
         {{- end }}
 
+        {{- /* PreSync hook - Wait for cert-manager webhook before creating TLS Certificates */ -}}
+        {{- if and .externalDns.etcd.enabled .externalDns.etcd.tls.enabled }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/external-dns/resources
+          directory:
+            include: "cert-manager-webhook-presync-check.yaml"
+        {{- end }}
+
         {{- /* TLS Certificates for etcd mTLS (server, client, peer) */ -}}
         {{- if and .externalDns.etcd.enabled .externalDns.etcd.tls.enabled }}
         - repoURL: https://github.com/gigi206/k8s
