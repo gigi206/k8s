@@ -124,10 +124,10 @@ spec:
             - name: serviceAccount.name
               value: "external-secrets"
 
+            {{- if .features.monitoring.enabled }}
             # Prometheus metrics
             - name: metrics.service.enabled
-              value: '{{ .features.monitoring.enabled }}'
-            {{- if .features.monitoring.enabled }}
+              value: 'true'
             - name: serviceMonitor.enabled
               value: "true"
             - name: serviceMonitor.additionalLabels.release

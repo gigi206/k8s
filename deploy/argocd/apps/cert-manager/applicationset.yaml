@@ -43,26 +43,12 @@ spec:
     spec:
       project: default
 
+      # Sources fully defined in templatePatch (conditional logic)
+      # This placeholder is required by ArgoCD but will be replaced
       sources:
-        # Source 1: Chart Helm Cert-Manager
         - repoURL: https://charts.jetstack.io
           targetRevision: '{{ .certManager.version }}'
           chart: cert-manager
-          helm:
-            parameters:
-              - name: crds.enabled
-                value: "true"
-              - name: crds.keep
-                value: "true"
-              - name: prometheus.enabled
-                value: '{{ .features.monitoring.enabled }}'
-
-        # Source 2: ClusterIssuers, ClusterSecretStore, and webhook readiness check
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: 'deploy/argocd/apps/{{ .appName }}/resources'
-          directory:
-            include: "{cluster-secret-store.yaml,clusterissuer-selfsigned.yaml,webhook-readiness-check.yaml}"
 
       destination:
         server: https://kubernetes.default.svc
@@ -155,13 +141,15 @@ spec:
             - name: crds.keep
               value: "true"
 
+            {{- if .features.monitoring.enabled }}
             # Prometheus metrics
             - name: prometheus.enabled
-              value: '{{ .features.monitoring.enabled }}'
+              value: 'true'
             - name: prometheus.servicemonitor.enabled
-              value: '{{ .features.monitoring.enabled }}'
+              value: 'true'
             - name: prometheus.servicemonitor.labels.release
               value: '{{ .features.monitoring.release }}'
+            {{- end }}
 
             # Gateway API support - disabled when provider is APISIX (manages its own Gateway API)
             {{- if and .certManager.gatewayAPI.enabled (ne .features.gatewayAPI.controller.provider "apisix") }}
