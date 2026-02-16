@@ -1846,7 +1846,7 @@ JOBEOF
   # Le rollout Cilium DOIT être terminé avant que SPIRE tente de se reconnecter.
   # Les programmes eBPF en cours de rechargement cassent les connexions gRPC.
   log_info "Attente du rollout Cilium DaemonSet..."
-  if kubectl rollout status daemonset/rke2-cilium -n kube-system --timeout=300s > /dev/null 2>&1; then
+  if kubectl rollout status daemonset/cilium -n kube-system --timeout=300s > /dev/null 2>&1; then
     log_success "Cilium DaemonSet rollout terminé"
   else
     log_warning "Cilium DaemonSet rollout timeout (300s), tentative de continuer..."
@@ -1921,7 +1921,7 @@ JOBEOF
     # Sans cette vérification, on peut passer avec un SPIRE "healthy" mais
     # dont le Cilium Operator n'a pas re-enregistré les identités après restart.
     local auth_entries
-    auth_entries=$(kubectl exec -n kube-system ds/rke2-cilium -- cilium-dbg bpf auth list 2>/dev/null | grep -c "spire" || echo "0")
+    auth_entries=$(kubectl exec -n kube-system ds/cilium -- cilium-dbg bpf auth list 2>/dev/null | grep -c "spire" || echo "0")
     if [[ "$auth_entries" -lt 5 ]]; then
       return 1
     fi
