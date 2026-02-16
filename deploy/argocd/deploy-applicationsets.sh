@@ -1865,14 +1865,11 @@ JOBEOF
   # après les connexions gRPC cassées par le rechargement eBPF de Cilium.
   # Le restart force une reconnexion propre sans backoff.
   log_info "Restart propre du SPIRE Agent (évite backoff exponentiel)..."
-  if kubectl rollout restart daemonset/spire-agent -n cilium-spire > /dev/null 2>&1; then
-    if kubectl rollout status daemonset/spire-agent -n cilium-spire --timeout=120s > /dev/null 2>&1; then
-      log_success "SPIRE Agent DaemonSet redémarré avec succès"
-    else
-      log_warning "SPIRE Agent rollout timeout (120s), tentative de continuer..."
-    fi
+  kubectl rollout restart daemonset/spire-agent -n cilium-spire > /dev/null 2>&1
+  if kubectl rollout status daemonset/spire-agent -n cilium-spire --timeout=120s > /dev/null 2>&1; then
+    log_success "SPIRE Agent DaemonSet redémarré avec succès"
   else
-    log_warning "Impossible de restart le SPIRE Agent (resource non trouvée ou helm upgrade en cours)"
+    log_warning "SPIRE Agent rollout timeout (120s), tentative de continuer..."
   fi
 
   # Étape 3.5: Restart Cilium Operator (reconnexion au SPIRE Agent)
@@ -1882,14 +1879,11 @@ JOBEOF
   # ArgoCD déployés après le batch initial, causant des erreurs
   # "no SPIFFE ID for spiffe://spiffe.cilium/identity/XXXX".
   log_info "Restart du Cilium Operator (reconnexion SPIRE agent)..."
-  if kubectl rollout restart deployment/cilium-operator -n kube-system > /dev/null 2>&1; then
-    if kubectl rollout status deployment/cilium-operator -n kube-system --timeout=120s > /dev/null 2>&1; then
-      log_success "Cilium Operator redémarré avec succès"
-    else
-      log_warning "Cilium Operator rollout timeout (120s), tentative de continuer..."
-    fi
+  kubectl rollout restart deployment/cilium-operator -n kube-system > /dev/null 2>&1
+  if kubectl rollout status deployment/cilium-operator -n kube-system --timeout=60s > /dev/null 2>&1; then
+    log_success "Cilium Operator redémarré avec succès"
   else
-    log_warning "Impossible de restart le Cilium Operator"
+    log_warning "Cilium Operator rollout timeout (60s), tentative de continuer..."
   fi
 
   # Attendre que l'operator re-enregistre les identités dans SPIRE
