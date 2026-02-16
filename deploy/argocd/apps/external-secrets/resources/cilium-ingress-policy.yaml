@@ -3,7 +3,7 @@
 # CiliumNetworkPolicy - External Secrets Ingress Security
 # =============================================================================
 # Restricts access to External Secrets Operator to authorized sources:
-# - kube-system: Webhook calls from kube-apiserver
+# - host/remote-node: Webhook calls from kube-apiserver
 # - monitoring: Prometheus metrics scraping
 # - external-secrets: Internal communication
 # =============================================================================
@@ -18,11 +18,13 @@ spec:
   endpointSelector: {}  # Applies to all pods in external-secrets namespace
 
   ingress:
-    # Allow from kube-system (API server webhook calls)
+    # Allow webhook calls from kube-apiserver (all nodes)
     # kube-apiserver calls webhooks for ExternalSecret conversion and validation
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
+    # Uses host + remote-node because the API server may run on any node
+    # (as a host process in K3d/K3s or as a pod in kube-system)
+    - fromEntities:
+        - host
+        - remote-node
       toPorts:
         - ports:
             - port: "10250"   # Webhook server port
