@@ -15,10 +15,11 @@ spec:
     matchLabels:
       app.kubernetes.io/instance: kyverno
   ingress:
-    # Allow webhook calls from kube-apiserver (all nodes)
+    # Allow webhook calls from kube-apiserver
+    # Uses kube-apiserver entity for precise targeting (RKE2/kubeadm)
+    # For K3d/K3s, a supplementary policy adds host+remote-node fallback
     - fromEntities:
-        - host
-        - remote-node
+        - kube-apiserver
       toPorts:
         - ports:
             - port: "9443"

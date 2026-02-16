@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kyverno Webhook K3d Fallback
+# =============================================================================
+# Supplementary webhook policy for K3d/K3s clusters.
+# kube-apiserver entity is not recognized in K3d; use host+remote-node
+# as fallback. CiliumNetworkPolicy rules are additive (union).
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kyverno-webhook-k3d
+  namespace: kyverno
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: kyverno
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9443"
+              protocol: TCP

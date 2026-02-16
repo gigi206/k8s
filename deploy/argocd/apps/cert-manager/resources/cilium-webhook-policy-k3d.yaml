@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Cert-Manager Webhook K3d Fallback
+# =============================================================================
+# Supplementary webhook policy for K3d/K3s clusters.
+# kube-apiserver entity is not recognized in K3d; use host+remote-node
+# as fallback. CiliumNetworkPolicy rules are additive (union).
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cert-manager-webhook-k3d
+  namespace: cert-manager
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP

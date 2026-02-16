@@ -145,6 +145,14 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-ingress-policy.yaml"
+          {{- if eq .cluster.distribution "k3d" }}
+        # Source: Supplementary K3d webhook policy (host+remote-node fallback)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/argocd/resources
+          directory:
+            include: "cilium-webhook-policy-k3d.yaml"
+          {{- end }}
           {{- else if eq .cni.primary "calico" }}
         # Source: Calico internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s

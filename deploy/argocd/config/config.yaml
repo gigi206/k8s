@@ -284,6 +284,8 @@ features:
 #   - Requis pour LoxiLB avec Cilium (isolation eBPF)
 #   - whereabouts: active l'IPAM cluster-wide (utilisé par install_master.sh)
 # =============================================================================
+cluster:
+  distribution: "rke2"  # rke2 | k3d | k3s | kubeadm
 cni:
   primary: "cilium" # cilium | calico (eBPF-based, kube-proxy replacement)
   multus:
