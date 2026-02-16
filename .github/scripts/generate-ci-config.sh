@@ -54,24 +54,36 @@ log_info "Disabling all optional features..."
 # metallb, certManager, externalSecrets, externalDns, gatewayAPI - always needed
 
 # Optional features - disable by default
-yq -i '.features.kubeVip.enabled = false' "$CONFIG_FILE"
-yq -i '.features.serviceMesh.enabled = false' "$CONFIG_FILE"
-yq -i '.features.storage.enabled = false' "$CONFIG_FILE"
-yq -i '.features.databaseOperator.enabled = false' "$CONFIG_FILE"
-yq -i '.features.monitoring.enabled = false' "$CONFIG_FILE"
-yq -i '.features.cilium.monitoring.enabled = false' "$CONFIG_FILE"
-yq -i '.features.logging.enabled = false' "$CONFIG_FILE"
-yq -i '.features.tracing.enabled = false' "$CONFIG_FILE"
-yq -i '.features.sso.enabled = false' "$CONFIG_FILE"
-yq -i '.features.oauth2Proxy.enabled = false' "$CONFIG_FILE"
-yq -i '.features.neuvector.enabled = false' "$CONFIG_FILE"
+# IMPORTANT: Use empty string "" instead of false because ArgoCD merge generator
+# converts all YAML values to strings. Boolean false becomes string "false" which
+# is TRUTHY in Go templates. Empty string is correctly FALSY in both Go templates
+# and Helm chart conditionals.
+yq -i '.features.kubeVip.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.serviceMesh.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.storage.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.databaseOperator.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.monitoring.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.cilium.monitoring.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.logging.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.tracing.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.sso.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.oauth2Proxy.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.neuvector.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.s3.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.registry.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.reloader.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.cilium.encryption.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.cilium.mutualAuth.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.cilium.mutualAuth.spire.dataStorage.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.kubescape.enabled = ""' "$CONFIG_FILE"
+yq -i '.features.ingress.enabled = ""' "$CONFIG_FILE"
 
 # Disable all ingress controllers by default
-yq -i '.features.traefik.enabled = false' "$CONFIG_FILE" 2>/dev/null || true
-yq -i '.features.ingressNginx.enabled = false' "$CONFIG_FILE" 2>/dev/null || true
-yq -i '.features.apisix.enabled = false' "$CONFIG_FILE" 2>/dev/null || true
-yq -i '.features.envoyGateway.enabled = false' "$CONFIG_FILE" 2>/dev/null || true
-yq -i '.features.nginxGatewayFabric.enabled = false' "$CONFIG_FILE" 2>/dev/null || true
+yq -i '.features.traefik.enabled = ""' "$CONFIG_FILE" 2>/dev/null || true
+yq -i '.features.ingressNginx.enabled = ""' "$CONFIG_FILE" 2>/dev/null || true
+yq -i '.features.apisix.enabled = ""' "$CONFIG_FILE" 2>/dev/null || true
+yq -i '.features.envoyGateway.enabled = ""' "$CONFIG_FILE" 2>/dev/null || true
+yq -i '.features.nginxGatewayFabric.enabled = ""' "$CONFIG_FILE" 2>/dev/null || true
 
 # =============================================================================
 # Enable features based on detected apps
@@ -82,20 +94,26 @@ log_info "Enabling features for detected apps..."
 for app in $ALL_APPS; do
   case $app in
     # Base apps (always enabled)
-    metallb|cert-manager|external-dns|external-secrets|cilium|gateway-api-controller)
+    cert-manager|external-dns|external-secrets)
       # Already enabled by default
+      ;;
+    metallb)
+      log_info "  Enabling metallb"
+      yq -i '.features.loadBalancer.provider = "metallb"' "$CONFIG_FILE"
       ;;
 
     # Ingress controllers
     traefik)
       log_info "  Enabling traefik"
       yq -i '.features.gatewayAPI.controller.provider = "traefik"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "traefik"' "$CONFIG_FILE"
       ;;
     istio)
       log_info "  Enabling istio (service mesh)"
       yq -i '.features.serviceMesh.enabled = true' "$CONFIG_FILE"
       yq -i '.features.serviceMesh.provider = "istio"' "$CONFIG_FILE"
       yq -i '.features.gatewayAPI.controller.provider = "istio"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "istio-system"' "$CONFIG_FILE"
       ;;
     istio-gateway)
       # Handled by istio
@@ -103,19 +121,23 @@ for app in $ALL_APPS; do
     apisix)
       log_info "  Enabling apisix (with native CRDs)"
       yq -i '.features.gatewayAPI.controller.provider = "apisix"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "apisix"' "$CONFIG_FILE"
       yq -i '.features.gatewayAPI.httpRoute.enabled = false' "$CONFIG_FILE"  # Use ApisixRoute instead of HTTPRoute
       ;;
     ingress-nginx)
       log_info "  Enabling ingress-nginx"
       yq -i '.features.gatewayAPI.controller.provider = "nginx"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "ingress-nginx"' "$CONFIG_FILE"
       ;;
     envoy-gateway)
       log_info "  Enabling envoy-gateway"
       yq -i '.features.gatewayAPI.controller.provider = "envoy-gateway"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "envoy-gateway-system"' "$CONFIG_FILE"
       ;;
     nginx-gateway-fabric)
       log_info "  Enabling nginx-gateway-fabric"
       yq -i '.features.gatewayAPI.controller.provider = "nginx-gateway-fabric"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "nginx-gateway"' "$CONFIG_FILE"
       ;;
 
     # SSO group
@@ -207,11 +229,25 @@ done
 
 log_info "Applying CI-specific settings..."
 
-# Set environment to ci
-yq -i '.environment = "ci"' "$CONFIG_FILE"
+# Keep environment as dev so merge generator matches per-app config/dev.yaml
+# (merge generator joins on the 'environment' key; ci.yaml doesn't exist per-app)
+yq -i '.environment = "dev"' "$CONFIG_FILE"
 
 # Enable auto-sync for faster CI
 yq -i '.syncPolicy.automated.enabled = true' "$CONFIG_FILE"
+
+# Set LoadBalancer provider to metallb (Cilium K3d doesn't have L2 announcements)
+yq -i '.features.loadBalancer.provider = "metallb"' "$CONFIG_FILE"
+
+# Configure MetalLB IPs from K3d Docker network (production IPs are not routable)
+CLUSTER_NAME="${CLUSTER_NAME:-ci-cluster}"
+METALLB_SUBNET=$(docker network inspect "k3d-${CLUSTER_NAME}" -f '{{(index .IPAM.Config 0).Subnet}}' 2>/dev/null || echo "172.18.0.0/16")
+METALLB_BASE=$(echo "$METALLB_SUBNET" | sed 's|\.[0-9]*/.*||')
+log_info "K3d Docker network: $METALLB_SUBNET (base: $METALLB_BASE)"
+
+yq -i ".features.loadBalancer.staticIPs.gateway = \"${METALLB_BASE}.200\"" "$CONFIG_FILE"
+yq -i ".features.loadBalancer.staticIPs.externalDns = \"${METALLB_BASE}.201\"" "$CONFIG_FILE"
+yq -i ".features.loadBalancer.pools.default.range = \"${METALLB_BASE}.210-${METALLB_BASE}.250\"" "$CONFIG_FILE"
 
 # Reduce retry limits for faster failure detection
 yq -i '.syncPolicy.retry.limit = 3' "$CONFIG_FILE"
@@ -251,6 +287,12 @@ echo "=== Enabled Features ==="
 yq '.features | to_entries | .[] | select(.value.enabled == true) | .key' "$CONFIG_FILE" 2>/dev/null || true
 echo ""
 echo "Gateway API Controller: $(yq '.features.gatewayAPI.controller.provider' "$CONFIG_FILE")"
+echo "Gateway Namespace: $(yq '.features.gatewayAPI.controller.gatewayNamespace' "$CONFIG_FILE")"
+echo ""
+echo "=== MetalLB IPs ==="
+echo "Gateway IP: $(yq '.features.loadBalancer.staticIPs.gateway' "$CONFIG_FILE")"
+echo "External DNS IP: $(yq '.features.loadBalancer.staticIPs.externalDns' "$CONFIG_FILE")"
+echo "Default Pool: $(yq '.features.loadBalancer.pools.default.range' "$CONFIG_FILE")"
 echo ""
 echo "=== Cilium Firewall Policies ==="
 echo "Egress Policy: $(yq '.features.cilium.egressPolicy.enabled' "$CONFIG_FILE")"

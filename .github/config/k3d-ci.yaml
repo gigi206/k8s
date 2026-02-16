@@ -6,7 +6,7 @@
 #   - Cilium instead of Flannel (CNI)
 #   - MetalLB instead of ServiceLB (LoadBalancer)
 #   - Traefik/Istio instead of built-in Traefik (Ingress)
-#   - Our own storage class instead of local-storage
+#   - local-storage kept for basic PVC support (etcd, etc.)
 # =============================================================================
 
 apiVersion: k3d.io/v1alpha5
@@ -47,10 +47,8 @@ options:
       - arg: --disable=servicelb
         nodeFilters:
           - server:*
-      # Disable built-in local-storage provisioner
-      - arg: --disable=local-storage
-        nodeFilters:
-          - server:*
+      # Keep local-storage provisioner for basic PVC support (etcd, etc.)
+      # In production, Longhorn/Rook provides the storage class
       # Disable Flannel CNI (we use Cilium)
       - arg: --flannel-backend=none
         nodeFilters:
