@@ -35,7 +35,7 @@ log_error() { echo -e "${RED}[FAIL]${RESET} $*"; }
 
 log_info "=== Test 1: ArgoCD Server ==="
 
-if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-server -o name &>/dev/null; then
+if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-server -o name 2>/dev/null | grep -q .; then
   kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=argocd-server -n "$ARGOCD_NAMESPACE" --timeout=120s
   log_success "ArgoCD Server is ready"
 
@@ -52,7 +52,7 @@ fi
 
 log_info "=== Test 2: ArgoCD Repo Server ==="
 
-if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-repo-server -o name &>/dev/null; then
+if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-repo-server -o name 2>/dev/null | grep -q .; then
   kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=argocd-repo-server -n "$ARGOCD_NAMESPACE" --timeout=120s
   log_success "ArgoCD Repo Server is ready"
 
@@ -70,10 +70,10 @@ fi
 log_info "=== Test 3: ArgoCD Application Controller ==="
 
 # Controller can be Deployment or StatefulSet
-if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-application-controller -o name &>/dev/null; then
+if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-application-controller -o name 2>/dev/null | grep -q .; then
   kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=argocd-application-controller -n "$ARGOCD_NAMESPACE" --timeout=120s
   log_success "ArgoCD Application Controller (Deployment) is ready"
-elif kubectl get statefulset -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-application-controller -o name &>/dev/null; then
+elif kubectl get statefulset -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-application-controller -o name 2>/dev/null | grep -q .; then
   kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-application-controller -n "$ARGOCD_NAMESPACE" --timeout=120s
   log_success "ArgoCD Application Controller (StatefulSet) is ready"
 else
@@ -90,10 +90,10 @@ log_info "Controller pod: $CONTROLLER_POD"
 
 log_info "=== Test 4: ArgoCD Redis ==="
 
-if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-redis -o name &>/dev/null; then
+if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-redis -o name 2>/dev/null | grep -q .; then
   kubectl wait --for=condition=Available deployment -l app.kubernetes.io/name=argocd-redis -n "$ARGOCD_NAMESPACE" --timeout=60s
   log_success "ArgoCD Redis is ready"
-elif kubectl get statefulset -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-redis -o name &>/dev/null; then
+elif kubectl get statefulset -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-redis -o name 2>/dev/null | grep -q .; then
   kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=argocd-redis -n "$ARGOCD_NAMESPACE" --timeout=60s
   log_success "ArgoCD Redis (HA) is ready"
 else
@@ -241,7 +241,7 @@ fi
 
 log_info "=== Test 10: Notifications Controller ==="
 
-if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-notifications-controller -o name &>/dev/null; then
+if kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-notifications-controller -o name 2>/dev/null | grep -q .; then
   NOTIF_READY=$(kubectl get deployment -n "$ARGOCD_NAMESPACE" -l app.kubernetes.io/name=argocd-notifications-controller -o jsonpath='{.items[0].status.readyReplicas}' 2>/dev/null || echo "0")
   if [ "$NOTIF_READY" -gt 0 ]; then
     log_success "Notifications controller is ready"

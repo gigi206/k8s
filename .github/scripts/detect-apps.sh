@@ -46,7 +46,7 @@ if [ -n "${DEBUG:-}" ]; then
 fi
 
 # Apps de base (toujours installees)
-BASE_APPS="metallb cert-manager external-dns external-secrets cilium gateway-api-controller"
+BASE_APPS="metallb cert-manager external-dns external-secrets"
 EXTRA_APPS=""
 INGRESS="traefik"
 STORAGE_PROVIDER="none"
