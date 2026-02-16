@@ -38,10 +38,11 @@ spec:
             - port: "9121"    # Redis exporter metrics
               protocol: TCP
 
-    # Allow from kube-system (API server webhook calls)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
+    # Allow webhook calls from kube-apiserver
+    # Uses fromEntities (not fromEndpoints) because the API server may run as
+    # a host process (K3d/K3s) rather than as a pod in kube-system
+    - fromEntities:
+        - kube-apiserver
       toPorts:
         - ports:
             - port: "8443"    # Webhook server

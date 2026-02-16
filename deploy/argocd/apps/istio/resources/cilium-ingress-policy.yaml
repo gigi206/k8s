@@ -6,7 +6,7 @@
 # - All namespaces: xDS configuration (sidecars/ztunnel connect to istiod)
 # - monitoring: Prometheus metrics scraping
 # - istio-system: Internal communication
-# - kube-system: CNI and system components
+# - kube-apiserver: Webhook calls (sidecar injection)
 # =============================================================================
 
 apiVersion: cilium.io/v2
@@ -51,10 +51,11 @@ spec:
             - port: "20001"   # Kiali web UI/API
               protocol: TCP
 
-    # Allow from kube-system (CNI, kubelet probes, webhook calls)
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
+    # Allow webhook calls from kube-apiserver (sidecar injection)
+    # Uses fromEntities (not fromEndpoints) because the API server may run as
+    # a host process (K3d/K3s) rather than as a pod in kube-system
+    - fromEntities:
+        - kube-apiserver
       toPorts:
         - ports:
             - port: "15017"   # Webhook (sidecar injection)

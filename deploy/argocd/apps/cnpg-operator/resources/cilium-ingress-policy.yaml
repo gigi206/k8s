@@ -18,11 +18,12 @@ spec:
   endpointSelector: {}  # Applies to all pods in cnpg-system namespace
 
   ingress:
-    # Allow from kube-system (API server webhook calls)
+    # Allow webhook calls from kube-apiserver
     # kube-apiserver calls webhooks for Cluster CR validation/mutation
-    - fromEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
+    # Uses fromEntities (not fromEndpoints) because the API server may run as
+    # a host process (K3d/K3s) rather than as a pod in kube-system
+    - fromEntities:
+        - kube-apiserver
       toPorts:
         - ports:
             - port: "9443"    # Webhook server port

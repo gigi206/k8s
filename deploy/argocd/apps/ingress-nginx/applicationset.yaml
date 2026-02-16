@@ -66,14 +66,6 @@ spec:
               - name: controller.service.type
                 value: '{{ .ingressNginx.controller.service.type | default "LoadBalancer" }}'
 
-              # Metrics
-              - name: controller.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
-              - name: controller.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
-              - name: controller.metrics.serviceMonitor.additionalLabels.release
-                value: '{{ .features.monitoring.release }}'
-
       destination:
         server: https://kubernetes.default.svc
         namespace: ingress-nginx
@@ -187,12 +179,14 @@ spec:
               value: '{{ .features.loadBalancer.staticIPs.gateway }}'
             {{- end }}
             {{- end }}
+            {{- if .features.monitoring.enabled }}
             - name: controller.metrics.enabled
-              value: '{{ .features.monitoring.enabled }}'
+              value: 'true'
             - name: controller.metrics.serviceMonitor.enabled
-              value: '{{ .features.monitoring.enabled }}'
+              value: 'true'
             - name: controller.metrics.serviceMonitor.additionalLabels.release
               value: '{{ .features.monitoring.release }}'
+            {{- end }}
 
             # Admission webhooks with cert-manager
             - name: controller.admissionWebhooks.enabled

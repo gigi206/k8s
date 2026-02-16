@@ -346,25 +346,27 @@ spec:
                 value: 'argocd.{{ .common.domain }}'
               {{- end }}
 
+              {{- if .features.monitoring.enabled }}
               # Metrics - Core components (must be here because templatePatch overwrites template)
               - name: server.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: server.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: server.metrics.serviceMonitor.additionalLabels.release
                 value: '{{ .features.monitoring.release }}'
               - name: controller.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: controller.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: controller.metrics.serviceMonitor.additionalLabels.release
                 value: '{{ .features.monitoring.release }}'
               - name: repoServer.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: repoServer.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: repoServer.metrics.serviceMonitor.additionalLabels.release
                 value: '{{ .features.monitoring.release }}'
+              {{- end }}
 
               # ArgoCD Configuration (configs.cm)
               - name: configs.cm.timeout\.reconciliation
@@ -454,27 +456,27 @@ spec:
             # Monitoring - All components metrics
               {{- if .features.monitoring.enabled }}
               - name: applicationSet.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: applicationSet.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: applicationSet.metrics.serviceMonitor.additionalLabels.release
                 value: '{{ .features.monitoring.release }}'
               - name: notifications.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: notifications.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: notifications.metrics.serviceMonitor.additionalLabels.release
                 value: '{{ .features.monitoring.release }}'
               - name: redis.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: redis.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: redis.metrics.serviceMonitor.additionalLabels.release
                 value: '{{ .features.monitoring.release }}'
               - name: dex.metrics.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: dex.metrics.serviceMonitor.enabled
-                value: '{{ .features.monitoring.enabled }}'
+                value: 'true'
               - name: dex.metrics.serviceMonitor.additionalLabels.release
                 value: '{{ .features.monitoring.release }}'
               {{- end }}
