@@ -49,11 +49,10 @@ spec:
             - port: "8000"    # Node agent metrics
               protocol: TCP
 
-    # Allow webhook calls from kube-apiserver
-    # Uses fromEntities (not fromEndpoints) because the API server may run as
-    # a host process (K3d/K3s) rather than as a pod in kube-system
-    - fromEntities:
-        - kube-apiserver
+    # Allow kube-system for API server communication (webhooks)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
       toPorts:
         - ports:
             - port: "8443"    # Admission controller webhook
