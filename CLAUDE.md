@@ -84,6 +84,7 @@ Always use conditions based on `config/config.yaml` to enable optional features:
 | `{{- if .features.ingress.enabled }}` | Ingress config |
 | `{{- if .features.registry.enabled }}` | Container registry (harbor) |
 | `{{- if .features.certManager.enabled }}` | TLS annotations |
+| `{{- if eq .cluster.distribution "k3d" }}` | K3d-specific resources (e.g., webhook policies with host+remote-node) |
 | `{{- if .syncPolicy.automated.enabled }}` | automated sync block |
 
 **Combined conditions**: `{{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}`
@@ -156,6 +157,7 @@ sops decrypt apps/<app>/secrets/dev/secret.yaml              # View
 - **Version management**: chart version in `config/dev.yaml`, referenced as `{{ .appname.version }}`
 - **Multi-source apps**: Helm source with `$values` ref + Git source with `ref: values` + Kustomize paths
 - **Network policies**: CNI-specific files (`cilium-*-policy.yaml` / `calico-*-policy.yaml`). See `apps/cilium/README.md`
+- **Cluster distribution**: `cluster.distribution: "rke2" | "k3d" | "k3s" | "kubeadm"` in `config/config.yaml`. Controls distribution-specific resources (e.g., K3d webhook policies)
 - **CNI selection**: `cni.primary: "cilium" | "calico"` in `config/config.yaml`. See `apps/cilium/README.md`, `apps/calico/README.md` (if exists)
 - **LoadBalancer providers**: metallb, cilium, loxilb, kube-vip, klipper. See `deploy-applicationsets.sh`
 - **PostSync hooks**: use `hook-delete-policy: BeforeHookCreation,HookSucceeded` for idempotent Jobs (allows re-sync after failure)

@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - ArgoCD Webhook K3d Fallback
+# =============================================================================
+# Supplementary webhook policy for K3d/K3s clusters.
+# kube-apiserver entity is not recognized in K3d; use host+remote-node
+# as fallback. CiliumNetworkPolicy rules are additive (union).
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-webhook-k3d
+  namespace: argo-cd
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8443"
+              protocol: TCP

@@ -236,6 +236,9 @@ yq -i '.environment = "dev"' "$CONFIG_FILE"
 # Enable auto-sync for faster CI
 yq -i '.syncPolicy.automated.enabled = true' "$CONFIG_FILE"
 
+# Set cluster distribution for K3d-specific network policies
+yq -i '.cluster.distribution = "k3d"' "$CONFIG_FILE"
+
 # Set LoadBalancer provider to metallb (Cilium K3d doesn't have L2 announcements)
 yq -i '.features.loadBalancer.provider = "metallb"' "$CONFIG_FILE"
 
