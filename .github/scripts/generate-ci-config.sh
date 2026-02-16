@@ -106,12 +106,14 @@ for app in $ALL_APPS; do
     traefik)
       log_info "  Enabling traefik"
       yq -i '.features.gatewayAPI.controller.provider = "traefik"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "traefik"' "$CONFIG_FILE"
       ;;
     istio)
       log_info "  Enabling istio (service mesh)"
       yq -i '.features.serviceMesh.enabled = true' "$CONFIG_FILE"
       yq -i '.features.serviceMesh.provider = "istio"' "$CONFIG_FILE"
       yq -i '.features.gatewayAPI.controller.provider = "istio"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "istio-system"' "$CONFIG_FILE"
       ;;
     istio-gateway)
       # Handled by istio
@@ -119,19 +121,23 @@ for app in $ALL_APPS; do
     apisix)
       log_info "  Enabling apisix (with native CRDs)"
       yq -i '.features.gatewayAPI.controller.provider = "apisix"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "apisix"' "$CONFIG_FILE"
       yq -i '.features.gatewayAPI.httpRoute.enabled = false' "$CONFIG_FILE"  # Use ApisixRoute instead of HTTPRoute
       ;;
     ingress-nginx)
       log_info "  Enabling ingress-nginx"
       yq -i '.features.gatewayAPI.controller.provider = "nginx"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "ingress-nginx"' "$CONFIG_FILE"
       ;;
     envoy-gateway)
       log_info "  Enabling envoy-gateway"
       yq -i '.features.gatewayAPI.controller.provider = "envoy-gateway"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "envoy-gateway-system"' "$CONFIG_FILE"
       ;;
     nginx-gateway-fabric)
       log_info "  Enabling nginx-gateway-fabric"
       yq -i '.features.gatewayAPI.controller.provider = "nginx-gateway-fabric"' "$CONFIG_FILE"
+      yq -i '.features.gatewayAPI.controller.gatewayNamespace = "nginx-gateway"' "$CONFIG_FILE"
       ;;
 
     # SSO group
