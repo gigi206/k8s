@@ -260,14 +260,16 @@ spec:
             - name: ingressClass.isDefaultClass
               value: '{{ .traefik.ingressClass.isDefaultClass | default "false" }}'
 
+            {{- if .features.gatewayAPI.enabled }}
             # Gateway API - GatewayClass
             - name: gatewayClass.enabled
-              value: '{{ .features.gatewayAPI.enabled }}'
+              value: 'true'
             - name: gatewayClass.name
               value: '{{ .traefik.gatewayClass.name | default "traefik" }}'
             # Gateway API - Provider (required for GatewayClass to be created)
             - name: providers.kubernetesGateway.enabled
-              value: '{{ .features.gatewayAPI.enabled }}'
+              value: 'true'
+            {{- end }}
             # Disable Helm-managed Gateway (we create our own via kustomize to avoid type mismatch)
             - name: gateway.enabled
               value: 'false'
