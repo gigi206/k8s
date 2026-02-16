@@ -576,6 +576,12 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-traefik
         {{- end }}
+        {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled }}
+        # Source: OAuth2 AuthorizationPolicies + ReferenceGrant for oauth2-proxy namespace
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz
+        {{- end }}
         {{- if .features.sso.enabled }}
         # Source: SSO generic resources (ClusterSecretStore, ExternalSecrets)
         - repoURL: https://github.com/gigi206/k8s

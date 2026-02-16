@@ -4,3 +4,4 @@ kind: Kustomization
 
 resources:
   - authorization-policies.yaml
+  - oauth2-proxy-referencegrant.yaml
