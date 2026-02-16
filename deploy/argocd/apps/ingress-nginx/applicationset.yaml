@@ -66,15 +66,8 @@ spec:
               - name: controller.service.type
                 value: '{{ .ingressNginx.controller.service.type | default "LoadBalancer" }}'
 
-              {{- if .features.monitoring.enabled }}
-              # Metrics
-              - name: controller.metrics.enabled
-                value: 'true'
-              - name: controller.metrics.serviceMonitor.enabled
-                value: 'true'
-              - name: controller.metrics.serviceMonitor.additionalLabels.release
-                value: '{{ .features.monitoring.release }}'
-              {{- end }}
+
+
 
       destination:
         server: https://kubernetes.default.svc
