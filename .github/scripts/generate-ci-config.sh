@@ -239,6 +239,16 @@ yq -i '.syncPolicy.automated.enabled = true' "$CONFIG_FILE"
 # Set LoadBalancer provider to metallb (Cilium K3d doesn't have L2 announcements)
 yq -i '.features.loadBalancer.provider = "metallb"' "$CONFIG_FILE"
 
+# Configure MetalLB IPs from K3d Docker network (production IPs are not routable)
+CLUSTER_NAME="${CLUSTER_NAME:-ci-cluster}"
+METALLB_SUBNET=$(docker network inspect "k3d-${CLUSTER_NAME}" -f '{{(index .IPAM.Config 0).Subnet}}' 2>/dev/null || echo "172.18.0.0/16")
+METALLB_BASE=$(echo "$METALLB_SUBNET" | sed 's|\.[0-9]*/.*||')
+log_info "K3d Docker network: $METALLB_SUBNET (base: $METALLB_BASE)"
+
+yq -i ".features.loadBalancer.staticIPs.gateway = \"${METALLB_BASE}.200\"" "$CONFIG_FILE"
+yq -i ".features.loadBalancer.staticIPs.externalDns = \"${METALLB_BASE}.201\"" "$CONFIG_FILE"
+yq -i ".features.loadBalancer.pools.default.range = \"${METALLB_BASE}.210-${METALLB_BASE}.250\"" "$CONFIG_FILE"
+
 # Reduce retry limits for faster failure detection
 yq -i '.syncPolicy.retry.limit = 3' "$CONFIG_FILE"
 yq -i '.syncPolicy.retry.backoff.maxDuration = "2m"' "$CONFIG_FILE"
@@ -277,6 +287,12 @@ echo "=== Enabled Features ==="
 yq '.features | to_entries | .[] | select(.value.enabled == true) | .key' "$CONFIG_FILE" 2>/dev/null || true
 echo ""
 echo "Gateway API Controller: $(yq '.features.gatewayAPI.controller.provider' "$CONFIG_FILE")"
+echo "Gateway Namespace: $(yq '.features.gatewayAPI.controller.gatewayNamespace' "$CONFIG_FILE")"
+echo ""
+echo "=== MetalLB IPs ==="
+echo "Gateway IP: $(yq '.features.loadBalancer.staticIPs.gateway' "$CONFIG_FILE")"
+echo "External DNS IP: $(yq '.features.loadBalancer.staticIPs.externalDns' "$CONFIG_FILE")"
+echo "Default Pool: $(yq '.features.loadBalancer.pools.default.range' "$CONFIG_FILE")"
 echo ""
 echo "=== Cilium Firewall Policies ==="
 echo "Egress Policy: $(yq '.features.cilium.egressPolicy.enabled' "$CONFIG_FILE")"
