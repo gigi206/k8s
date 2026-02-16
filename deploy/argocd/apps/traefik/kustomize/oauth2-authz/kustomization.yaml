@@ -4,3 +4,4 @@ kind: Kustomization
 
 resources:
   - middleware.yaml
+  - referencegrant.yaml

@@ -192,6 +192,17 @@ spec:
                       - 'traefik.{{ .common.domain }}'
                   {{- if .features.oauth2Proxy.enabled }}
                   - op: add
+                    path: /spec/rules/1
+                    value:
+                      matches:
+                        - path:
+                            type: PathPrefix
+                            value: /oauth2/
+                      backendRefs:
+                        - name: oauth2-proxy
+                          namespace: oauth2-proxy
+                          port: 4180
+                  - op: add
                     path: /spec/rules/2/filters
                     value:
                       - type: ExtensionRef
