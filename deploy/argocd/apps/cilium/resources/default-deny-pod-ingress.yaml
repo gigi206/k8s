@@ -76,6 +76,24 @@ spec:
     - fromEntities:
         - ingress
 
+    # Rule 4: Allow ICMP error messages from cluster-internal sources
+    # Without this, ICMP DestinationUnreachable (type 3) and TimeExceeded
+    # (type 11) from DNS responses are silently dropped, polluting Hubble
+    # logs. These ICMP errors are essential for path MTU discovery and
+    # proper UDP/DNS error handling.
+    - fromEntities:
+        - cluster
+      icmps:
+        - fields:
+            - type: 3       # Destination Unreachable
+              family: IPv4
+            - type: 11      # Time Exceeded
+              family: IPv4
+            - type: 1       # Destination Unreachable (IPv6)
+              family: IPv6
+            - type: 3       # Time Exceeded (IPv6)
+              family: IPv6
+
     # NO OTHER RULES = ALL OTHER INGRESS DENIED
     # Per-app CiliumNetworkPolicy must explicitly allow:
     # - Same namespace: fromEndpoints with io.kubernetes.pod.namespace: <ns>
