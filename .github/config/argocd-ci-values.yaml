@@ -1,71 +1,52 @@
 # =============================================================================
 # ArgoCD CI-specific Helm Values
 # =============================================================================
-# Resource exclusions and health overrides for CI environment (K3d).
+# Health overrides for CI environment (K3d).
 # Baked into the Helm install to avoid timing issues with post-install patches.
 #
-# Why: In CI, CRDs for monitoring.coreos.com, external-secrets.io, etc. are
-# installed by their respective Helm charts, but custom resources may not have
-# proper status conditions immediately. This causes ArgoCD to report Degraded
-# health for Applications that include these resources.
+# Why: In CI, Applications deploy all resources at once, but CRD-based custom
+# resources (Certificates, Issuers, Prometheus, Alertmanager) depend on their
+# operators being fully ready. Dependency chains (e.g., self-signed Issuer ->
+# root Certificate -> CA Issuer -> admission Certificate) cause transient
+# Degraded health that may not resolve within the CI timeout.
 #
-# Solution: Exclude CRD-based resources from ArgoCD tracking AND override
-# health assessment as a safety net for resources that slip through.
+# Solution: Override health assessment for operator-managed CRs to force
+# Healthy status. The actual operators still reconcile the resources normally.
 # =============================================================================
 
 configs:
   cm:
     # =========================================================================
-    # Resource Exclusions
-    # =========================================================================
-    # Exclude CRD-based resources that depend on operators being fully ready.
-    # ArgoCD will not track, sync, or assess health for these resources.
-    resource.exclusions: |
-      - apiGroups:
-          - monitoring.coreos.com
-        kinds:
-          - ServiceMonitor
-          - PodMonitor
-          - PrometheusRule
-          - Prometheus
-          - Alertmanager
-        clusters:
-          - "*"
-      - apiGroups:
-          - external-secrets.io
-        kinds:
-          - ClusterSecretStore
-          - ExternalSecret
-          - SecretStore
-        clusters:
-          - "*"
-      - apiGroups:
-          - gateway.networking.k8s.io
-        kinds:
-          - HTTPRoute
-          - GRPCRoute
-          - TLSRoute
-          - TCPRoute
-          - UDPRoute
-          - ReferenceGrant
-          - Gateway
-        clusters:
-          - "*"
-      - apiGroups:
-          - cert-manager.io
-        kinds:
-          - Certificate
-          - CertificateRequest
-          - Issuer
-          - ClusterIssuer
-        clusters:
-          - "*"
-
-    # =========================================================================
-    # Health Overrides (safety net if exclusions don't fully apply)
+    # Health Overrides
     # =========================================================================
     # Force Healthy status for operator-managed CRs whose health depends on
-    # operator reconciliation timing. This prevents false Degraded status.
+    # operator reconciliation timing. This prevents false Degraded status
+    # caused by dependency chains between CRD resources.
+
+    # cert-manager.io: Certificate chain ordering issues
+    # (self-signed issuer -> root cert -> CA issuer -> admission cert)
+    resource.customizations.health.cert-manager.io_Certificate: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: cert-manager managed resource"
+      return hs
+    resource.customizations.health.cert-manager.io_CertificateRequest: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: cert-manager managed resource"
+      return hs
+    resource.customizations.health.cert-manager.io_Issuer: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: cert-manager managed resource"
+      return hs
+    resource.customizations.health.cert-manager.io_ClusterIssuer: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: cert-manager managed resource"
+      return hs
+
+    # monitoring.coreos.com: Operator needs time to reconcile CRs
     resource.customizations.health.monitoring.coreos.com_Prometheus: |
       hs = {}
       hs.status = "Healthy"
