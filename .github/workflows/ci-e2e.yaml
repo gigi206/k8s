@@ -404,18 +404,20 @@ jobs:
           kubectl get configmap argocd-cm -n $ARGOCD_NAMESPACE -o yaml > artifacts/argocd-cm.yaml 2>&1 || true
 
           # Per-resource health for Degraded apps
-          for app in $(kubectl get applications -n $ARGOCD_NAMESPACE -o json | \
-            python3 -c "import json,sys; apps=json.load(sys.stdin); [print(a['metadata']['name']) for a in apps.get('items',[]) if a.get('status',{}).get('health',{}).get('status')=='Degraded']" 2>/dev/null); do
-            echo "=== $app resource tree ===" >> artifacts/degraded-apps-health.txt
-            kubectl get application "$app" -n $ARGOCD_NAMESPACE -o json | \
-              python3 -c "
+          kubectl get applications -n $ARGOCD_NAMESPACE -o json | \
+            python3 -c '
 import json,sys
-app=json.load(sys.stdin)
-for r in app.get('status',{}).get('resources',[]):
-    h = r.get('health',{}).get('status','no-health')
-    print(f\"{r.get('group','core')}/{r['kind']}/{r['name']}: sync={r.get('status','?')} health={h}\")
-" >> artifacts/degraded-apps-health.txt 2>&1 || true
-          done
+apps = json.load(sys.stdin)
+for a in apps.get("items", []):
+    name = a["metadata"]["name"]
+    health = a.get("status", {}).get("health", {}).get("status", "Unknown")
+    if health == "Degraded":
+        print("=== " + name + " ===")
+        for r in a.get("status", {}).get("resources", []):
+            grp = r.get("group", "core")
+            h = r.get("health", {}).get("status", "no-health") if r.get("health") else "no-health"
+            print(grp + "/" + r["kind"] + "/" + r["name"] + ": sync=" + r.get("status", "?") + " health=" + h)
+' > artifacts/degraded-apps-health.txt 2>&1 || true
 
           # Config used
           cp deploy/argocd/config/config.yaml artifacts/config.yaml 2>&1 || true
