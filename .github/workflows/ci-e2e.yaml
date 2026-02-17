@@ -181,68 +181,6 @@ jobs:
           echo "=== ArgoCD Status ==="
           kubectl get pods -n $ARGOCD_NAMESPACE
 
-      - name: Configure ArgoCD resource exclusions for CI
-        run: |
-          echo "=== Configuring resource exclusions for CI ==="
-          # Exclude resources that depend on CRDs not installed in CI or installed later:
-          # - monitoring.coreos.com: ServiceMonitor, PrometheusRule (prometheus-stack not deployed)
-          # - external-secrets.io: ClusterSecretStore, ExternalSecret (wave ordering issues)
-          # - gateway.networking.k8s.io: HTTPRoute, ReferenceGrant (CRDs installed by gateway-api-controller)
-          # - cert-manager.io: Certificate (CRDs installed by cert-manager)
-          # This prevents sync failures when Applications try to create resources before CRDs are ready
-          kubectl patch configmap argocd-cm -n $ARGOCD_NAMESPACE --type merge -p '
-          data:
-            resource.exclusions: |
-              - apiGroups:
-                  - monitoring.coreos.com
-                kinds:
-                  - ServiceMonitor
-                  - PodMonitor
-                  - PrometheusRule
-                  - Prometheus
-                  - Alertmanager
-                clusters:
-                  - "*"
-              - apiGroups:
-                  - external-secrets.io
-                kinds:
-                  - ClusterSecretStore
-                  - ExternalSecret
-                  - SecretStore
-                clusters:
-                  - "*"
-              - apiGroups:
-                  - gateway.networking.k8s.io
-                kinds:
-                  - HTTPRoute
-                  - GRPCRoute
-                  - TLSRoute
-                  - TCPRoute
-                  - UDPRoute
-                  - ReferenceGrant
-                  - Gateway
-                clusters:
-                  - "*"
-              - apiGroups:
-                  - cert-manager.io
-                kinds:
-                  - Certificate
-                  - CertificateRequest
-                  - Issuer
-                  - ClusterIssuer
-                clusters:
-                  - "*"
-          '
-          echo "=== Resource exclusions configured ==="
-          kubectl get configmap argocd-cm -n $ARGOCD_NAMESPACE -o yaml | grep -A50 "resource.exclusions" || true
-
-          # Restart ArgoCD components to pick up the new config
-          # Note: application-controller is a StatefulSet in recent ArgoCD versions
-          kubectl rollout restart deployment/argocd-repo-server -n $ARGOCD_NAMESPACE
-          kubectl rollout restart statefulset/argocd-application-controller -n $ARGOCD_NAMESPACE
-          kubectl rollout status deployment/argocd-repo-server -n $ARGOCD_NAMESPACE --timeout=120s
-          kubectl rollout status statefulset/argocd-application-controller -n $ARGOCD_NAMESPACE --timeout=120s
-
       # ========================================================================
       # Generate CI Config and Deploy
       # ========================================================================
@@ -460,6 +398,17 @@ jobs:
           kubectl get destinationrule -A -o yaml > artifacts/istio-destinationrules.yaml 2>&1 || true
           kubectl get virtualservice -A -o yaml > artifacts/istio-virtualservices.yaml 2>&1 || true
           kubectl logs -n istio-system -l app=istiod --tail=200 > artifacts/istiod.log 2>&1 || true
+
+          # ArgoCD configmap (resource exclusions/health overrides)
+          kubectl get configmap argocd-cm -n $ARGOCD_NAMESPACE -o yaml > artifacts/argocd-cm.yaml 2>&1 || true
+
+          # Per-resource health for Degraded apps
+          kubectl get applications -n $ARGOCD_NAMESPACE -o json | \
+            jq -r '.items[] | select(.status.health.status == "Degraded") |
+              "=== \(.metadata.name) ===",
+              (.status.resources // [] | .[] |
+                "\(.group // "core")/\(.kind)/\(.name): sync=\(.status // "?") health=\(.health.status // "no-health")")' \
+            > artifacts/degraded-apps-health.txt 2>&1 || true
 
           # Config used
           cp deploy/argocd/config/config.yaml artifacts/config.yaml 2>&1 || true

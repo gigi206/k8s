@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-PROMETHEUS_NAMESPACE="prometheus-stack"
+PROMETHEUS_NAMESPACE="monitoring"
 
 # Colors
 RED='\033[0;31m'
