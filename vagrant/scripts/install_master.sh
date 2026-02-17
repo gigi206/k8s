@@ -297,6 +297,59 @@ rules:
       - group: "events.k8s.io"
         resources: ["events"]
 
+  # Leader election and node heartbeats (very high volume, no security value)
+  - level: None
+    resources:
+      - group: "coordination.k8s.io"
+        resources: ["leases"]
+
+  # Read-only operations on high-churn resources
+  - level: None
+    verbs: ["get", "list"]
+    resources:
+      - group: ""
+        resources: ["nodes/status", "pods/status"]
+
+  # ============================================================
+  # SENSITIVE RESOURCES (metadata only - never log body)
+  # Placed BEFORE system components exclusion so that reads on
+  # secrets/configmaps by system accounts are still captured.
+  # Placed BEFORE watch exclusion so watches on secrets/configmaps
+  # are still captured at Metadata level.
+  # ============================================================
+
+  # Secrets: metadata only to prevent credential leakage in audit logs
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  # ConfigMaps: metadata only (may contain sensitive configuration)
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["configmaps"]
+
+  # Token reviews and access reviews: metadata only
+  - level: Metadata
+    resources:
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+      - group: "authorization.k8s.io"
+        resources: ["subjectaccessreviews", "selfsubjectaccessreviews", "selfsubjectrulesreviews"]
+
+  # Certificate signing requests: track certificate issuance
+  - level: Metadata
+    resources:
+      - group: "certificates.k8s.io"
+        resources: ["certificatesigningrequests"]
+
+  # ============================================================
+  # SYSTEM COMPONENTS EXCLUSION
+  # Placed AFTER sensitive resources so that system account
+  # access to secrets/configmaps is still logged at Metadata.
+  # ============================================================
+
   # Internal system components read operations (very high volume)
   # Mutations by system accounts are still logged via subsequent rules
   - level: None
@@ -313,40 +366,7 @@ rules:
       - "system:serviceaccount:kube-system:endpoint-controller"
     verbs: ["get", "list", "watch"]
 
-  # Read-only operations on high-churn resources
-  - level: None
-    verbs: ["get", "list"]
-    resources:
-      - group: ""
-        resources: ["nodes/status", "pods/status"]
-
-  # ============================================================
-  # SENSITIVE RESOURCES (metadata only - never log body)
-  # Placed BEFORE watch exclusion so watches on secrets/configmaps
-  # are still captured at Metadata level
-  # ============================================================
-
-  # Secrets: metadata only to prevent credential leakage in audit logs
-  - level: Metadata
-    resources:
-      - group: ""
-        resources: ["secrets"]
-
-  # ConfigMaps: metadata only (may contain sensitive configuration)
-  - level: Metadata
-    resources:
-      - group: ""
-        resources: ["configmaps"]
-
-  # Token reviews: metadata only
-  - level: Metadata
-    resources:
-      - group: "authentication.k8s.io"
-        resources: ["tokenreviews"]
-
   # Watch operations (continuous streams, very high volume)
-  # Placed AFTER sensitive resources rules so watches on
-  # secrets/configmaps/tokenreviews are still logged at Metadata
   - level: None
     verbs: ["watch"]
 
@@ -354,7 +374,7 @@ rules:
   # SECURITY-CRITICAL MUTATIONS (full request+response)
   # ============================================================
 
-  # Interactive container access: full forensic trail (post-exploitation detection)
+  # Interactive container access: full forensic trail
   # Includes "get" because kubectl exec uses WebSocket upgrade (GET) since K8s 1.30+
   - level: RequestResponse
     resources:
@@ -373,6 +393,13 @@ rules:
     resources:
       - group: ""
         resources: ["namespaces", "serviceaccounts"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Admission webhooks: modification can bypass all security policies
+  - level: RequestResponse
+    resources:
+      - group: "admissionregistration.k8s.io"
+        resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
     verbs: ["create", "delete", "update", "patch"]
 
   # ============================================================
