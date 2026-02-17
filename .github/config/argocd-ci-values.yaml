@@ -68,8 +68,9 @@ configs:
       hs.message = "CI: Kyverno managed resource"
       return hs
 
-    # gateway.networking.k8s.io: HTTPRoute ResolvedRefs fails in CI when
-    # cross-namespace backends (oauth2-proxy) are missing their ReferenceGrant
+    # gateway.networking.k8s.io: HTTPRoute ResolvedRefs condition fails in CI
+    # when cross-namespace backends (oauth2-proxy) are missing ReferenceGrant.
+    # Traefik sets ResolvedRefs=False -> ArgoCD health check returns Degraded.
     resource.customizations.health.gateway.networking.k8s.io_HTTPRoute: |
       hs = {}
       hs.status = "Healthy"
