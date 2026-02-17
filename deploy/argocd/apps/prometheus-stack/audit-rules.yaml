@@ -1,0 +1,7 @@
+# Prometheus: alerting and monitoring config changes can blind incident detection
+# CRDs: prometheusrules, alertmanagerconfigs, alertmanagers, prometheuses,
+#   servicemonitors, podmonitors, probes, scrapeconfigs, thanosrulers, prometheusagents
+- level: Request
+  resources:
+    - group: "monitoring.coreos.com"
+  verbs: ["create", "delete", "update", "patch"]

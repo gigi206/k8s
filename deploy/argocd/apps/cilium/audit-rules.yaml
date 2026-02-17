@@ -1,0 +1,12 @@
+# Cilium Tetragon: tracing policies control eBPF security monitoring programs
+- level: RequestResponse
+  resources:
+    - group: "cilium.io"
+      resources: ["tracingpolicies", "tracingpoliciesnamespaced"]
+  verbs: ["create", "delete", "update", "patch"]
+# Cilium: network policy changes affect pod-to-pod communication
+- level: Request
+  resources:
+    - group: "cilium.io"
+      resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies"]
+  verbs: ["create", "delete", "update", "patch"]

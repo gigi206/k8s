@@ -1,0 +1,7 @@
+# MetalLB: IP pool, BGP peer, BFD profile, and advertisement changes affect network routing
+# CRDs: ipaddresspools, l2advertisements, bgpadvertisements, bgppeers,
+#   bfdprofiles, communities, configurationstates, servicebgpstatuses, servicel2statuses
+- level: Request
+  resources:
+    - group: "metallb.io"
+  verbs: ["create", "delete", "update", "patch"]

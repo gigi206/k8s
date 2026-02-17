@@ -1,0 +1,8 @@
+# cert-manager: track certificate issuance, issuer changes, and ACME workflow
+# CRDs: certificates, issuers, clusterissuers, certificaterequests (cert-manager.io)
+#   + challenges, orders (acme.cert-manager.io)
+- level: Request
+  resources:
+    - group: "cert-manager.io"
+    - group: "acme.cert-manager.io"
+  verbs: ["create", "delete", "update", "patch"]

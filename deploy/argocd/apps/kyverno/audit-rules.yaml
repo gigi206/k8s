@@ -1,0 +1,9 @@
+# Kyverno: policy changes can disable security enforcement
+# CRDs: clusterpolicies, policies, policyexceptions, cleanuppolicies,
+#   clustercleanuppolicies, globalcontextentries, updaterequests (kyverno.io)
+#   + v2 CEL policies: validatingpolicies, mutatingpolicies, etc. (policies.kyverno.io)
+- level: RequestResponse
+  resources:
+    - group: "kyverno.io"
+    - group: "policies.kyverno.io"
+  verbs: ["create", "delete", "update", "patch"]

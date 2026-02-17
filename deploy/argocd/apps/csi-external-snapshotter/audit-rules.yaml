@@ -1,0 +1,6 @@
+# VolumeSnapshot: snapshot deletion destroys backup data (ransomware vector)
+- level: Request
+  resources:
+    - group: "snapshot.storage.k8s.io"
+      resources: ["volumesnapshots", "volumesnapshotclasses", "volumesnapshotcontents"]
+  verbs: ["create", "delete", "update", "patch"]

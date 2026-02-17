@@ -1,0 +1,6 @@
+# Keycloak: realm and client changes affect authentication and authorization
+- level: RequestResponse
+  resources:
+    - group: "k8s.keycloak.org"
+      resources: ["keycloaks", "keycloakrealmimports"]
+  verbs: ["create", "delete", "update", "patch"]

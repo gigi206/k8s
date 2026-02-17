@@ -1,0 +1,19 @@
+# NGINX Gateway Fabric: SnippetsFilter/SnippetsPolicy inject raw NGINX config (code injection vector)
+- level: RequestResponse
+  resources:
+    - group: "gateway.nginx.org"
+      resources: ["snippetsfilters", "snippetspolicies", "authenticationfilters"]
+  verbs: ["create", "delete", "update", "patch"]
+# NGINX Gateway Fabric: policies control rate limiting, client/upstream settings
+- level: Request
+  resources:
+    - group: "gateway.nginx.org"
+      resources:
+        - "nginxgateways"
+        - "nginxproxies"
+        - "clientsettingspolicies"
+        - "upstreamsettingspolicies"
+        - "proxysettingspolicies"
+        - "observabilitypolicies"
+        - "ratelimitpolicies"
+  verbs: ["create", "delete", "update", "patch"]

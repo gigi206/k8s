@@ -1,0 +1,8 @@
+# external-secrets: secret store access and generator changes affect credential management
+# CRDs: externalsecrets, secretstores, clustersecretstores, pushsecrets, etc. (external-secrets.io)
+#   + generators: passwords, access tokens, SSH keys, webhooks (generators.external-secrets.io)
+- level: RequestResponse
+  resources:
+    - group: "external-secrets.io"
+    - group: "generators.external-secrets.io"
+  verbs: ["create", "delete", "update", "patch"]

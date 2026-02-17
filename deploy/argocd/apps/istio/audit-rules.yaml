@@ -1,0 +1,31 @@
+# Istio security: mTLS, authz, JWT validation
+- level: RequestResponse
+  resources:
+    - group: "security.istio.io"
+  verbs: ["create", "delete", "update", "patch"]
+# Istio data plane: EnvoyFilter can intercept traffic and bypass auth
+- level: RequestResponse
+  resources:
+    - group: "networking.istio.io"
+      resources: ["envoyfilters"]
+  verbs: ["create", "delete", "update", "patch"]
+# Istio extensions: WasmPlugin injects code into proxies
+- level: RequestResponse
+  resources:
+    - group: "extensions.istio.io"
+  verbs: ["create", "delete", "update", "patch"]
+# Istio networking: routing, external services, workload registration, telemetry
+- level: Request
+  resources:
+    - group: "networking.istio.io"
+      resources:
+        - "virtualservices"
+        - "destinationrules"
+        - "gateways"
+        - "sidecars"
+        - "serviceentries"
+        - "workloadentries"
+        - "workloadgroups"
+        - "proxyconfigs"
+    - group: "telemetry.istio.io"
+  verbs: ["create", "delete", "update", "patch"]
