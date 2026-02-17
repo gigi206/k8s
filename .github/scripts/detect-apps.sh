@@ -169,6 +169,12 @@ fi
 modified "apps/kube-vip/" && [[ ! " $EXTRA_APPS " =~ " kube-vip " ]] && EXTRA_APPS+=" kube-vip"
 modified "apps/csi-external-snapshotter/" && [[ ! " $EXTRA_APPS " =~ " csi-external-snapshotter " ]] && EXTRA_APPS+=" csi-external-snapshotter"
 
+# CI infrastructure changes: deploy prometheus-stack as smoke test
+# (argocd-ci-values.yaml, deploy-applicationsets.sh, etc. affect all apps)
+if modified ".github/config/" || modified ".github/scripts/"; then
+  [[ ! " $EXTRA_APPS " =~ " prometheus-stack " ]] && EXTRA_APPS+=" prometheus-stack"
+fi
+
 # =============================================================================
 # Output
 # =============================================================================
