@@ -542,10 +542,12 @@ spec:
                 svc:
                   enabled: true
                   type: ClusterIP
+                {{- if .features.monitoring.enabled }}
                 serviceMonitor:
                   enabled: true
                   labels:
                     release: '{{ .features.monitoring.release }}'
                   interval: 30s
                   scrapeTimeout: 30s
+                {{- end }}
         {{- end }}

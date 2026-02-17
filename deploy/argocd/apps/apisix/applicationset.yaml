@@ -345,12 +345,14 @@ spec:
               {{- end }}
 
               # Enable ServiceMonitor for Prometheus
+              {{- if .features.monitoring.enabled }}
               metrics:
                 serviceMonitor:
-                  enabled: {{ .apisix.serviceMonitor.enabled }}
+                  enabled: true
                   interval: {{ .apisix.serviceMonitor.interval }}
                   labels:
                     release: {{ .features.monitoring.release }}
+              {{- end }}
 
               # APISIX Ingress Controller (sub-chart for Gateway API support)
               ingress-controller:
