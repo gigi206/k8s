@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Test Prometheus Stack (Prometheus, Alertmanager, Grafana)
+# Test Prometheus Stack (Prometheus, Alertmanager, Grafana) - monitoring namespace
 # =============================================================================
 # Tests:
 #   1. Prometheus is running and scraping targets
