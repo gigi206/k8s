@@ -405,19 +405,11 @@ jobs:
 
           # Per-resource health for Degraded apps
           kubectl get applications -n $ARGOCD_NAMESPACE -o json | \
-            python3 -c '
-import json,sys
-apps = json.load(sys.stdin)
-for a in apps.get("items", []):
-    name = a["metadata"]["name"]
-    health = a.get("status", {}).get("health", {}).get("status", "Unknown")
-    if health == "Degraded":
-        print("=== " + name + " ===")
-        for r in a.get("status", {}).get("resources", []):
-            grp = r.get("group", "core")
-            h = r.get("health", {}).get("status", "no-health") if r.get("health") else "no-health"
-            print(grp + "/" + r["kind"] + "/" + r["name"] + ": sync=" + r.get("status", "?") + " health=" + h)
-' > artifacts/degraded-apps-health.txt 2>&1 || true
+            jq -r '.items[] | select(.status.health.status == "Degraded") |
+              "=== \(.metadata.name) ===",
+              (.status.resources // [] | .[] |
+                "\(.group // "core")/\(.kind)/\(.name): sync=\(.status // "?") health=\(.health.status // "no-health")")' \
+            > artifacts/degraded-apps-health.txt 2>&1 || true
 
           # Config used
           cp deploy/argocd/config/config.yaml artifacts/config.yaml 2>&1 || true
