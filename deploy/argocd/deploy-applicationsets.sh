@@ -1834,25 +1834,36 @@ JOBEOF
     log_warning "Job de suppression non terminé (le fichier reste sur disque, non bloquant)"
   fi
 
-  # --- Séquençage post-migration: Cilium -> SPIRE Server -> SPIRE Agent ---
-  # Le Helm controller détecte le changement et fait un helm upgrade asynchrone.
-  # Ce helm upgrade rolling-update Cilium (wipe auth table eBPF), recrée le
-  # StatefulSet SPIRE server, et rolling-update le SPIRE agent.
-  # Sans séquençage, Cilium et SPIRE redémarrent simultanément: le SPIRE agent
-  # tente de se reconnecter pendant le rechargement eBPF, les connexions gRPC
-  # cassent, l'agent entre en backoff exponentiel -> deadlock mutual auth.
+  # --- Attendre que le Helm controller ait fini de traiter le changement ---
+  # Le patch du HelmChartConfig déclenche un helm upgrade asynchrone.
+  # Si le upgrade échoue (ex: volumeClaimTemplates StatefulSet immutables lors
+  # du passage emptyDir -> PVC), failurePolicy: reinstall déclenche un cycle:
+  #   helm uninstall (SUPPRESSION de toutes les ressources Cilium/SPIRE)
+  #   -> helm install (recréation complète avec nouvelles valeurs)
+  # Pendant cette fenêtre, les ressources n'existent pas. On doit attendre
+  # que le DaemonSet Cilium existe ET soit ready avant toute opération rollout.
 
-  # Étape 1: Attendre la fin du rollout Cilium DaemonSet
-  # Le rollout Cilium DOIT être terminé avant que SPIRE tente de se reconnecter.
-  # Les programmes eBPF en cours de rechargement cassent les connexions gRPC.
-  log_info "Attente du rollout Cilium DaemonSet..."
-  if kubectl rollout status daemonset/cilium -n kube-system --timeout=300s > /dev/null 2>&1; then
-    log_success "Cilium DaemonSet rollout terminé"
-  else
-    log_warning "Cilium DaemonSet rollout timeout (300s), tentative de continuer..."
+  check_cilium_post_helm() {
+    local ready
+    ready=$(kubectl get daemonset cilium -n kube-system -o jsonpath='{.status.numberReady}' 2>/dev/null)
+    [[ -n "$ready" ]] && [[ "$ready" -ge 1 ]]
+  }
+
+  if ! wait_for_condition \
+    "Attente du Helm controller (DaemonSet Cilium ready)..." \
+    600 \
+    check_cilium_post_helm; then
+    log_warning "Cilium DaemonSet non disponible après 600s, tentative de continuer..."
   fi
 
-  # Étape 2: Attendre SPIRE Server Ready
+  # --- Séquençage post-migration: Cilium -> SPIRE Server -> SPIRE Agent ---
+  # Après un helm upgrade classique (rolling-update), Cilium et SPIRE redémarrent
+  # simultanément: le SPIRE agent tente de se reconnecter pendant le rechargement
+  # eBPF, les connexions gRPC cassent, l'agent entre en backoff exponentiel.
+  # Après un helm reinstall (fresh install), les pods sont neufs et n'ont pas
+  # de backoff. Le séquençage ci-dessous gère les deux cas via des if guards.
+
+  # Étape 1: Attendre SPIRE Server Ready
   log_info "Attente du SPIRE Server StatefulSet..."
   if kubectl rollout status statefulset/spire-server -n cilium-spire --timeout=300s > /dev/null 2>&1; then
     log_success "SPIRE Server StatefulSet prêt"
@@ -1860,30 +1871,30 @@ JOBEOF
     log_warning "SPIRE Server rollout timeout (300s), tentative de continuer..."
   fi
 
-  # Étape 3: Forcer un restart propre du SPIRE Agent
-  # Sans ce restart, le SPIRE agent reste dans un cycle de backoff exponentiel
-  # après les connexions gRPC cassées par le rechargement eBPF de Cilium.
-  # Le restart force une reconnexion propre sans backoff.
+  # Étape 2: Restart propre du SPIRE Agent (seulement si nécessaire)
+  # Après un helm upgrade, le SPIRE agent peut rester en backoff exponentiel
+  # à cause des connexions gRPC cassées par le rechargement eBPF de Cilium.
+  # Après un helm reinstall, les pods sont frais -> le restart est inutile mais inoffensif.
   log_info "Restart propre du SPIRE Agent (évite backoff exponentiel)..."
-  kubectl rollout restart daemonset/spire-agent -n cilium-spire > /dev/null 2>&1
-  if kubectl rollout status daemonset/spire-agent -n cilium-spire --timeout=120s > /dev/null 2>&1; then
+  if kubectl rollout restart daemonset/spire-agent -n cilium-spire > /dev/null 2>&1 && \
+     kubectl rollout status daemonset/spire-agent -n cilium-spire --timeout=120s > /dev/null 2>&1; then
     log_success "SPIRE Agent DaemonSet redémarré avec succès"
   else
-    log_warning "SPIRE Agent rollout timeout (120s), tentative de continuer..."
+    log_warning "SPIRE Agent restart/rollout échoué (120s), tentative de continuer..."
   fi
 
-  # Étape 3.5: Restart Cilium Operator (reconnexion au SPIRE Agent)
-  # Le restart du SPIRE Agent (étape 3) casse la connexion gRPC Unix socket
+  # Étape 3: Restart Cilium Operator (reconnexion au SPIRE Agent)
+  # Le restart du SPIRE Agent (étape 2) casse la connexion gRPC Unix socket
   # du Cilium Operator vers le SPIRE Agent. Sans ce restart, l'operator ne
   # re-enregistre pas les nouvelles identités Cilium créées par les workloads
   # ArgoCD déployés après le batch initial, causant des erreurs
   # "no SPIFFE ID for spiffe://spiffe.cilium/identity/XXXX".
   log_info "Restart du Cilium Operator (reconnexion SPIRE agent)..."
-  kubectl rollout restart deployment/cilium-operator -n kube-system > /dev/null 2>&1
-  if kubectl rollout status deployment/cilium-operator -n kube-system --timeout=60s > /dev/null 2>&1; then
+  if kubectl rollout restart deployment/cilium-operator -n kube-system > /dev/null 2>&1 && \
+     kubectl rollout status deployment/cilium-operator -n kube-system --timeout=60s > /dev/null 2>&1; then
     log_success "Cilium Operator redémarré avec succès"
   else
-    log_warning "Cilium Operator rollout timeout (60s), tentative de continuer..."
+    log_warning "Cilium Operator restart/rollout échoué (60s), tentative de continuer..."
   fi
 
   # Attendre que l'operator re-enregistre les identités dans SPIRE
