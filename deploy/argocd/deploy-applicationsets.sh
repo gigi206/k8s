@@ -1932,7 +1932,9 @@ JOBEOF
     # Sans cette vérification, on peut passer avec un SPIRE "healthy" mais
     # dont le Cilium Operator n'a pas re-enregistré les identités après restart.
     local auth_entries
-    auth_entries=$(kubectl exec -n kube-system ds/cilium -- cilium-dbg bpf auth list 2>/dev/null | grep -c "spire" || echo "0")
+    local cilium_pod
+    cilium_pod=$(kubectl get pods -n kube-system -l k8s-app=cilium -o name 2>/dev/null | head -1)
+    auth_entries=$(kubectl exec -n kube-system "$cilium_pod" -- cilium-dbg bpf auth list 2>/dev/null | grep -c "spire" || echo "0")
     if [[ "$auth_entries" -lt 5 ]]; then
       return 1
     fi
