@@ -1,23 +1,72 @@
 # =============================================================================
 # ArgoCD CI-specific Helm Values
 # =============================================================================
-# Health overrides for CI environment (K3d).
+# Resource exclusions and health overrides for CI environment (K3d).
 # Baked into the Helm install to avoid timing issues with post-install patches.
 #
-# Force Healthy status for operator-managed CRs whose health depends on
-# operator reconciliation timing or missing CI dependencies (cert-manager
-# certificate chains, Prometheus/Alertmanager CRs, oauth2-proxy HTTPRoutes).
+# Resource exclusions reduce ArgoCD's cluster-wide resource tracking overhead,
+# improving reconciliation speed for all Applications.
+# CRITICAL: removing these causes kyverno/external-secrets to go from ~1min
+# to 15min+ (full 900s timeout). Keep even if argocd-cm shows chart defaults.
 #
-# Note: resource.exclusions are NOT set here because the ArgoCD chart's
-# default exclusions would override them (Helm replaces string values).
-# The chart defaults already exclude Endpoints, Leases, auth resources, etc.
+# Health overrides force Healthy status for operator-managed CRs whose health
+# depends on operator reconciliation timing or missing CI dependencies.
 # =============================================================================
 
 configs:
   cm:
     # =========================================================================
+    # Resource Exclusions
+    # =========================================================================
+    # Reduce ArgoCD's cluster-wide resource tracking. These CRD-based resources
+    # depend on operators being fully ready and can slow down reconciliation.
+    resource.exclusions: |
+      - apiGroups:
+          - monitoring.coreos.com
+        kinds:
+          - ServiceMonitor
+          - PodMonitor
+          - PrometheusRule
+          - Prometheus
+          - Alertmanager
+        clusters:
+          - "*"
+      - apiGroups:
+          - external-secrets.io
+        kinds:
+          - ClusterSecretStore
+          - ExternalSecret
+          - SecretStore
+        clusters:
+          - "*"
+      - apiGroups:
+          - gateway.networking.k8s.io
+        kinds:
+          - HTTPRoute
+          - GRPCRoute
+          - TLSRoute
+          - TCPRoute
+          - UDPRoute
+          - ReferenceGrant
+          - Gateway
+        clusters:
+          - "*"
+      - apiGroups:
+          - cert-manager.io
+        kinds:
+          - Certificate
+          - CertificateRequest
+          - Issuer
+          - ClusterIssuer
+        clusters:
+          - "*"
+
+    # =========================================================================
     # Health Overrides
     # =========================================================================
+    # Force Healthy status for operator-managed CRs whose health depends on
+    # operator reconciliation timing. Resources in Application manifests are
+    # still health-checked even when excluded from cluster-wide tracking.
 
     # cert-manager.io: Certificate chain ordering issues
     # (self-signed issuer -> root cert -> CA issuer -> admission cert)
