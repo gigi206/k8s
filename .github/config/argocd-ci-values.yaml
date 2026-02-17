@@ -6,7 +6,7 @@
 #
 # Resource exclusions reduce ArgoCD's cluster-wide resource tracking overhead,
 # improving reconciliation speed for all Applications.
-# CRITICAL: removing these causes kyverno/external-secrets to go from ~1min
+# CRITICAL: removing these causes kyverno/external-secrets to go from ~30s
 # to 15min+ (full 900s timeout). Keep even if argocd-cm shows chart defaults.
 #
 # Health overrides force Healthy status for operator-managed CRs whose health
