@@ -101,3 +101,17 @@ configs:
       hs.status = "Healthy"
       hs.message = "CI: operator-managed resource"
       return hs
+
+    # cilium.io: CiliumNetworkPolicy status depends on Cilium agent readiness
+    resource.customizations.health.cilium.io_CiliumNetworkPolicy: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: Cilium managed resource"
+      return hs
+
+    # kyverno.io: PolicyException status depends on Kyverno controller
+    resource.customizations.health.kyverno.io_PolicyException: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: Kyverno managed resource"
+      return hs
