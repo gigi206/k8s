@@ -436,12 +436,12 @@ spec:
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium/kustomize/oauth2-authz-traefik
         {{- end }}
+        {{- end }}
         {{- if .features.oauth2Proxy.enabled }}
         # Source: ReferenceGrant for oauth2-proxy cross-namespace HTTPRoute backend
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/cilium/kustomize/oauth2-authz
-        {{- end }}
         {{- end }}
         # NOTE: AuthorizationPolicy for OAuth2 Proxy (Hubble) moved to Istio application
         # to ensure Istio CRDs exist before the AuthorizationPolicy is created
