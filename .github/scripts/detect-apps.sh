@@ -98,12 +98,10 @@ if modified "apps/prometheus-stack/" || modified "apps/alloy/" || \
    modified "apps/tempo/" || modified "apps/jaeger/" || modified "apps/loki/"; then
   [[ ! " $EXTRA_APPS " =~ " prometheus-stack " ]] && EXTRA_APPS+=" prometheus-stack"
 
-  # Prometheus-stack requires storage for TSDB, Alertmanager, Grafana
-  if modified "apps/prometheus-stack/"; then
-    [[ ! " $EXTRA_APPS " =~ " longhorn " ]] && EXTRA_APPS+=" longhorn"
-    [[ ! " $EXTRA_APPS " =~ " csi-external-snapshotter " ]] && EXTRA_APPS+=" csi-external-snapshotter"
-    STORAGE_PROVIDER="longhorn"
-  fi
+  # Note: prometheus-stack does NOT require longhorn in CI. K3d provides
+  # local-path StorageClass, and persistence is disabled when storage feature
+  # is off. Longhorn crashes on K3d (no iscsid/block device support).
+  # Storage dependencies are only added when longhorn itself is modified.
 
   # Add the specific component that was modified
   modified "apps/alloy/" && [[ ! " $EXTRA_APPS " =~ " alloy " ]] && EXTRA_APPS+=" alloy"

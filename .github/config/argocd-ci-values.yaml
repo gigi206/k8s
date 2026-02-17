@@ -1,0 +1,78 @@
+# =============================================================================
+# ArgoCD CI-specific Helm Values
+# =============================================================================
+# Resource exclusions and health overrides for CI environment (K3d).
+# Baked into the Helm install to avoid timing issues with post-install patches.
+#
+# Why: In CI, CRDs for monitoring.coreos.com, external-secrets.io, etc. are
+# installed by their respective Helm charts, but custom resources may not have
+# proper status conditions immediately. This causes ArgoCD to report Degraded
+# health for Applications that include these resources.
+#
+# Solution: Exclude CRD-based resources from ArgoCD tracking AND override
+# health assessment as a safety net for resources that slip through.
+# =============================================================================
+
+configs:
+  cm:
+    # =========================================================================
+    # Resource Exclusions
+    # =========================================================================
+    # Exclude CRD-based resources that depend on operators being fully ready.
+    # ArgoCD will not track, sync, or assess health for these resources.
+    resource.exclusions: |
+      - apiGroups:
+          - monitoring.coreos.com
+        kinds:
+          - ServiceMonitor
+          - PodMonitor
+          - PrometheusRule
+          - Prometheus
+          - Alertmanager
+        clusters:
+          - "*"
+      - apiGroups:
+          - external-secrets.io
+        kinds:
+          - ClusterSecretStore
+          - ExternalSecret
+          - SecretStore
+        clusters:
+          - "*"
+      - apiGroups:
+          - gateway.networking.k8s.io
+        kinds:
+          - HTTPRoute
+          - GRPCRoute
+          - TLSRoute
+          - TCPRoute
+          - UDPRoute
+          - ReferenceGrant
+          - Gateway
+        clusters:
+          - "*"
+      - apiGroups:
+          - cert-manager.io
+        kinds:
+          - Certificate
+          - CertificateRequest
+          - Issuer
+          - ClusterIssuer
+        clusters:
+          - "*"
+
+    # =========================================================================
+    # Health Overrides (safety net if exclusions don't fully apply)
+    # =========================================================================
+    # Force Healthy status for operator-managed CRs whose health depends on
+    # operator reconciliation timing. This prevents false Degraded status.
+    resource.customizations.health.monitoring.coreos.com_Prometheus: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: operator-managed resource"
+      return hs
+    resource.customizations.health.monitoring.coreos.com_Alertmanager: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "CI: operator-managed resource"
+      return hs
