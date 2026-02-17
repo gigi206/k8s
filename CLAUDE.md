@@ -44,6 +44,7 @@ deploy/argocd/
     │   ├── oauth2-authz/           # AuthorizationPolicy
     │   ├── sso/                    # ExternalSecrets, Keycloak clients
     │   └── gateway/                # Gateway API resources
+    ├── audit-rules.yaml            # Optional: app-specific audit policy rules
     └── secrets/{dev,prod}/         # SOPS-encrypted secrets
 ```
 
@@ -119,8 +120,9 @@ Sync waves only work **WITHIN a single Application**, not between Applications.
 3. Create `config/dev.yaml` and `config/prod.yaml`
 4. Add to `deploy-applicationsets.sh` if needed
 5. Add Prometheus alerts in `kustomize/monitoring/`
-6. Add Renovate custom manager in `renovate.json`
-7. Create `README.md` in the app directory
+6. Add `audit-rules.yaml` if the app has security-relevant CRDs (see existing kyverno/cert-manager examples)
+7. Add Renovate custom manager in `renovate.json`
+8. Create `README.md` in the app directory
 
 ### Helm Chart Analysis (Mandatory for New Apps)
 
@@ -163,6 +165,7 @@ sops decrypt apps/<app>/secrets/dev/secret.yaml              # View
 - **PostSync hooks**: use `hook-delete-policy: BeforeHookCreation,HookSucceeded` for idempotent Jobs (allows re-sync after failure)
 - **Helm admin secrets**: use `existingSecret*` pattern + SOPS instead of hardcoding passwords in values
 - **Bootstrap features** (Cilium encryption, mutual auth, audit logging): applied via `install_master.sh`, NOT ArgoCD
+- **Audit policy fragments**: apps can declare `audit-rules.yaml` with K8s audit rules (bare YAML list items, no `rules:` wrapper). Assembled at bootstrap by `install_master.sh` into `/etc/rancher/rke2/audit-policy.yaml` from `deploy/argocd/audit-policy-base.yaml` + all `apps/*/audit-rules.yaml`. Rules for uninstalled CRDs are harmless. Requires cluster rebuild to pick up new fragments
 
 ## Common Commands
 

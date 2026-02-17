@@ -1,0 +1,9 @@
+# Rook/Ceph: storage cluster, pool, bucket, and NFS changes affect data management
+# CRDs: cephclusters, cephblockpools, cephfilesystems, cephobjectstores,
+#   cephnfses, cephclients, cephrbdmirrors, etc. (ceph.rook.io, 20+ resources)
+#   + objectbuckets, objectbucketclaims (objectbucket.io)
+- level: Request
+  resources:
+    - group: "ceph.rook.io"
+    - group: "objectbucket.io"
+  verbs: ["create", "delete", "update", "patch"]

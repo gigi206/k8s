@@ -1,0 +1,7 @@
+# APISIX: route, upstream, plugin, consumer, TLS, and global rule changes affect API gateway
+# CRDs: apisixroutes, apisixupstreams, apisixpluginconfigs, apisixconsumers,
+#   apisixclusterconfigs, apisixglobalrules, apisixtls
+- level: Request
+  resources:
+    - group: "apisix.apache.org"
+  verbs: ["create", "delete", "update", "patch"]

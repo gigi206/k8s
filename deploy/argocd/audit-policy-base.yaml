@@ -1,0 +1,186 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Skip RequestReceived stage (fires before handler, ~50% volume reduction)
+omitStages:
+  - "RequestReceived"
+rules:
+  # ============================================================
+  # EXCLUSIONS (high-volume, low-value)
+  # ============================================================
+
+  # Health/readiness probes and metrics endpoints
+  - level: None
+    nonResourceURLs:
+      - "/healthz*"
+      - "/livez*"
+      - "/readyz*"
+      - "/version"
+      - "/metrics"
+
+  # Events and endpoints (informational, not security-relevant)
+  - level: None
+    resources:
+      - group: ""
+        resources: ["events", "endpoints"]
+      - group: "events.k8s.io"
+        resources: ["events"]
+
+  # Leader election and node heartbeats (very high volume, no security value)
+  - level: None
+    resources:
+      - group: "coordination.k8s.io"
+        resources: ["leases"]
+
+  # Read-only operations on high-churn resources
+  - level: None
+    verbs: ["get", "list"]
+    resources:
+      - group: ""
+        resources: ["nodes/status", "pods/status"]
+
+  # ============================================================
+  # SENSITIVE RESOURCES (metadata only - never log body)
+  # Placed BEFORE system components exclusion so that reads on
+  # secrets/configmaps by system accounts are still captured.
+  # Placed BEFORE watch exclusion so watches on secrets/configmaps
+  # are still captured at Metadata level.
+  # ============================================================
+
+  # Secrets: metadata only to prevent credential leakage in audit logs
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  # ConfigMaps: metadata only (may contain sensitive configuration)
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["configmaps"]
+
+  # Token reviews and access reviews: metadata only
+  - level: Metadata
+    resources:
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+      - group: "authorization.k8s.io"
+        resources: ["subjectaccessreviews", "selfsubjectaccessreviews", "selfsubjectrulesreviews"]
+
+  # Certificate signing requests: track certificate issuance
+  - level: Metadata
+    resources:
+      - group: "certificates.k8s.io"
+        resources: ["certificatesigningrequests"]
+
+  # ============================================================
+  # SYSTEM COMPONENTS EXCLUSION
+  # Placed AFTER sensitive resources so that system account
+  # access to secrets/configmaps is still logged at Metadata.
+  # ============================================================
+
+  # Internal system components read operations (very high volume)
+  # Mutations by system accounts are still logged via subsequent rules
+  - level: None
+    users:
+      - "system:kube-scheduler"
+      - "system:kube-proxy"
+      - "system:apiserver"
+      - "system:kube-controller-manager"
+      - "system:serviceaccount:kube-system:generic-garbage-collector"
+      - "system:serviceaccount:kube-system:namespace-controller"
+      - "system:serviceaccount:kube-system:resourcequota-controller"
+      - "system:serviceaccount:kube-system:coredns"
+      - "system:serviceaccount:kube-system:endpointslice-controller"
+      - "system:serviceaccount:kube-system:endpoint-controller"
+    verbs: ["get", "list", "watch"]
+
+  # Watch operations (continuous streams, very high volume)
+  - level: None
+    verbs: ["watch"]
+
+  # ============================================================
+  # SECURITY-CRITICAL MUTATIONS (full request+response)
+  # ============================================================
+
+  # Interactive container access: full forensic trail
+  # Includes "get" because kubectl exec uses WebSocket upgrade (GET) since K8s 1.30+
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/portforward", "pods/attach"]
+    verbs: ["create", "get"]
+
+  # RBAC changes: full audit trail for forensics
+  - level: RequestResponse
+    resources:
+      - group: "rbac.authorization.k8s.io"
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Namespace and ServiceAccount lifecycle
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["namespaces", "serviceaccounts"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Admission webhooks: modification can bypass all security policies
+  - level: RequestResponse
+    resources:
+      - group: "admissionregistration.k8s.io"
+        resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # CRD lifecycle: creating/deleting CRDs can install backdoor operators or remove resources
+  - level: RequestResponse
+    resources:
+      - group: "apiextensions.k8s.io"
+        resources: ["customresourcedefinitions"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # API aggregation: modifying APIService can redirect API calls to malicious backends
+  - level: RequestResponse
+    resources:
+      - group: "apiregistration.k8s.io"
+        resources: ["apiservices"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # ============================================================
+  # WORKLOAD MUTATIONS (request body for change tracking)
+  # ============================================================
+
+  # Pod and workload operations
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["pods"]
+      - group: "apps"
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - group: "batch"
+        resources: ["jobs", "cronjobs"]
+    verbs: ["create", "delete", "update", "patch"]
+
+  # Network and storage mutations
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["services", "persistentvolumeclaims", "persistentvolumes"]
+      - group: "networking.k8s.io"
+      - group: "gateway.networking.k8s.io"
+    verbs: ["create", "delete", "update", "patch"]
+
+  # ============================================================
+  # APP-SPECIFIC RULES (assembled by install_master.sh)
+  # Fragments: deploy/argocd/apps/<app>/audit-rules.yaml
+  # Format: bare YAML list items (no "rules:" wrapper), e.g.:
+  #   - level: RequestResponse
+  #     resources:
+  #       - group: "example.io"
+  #         resources: ["myresources"]
+  #     verbs: ["create", "delete", "update", "patch"]
+  # ============================================================
+  # __AUDIT_FRAGMENTS_INSERTION_POINT__
+
+  # ============================================================
+  # CATCH-ALL: metadata for everything else
+  # ============================================================
+  - level: Metadata

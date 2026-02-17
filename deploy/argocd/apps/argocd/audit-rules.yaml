@@ -1,0 +1,6 @@
+# ArgoCD: application and project changes control what gets deployed
+- level: RequestResponse
+  resources:
+    - group: "argoproj.io"
+      resources: ["applications", "applicationsets", "appprojects"]
+  verbs: ["create", "delete", "update", "patch"]

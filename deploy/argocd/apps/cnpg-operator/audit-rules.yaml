@@ -1,0 +1,7 @@
+# CloudNativePG: database cluster, backup, pooler, and publication changes affect data integrity
+# CRDs: clusters, backups, scheduledbackups, databases, poolers,
+#   publications, subscriptions, imagecatalogs, etc. (10 total)
+- level: Request
+  resources:
+    - group: "postgresql.cnpg.io"
+  verbs: ["create", "delete", "update", "patch"]

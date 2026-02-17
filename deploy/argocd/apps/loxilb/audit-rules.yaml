@@ -1,0 +1,6 @@
+# LoxiLB: BGP peer injection enables route hijacking of LoadBalancer VIPs
+- level: Request
+  resources:
+    - group: "bgppeer.loxilb.io"
+      resources: ["bgppeerservices"]
+  verbs: ["create", "delete", "update", "patch"]

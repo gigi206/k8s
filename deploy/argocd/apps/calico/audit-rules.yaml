@@ -1,0 +1,6 @@
+# Calico: network policy changes affect pod-to-pod communication
+- level: Request
+  resources:
+    - group: "crd.projectcalico.org"
+      resources: ["networkpolicies", "globalnetworkpolicies", "globalnetworksets"]
+  verbs: ["create", "delete", "update", "patch"]

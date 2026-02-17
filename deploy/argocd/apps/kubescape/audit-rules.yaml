@@ -1,0 +1,7 @@
+# Kubescape: security scanning rules and configurations control threat detection
+# CRDs: operatorcommands, rules, servicesscanresults (from helm chart)
+#   + runtimerulealertbindings, seccompprofiles (created by operator at runtime)
+- level: RequestResponse
+  resources:
+    - group: "kubescape.io"
+  verbs: ["create", "delete", "update", "patch"]

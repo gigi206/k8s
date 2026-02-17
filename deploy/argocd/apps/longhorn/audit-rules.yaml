@@ -1,0 +1,7 @@
+# Longhorn: storage volume, backup, snapshot, and settings changes affect data persistence
+# CRDs: volumes, backups, recurringjobs, snapshots, settings, systembackups,
+#   systemrestores, engineimages, nodes, replicas, sharemanagers, etc. (22 total)
+- level: Request
+  resources:
+    - group: "longhorn.io"
+  verbs: ["create", "delete", "update", "patch"]

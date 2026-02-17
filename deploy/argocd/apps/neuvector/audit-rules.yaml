@@ -1,0 +1,8 @@
+# NeuVector: security rules, WAF, DLP, compliance profiles control runtime protection
+# CRDs: nvsecurityrules, nvclustersecurityrules, nvadmissioncontrolsecurityrules,
+#   nvwafsecurityrules, nvdlpsecurityrules, nvcomplianceprofiles,
+#   nvresponserulesecurityrules, nvvulnerabilityprofiles, nvgroupdefinitions
+- level: RequestResponse
+  resources:
+    - group: "neuvector.com"
+  verbs: ["create", "delete", "update", "patch"]

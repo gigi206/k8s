@@ -1,0 +1,17 @@
+# Envoy Gateway: security policies and extensions can bypass auth or inject code
+- level: RequestResponse
+  resources:
+    - group: "gateway.envoyproxy.io"
+      resources: ["securitypolicies", "envoyextensionpolicies", "envoypatchpolicies"]
+  verbs: ["create", "delete", "update", "patch"]
+# Envoy Gateway: traffic policies and proxy config affect routing behavior
+- level: Request
+  resources:
+    - group: "gateway.envoyproxy.io"
+      resources:
+        - "backendtrafficpolicies"
+        - "clienttrafficpolicies"
+        - "envoyproxies"
+        - "backends"
+        - "httproutefilters"
+  verbs: ["create", "delete", "update", "patch"]

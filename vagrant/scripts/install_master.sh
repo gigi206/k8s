@@ -269,171 +269,54 @@ ADMISSIONEOF
 
   if [ "$AUDIT_ENABLED" = "true" ]; then
     echo "Creating custom audit policy: /etc/rancher/rke2/audit-policy.yaml"
-    cat > /etc/rancher/rke2/audit-policy.yaml <<'AUDITEOF'
-apiVersion: audit.k8s.io/v1
-kind: Policy
-# Skip RequestReceived stage (fires before handler, ~50% volume reduction)
-omitStages:
-  - "RequestReceived"
-rules:
-  # ============================================================
-  # EXCLUSIONS (high-volume, low-value)
-  # ============================================================
+    AUDIT_TEMPLATE="$PROJECT_ROOT/deploy/argocd/audit-policy-base.yaml"
+    if [ ! -f "$AUDIT_TEMPLATE" ]; then
+      echo "ERROR: Audit policy template not found: $AUDIT_TEMPLATE"
+      exit 1
+    fi
 
-  # Health/readiness probes and metrics endpoints
-  - level: None
-    nonResourceURLs:
-      - "/healthz*"
-      - "/livez*"
-      - "/readyz*"
-      - "/version"
-      - "/metrics"
+    # Scan app-specific audit fragments (apps/*/audit-rules.yaml)
+    # Rules for CRDs not yet installed are harmless (no events match)
+    AUDIT_FRAGMENTS_DIR="$PROJECT_ROOT/deploy/argocd/apps"
+    AUDIT_FRAGMENTS=""
+    AUDIT_FRAGMENTS_COUNT=0
+    for fragment in "$AUDIT_FRAGMENTS_DIR"/*/audit-rules.yaml; do
+      [ -f "$fragment" ] || continue
+      app_name=$(basename "$(dirname "$fragment")")
+      # Validate YAML before inclusion
+      if yq eval '.' "$fragment" > /dev/null 2>&1; then
+        AUDIT_FRAGMENTS+=$'\n'"  # --- ${app_name} ---"
+        while IFS= read -r line; do
+          [ -n "$line" ] && AUDIT_FRAGMENTS+=$'\n'"  ${line}"
+        done < "$fragment"
+        AUDIT_FRAGMENTS_COUNT=$((AUDIT_FRAGMENTS_COUNT + 1))
+        echo "  + audit fragment: $app_name"
+      else
+        echo "  ⚠ invalid audit fragment (skipped): $fragment"
+      fi
+    done
 
-  # Events and endpoints (informational, not security-relevant)
-  - level: None
-    resources:
-      - group: ""
-        resources: ["events", "endpoints"]
-      - group: "events.k8s.io"
-        resources: ["events"]
-
-  # Leader election and node heartbeats (very high volume, no security value)
-  - level: None
-    resources:
-      - group: "coordination.k8s.io"
-        resources: ["leases"]
-
-  # Read-only operations on high-churn resources
-  - level: None
-    verbs: ["get", "list"]
-    resources:
-      - group: ""
-        resources: ["nodes/status", "pods/status"]
-
-  # ============================================================
-  # SENSITIVE RESOURCES (metadata only - never log body)
-  # Placed BEFORE system components exclusion so that reads on
-  # secrets/configmaps by system accounts are still captured.
-  # Placed BEFORE watch exclusion so watches on secrets/configmaps
-  # are still captured at Metadata level.
-  # ============================================================
-
-  # Secrets: metadata only to prevent credential leakage in audit logs
-  - level: Metadata
-    resources:
-      - group: ""
-        resources: ["secrets"]
-
-  # ConfigMaps: metadata only (may contain sensitive configuration)
-  - level: Metadata
-    resources:
-      - group: ""
-        resources: ["configmaps"]
-
-  # Token reviews and access reviews: metadata only
-  - level: Metadata
-    resources:
-      - group: "authentication.k8s.io"
-        resources: ["tokenreviews"]
-      - group: "authorization.k8s.io"
-        resources: ["subjectaccessreviews", "selfsubjectaccessreviews", "selfsubjectrulesreviews"]
-
-  # Certificate signing requests: track certificate issuance
-  - level: Metadata
-    resources:
-      - group: "certificates.k8s.io"
-        resources: ["certificatesigningrequests"]
-
-  # ============================================================
-  # SYSTEM COMPONENTS EXCLUSION
-  # Placed AFTER sensitive resources so that system account
-  # access to secrets/configmaps is still logged at Metadata.
-  # ============================================================
-
-  # Internal system components read operations (very high volume)
-  # Mutations by system accounts are still logged via subsequent rules
-  - level: None
-    users:
-      - "system:kube-scheduler"
-      - "system:kube-proxy"
-      - "system:apiserver"
-      - "system:kube-controller-manager"
-      - "system:serviceaccount:kube-system:generic-garbage-collector"
-      - "system:serviceaccount:kube-system:namespace-controller"
-      - "system:serviceaccount:kube-system:resourcequota-controller"
-      - "system:serviceaccount:kube-system:coredns"
-      - "system:serviceaccount:kube-system:endpointslice-controller"
-      - "system:serviceaccount:kube-system:endpoint-controller"
-    verbs: ["get", "list", "watch"]
-
-  # Watch operations (continuous streams, very high volume)
-  - level: None
-    verbs: ["watch"]
-
-  # ============================================================
-  # SECURITY-CRITICAL MUTATIONS (full request+response)
-  # ============================================================
-
-  # Interactive container access: full forensic trail
-  # Includes "get" because kubectl exec uses WebSocket upgrade (GET) since K8s 1.30+
-  - level: RequestResponse
-    resources:
-      - group: ""
-        resources: ["pods/exec", "pods/portforward", "pods/attach"]
-    verbs: ["create", "get"]
-
-  # RBAC changes: full audit trail for forensics
-  - level: RequestResponse
-    resources:
-      - group: "rbac.authorization.k8s.io"
-    verbs: ["create", "delete", "update", "patch"]
-
-  # Namespace and ServiceAccount lifecycle
-  - level: RequestResponse
-    resources:
-      - group: ""
-        resources: ["namespaces", "serviceaccounts"]
-    verbs: ["create", "delete", "update", "patch"]
-
-  # Admission webhooks: modification can bypass all security policies
-  - level: RequestResponse
-    resources:
-      - group: "admissionregistration.k8s.io"
-        resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
-    verbs: ["create", "delete", "update", "patch"]
-
-  # ============================================================
-  # WORKLOAD MUTATIONS (request body for change tracking)
-  # ============================================================
-
-  # Pod and workload operations
-  - level: Request
-    resources:
-      - group: ""
-        resources: ["pods"]
-      - group: "apps"
-        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
-      - group: "batch"
-        resources: ["jobs", "cronjobs"]
-    verbs: ["create", "delete", "update", "patch"]
-
-  # Network and storage mutations
-  - level: Request
-    resources:
-      - group: ""
-        resources: ["services", "persistentvolumeclaims", "persistentvolumes"]
-      - group: "networking.k8s.io"
-      - group: "cilium.io"
-      - group: "crd.projectcalico.org"
-      - group: "gateway.networking.k8s.io"
-    verbs: ["create", "delete", "update", "patch"]
-
-  # ============================================================
-  # CATCH-ALL: metadata for everything else
-  # ============================================================
-  - level: Metadata
-AUDITEOF
-    echo "✓ Custom audit policy created (replaces CIS default level: None)"
+    # Assemble: base template + fragments at insertion marker
+    AUDIT_DEST="/etc/rancher/rke2/audit-policy.yaml"
+    if [ "$AUDIT_FRAGMENTS_COUNT" -gt 0 ]; then
+      AUDIT_TMP=$(mktemp /tmp/audit-policy.XXXXXX.yaml)
+      awk -v fragments="$AUDIT_FRAGMENTS" '
+        /# __AUDIT_FRAGMENTS_INSERTION_POINT__/ { print fragments; next }
+        { print }
+      ' "$AUDIT_TEMPLATE" > "$AUDIT_TMP"
+      # Validate assembled YAML before writing (broken policy prevents kube-apiserver start)
+      if yq eval '.' "$AUDIT_TMP" > /dev/null 2>&1; then
+        mv "$AUDIT_TMP" "$AUDIT_DEST"
+        echo "✓ Custom audit policy created ($AUDIT_FRAGMENTS_COUNT app fragment(s) included)"
+      else
+        echo "ERROR: Assembled audit policy is invalid YAML, falling back to base template"
+        rm -f "$AUDIT_TMP"
+        cp "$AUDIT_TEMPLATE" "$AUDIT_DEST"
+      fi
+    else
+      cp "$AUDIT_TEMPLATE" "$AUDIT_DEST"
+      echo "✓ Custom audit policy created (base template, no app fragments found)"
+    fi
   else
     echo "⚠ Audit logging disabled in config - CIS default policy (level: None) will be used"
   fi

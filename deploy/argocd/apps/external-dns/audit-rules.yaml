@@ -1,0 +1,6 @@
+# external-dns: DNSEndpoint creation can redirect traffic via DNS manipulation
+- level: Request
+  resources:
+    - group: "externaldns.k8s.io"
+      resources: ["dnsendpoints"]
+  verbs: ["create", "delete", "update", "patch"]

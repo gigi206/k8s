@@ -1,0 +1,14 @@
+# Traefik: middlewares, routes, TLS, and transport config control traffic handling
+# CRDs: ingressroutes, ingressroutetcps, ingressrouteudps, middlewares,
+#   middlewaretcps, serverstransports, serverstransporttcps, tlsoptions,
+#   tlsstores, traefikservices (traefik.io)
+- level: Request
+  resources:
+    - group: "traefik.io"
+  verbs: ["create", "delete", "update", "patch"]
+# Traefik Hub: API management, access control, rate limiting
+# CRDs: accesscontrolpolicies, apiauths, apiratelimits, apiportals, etc. (hub.traefik.io)
+- level: Request
+  resources:
+    - group: "hub.traefik.io"
+  verbs: ["create", "delete", "update", "patch"]
