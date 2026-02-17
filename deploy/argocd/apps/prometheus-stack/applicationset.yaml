@@ -577,7 +577,7 @@ spec:
           path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz-traefik
         {{- end }}
         {{- if and .features.oauth2Proxy.enabled .features.gatewayAPI.httpRoute.enabled }}
-        # Source: OAuth2 AuthorizationPolicies + ReferenceGrant for oauth2-proxy namespace
+        # Source: ReferenceGrant for oauth2-proxy cross-namespace HTTPRoute backend
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/prometheus-stack/kustomize/oauth2-authz
