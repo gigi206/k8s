@@ -6,7 +6,9 @@ metadata:
   name: oauth2-proxy-automount-sa-token
   namespace: oauth2-proxy
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-10"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

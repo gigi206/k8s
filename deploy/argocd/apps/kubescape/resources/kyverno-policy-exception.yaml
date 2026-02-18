@@ -1,7 +1,7 @@
 ---
 # PolicyException for Kubescape - requires K8s API for security scanning
-# IMPORTANT: sync-wave -1 ensures this exception exists BEFORE Helm chart
-# Deployments are created (wave 0). Without this, a race condition causes
+# IMPORTANT: PreSync hook ensures this exception exists BEFORE Helm chart
+# hooks and Deployments are created. Without this, a race condition causes
 # Kyverno to mutate the storage Deployment (which lacks explicit
 # automountServiceAccountToken: true) before the exception is registered,
 # resulting in a CrashLoopBackOff (upstream bug in kubescape-operator chart).
@@ -11,7 +11,9 @@ metadata:
   name: kubescape-automount-sa-token
   namespace: kubescape
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-10"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token

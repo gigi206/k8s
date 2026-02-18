@@ -6,7 +6,9 @@ metadata:
   name: tempo-automount-sa-token
   namespace: tempo
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-10"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token
