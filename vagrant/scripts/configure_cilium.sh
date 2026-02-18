@@ -102,6 +102,7 @@ if [ "$CILIUM_MUTUAL_AUTH" = "true" ]; then
   # when storage is ready (features.cilium.mutualAuth.spire.dataStorage.enabled=true).
   # emptyDir is safe: SPIRE re-issues all identities on restart (~30s re-negotiation).
   AUTH_BLOCK="    authentication:
+      enabled: true
       mutual:
         port: ${CILIUM_MUTUAL_AUTH_PORT}
         spire:
