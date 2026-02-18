@@ -42,6 +42,8 @@ spec:
           - resources:
               kinds:
                 - Pod
+              operations:
+                - CREATE
       exclude:
         any:
           # === System namespaces (always need API access - cannot be excepted) ===
