@@ -283,7 +283,7 @@ features:
     defaultRuntimeClass: "kata"  # RuntimeClass par défaut pour les pods (ex: kata, crun, nvidia). Vide = pas de mutation
   # === Container Registry ===
   registry:
-    enabled: true # Container registry
+    enabled: false # Container registry
     provider: "harbor" # harbor
 # =============================================================================
 # CNI Configuration
