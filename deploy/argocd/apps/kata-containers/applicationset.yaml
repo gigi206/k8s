@@ -56,6 +56,8 @@ spec:
                 value: '{{ .kataContainers.debug }}'
               - name: createDefaultRuntimeClass
                 value: '{{ .kataContainers.createDefaultRuntimeClass }}'
+              - name: defaultShim.amd64
+                value: '{{ .kataContainers.defaultShim }}'
               # Shims configurables
               - name: shims.clh.enabled
                 value: '{{ .kataContainers.shims.clh.enabled }}'
@@ -118,4 +120,86 @@ spec:
         automated:
           prune: {{ .syncPolicy.automated.prune }}
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        # Source 1: Chart Helm Kata Containers (OCI)
+        - repoURL: ghcr.io/kata-containers/kata-deploy-charts
+          targetRevision: '{{ .kataContainers.version }}'
+          chart: kata-deploy
+          helm:
+            parameters:
+              - name: k8sDistribution
+                value: '{{ .kataContainers.k8sDistribution }}'
+              - name: debug
+                value: '{{ .kataContainers.debug }}'
+              - name: createDefaultRuntimeClass
+                value: '{{ .kataContainers.createDefaultRuntimeClass }}'
+              - name: defaultShim.amd64
+                value: '{{ .kataContainers.defaultShim }}'
+              - name: shims.clh.enabled
+                value: '{{ .kataContainers.shims.clh.enabled }}'
+              - name: shims.cloud-hypervisor.enabled
+                value: '{{ .kataContainers.shims.clh.enabled }}'
+              - name: shims.dragonball.enabled
+                value: '{{ .kataContainers.shims.dragonball.enabled }}'
+              - name: shims.fc.enabled
+                value: '{{ .kataContainers.shims.fc.enabled }}'
+              - name: shims.qemu.enabled
+                value: '{{ .kataContainers.shims.qemu.enabled }}'
+              - name: shims.qemu-runtime-rs.enabled
+                value: '{{ .kataContainers.shims.qemu.enabled }}'
+              - name: shims.qemu-cca.enabled
+                value: 'false'
+              - name: shims.qemu-coco-dev.enabled
+                value: 'false'
+              - name: shims.qemu-coco-dev-runtime-rs.enabled
+                value: 'false'
+              - name: shims.qemu-nvidia-gpu.enabled
+                value: 'false'
+              - name: shims.qemu-nvidia-gpu-snp.enabled
+                value: 'false'
+              - name: shims.qemu-nvidia-gpu-tdx.enabled
+                value: 'false'
+              - name: shims.qemu-se.enabled
+                value: 'false'
+              - name: shims.qemu-se-runtime-rs.enabled
+                value: 'false'
+              - name: shims.qemu-snp.enabled
+                value: 'false'
+              - name: shims.qemu-tdx.enabled
+                value: 'false'
+              - name: shims.remote.enabled
+                value: 'false'
+              - name: shims.stratovirt.enabled
+                value: 'false'
+      {{- if and .features.kyverno.enabled .features.containerRuntime.defaultRuntimeClass }}
+        # Source 2: Kyverno ClusterPolicy - default RuntimeClass mutation
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kata-containers/kustomize/default-runtimeclass
+          kustomize:
+            patches:
+              - target:
+                  kind: ClusterPolicy
+                  name: default-runtime-class
+                patch: |
+                  - op: replace
+                    path: /spec/rules/0/mutate/patchStrategicMerge/spec/runtimeClassName
+                    value: {{ .features.containerRuntime.defaultRuntimeClass }}
+      {{- end }}
+      {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for kata-deploy DaemonSet)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kata-containers/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+      {{- end }}
+      {{- if .rke2.cis.enabled }}
+        # Source: Namespace with PSA labels for CIS profile compatibility
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kata-containers/resources
+          directory:
+            include: "namespace.yaml"
       {{- end }}

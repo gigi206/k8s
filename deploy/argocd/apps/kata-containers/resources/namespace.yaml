@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# Kata Containers requires privileged access for:
+# - kata-deploy DaemonSet (hostPID, hostPath, privileged containers)
+# - Installs kata binaries on nodes via /opt/kata/
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kata-containers
+  labels:
+    name: kata-containers
+    # PSA: Allow privileged workloads (required for kata-deploy DaemonSet)
+    pod-security.kubernetes.io/enforce: privileged
+    # PSA: Warn on restricted violations (visibility into non-compliant pods)
+    pod-security.kubernetes.io/warn: restricted
+    # PSA: Audit restricted violations (for logging)
+    pod-security.kubernetes.io/audit: restricted

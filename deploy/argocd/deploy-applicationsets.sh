@@ -410,7 +410,9 @@ FEAT_CILIUM_MUTUAL_AUTH=$(get_feature '.features.cilium.mutualAuth.enabled' 'tru
 FEAT_SPIRE_DATA_STORAGE=$(get_feature '.features.cilium.mutualAuth.spire.dataStorage.enabled' 'false')
 FEAT_SPIRE_DATA_STORAGE_SIZE=$(get_feature '.features.cilium.mutualAuth.spire.dataStorage.size' '1Gi')
 FEAT_STORAGE_CLASS=$(get_feature '.features.storage.class' 'ceph-block')
-FEAT_KATA_CONTAINERS=$(get_feature '.features.kataContainers.enabled' 'false')
+FEAT_CONTAINER_RUNTIME=$(get_feature '.features.containerRuntime.enabled' 'false')
+FEAT_CONTAINER_RUNTIME_PROVIDER=$(get_feature '.features.containerRuntime.provider' 'kata')
+FEAT_CONTAINER_RUNTIME_DEFAULT_CLASS=$(get_feature '.features.containerRuntime.defaultRuntimeClass' '')
 
 # Read Istio mTLS setting from per-app config (if Istio service mesh is active)
 FEAT_ISTIO_MTLS="false"
@@ -461,7 +463,7 @@ log_debug "  calico.monitoring: $FEAT_CALICO_MONITORING"
 log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
 log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
 log_debug "  cilium.mutualAuth.spire.dataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
-log_debug "  kataContainers: $FEAT_KATA_CONTAINERS"
+log_debug "  containerRuntime: $FEAT_CONTAINER_RUNTIME ($FEAT_CONTAINER_RUNTIME_PROVIDER, defaultClass: ${FEAT_CONTAINER_RUNTIME_DEFAULT_CLASS:-none})"
 log_debug "  cni.primary: $FEAT_CNI_PRIMARY"
 log_debug "  cni.multus: $FEAT_CNI_MULTUS"
 log_debug "  cni.whereabouts: $FEAT_CNI_WHEREABOUTS"
@@ -808,8 +810,17 @@ if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "klipper" ]];
   log_warning "  Note: staticIP annotations will be ignored (Klipper uses node IPs)"
 fi
 
-# Kata Containers (hardware isolation via micro-VMs)
-[[ "$FEAT_KATA_CONTAINERS" == "true" ]] && APPLICATIONSETS+=("apps/kata-containers/applicationset.yaml")
+# Container Runtime Sandboxing (kata, gvisor, spin)
+if [[ "$FEAT_CONTAINER_RUNTIME" == "true" ]]; then
+  case "$FEAT_CONTAINER_RUNTIME_PROVIDER" in
+    kata)
+      APPLICATIONSETS+=("apps/kata-containers/applicationset.yaml")
+      ;;
+    *)
+      log_warning "Container runtime provider '$FEAT_CONTAINER_RUNTIME_PROVIDER' is not yet supported"
+      ;;
+  esac
+fi
 
 # API HA + Gateway API CRDs
 [[ "$FEAT_KUBEVIP" == "true" ]] && APPLICATIONSETS+=("apps/kube-vip/applicationset.yaml")

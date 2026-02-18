@@ -271,6 +271,16 @@ features:
     enabled: false # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
   neuvector:
     enabled: true # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+  # === Container Runtime Sandboxing ===
+  # Runtime sandbox pour l'isolation hardware des conteneurs
+  # Providers:
+  #   - kata: Kata Containers (micro-VMs, requiert /dev/kvm et nested virtualization)
+  #   - gvisor: gVisor (user-space kernel, pas de nested virt requise) [futur]
+  #   - spin: Spin/WebAssembly (WasmEdge runtime) [futur]
+  containerRuntime:
+    enabled: false
+    provider: "kata"  # kata | gvisor | spin
+    defaultRuntimeClass: "kata"  # RuntimeClass par défaut pour les pods (ex: kata, crun, nvidia). Vide = pas de mutation
   # === Container Registry ===
   registry:
     enabled: true # Container registry

@@ -1,0 +1,54 @@
+---
+# =============================================================================
+# ClusterPolicy: Default RuntimeClass
+# =============================================================================
+# Mutates pods (without explicit runtimeClassName) to use the configured
+# default container runtime sandbox.
+#
+# Opt-in: only namespaces labeled "runtime-sandbox: enabled" are affected.
+#   kubectl label ns my-app runtime-sandbox=enabled
+#
+# Controlled by: features.containerRuntime.defaultRuntimeClass in config.yaml
+# The runtimeClassName value is injected via kustomize patch from the
+# ApplicationSet (Go template variable).
+#
+# Precondition: pods that already specify a runtimeClassName are NOT mutated.
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: default-runtime-class
+  annotations:
+    policies.kyverno.io/title: Default RuntimeClass
+    policies.kyverno.io/category: Runtime Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Sets a default RuntimeClass on pods that don't explicitly specify one,
+      providing hardware-level isolation via container runtime sandboxing.
+      Only applies to namespaces labeled with runtime-sandbox: enabled.
+spec:
+  admission: true
+  background: false
+  validationFailureAction: Audit
+  mutateExistingOnPolicyUpdate: false
+  rules:
+    - name: set-default-runtimeclass
+      skipBackgroundRequests: true
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchLabels:
+                  runtime-sandbox: "enabled"
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.runtimeClassName || '' }}"
+            operator: Equals
+            value: ""
+      mutate:
+        patchStrategicMerge:
+          spec:
+            runtimeClassName: "kata"

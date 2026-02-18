@@ -194,6 +194,50 @@ Le pod Kata affichera un kernel different (ex: `5.15.x kata`) tandis que le pod 
 
 > **Note**: Seul `kata-qemu` est active par defaut. Pour d'autres shims, modifiez `config/dev.yaml`.
 
+## Default RuntimeClass (Kyverno)
+
+Lorsque `features.containerRuntime.defaultRuntimeClass` est configure dans `config.yaml`, une ClusterPolicy Kyverno est deployee. Elle mute les pods qui ne specifient pas de `runtimeClassName` pour leur injecter la valeur configuree.
+
+### Activation
+
+1. Configurer le feature flag dans `deploy/argocd/config/config.yaml` :
+```yaml
+features:
+  containerRuntime:
+    enabled: true
+    provider: "kata"
+    defaultRuntimeClass: "kata-qemu"  # ou kata-clh, kata-dragonball, etc.
+```
+
+2. Labeler les namespaces ou la mutation doit s'appliquer (opt-in) :
+```bash
+kubectl label ns my-app runtime-sandbox=enabled
+```
+
+### Comportement
+
+- **Opt-in par namespace** : seuls les namespaces avec le label `runtime-sandbox: enabled` sont affectes
+- **Pas d'ecrasement** : les pods qui specifient deja un `runtimeClassName` ne sont pas modifies
+- **Desactivation** : mettre `defaultRuntimeClass: ""` pour ne pas deployer la ClusterPolicy
+
+### Valeurs possibles pour defaultRuntimeClass
+
+| Valeur | Hyperviseur | Notes |
+|--------|-------------|-------|
+| `kata-qemu` | QEMU/KVM | Recommande, compatibilite maximale |
+| `kata-clh` | Cloud Hypervisor | Performance, bare-metal uniquement |
+| `kata-cloud-hypervisor` | Cloud Hypervisor (alias) | Identique a kata-clh |
+| `kata-dragonball` | Dragonball | Experimental |
+| `kata-qemu-runtime-rs` | QEMU runtime-rs | Runtime Rust |
+
+### Kyverno PolicyException
+
+Le DaemonSet kata-deploy necessite un ServiceAccount token pour acceder a l'API Kubernetes. Une PolicyException est automatiquement deployee (conditionnee par `features.kyverno.enabled`) pour exempter le namespace `kata-containers` de la ClusterPolicy `disable-automount-sa-token`.
+
+### Pod Security Admission
+
+Le namespace `kata-containers` necessite le mode PSA `privileged` car le DaemonSet kata-deploy utilise `hostPID`, des volumes `hostPath` et des conteneurs privilegies. Un fichier `namespace.yaml` avec les labels PSA adequats doit etre inclus quand `rke2.cis.enabled: true`.
+
 ## Troubleshooting
 
 ### Verifier l'installation

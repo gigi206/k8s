@@ -10,7 +10,8 @@ kataContainers:
   version: "3.26.0"
   k8sDistribution: "rke2"
   debug: false
-  createDefaultRuntimeClass: false
+  createDefaultRuntimeClass: true
+  defaultShim: "qemu"  # qemu | clh | dragonball | fc
   shims:
     qemu:
       enabled: true
