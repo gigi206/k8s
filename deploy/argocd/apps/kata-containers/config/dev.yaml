@@ -12,6 +12,8 @@ kataContainers:
   debug: false
   createDefaultRuntimeClass: true
   defaultShim: "qemu"  # qemu | clh | dragonball | fc
+  # Snapshotter nydus (requis par les shims TEE/CoCo ci-dessous)
+  snapshotterSetup: ""  # "nydus" | "" (vide = pas d'installation)
   shims:
     qemu:
       enabled: true
@@ -21,6 +23,46 @@ kataContainers:
       enabled: false
     dragonball:
       enabled: true
+    # Shims TEE/CoCo (requierent snapshotterSetup: "nydus")
+    qemu-coco-dev:
+      enabled: false  # Variante test CoCo (requiert nydus + reseau VM fonctionnel)
+    qemu-coco-dev-runtime-rs:
+      enabled: false
+    qemu-snp:
+      enabled: false  # AMD SEV-SNP (materiel requis)
+    qemu-tdx:
+      enabled: false  # Intel TDX (materiel requis)
+    qemu-se:
+      enabled: false  # IBM Secure Execution (s390x)
+    qemu-cca:
+      enabled: false  # ARM CCA
+    # Shims GPU
+    qemu-nvidia-gpu:
+      enabled: false
+    qemu-nvidia-gpu-snp:
+      enabled: false
+    qemu-nvidia-gpu-tdx:
+      enabled: false
+    # Autres
+    qemu-se-runtime-rs:
+      enabled: false
+    remote:
+      enabled: false
+  customRuntimes:
+    qemu-minimal:
+      enabled: true
+      baseConfig: "qemu"
+      defaultMemory: 256
+      defaultVcpus: 1
+      blockDeviceEnabled: false
+      blockDeviceDriver: ""
+    qemu-block-minimal:
+      enabled: true
+      baseConfig: "qemu"
+      defaultMemory: 256
+      defaultVcpus: 1
+      blockDeviceEnabled: true
+      blockDeviceDriver: "virtio-scsi"
 
 syncPolicy:
   syncOptions:

@@ -270,7 +270,7 @@ features:
   kubescape:
     enabled: false # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
   neuvector:
-    enabled: true # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+    enabled: false # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
   # === Container Runtime Sandboxing ===
   # Runtime sandbox pour l'isolation hardware des conteneurs
   # Providers:

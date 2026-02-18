@@ -371,10 +371,19 @@ if [ "$CNI_PRIMARY" = "cilium" ]; then
   CILIUM_MUTUAL_AUTH=${CILIUM_MUTUAL_AUTH:-true}
   CILIUM_MUTUAL_AUTH_PORT=$(yq_read '.features.cilium.mutualAuth.port' "$ARGOCD_CONFIG_FILE")
   CILIUM_MUTUAL_AUTH_PORT=${CILIUM_MUTUAL_AUTH_PORT:-4250}
+  # Read container runtime settings (features.containerRuntime)
+  # Kata/gVisor/KubeVirt require socketLB.hostNamespaceOnly=true in Cilium
+  # Ref: https://docs.cilium.io/en/stable/network/kubernetes/kata/
+  CONTAINER_RUNTIME_ENABLED=$(yq_read '.features.containerRuntime.enabled' "$ARGOCD_CONFIG_FILE")
+  CONTAINER_RUNTIME_ENABLED=${CONTAINER_RUNTIME_ENABLED:-false}
+  CONTAINER_RUNTIME_PROVIDER=$(yq_read '.features.containerRuntime.provider' "$ARGOCD_CONFIG_FILE")
+  CONTAINER_RUNTIME_PROVIDER=${CONTAINER_RUNTIME_PROVIDER:-none}
   export CILIUM_ENCRYPTION_ENABLED CILIUM_ENCRYPTION_TYPE CILIUM_NODE_ENCRYPTION CILIUM_STRICT_MODE
   export CILIUM_MUTUAL_AUTH CILIUM_MUTUAL_AUTH_PORT
+  export CONTAINER_RUNTIME_ENABLED CONTAINER_RUNTIME_PROVIDER
   echo "Cilium encryption: $CILIUM_ENCRYPTION_ENABLED (type=$CILIUM_ENCRYPTION_TYPE, nodeEncryption=$CILIUM_NODE_ENCRYPTION, strictMode=$CILIUM_STRICT_MODE)"
   echo "Cilium mutual auth: $CILIUM_MUTUAL_AUTH (port=$CILIUM_MUTUAL_AUTH_PORT)"
+  echo "Container runtime: $CONTAINER_RUNTIME_ENABLED (provider=$CONTAINER_RUNTIME_PROVIDER)"
 
   $SCRIPT_DIR/configure_cilium.sh
 elif [ "$CNI_PRIMARY" = "calico" ]; then
