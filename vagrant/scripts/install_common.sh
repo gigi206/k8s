@@ -103,7 +103,7 @@ echo 'export PATH=/var/lib/rancher/rke2/bin:${KREW_ROOT:-$HOME/.krew}/bin:$PATH'
 echo "source <(kubectl completion bash)" >>~/.bashrc
 echo "alias k=kubectl" >>~/.bashrc
 echo "complete -F __start_kubectl k" >>~/.bashrc
-echo "source <(helm completion bash)" >>~/.bashrc
+echo "command -v helm &>/dev/null && source <(helm completion bash)" >>~/.bashrc
 sed -i "/^127.0.1.1/d" /etc/hosts
 echo "$(hostname -i) $(hostname)" >>/etc/hosts
 sed -i "s/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/g" /etc/ssh/sshd_config
