@@ -26,6 +26,7 @@ rook:
     cephVersion: "19.2.0"
     osdPoolDefaultSize: 1
     monWarnOnPoolNoRedundancy: false
+    monDataAvailWarn: 10  # Lower threshold (default 30%) to avoid false alarm on small dev disks
     mon:
       count: 1
       allowMultiplePerNode: true
