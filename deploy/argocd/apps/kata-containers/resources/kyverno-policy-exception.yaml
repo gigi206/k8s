@@ -1,0 +1,28 @@
+---
+# PolicyException for Kata Containers - requires K8s API for DaemonSet node management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: kata-containers-automount-sa-token
+  namespace: kata-containers
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - kata-containers
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
