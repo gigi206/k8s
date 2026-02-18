@@ -92,6 +92,42 @@ else
   echo "Cilium Encryption: DISABLED"
 fi
 
+# Calculate MTU based on encapsulation overhead
+# Ref: https://docs.cilium.io/en/stable/operations/performance/tuning/
+# Overheads:
+#   - WireGuard: 80 B (outer IP 20 + UDP 8 + WireGuard header 32 + padding ~20)
+#   - IPsec (ESP): 64 B (ESP header + IV + padding + ICV)
+#   - VXLAN: 50 B (outer Ethernet 14 + outer IP 20 + UDP 8 + VXLAN 8)
+#   - Geneve: 50 B (same structure as VXLAN)
+# Note: routingMode=native → no tunnel overhead (tunnelProtocol only used for DSR dispatch)
+#       routingMode=tunnel → add VXLAN/Geneve overhead
+BASE_MTU=1500
+MTU_OVERHEAD=0
+
+# Tunnel overhead (only applies when routingMode=tunnel)
+# Currently hardcoded to native, but calculated for future-proofing
+ROUTING_MODE="native"
+if [ "$ROUTING_MODE" = "tunnel" ]; then
+  MTU_OVERHEAD=$((MTU_OVERHEAD + 50))
+fi
+
+# Encryption overhead
+if [ "$CILIUM_ENCRYPTION_ENABLED" = "true" ]; then
+  case "$CILIUM_ENCRYPTION_TYPE" in
+    wireguard) MTU_OVERHEAD=$((MTU_OVERHEAD + 80)) ;;
+    ipsec)     MTU_OVERHEAD=$((MTU_OVERHEAD + 64)) ;;
+  esac
+fi
+
+if [ "$MTU_OVERHEAD" -gt 0 ]; then
+  CILIUM_MTU=$((BASE_MTU - MTU_OVERHEAD))
+  MTU_YAML="    MTU: ${CILIUM_MTU}"
+  echo "Cilium MTU: ${CILIUM_MTU} (base=${BASE_MTU} - overhead=${MTU_OVERHEAD})"
+else
+  MTU_YAML="    # MTU: auto (no encapsulation overhead)"
+  echo "Cilium MTU: auto (no encapsulation overhead)"
+fi
+
 # Determine mutual authentication settings (SPIFFE/SPIRE)
 CILIUM_MUTUAL_AUTH="${CILIUM_MUTUAL_AUTH:-false}"
 CILIUM_MUTUAL_AUTH_PORT="${CILIUM_MUTUAL_AUTH_PORT:-4250}"
@@ -143,6 +179,21 @@ else
   BPF_MASQUERADE="true"
   CNI_EXCLUSIVE="true"
   SOCKET_LB_HOST_NS_ONLY="false"
+fi
+
+# Determine container runtime sandbox compatibility settings
+# Kata Containers / gVisor / KubeVirt require socketLB.hostNamespaceOnly=true
+# The socket-level LB intercepts connect()/sendmsg() via eBPF, but with Kata
+# these syscalls happen in the VM kernel (not the host kernel), making socket LB
+# ineffective. Setting hostNamespaceOnly=true falls back to tc LB at the veth.
+# Ref: https://docs.cilium.io/en/stable/network/kubernetes/kata/
+# Ref: https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/
+CONTAINER_RUNTIME_ENABLED="${CONTAINER_RUNTIME_ENABLED:-false}"
+CONTAINER_RUNTIME_PROVIDER="${CONTAINER_RUNTIME_PROVIDER:-none}"
+
+if [ "$CONTAINER_RUNTIME_ENABLED" = "true" ] && [ "$CONTAINER_RUNTIME_PROVIDER" = "kata" ]; then
+  SOCKET_LB_HOST_NS_ONLY="true"
+  echo "Container Runtime: Kata Containers (socketLB.hostNamespaceOnly=true)"
 fi
 
 if [ "$LB_PROVIDER" = "cilium" ]; then
@@ -203,6 +254,7 @@ metadata:
 spec:
   valuesContent: |-
     kubeProxyReplacement: true # https://docs.cilium.io/en/latest/network/kubernetes/kubeproxy-free/
+${MTU_YAML}
     # k8sServiceHost: kubernetes.default.svc.cluster.local
     k8sServiceHost: 127.0.0.1 # IP dataplane (10.43.0.1) => kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}' => comment this line if you set kubeProxyReplacement=false
     k8sServicePort: 6443 # Port dataplane (443) => kubectl get svc kubernetes -n default -o jsonpath='{.spec.ports[0].port}' => comment this line if you set kubeProxyReplacement=false
