@@ -1757,6 +1757,58 @@ migrate_spire_storage() {
     return 0
   fi
 
+  # --- Pré-provisionner le PVC SPIRE (avant le patch) ---
+  # Problème: activer dataStorage déclenche un helm upgrade. Comme les
+  # volumeClaimTemplates du StatefulSet sont immutables, helm échoue et
+  # failurePolicy:reinstall cause un cycle destructif (helm uninstall → perte
+  # totale du réseau Cilium → helm install). Pendant cette fenêtre, SPIRE a
+  # besoin d'un PVC Ceph, mais Ceph a besoin de Cilium pour le trafic pod-to-pod,
+  # et Cilium mutual auth a besoin de SPIRE → deadlock chicken-and-egg.
+  #
+  # Solution: créer le PVC maintenant (SPIRE et Ceph fonctionnent en emptyDir),
+  # puis supprimer le StatefulSet avant le patch pour permettre un helm upgrade
+  # propre (création d'un nouveau StatefulSet) au lieu du cycle reinstall.
+  log_info "Pré-provisionnement du PVC SPIRE (évite le chicken-and-egg Ceph ↔ SPIRE)..."
+
+  if ! kubectl get pvc spire-data-spire-server-0 -n cilium-spire &>/dev/null; then
+    kubectl apply -f - <<PVCEOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spire-data-spire-server-0
+  namespace: cilium-spire
+  labels:
+    app: spire-server
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ${FEAT_STORAGE_CLASS}
+  resources:
+    requests:
+      storage: ${FEAT_SPIRE_DATA_STORAGE_SIZE}
+PVCEOF
+
+    # Attendre que le PVC soit Bound avant de continuer
+    if kubectl wait --for=jsonpath='{.status.phase}'=Bound \
+       pvc/spire-data-spire-server-0 -n cilium-spire --timeout=120s > /dev/null 2>&1; then
+      log_success "PVC spire-data-spire-server-0 provisionné et Bound"
+    else
+      log_warning "PVC non Bound dans le timeout, la migration continuera (peut être lent)"
+    fi
+  else
+    local pvc_phase
+    pvc_phase=$(kubectl get pvc spire-data-spire-server-0 -n cilium-spire -o jsonpath='{.status.phase}' 2>/dev/null)
+    log_info "PVC spire-data-spire-server-0 existe déjà (phase: $pvc_phase)"
+  fi
+
+  # Supprimer le StatefulSet SPIRE pour éviter l'erreur "immutable field" lors
+  # du helm upgrade. Sans cela, helm échoue et failurePolicy:reinstall cause
+  # un cycle destructif (helm uninstall → perte totale réseau → chicken-and-egg).
+  # En supprimant le StatefulSet d'abord, helm upgrade crée un nouveau StatefulSet
+  # avec la config PVC, trouvant le PVC pré-provisionné déjà Bound → démarrage immédiat.
+  log_info "Suppression du StatefulSet SPIRE Server (permet helm upgrade sans reinstall)..."
+  kubectl delete statefulset spire-server -n cilium-spire --ignore-not-found --timeout=60s > /dev/null 2>&1 || true
+
   # --- Patcher le HelmChartConfig ---
   log_info "Patch du HelmChartConfig rke2-cilium (activation dataStorage)..."
 
