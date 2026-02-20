@@ -1,0 +1,31 @@
+---
+# PolicyException for Velero - requires K8s API access for backup/restore operations
+# and SA token mount for RBAC-based cluster administration
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: velero-automount-sa-token
+  namespace: velero
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
+  match:
+    any:
+      - resources:
+          namespaces:
+            - velero
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

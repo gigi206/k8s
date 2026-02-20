@@ -1,0 +1,59 @@
+---
+# Configuration Velero - Prod
+# Production resources, long retention
+environment: prod
+appName: velero
+
+velero:
+  namespace: velero
+  version: "11.3.2"  # Helm chart version - Renovate will update this
+
+  # Plugin AWS pour S3 (Rook-Ceph RGW)
+  pluginAws:
+    version: "v1.13.2"
+
+  # Resources (server)
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+  # Node-agent (data mover for CSI snapshot upload to S3)
+  nodeAgent:
+    enabled: true
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+  # S3 storage configuration
+  s3:
+    secretName: velero-s3-credentials  # Secret created by credentials Job
+    obcSecretName: velero-storage      # Secret created by ObjectBucketClaim
+    obcConfigMapName: velero-storage   # ConfigMap created by ObjectBucketClaim
+
+  # Backup schedule
+  schedule:
+    cron: "0 1 * * *"   # Daily at 1am
+    ttl: "720h"          # 30 days retention
+
+  # Backup configuration
+  backup:
+    defaultVolumesToFsBackup: false       # Using CSI snapshots (not file-system backup)
+    defaultSnapshotMoveData: true         # Upload CSI snapshot data to S3 for DR
+
+# Grafana dashboard folder
+dashboard:
+  folder: "Velero"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

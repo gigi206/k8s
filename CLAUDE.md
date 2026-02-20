@@ -87,6 +87,7 @@ Always use conditions based on `config/config.yaml` to enable optional features:
 | `{{- if .features.certManager.enabled }}` | TLS annotations |
 | `{{- if eq .cluster.distribution "k3d" }}` | K3d-specific resources (e.g., webhook policies with host+remote-node) |
 | `{{- if .features.containerRuntime.enabled }}` | container runtime sandbox (kata, gvisor) |
+| `{{- if .features.backup.enabled }}` | backup and disaster recovery (velero). Requires `features.s3.enabled` |
 | `{{- if .syncPolicy.automated.enabled }}` | automated sync block |
 
 **Combined conditions**: `{{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}`

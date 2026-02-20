@@ -413,6 +413,8 @@ FEAT_STORAGE_CLASS=$(get_feature '.features.storage.class' 'ceph-block')
 FEAT_CONTAINER_RUNTIME=$(get_feature '.features.containerRuntime.enabled' 'false')
 FEAT_CONTAINER_RUNTIME_PROVIDER=$(get_feature '.features.containerRuntime.provider' 'kata')
 FEAT_CONTAINER_RUNTIME_DEFAULT_CLASS=$(get_feature '.features.containerRuntime.defaultRuntimeClass' '')
+FEAT_BACKUP=$(get_feature '.features.backup.enabled' 'false')
+FEAT_BACKUP_PROVIDER=$(get_feature '.features.backup.provider' 'velero')
 
 # Read Istio mTLS setting from per-app config (if Istio service mesh is active)
 FEAT_ISTIO_MTLS="false"
@@ -753,6 +755,22 @@ validate_dependencies() {
     fi
   fi
 
+  # Vérifier que backup.enabled nécessite s3.enabled
+  if [[ "$FEAT_BACKUP" == "true" ]]; then
+    if [[ "$FEAT_S3" != "true" ]]; then
+      log_warning "features.backup.enabled=true mais features.s3.enabled=false"
+      log_warning "  Velero nécessite un stockage S3 pour les backups (ObjectBucketClaim)"
+      log_warning "  Activez features.s3.enabled: true dans config.yaml"
+    fi
+    case "$FEAT_BACKUP_PROVIDER" in
+      velero) ;;  # OK
+      *)
+        log_error "Backup provider '$FEAT_BACKUP_PROVIDER' non supporté (seul 'velero' est disponible)"
+        errors=$((errors + 1))
+        ;;
+    esac
+  fi
+
   # Vérifier que le gateway controller est supporté
   case "$FEAT_GATEWAY_CONTROLLER" in
     istio|nginx-gateway-fabric|nginx-gwf|envoy-gateway|apisix|traefik|nginx|cilium|"") ;;  # OK
@@ -894,6 +912,15 @@ if [[ "$FEAT_STORAGE" == "true" ]]; then
       ;;
     rook)
       APPLICATIONSETS+=("apps/rook/applicationset.yaml")
+      ;;
+  esac
+fi
+
+# Backup (Velero)
+if [[ "$FEAT_BACKUP" == "true" ]]; then
+  case "$FEAT_BACKUP_PROVIDER" in
+    velero)
+      APPLICATIONSETS+=("apps/velero/applicationset.yaml")
       ;;
   esac
 fi

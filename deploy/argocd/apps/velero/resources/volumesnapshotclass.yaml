@@ -1,0 +1,33 @@
+---
+# VolumeSnapshotClass for Ceph RBD CSI snapshots (Velero backups)
+# Used by Velero for CSI-based volume snapshots with data movement to S3.
+# The label velero.io/csi-volumesnapshot-class: "true" allows Velero to
+# automatically discover this class for CSI snapshot operations.
+# deletionPolicy: Delete = snapshot local supprime apres upload en S3.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: ceph-block-snapshot
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+driver: rook-ceph.rbd.csi.ceph.com
+deletionPolicy: Delete
+parameters:
+  clusterID: rook-ceph
+  csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph
+---
+# VolumeSnapshotClass for Ceph RBD CSI snapshots (manual rollback)
+# Used for manual snapshots via kubectl for fast local rollback.
+# No Velero label = not used by Velero automated backups.
+# deletionPolicy: Retain = snapshot local conserve pour restauration instantanee.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: ceph-block-snapshot-retain
+driver: rook-ceph.rbd.csi.ceph.com
+deletionPolicy: Retain
+parameters:
+  clusterID: rook-ceph
+  csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph

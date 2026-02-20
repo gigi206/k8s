@@ -1,0 +1,20 @@
+---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# Always deployed (ensures namespace exists with correct labels).
+# Velero server runs as non-root with restricted profile.
+# Node-agent requires privileged access for host path volumes (file-system backups).
+# PSA set to "privileged" to accommodate node-agent DaemonSet.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero
+  labels:
+    # PSA: Enforce privileged profile (node-agent requires host path access)
+    pod-security.kubernetes.io/enforce: privileged
+    # PSA: Warn on restricted violations
+    pod-security.kubernetes.io/warn: restricted
+    # PSA: Audit restricted violations
+    pod-security.kubernetes.io/audit: restricted
