@@ -1,0 +1,270 @@
+---
+# =============================================================================
+# Velero ApplicationSet (Kubernetes Backup & Restore)
+# =============================================================================
+# Deploys Velero for cluster backup and disaster recovery.
+# Uses S3 storage via Rook-Ceph ObjectStore for backup metadata.
+# Volume backups use CSI snapshots (Ceph RBD).
+# BackupStorageLocation is created by a PreSync Job that reads OBC credentials.
+# Docs: https://velero.io/docs/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: velero
+  namespace: argo-cd
+  annotations:
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/velero/config/*.yaml
+
+  template:
+    metadata:
+      name: velero
+      namespace: argo-cd
+      annotations:
+    spec:
+      project: default
+
+      source:
+        repoURL: https://vmware-tanzu.github.io/helm-charts
+        targetRevision: '{{ .velero.version }}'
+        chart: velero
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .velero.namespace }}'
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+
+      ignoreDifferences:
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .spec.data[].remoteRef.conversionStrategy
+            - .spec.data[].remoteRef.decodingStrategy
+            - .spec.data[].remoteRef.metadataPolicy
+
+      sources:
+        # Source: Namespace with PSA labels
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "namespace.yaml"
+
+        {{- if and .features.s3.enabled (eq .features.s3.provider "rook") }}
+        # Source: S3 ObjectBucketClaim (creates bucket + credentials via Rook-Ceph)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "objectbucketclaim.yaml"
+
+        # Source: PreSync Job to create Velero S3 credentials + BSL from OBC
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "velero-s3-credentials.yaml"
+
+        # Source: VolumeSnapshotClass for Ceph RBD CSI snapshots
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "volumesnapshotclass.yaml"
+        {{- end }}
+
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
+
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium policy for internal Velero traffic
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico policy for internal Velero traffic
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
+        {{- end }}
+
+        # Source: Velero Helm Chart
+        - repoURL: https://vmware-tanzu.github.io/helm-charts
+          targetRevision: '{{ .velero.version }}'
+          chart: velero
+          helm:
+            releaseName: velero
+            valuesObject:
+              # Init containers: AWS plugin for S3
+              initContainers:
+                - name: velero-plugin-for-aws
+                  image: 'velero/velero-plugin-for-aws:{{ .velero.pluginAws.version }}'
+                  imagePullPolicy: IfNotPresent
+                  volumeMounts:
+                    - mountPath: /target
+                      name: plugins
+
+              # Resources
+              resources:
+                requests:
+                  cpu: '{{ .velero.resources.requests.cpu }}'
+                  memory: '{{ .velero.resources.requests.memory }}'
+                limits:
+                  cpu: '{{ .velero.resources.limits.cpu }}'
+                  memory: '{{ .velero.resources.limits.memory }}'
+
+              # SecurityContext (PSA compatible)
+              podSecurityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                runAsGroup: 65534
+                fsGroup: 65534
+                seccompProfile:
+                  type: RuntimeDefault
+              containerSecurityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+
+              # CRDs managed by ArgoCD directly (not by Helm hook Job)
+              # See README.md "Known Issues" for why upgradeCRDs is disabled
+              upgradeCRDs: false
+
+              {{- if and .features.s3.enabled (eq .features.s3.provider "rook") }}
+              # Disable Helm-managed BSL (created by PreSync Job with OBC credentials)
+              backupsEnabled: false
+              # No Helm-managed VSL (CSI uses VolumeSnapshotClass directly)
+              snapshotsEnabled: false
+
+              # Credentials (existingSecret created by PreSync Job)
+              credentials:
+                useSecret: true
+                existingSecret: '{{ .velero.s3.secretName }}'
+
+              # Server configuration
+              configuration:
+                # Enable built-in CSI snapshot support
+                features: EnableCSI
+                # CSI snapshots for volume backups (no file-system backup)
+                defaultVolumesToFsBackup: {{ .velero.backup.defaultVolumesToFsBackup }}
+                # Move CSI snapshot data to S3 by default
+                defaultSnapshotMoveData: {{ .velero.backup.defaultSnapshotMoveData }}
+                # No VolumeSnapshotLocation needed for CSI (uses VolumeSnapshotClass directly)
+                volumeSnapshotLocation: []
+                # Kopia needs a writable HOME for config files (~/.config/kopia/)
+                # The distroless Velero image has HOME=/nonexistent (read-only)
+                # Redirect HOME to /scratch (existing emptyDir volume)
+                extraEnvVars:
+                  - name: HOME
+                    value: /scratch
+              {{- end }}
+
+              # Node-agent (data mover: uploads CSI snapshot data to S3)
+              deployNodeAgent: {{ .velero.nodeAgent.enabled }}
+              {{- if .velero.nodeAgent.enabled }}
+              nodeAgent:
+                resources:
+                  requests:
+                    cpu: '{{ .velero.nodeAgent.resources.requests.cpu }}'
+                    memory: '{{ .velero.nodeAgent.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .velero.nodeAgent.resources.limits.cpu }}'
+                    memory: '{{ .velero.nodeAgent.resources.limits.memory }}'
+                podSecurityContext:
+                  runAsUser: 0
+              {{- end }}
+
+              # Backup schedules
+              schedules:
+                daily-backup:
+                  schedule: '{{ .velero.schedule.cron }}'
+                  useOwnerReferencesInBackup: false
+                  template:
+                    ttl: '{{ .velero.schedule.ttl }}'
+                    storageLocation: default
+
+              # Metrics
+              metrics:
+                enabled: {{ .features.monitoring.enabled }}
+                {{- if .features.monitoring.enabled }}
+                serviceMonitor:
+                  enabled: true
+                  additionalLabels:
+                    release: '{{ .features.monitoring.release }}'
+                prometheusRule:
+                  enabled: false
+                {{- if .velero.nodeAgent.enabled }}
+                nodeAgentPodMonitor:
+                  enabled: true
+                  additionalLabels:
+                    release: '{{ .features.monitoring.release }}'
+                {{- end }}
+                {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source: PrometheusRules for Velero monitoring
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/kustomize/monitoring
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}

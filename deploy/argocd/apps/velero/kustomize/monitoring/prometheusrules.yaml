@@ -1,0 +1,52 @@
+---
+# PrometheusRules for Velero backup monitoring
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: velero-alerts
+  namespace: velero
+spec:
+  groups:
+    - name: velero.rules
+      rules:
+        - alert: VeleroBackupFailed
+          annotations:
+            summary: "Velero backup {{ $labels.schedule }} has failed"
+            description: "Velero backup schedule {{ $labels.schedule }} last backup status is not successful."
+          expr: |-
+            velero_backup_last_status{schedule!=""} != 1
+          for: 15m
+          labels:
+            severity: warning
+        - alert: VeleroBackupFailingPersistent
+          annotations:
+            summary: "Velero backup {{ $labels.schedule }} has been failing for 12h"
+            description: "Velero backup schedule {{ $labels.schedule }} has been in a failed state for over 12 hours."
+          expr: |-
+            velero_backup_last_status{schedule!=""} != 1
+          for: 12h
+          labels:
+            severity: critical
+        - alert: VeleroNoRecentBackup
+          annotations:
+            summary: "No successful Velero backup in the last 25h for {{ $labels.schedule }}"
+            description: "Velero backup schedule {{ $labels.schedule }} has not completed successfully in the last 25 hours."
+          expr: |-
+            (
+              (time() - velero_backup_last_successful_timestamp{schedule!=""}) > bool (25 * 3600)
+              or
+              absent(velero_backup_last_successful_timestamp{schedule!=""})
+            ) == 1
+          for: 1h
+          labels:
+            severity: critical
+        - alert: VeleroBackupPartialFailures
+          annotations:
+            summary: "Velero backup {{ $labels.schedule }} has partial failures"
+            description: "More than 50% of Velero backup attempts for schedule {{ $labels.schedule }} are partially failing."
+          expr: |-
+            rate(velero_backup_partial_failure_total{schedule!=""}[25m])
+              / rate(velero_backup_attempt_total{schedule!=""}[25m]) > 0.5
+          for: 15m
+          labels:
+            severity: warning
