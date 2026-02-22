@@ -1,0 +1,32 @@
+{{- if and .Values.features.kyvernoPolicyException .Values.features.cisNamespace }}
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: rancher-enforce-psa-privileged
+  annotations:
+    policies.kyverno.io/title: "Enforce PSA privileged on cattle namespaces"
+    policies.kyverno.io/description: >-
+      Rancher server overwrites namespace labels when registering a downstream
+      cluster, removing PSA labels. This policy mutates cattle-* namespaces
+      to always carry pod-security.kubernetes.io/enforce=privileged so that
+      Rancher agent pods are not rejected.
+spec:
+  background: false
+  rules:
+    - name: add-psa-labels-cattle
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+              names:
+                - "cattle-*"
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              pod-security.kubernetes.io/enforce: privileged
+              pod-security.kubernetes.io/warn: restricted
+              pod-security.kubernetes.io/audit: restricted
+{{- end }}

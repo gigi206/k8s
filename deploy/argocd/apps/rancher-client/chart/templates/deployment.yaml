@@ -1,0 +1,109 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cattle-cluster-agent
+  namespace: cattle-system
+  annotations:
+    management.cattle.io/scale-available: "2"
+spec:
+  selector:
+    matchLabels:
+      app: cattle-cluster-agent
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: cattle-cluster-agent
+    spec:
+      serviceAccountName: cattle
+      automountServiceAccountToken: true
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/controlplane
+                    operator: In
+                    values:
+                      - "true"
+              weight: 100
+            - preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: In
+                    values:
+                      - "true"
+              weight: 100
+            - preference:
+                matchExpressions:
+                  - key: cattle.io/cluster-agent
+                    operator: In
+                    values:
+                      - "true"
+              weight: 1
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: NotIn
+                    values:
+                      - windows
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - cattle-cluster-agent
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/controlplane
+          value: "true"
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+      containers:
+        - name: cluster-register
+          image: {{ .Values.agent.image }}:{{ .Values.server.version }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CATTLE_SERVER
+              value: {{ .Values.server.url | quote }}
+            - name: CATTLE_CA_CHECKSUM
+              value: {{ .Values.server.caChecksum | quote }}
+            - name: CATTLE_CLUSTER
+              value: "true"
+            - name: CATTLE_K8S_MANAGED
+              value: "true"
+            - name: CATTLE_CLUSTER_REGISTRY
+              value: ""
+            - name: CATTLE_CREDENTIAL_NAME
+              value: {{ .Values.credentials.secretName | quote }}
+            - name: CATTLE_SUC_APP_NAME_OVERRIDE
+              value: ""
+            - name: CATTLE_SERVER_VERSION
+              value: {{ .Values.server.version | quote }}
+            - name: CATTLE_INSTALL_UUID
+              value: {{ .Values.server.installUUID | quote }}
+            - name: CATTLE_INGRESS_IP_DOMAIN
+              value: {{ .Values.server.ingressIpDomain | quote }}
+            - name: STRICT_VERIFY
+              value: "true"
+          volumeMounts:
+            - name: cattle-credentials
+              mountPath: /cattle-credentials
+              readOnly: true
+      volumes:
+        - name: cattle-credentials
+          secret:
+            secretName: {{ .Values.credentials.secretName }}
+            defaultMode: 320

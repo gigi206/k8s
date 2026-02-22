@@ -1,0 +1,21 @@
+---
+server:
+  url: ""
+  ip: ""
+  caChecksum: ""
+  version: ""
+  installUUID: ""
+  ingressIpDomain: ""
+
+credentials:
+  secretName: ""
+  url: ""
+  token: ""
+
+agent:
+  image: "rancher/rancher-agent"
+
+features:
+  kyvernoPolicyException: false
+  ciliumEgressPolicy: false
+  cisNamespace: false

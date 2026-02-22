@@ -1,0 +1,48 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cattle-system
+  labels:
+    name: cattle-system
+    {{- if .Values.features.cisNamespace }}
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    {{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cattle-fleet-system
+  labels:
+    name: cattle-fleet-system
+    {{- if .Values.features.cisNamespace }}
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    {{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cattle-impersonation-system
+  labels:
+    name: cattle-impersonation-system
+    {{- if .Values.features.cisNamespace }}
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    {{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cattle-local-user-passwords
+  labels:
+    name: cattle-local-user-passwords
+    {{- if .Values.features.cisNamespace }}
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    {{- end }}

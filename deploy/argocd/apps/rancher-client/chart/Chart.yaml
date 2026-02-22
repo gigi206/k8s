@@ -1,0 +1,6 @@
+---
+apiVersion: v2
+name: rancher-client
+description: Registers this cluster as a downstream cluster in an external Rancher server
+type: application
+version: 0.1.0

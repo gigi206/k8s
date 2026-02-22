@@ -1,0 +1,97 @@
+---
+# =============================================================================
+# Rancher Client ApplicationSet
+# =============================================================================
+# Registers this cluster as a downstream cluster in an external Rancher server.
+# Deploys the cattle-cluster-agent that connects back to Rancher.
+# Docs: https://ranchermanager.docs.rancher.com/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: rancher-client
+  namespace: argo-cd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par defaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config specifique a l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/rancher-client/config/*.yaml
+
+  template:
+    metadata:
+      name: rancher-client
+      namespace: argo-cd
+    spec:
+      project: default
+
+      sources:
+        # Source: Local Helm chart
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: 'HEAD'
+          path: deploy/argocd/apps/rancher-client/chart
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: cattle-system
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/rancher-client/chart
+          helm:
+            valuesObject:
+              server:
+                url: '{{ .rancherClient.server.url }}'
+                ip: '{{ .rancherClient.server.ip }}'
+                caChecksum: '{{ .rancherClient.server.caChecksum }}'
+                version: '{{ .rancherClient.server.version }}'
+                installUUID: '{{ .rancherClient.server.installUUID }}'
+                ingressIpDomain: '{{ .rancherClient.server.ingressIpDomain }}'
+              credentials:
+                secretName: '{{ .rancherClient.credentials.secretName }}'
+                url: '{{ .rancherClient.credentials.url }}'
+                token: '{{ .rancherClient.credentials.token }}'
+              agent:
+                image: '{{ .rancherClient.agent.image }}'
+              features:
+                kyvernoPolicyException: {{ .features.kyverno.enabled }}
+                ciliumEgressPolicy: {{ and (eq .cni.primary "cilium") .features.networkPolicy.egressPolicy.enabled }}
+                cisNamespace: {{ .rke2.cis.enabled }}
