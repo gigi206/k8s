@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Velero UI Ingress from APISIX
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: velero-ui-ingress-apisix
+  namespace: velero
+spec:
+  description: "Allow ingress to Velero UI from APISIX"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: velero-ui
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: apisix
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP

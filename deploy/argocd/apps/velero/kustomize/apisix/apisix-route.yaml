@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# ApisixRoute - Velero UI
+# =============================================================================
+# Routes traffic to Velero UI dashboard
+# Native OIDC authentication (no oauth2-proxy needed)
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: velero-ui
+  namespace: velero
+spec:
+  ingressClassName: apisix
+  http:
+    - name: velero-ui
+      match:
+        hosts:
+          - velero.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: velero-ui
+          servicePort: 3000

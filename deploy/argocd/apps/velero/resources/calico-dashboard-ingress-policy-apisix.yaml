@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Velero UI Ingress from APISIX
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: velero-ui-ingress-apisix
+  namespace: velero
+spec:
+  selector: app.kubernetes.io/name == "velero-ui"
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "apisix"'
+      destination:
+        ports:
+          - 3000

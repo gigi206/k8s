@@ -1,0 +1,213 @@
+---
+# =============================================================================
+# Job - Create/Update OIDC Client in Keycloak for Velero UI
+# =============================================================================
+# Uses Keycloak Admin REST API to create the Velero UI OIDC client.
+# The client secret is set explicitly from a Kubernetes Secret to ensure
+# it matches Velero UI's OIDC configuration.
+# =============================================================================
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: velero-ui-keycloak-oidc-client
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: create-client
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          image: curlimages/curl:8.18.0
+          resources:
+            requests:
+              cpu: 5m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+          env:
+            - name: DOMAIN
+              value: "PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+            - name: KEYCLOAK_URL
+              value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
+            - name: KEYCLOAK_HEALTH_URL
+              value: "https://keycloak-service.keycloak.svc.cluster.local:9000"
+            - name: REALM
+              value: "k8s"
+            - name: CLIENT_ID
+              value: "velero-ui"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-credentials
+                  key: password
+            - name: VELERO_UI_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: velero-ui-oidc-credentials
+                  key: client-secret
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "=== Velero UI OIDC Client Setup ==="
+              echo "Keycloak URL: $KEYCLOAK_URL"
+              echo "Realm: $REALM"
+              echo "Client ID: $CLIENT_ID"
+
+              # Wait for Keycloak to be ready
+              echo "Waiting for Keycloak..."
+              KEYCLOAK_READY=false
+              for i in $(seq 1 240); do
+                if curl -sk -o /dev/null -w "%{http_code}" "${KEYCLOAK_HEALTH_URL}/health/ready" | grep -q "200"; then
+                  echo "Keycloak is ready (after $i attempts)"
+                  KEYCLOAK_READY=true
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/240 - Keycloak not ready, waiting..."
+                sleep 5
+              done
+
+              if [ "$KEYCLOAK_READY" != "true" ]; then
+                echo "ERROR: Keycloak not ready after 20 minutes"
+                exit 1
+              fi
+
+              # Wait for realm to exist
+              echo "Waiting for realm '$REALM'..."
+              REALM_READY=false
+              for i in $(seq 1 120); do
+                if curl -sk -o /dev/null -w "%{http_code}" "$KEYCLOAK_URL/realms/$REALM/.well-known/openid-configuration" | grep -q "200"; then
+                  echo "Realm '$REALM' is ready (after $i attempts)"
+                  REALM_READY=true
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120 - Realm not ready, waiting..."
+                sleep 5
+              done
+
+              if [ "$REALM_READY" != "true" ]; then
+                echo "ERROR: Realm '$REALM' not ready after 10 minutes"
+                exit 1
+              fi
+
+              # Get admin token
+              echo "Getting admin token..."
+              TOKEN=$(curl -sk -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "grant_type=password" \
+                -d "client_id=admin-cli" \
+                -d "username=$KEYCLOAK_ADMIN" \
+                -d "password=$KEYCLOAK_ADMIN_PASSWORD" | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+
+              if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+                echo "ERROR: Failed to get admin token"
+                exit 1
+              fi
+              echo "Admin token obtained successfully"
+
+              # Check if client exists
+              echo "Checking if client '$CLIENT_ID' exists..."
+              EXISTING=$(curl -sk -X GET "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$CLIENT_ID" \
+                -H "Authorization: Bearer $TOKEN")
+
+              # OIDC Client JSON configuration
+              CLIENT_JSON=$(cat <<EOF
+              {
+                "clientId": "$CLIENT_ID",
+                "name": "Velero UI Dashboard",
+                "description": "OIDC client for Velero UI backup dashboard",
+                "enabled": true,
+                "protocol": "openid-connect",
+                "publicClient": false,
+                "clientAuthenticatorType": "client-secret",
+                "secret": "$VELERO_UI_OIDC_CLIENT_SECRET",
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": false,
+                "serviceAccountsEnabled": false,
+                "fullScopeAllowed": true,
+                "baseUrl": "https://velero.${DOMAIN}",
+                "rootUrl": "https://velero.${DOMAIN}",
+                "redirectUris": [
+                  "https://velero.${DOMAIN}/login"
+                ],
+                "webOrigins": ["https://velero.${DOMAIN}"],
+                "defaultClientScopes": ["openid", "profile", "email", "groups"],
+                "protocolMappers": [
+                  {
+                    "name": "groups",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-group-membership-mapper",
+                    "consentRequired": false,
+                    "config": {
+                      "full.path": "false",
+                      "id.token.claim": "true",
+                      "access.token.claim": "true",
+                      "claim.name": "groups",
+                      "userinfo.token.claim": "true"
+                    }
+                  }
+                ]
+              }
+              EOF
+              )
+
+              if echo "$EXISTING" | grep -q '"id"'; then
+                CLIENT_UUID=$(echo "$EXISTING" | sed 's/\[{"id":"\([^"]*\)".*/\1/')
+                echo "Client exists (UUID: $CLIENT_UUID), updating..."
+
+                RESPONSE=$(curl -sk -w "\n%{http_code}" -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_UUID" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$CLIENT_JSON")
+
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+                if [ "$HTTP_CODE" = "204" ]; then
+                  echo "Client updated successfully"
+                else
+                  echo "ERROR: Failed to update client (HTTP $HTTP_CODE)"
+                  echo "$RESPONSE"
+                  exit 1
+                fi
+              else
+                echo "Client doesn't exist, creating..."
+
+                RESPONSE=$(curl -sk -w "\n%{http_code}" -X POST "$KEYCLOAK_URL/admin/realms/$REALM/clients" \
+                  -H "Authorization: Bearer $TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d "$CLIENT_JSON")
+
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+                if [ "$HTTP_CODE" = "201" ]; then
+                  echo "Client created successfully"
+                else
+                  echo "ERROR: Failed to create client (HTTP $HTTP_CODE)"
+                  echo "$RESPONSE"
+                  exit 1
+                fi
+              fi
+
+              echo "=== Velero UI OIDC Client Setup Complete ==="

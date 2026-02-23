@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Velero UI Ingress from Envoy Gateway
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: velero-ui-ingress-envoy-gateway
+  namespace: velero
+spec:
+  description: "Allow ingress to Velero UI from Envoy Gateway"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: velero-ui
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP

@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Velero UI Ingress from Cilium Gateway
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: velero-ui-ingress-cilium
+  namespace: velero
+spec:
+  selector: app.kubernetes.io/name == "velero-ui"
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kube-system"'
+      destination:
+        ports:
+          - 3000

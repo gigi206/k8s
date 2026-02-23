@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Velero UI Ingress from nginx-gateway-fabric
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: velero-ui-ingress-nginx-gwf
+  namespace: velero
+spec:
+  description: "Allow ingress to Velero UI from nginx-gateway-fabric"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: velero-ui
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP

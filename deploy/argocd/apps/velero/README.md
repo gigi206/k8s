@@ -385,6 +385,60 @@ Le bucket S3 contient deux categories de donnees :
 | `features.kyverno.enabled`                             | Optional | PolicyException for SA token mount        |
 | `features.networkPolicy.defaultDenyPodIngress.enabled` | Optional | Network policy for Velero traffic         |
 
+## Dashboard (Velero UI)
+
+### Overview
+
+[Velero UI](https://github.com/otwld/velero-ui) (OTWLD) provides a web interface for managing Velero backups, restores, and schedules. It is deployed as a separate Helm chart (`otwld/velero-ui` from `https://helm.otwld.com/`) within the same ArgoCD Application.
+
+### Configuration
+
+| Parameter | Dev | Prod | Description |
+|-----------|-----|------|-------------|
+| `velero.dashboard.enabled` | `true` | `true` | Enable Velero UI dashboard |
+| `velero.dashboard.version` | `0.14.0` | `0.14.0` | Helm chart version (Renovate-managed) |
+| `velero.dashboard.resources` | Minimal | Production | CPU/memory requests and limits |
+
+### Access
+
+- **URL**: `https://velero.<domain>` (e.g., `https://velero.k8s.lan`)
+- **Routing**: HTTPRoute (Gateway API) or ApisixRoute, deployed conditionally
+- **Service**: `velero-ui` ClusterIP on port 3000
+
+### Authentication
+
+| SSO enabled | Provider | Authentication method |
+|-------------|----------|-----------------------|
+| `true` | `keycloak` | Native OIDC via `OAUTH_*` environment variables (no oauth2-proxy) |
+| `false` | - | Basic auth (default: admin/admin) |
+
+When Keycloak OIDC is enabled:
+- A PostSync Job creates/updates the `velero-ui` client in Keycloak realm `k8s`
+- The client secret is stored in SOPS-encrypted secrets (`secrets/dev/` and `secrets/prod/`)
+- The Root CA cert is mounted via ExternalSecret (`root-ca`) for TLS validation towards Keycloak (`NODE_EXTRA_CA_CERTS`)
+- Redirect URI: `https://velero.<domain>/login`
+
+### Network Policies
+
+When `features.networkPolicy.ingressPolicy.enabled` is active, provider-specific Cilium/Calico ingress policies are deployed to allow traffic to the Velero UI service (port 3000) only from the configured gateway provider's namespace:
+
+| Provider | Cilium `fromEndpoints` namespace | Calico `namespaceSelector` |
+|----------|----------------------------------|---------------------------|
+| `apisix` | `apisix` | `apisix` |
+| `istio` | `istio-system` | `istio-system` |
+| `traefik` | `traefik` | `traefik` |
+| `nginx-gwf` | `nginx-gateway` | `nginx-gateway` |
+| `envoy-gateway` | `envoy-gateway-system` | `envoy-gateway-system` |
+| `cilium` | `kube-system` | `kube-system` |
+
+### Dependencies (Dashboard)
+
+| Dependency | Required | Description |
+|------------|----------|-------------|
+| `features.gatewayAPI.enabled` | Yes | Gateway routing (HTTPRoute or ApisixRoute) |
+| `features.sso.enabled` + `keycloak` | Optional | Keycloak OIDC authentication |
+| `features.networkPolicy.ingressPolicy.enabled` | Optional | Provider-specific ingress policy for dashboard traffic |
+
 ## Configuration
 
 ### Feature flags (`config/config.yaml`)
@@ -776,53 +830,314 @@ velero schedule describe <schedule-name>
 
 ## Disaster Recovery
 
-Procedure de restauration complete apres perte du cluster.
+### Strategie DRP : GitOps rebuild + restauration selective des donnees
 
-### Pre-requis
+> **Important** : une restauration "bare metal" (Velero restore complet sur un cluster vierge) **ne fonctionne pas** de maniere fiable. La strategie validee est de reconstruire l'infrastructure via GitOps en deux phases, en restaurant les PVCs **avant** de deployer les applications stateful.
 
-- Un nouveau cluster K8s operationnel avec Rook-Ceph et le CSI snapshotter deployes
-- Acces au bucket S3 contenant les backups (credentials et endpoint)
-- Velero installe sur le nouveau cluster (via ArgoCD ou Helm)
+#### Pourquoi la restauration complete ne fonctionne pas
 
-### Procedure
+Un test DRP complet (destruction du cluster, reinstallation RKE2, Velero restore de tout) a revele les problemes suivants :
+
+| Probleme | Detail |
+|----------|--------|
+| **CiliumClusterwideNetworkPolicy (CCNP)** | Les CCNPs sont des ressources cluster-scoped, non incluses dans un backup Velero namespace-scoped. Sans la CCNP `default-deny-external-egress` (qui autorise cluster, kube-apiserver, host, DNS), les pods ne peuvent pas joindre l'API server |
+| **Deny implicite Cilium** | Toute CiliumNetworkPolicy avec des regles egress cree un deny implicite sur tout le trafic egress non explicitement autorise. Les CNPs restaurees sans la base CCNP cassent la connectivite |
+| **PSA restricted (CIS hardening)** | RKE2 avec profil CIS enforce PSA `restricted` par defaut sur tous les namespaces. Velero, ArgoCD, et les node-agents necessitent `privileged`. Les namespaces doivent etre pre-labeles avant le restore |
+| **StorageClass manquante** | Les DataDownloads (restauration PVC) echouent si la StorageClass (`ceph-block`) n'existe pas encore. Rook-Ceph doit etre operationnel avant de restaurer les volumes |
+| **Dependances d'ordre** | Les CRDs, operateurs, et resources d'infrastructure doivent exister avant les CRs applicatives. Un restore massif ne respecte pas cet ordre |
+| **ArgoCD auto-sync** | L'auto-sync avec `selfHeal: true` rescale les workloads et recree les PVCs vides, empechant la restauration des donnees. L'ApplicationSet controller regenere les specs des Applications, ecrasant les patches manuels |
+| **Pods temporaires Velero** | Les DataDownloads creent des pods temporaires ("expose pods") dans le namespace `velero` qui n'ont pas les labels standard. La CNP doit utiliser `endpointSelector: {}` (tous les pods du namespace) |
+
+### Pre-requis : backup vers un S3 externe
+
+Pour le DRP, les backups doivent etre stockes sur un S3 **externe au cluster** (le S3 Rook-Ceph interne est perdu avec le cluster).
+
+#### Configuration du S3 externe (MinIO)
 
 ```bash
-# 1. Verifier que Velero voit les backups dans le S3
-velero backup get
+# 1. Creer la CiliumNetworkPolicy pour autoriser le trafic vers le S3 externe
+#    CRITICAL: utiliser endpointSelector: {} pour couvrir les pods temporaires DataDownload
+kubectl apply -f - <<'EOF'
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: velero-allow-minio-egress
+  namespace: velero
+spec:
+  description: "Allow ALL pods in velero namespace to reach external S3 for DRP"
+  endpointSelector: {}
+  egress:
+    - toCIDR:
+        - <S3_IP>/32
+      toPorts:
+        - ports:
+            - port: "<S3_PORT>"
+              protocol: TCP
+EOF
 
-# 2. Choisir le backup a restaurer
-velero backup describe <backup-name> --details
+# 2. Creer le Secret avec les credentials S3
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: velero-s3-external
+  namespace: velero
+type: Opaque
+stringData:
+  cloud: |
+    [default]
+    aws_access_key_id=<ACCESS_KEY>
+    aws_secret_access_key=<SECRET_KEY>
+EOF
 
-# 3. Restaurer (les namespaces sont recrees automatiquement)
-velero restore create full-restore --from-backup <backup-name>
+# 3. Creer le BackupStorageLocation pointant vers le S3 externe
+kubectl apply -f - <<'EOF'
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: external
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: velero
+  credential:
+    name: velero-s3-external
+    key: cloud
+  config:
+    region: minio
+    s3ForcePathStyle: "true"
+    s3Url: http://<S3_IP>:<S3_PORT>
+EOF
 
-# 4. Suivre la progression
-velero restore describe full-restore --details
+# 4. Verifier que le BSL est Available
+kubectl get backupstoragelocation -n velero
 
-# 5. Verifier les DataDownloads (telechargement des volumes depuis S3)
-kubectl get datadownloads -n velero
+# 5. Creer un backup complet vers le S3 externe
+velero backup create drp-backup --storage-location external --wait
+```
 
-# 6. Verifier que les PVCs sont recrees et bound
+### Procedure DRP validee : deploiement en deux phases
+
+La strategie consiste a deployer l'infrastructure en premier (Phase 1), restaurer les PVCs depuis le backup externe, puis deployer les applications stateful (Phase 2) qui trouvent les PVCs avec donnees deja en place.
+
+```
+Phase 1: Infrastructure     Phase 2: Restore PVCs    Phase 3: Apps stateful
+========================     ====================     =====================
+RKE2 + ArgoCD               Velero BSL + CNP         external-dns
+Kyverno + PolicyExceptions   Restore 7 PVCs           keycloak
+external-secrets             (5 namespaces)           loki
+Rook-Ceph (StorageClass)                              tempo
+Velero + node-agent
+prometheus-stack (CRDs)
+cert-manager, cilium, etc.
+```
+
+#### Classification des applications
+
+| Categorie | Applications | PVCs | Phase |
+|-----------|-------------|------|-------|
+| **Infrastructure** (sans donnees persistantes) | kyverno, external-secrets, cert-manager, rook, csi-external-snapshotter, velero, cilium, cnpg-operator, envoy-gateway, kube-vip, alloy, kata-containers, oauth2-proxy, argocd | Aucune | Phase 1 |
+| **Infrastructure avec CRDs** (PVCs a gerer) | prometheus-stack | grafana, alertmanager, prometheus (3 PVCs) | Phase 1 + restore |
+| **Stateful** (PVCs restaurees avant deploiement) | external-dns, keycloak, loki, tempo | etcd, postgres, storage (4 PVCs) | Phase 3 |
+
+> **Note** : `prometheus-stack` est deploye en Phase 1 car il fournit les CRDs `PrometheusRule` et `ServiceMonitor` dont dependent rook, cilium, et d'autres apps infrastructure.
+
+#### Etape 1 : Reconstruire le cluster + infrastructure
+
+```bash
+# 1. Creer le cluster RKE2 vierge
+make vagrant-dev-up   # ou equivalent production
+
+# 2. Recuperer le kubeconfig
+export KUBECONFIG=vagrant/.kube/config-dev
+
+# 3. Installer ArgoCD (Helm template + apply)
+helm repo add argo https://argoproj.github.io/argo-helm && helm repo update argo
+kubectl create namespace argo-cd
+kubectl create secret generic sops-age-key --namespace argo-cd \
+  --from-file=keys.txt=sops/age-dev.key
+
+ARGOCD_VERSION=$(yq -r '.argocd.version' deploy/argocd/apps/argocd/config/dev.yaml)
+K8S_VERSION=$(kubectl version -o json | jq -r '.serverVersion.gitVersion' | sed 's/^v//; s/+.*//')
+helm template argocd argo/argo-cd --namespace argo-cd \
+  --version "$ARGOCD_VERSION" --kube-version "$K8S_VERSION" \
+  -f deploy/argocd/argocd-bootstrap-values.yaml | kubectl apply --server-side --force-conflicts -f -
+kubectl wait --for=condition=available deployment -l app.kubernetes.io/name=argocd-server \
+  -n argo-cd --timeout=5m
+
+# 4. Deployer Kyverno (Phase 1.1)
+kubectl apply -f deploy/argocd/apps/kyverno/applicationset.yaml
+# Attendre Healthy, puis pre-appliquer toutes les PolicyExceptions :
+for pe in deploy/argocd/apps/*/resources/kyverno-policy-exception*.yaml; do
+  [ -f "$pe" ] || continue
+  ns=$(yq -r '.metadata.namespace' "$pe")
+  kubectl create namespace "$ns" 2>/dev/null || true
+  kubectl apply -f "$pe"
+done
+
+# 5. Deployer external-secrets (Phase 1.2)
+kubectl apply -f deploy/argocd/apps/external-secrets/applicationset.yaml
+# Attendre Healthy
+
+# 6. Deployer toute l'infrastructure (Phase 2)
+for app in cert-manager rook csi-external-snapshotter velero cilium cnpg-operator \
+           envoy-gateway kube-vip alloy kata-containers oauth2-proxy argocd prometheus-stack; do
+  kubectl apply -f "deploy/argocd/apps/$app/applicationset.yaml"
+done
+
+# 7. Attendre Rook (StorageClass) + Velero + prometheus-stack Healthy
+kubectl get applications -n argo-cd -w
+```
+
+#### Etape 2 : Connecter Velero au S3 externe et restaurer les PVCs
+
+```bash
+# 1. Creer la CNP, le Secret et le BSL (voir "Configuration du S3 externe" ci-dessus)
+
+# 2. Verifier que le BSL est Available et le backup visible
+kubectl get backupstoragelocation -n velero
+kubectl get backups.velero.io -n velero
+
+# 3. Gerer les PVCs monitoring (creees par prometheus-stack en Phase 1)
+#    Suspendre l'ApplicationSet controller pour eviter l'auto-sync
+kubectl scale deploy argocd-applicationset-controller -n argo-cd --replicas=0
+kubectl patch application prometheus-stack -n argo-cd --type=json \
+  -p='[{"op":"remove","path":"/spec/syncPolicy/automated"}]'
+
+#    Arreter l'operateur + workloads (l'operateur recree les PVCs sinon)
+kubectl scale deploy prometheus-stack-kube-prom-operator -n monitoring --replicas=0
+kubectl scale sts alertmanager-prometheus-stack-kube-prom-alertmanager -n monitoring --replicas=0
+kubectl scale sts prometheus-prometheus-stack-kube-prom-prometheus -n monitoring --replicas=0
+kubectl scale deploy prometheus-stack-grafana -n monitoring --replicas=0
+
+#    Supprimer les PVCs vides (retirer les finalizers pour forcer la suppression)
+for pvc in $(kubectl get pvc -n monitoring -o name); do
+  kubectl patch "$pvc" -n monitoring -p '{"metadata":{"finalizers":null}}' --type=merge
+done
+kubectl delete pvc --all -n monitoring --wait=false
+# Attendre la suppression complete
+
+# 4. Restaurer TOUTES les PVCs (5 namespaces, 7 PVCs)
+kubectl apply -f - <<'EOF'
+apiVersion: velero.io/v1
+kind: Restore
+metadata:
+  name: drp-pvc-restore
+  namespace: velero
+spec:
+  backupName: drp-backup
+  includedNamespaces:
+    - external-dns
+    - keycloak
+    - loki
+    - monitoring
+    - tempo
+  includedResources:
+    - persistentvolumeclaims
+    - persistentvolumes
+  restorePVs: true
+EOF
+
+# Suivre la progression
+kubectl get datadownloads.velero.io -n velero -w
+
+# 5. Verifier que les 7 PVCs sont Bound
 kubectl get pvc -A
 ```
 
-### Restauration partielle
+#### Etape 3 : Deployer les applications stateful
 
 ```bash
-# Restaurer uniquement certains namespaces
-velero restore create --from-backup <backup-name> \
-  --include-namespaces ns1,ns2,ns3
+# 1. Deployer les 4 apps stateful (PVCs deja en place avec donnees)
+for app in external-dns keycloak loki tempo; do
+  kubectl apply -f "deploy/argocd/apps/$app/applicationset.yaml"
+done
 
-# Restaurer tout sauf certains namespaces
-velero restore create --from-backup <backup-name> \
-  --exclude-namespaces kube-system,argo-cd,velero
+# 2. Remonter le monitoring
+kubectl scale deploy prometheus-stack-kube-prom-operator -n monitoring --replicas=1
+kubectl patch application prometheus-stack -n argo-cd --type=merge \
+  -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
 
-# Restaurer uniquement les workloads (sans les volumes)
-velero restore create --from-backup <backup-name> \
-  --exclude-resources persistentvolumeclaims,persistentvolumes
+# 3. Re-activer l'ApplicationSet controller
+kubectl scale deploy argocd-applicationset-controller -n argo-cd --replicas=1
+
+# 4. Attendre que toutes les apps soient Healthy
+kubectl get applications -n argo-cd -w
 ```
 
-> **Important** : ne pas restaurer les namespaces systeme (`kube-system`, `rook-ceph`, `argo-cd`) qui doivent etre reinstalles proprement. Restaurer uniquement les namespaces applicatifs.
+#### Etape 4 : Verification
+
+```bash
+# Verifier 19/19 apps Synced + Healthy
+kubectl get applications -n argo-cd -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status'
+
+# Verifier les 7 PVCs Bound
+kubectl get pvc -A
+
+# Verifier les pods stateful
+for ns in external-dns keycloak loki monitoring tempo; do
+  echo "--- $ns ---"
+  kubectl get pods -n $ns
+done
+
+# Mettre a jour le kubeconfig avec la VIP kube-vip
+KUBE_VIP=$(yq -r '.features.loadBalancer.staticIPs.kubernetesApi' deploy/argocd/config/config.yaml)
+# Regenerer le kubeconfig avec la VIP
+```
+
+### Test DRP valide
+
+Test effectue le 2026-02-21 sur cluster dev (RKE2 v1.34.4, 1 noeud) :
+
+| Metrique | Valeur |
+|----------|--------|
+| **Cluster** | RKE2 v1.34.4+rke2r1, Cilium CNI, Rook-Ceph |
+| **Backup source** | MinIO externe (192.168.1.100:9000), bucket `velero` |
+| **PVCs restaurees** | 7/7 (5 namespaces) |
+| **DataDownloads** | 7 completed (~778 Mo total) |
+| **Apps finales** | 19/19 Synced + Healthy |
+| **Duree totale** | ~15 min (cluster ready → all apps healthy) |
+
+**PVCs restaurees** :
+
+| Namespace | PVC | Taille |
+|-----------|-----|--------|
+| `external-dns` | `data-external-dns-etcd-0` | 8 Gi (144 Mo donnees) |
+| `keycloak` | `keycloak-db-1` | 1 Gi (290 Mo donnees) |
+| `loki` | `storage-loki-0` | 1 Gi (288 Mo donnees) |
+| `monitoring` | `prometheus-stack-grafana` | 1 Gi (54 Mo donnees) |
+| `monitoring` | `alertmanager-...-0` | 1 Gi |
+| `monitoring` | `prometheus-...-0` | 2 Gi |
+| `tempo` | `storage-tempo-0` | 5 Gi (214 octets) |
+
+### Restauration partielle (namespace unique)
+
+Pour restaurer un seul namespace applicatif (ex: apres suppression accidentelle) :
+
+```bash
+# 1. Supprimer le namespace (necessaire pour restaurer les PVCs)
+kubectl delete namespace <namespace>
+
+# 2. Restaurer depuis le backup
+velero restore create --from-backup <backup-name> --include-namespaces <namespace> --wait
+
+# 3. Verifier
+kubectl get pods,pvc,svc -n <namespace>
+```
+
+> **Important** : cette methode fonctionne car le reste de l'infrastructure (StorageClass, CNI, CRDs) est deja en place. C'est le scenario le plus simple et le plus fiable.
+
+### Pieges a eviter
+
+| Piege | Consequence | Prevention |
+|-------|-------------|------------|
+| CNP avec label specifique (`app.kubernetes.io/instance`) | Les pods temporaires DataDownload n'ont pas ces labels, timeout 6min | Utiliser `endpointSelector: {}` dans la CNP du namespace `velero` |
+| Deployer apps stateful avant restauration PVCs | PVCs vides creees par ArgoCD, auto-sync empeche le remplacement | Deployer infra d'abord, restaurer PVCs, puis deployer apps stateful |
+| prometheus-operator actif pendant suppression PVCs | L'operateur recree immediatement les PVCs alertmanager/prometheus | Arreter l'operateur (`--replicas=0`) avant de supprimer les PVCs |
+| PVCs avec finalizer `kubernetes.io/pvc-protection` | PVC bloquee en `Terminating` indefiniment | Retirer le finalizer avant suppression : `kubectl patch pvc -p '{"metadata":{"finalizers":null}}' --type=merge` |
+| ApplicationSet controller actif pendant patches | Regenere les specs Applications, ecrase la suppression d'auto-sync | Suspendre le controller (`--replicas=0`) avant de patcher les Applications |
+| Restore complet sur cluster vierge | PSA restricted bloque les pods, StorageClass manquante, pas d'ordre | Toujours reconstruire via GitOps en phases |
 
 ## Troubleshooting
 

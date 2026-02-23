@@ -200,10 +200,7 @@ spec:
               configuration:
                 # Enable built-in CSI snapshot support
                 features: EnableCSI
-                # CSI snapshots for volume backups (no file-system backup)
-                defaultVolumesToFsBackup: {{ .velero.backup.defaultVolumesToFsBackup }}
-                # Move CSI snapshot data to S3 by default
-                defaultSnapshotMoveData: {{ .velero.backup.defaultSnapshotMoveData }}
+                # No server-side defaults: each backup chooses via UI/CLI
                 # No VolumeSnapshotLocation needed for CSI (uses VolumeSnapshotClass directly)
                 volumeSnapshotLocation: []
                 # Kopia needs a writable HOME for config files (~/.config/kopia/)
@@ -267,4 +264,222 @@ spec:
               grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
             commonAnnotations:
               "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+
+        {{- if .velero.dashboard.enabled }}
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: SOPS-encrypted secrets (OIDC client secret for velero-ui)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/secrets/{{ .environment }}
+
+        # Source: SSO - Keycloak OIDC client creation + CA cert
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/kustomize/sso
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: velero-ui-keycloak-oidc-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+        {{- end }}
+
+        {{- if .features.gatewayAPI.enabled }}
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute for Velero UI (native OIDC - no oauth2-proxy needed)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/kustomize/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: velero-ui
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: velero.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-velero-ui-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        # Source: APISIX native CRDs for Velero UI
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/kustomize/apisix
+          kustomize:
+            patches:
+              - target:
+                  kind: ApisixRoute
+                  name: velero-ui
+                patch: |
+                  - op: replace
+                    path: /spec/http/0/match/hosts/0
+                    value: velero.{{ .common.domain }}
+        {{- end }}
+        {{- end }}
+
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+        # Source: Velero UI ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-istio.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-istio.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-apisix.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-apisix.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-traefik.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-traefik.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-nginx-gwf.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-nginx-gwf.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-envoy-gateway.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-envoy-gateway.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-cilium.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-cilium.yaml"
+          {{- end }}
+        {{- end }}
+        {{- end }}
+
+        # Source: Velero UI Helm Chart (OTWLD)
+        - repoURL: https://helm.otwld.com/
+          targetRevision: '{{ .velero.dashboard.version }}'
+          chart: velero-ui
+          helm:
+            releaseName: velero-ui
+            valuesObject:
+              resources:
+                requests:
+                  cpu: '{{ .velero.dashboard.resources.requests.cpu }}'
+                  memory: '{{ .velero.dashboard.resources.requests.memory }}'
+                limits:
+                  cpu: '{{ .velero.dashboard.resources.limits.cpu }}'
+                  memory: '{{ .velero.dashboard.resources.limits.memory }}'
+
+              # Velero API access
+              configuration:
+                general:
+                  veleroNamespace: '{{ .velero.namespace }}'
+
+              {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+              # OIDC natif via Keycloak (pas de oauth2-proxy)
+              env:
+                - name: BASIC_AUTH_ENABLED
+                  value: "false"
+                - name: OAUTH_AUTH_ENABLED
+                  value: "true"
+                - name: OAUTH_NAME
+                  value: "Keycloak"
+                - name: OAUTH_CLIENT_ID
+                  value: "velero-ui"
+                - name: OAUTH_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: velero-ui-oidc-credentials
+                      key: client-secret
+                - name: OAUTH_AUTHORIZATION_URL
+                  value: "https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/auth"
+                - name: OAUTH_TOKEN_URL
+                  value: "https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/token"
+                - name: OAUTH_USER_INFO_URL
+                  value: "https://keycloak.{{ .common.domain }}/realms/k8s/protocol/openid-connect/userinfo"
+                - name: OAUTH_OAUTH_SCOPE
+                  value: "openid profile email groups"
+                - name: OAUTH_GROUP_CLAIM
+                  value: "groups"
+                - name: OAUTH_REDIRECT_URI
+                  value: "https://velero.{{ .common.domain }}/login"
+                - name: NODE_EXTRA_CA_CERTS
+                  value: "/etc/ssl/certs/custom-ca.crt"
+              # Mount CA cert pour validation TLS vers Keycloak
+              volumes:
+                - name: ca-cert
+                  secret:
+                    secretName: root-ca
+              volumeMounts:
+                - name: ca-cert
+                  mountPath: /etc/ssl/certs/custom-ca.crt
+                  subPath: ca.crt
+                  readOnly: true
+              {{- end }}
         {{- end }}

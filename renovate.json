@@ -586,6 +586,20 @@
     },
     {
       "customType": "regex",
+      "description": "Velero UI (OTWLD) Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/velero/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "dashboard:\\s*\\n\\s*enabled:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "velero-ui",
+      "packageNameTemplate": "velero-ui",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://helm.otwld.com/"
+    },
+    {
+      "customType": "regex",
       "description": "kube-loxilb image (ghcr.io/loxilb-io/kube-loxilb)",
       "managerFilePatterns": [
         "/^deploy/argocd/apps/loxilb/config/.*\\.yaml$/"

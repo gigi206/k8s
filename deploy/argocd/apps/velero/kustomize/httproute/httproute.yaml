@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# HTTPRoute for Velero UI via Gateway API
+# =============================================================================
+# Routes traffic to Velero UI ClusterIP service (port 3000)
+# Deployed when features.gatewayAPI.httpRoute.enabled: true
+# Native OIDC authentication (no oauth2-proxy needed)
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: velero-ui
+  namespace: velero
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned-cluster-issuer
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: default-gateway
+      namespace: PLACEHOLDER_GATEWAY_NS  # Patched via Kustomize from gatewayAPI.controller.gatewayNamespace
+      sectionName: https
+  hostnames:
+    - "velero.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: velero-ui
+          port: 3000
+          weight: 1

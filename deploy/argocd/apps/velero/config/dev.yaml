@@ -43,10 +43,21 @@ velero:
     cron: "0 2 * * *"   # Daily at 2am
     ttl: "72h"           # 3 days retention
 
+  # Dashboard (Velero UI - OTWLD)
+  dashboard:
+    enabled: true
+    version: "0.14.0"  # Velero UI Helm chart version - Renovate will update this
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+
   # Backup configuration
-  backup:
-    defaultVolumesToFsBackup: false       # Using CSI snapshots (not file-system backup)
-    defaultSnapshotMoveData: true         # Upload CSI snapshot data to S3 for DR
+  # No server-side defaults: each backup chooses its own options via UI/CLI
+  backup: {}
 
 # Grafana dashboard folder
 dashboard:
