@@ -171,6 +171,10 @@ spec:
                       disable_block_device_use = false
                       block_device_driver = "{{ $rt.blockDeviceDriver }}"
                     {{- end }}
+                    {{- if $rt.initrd }}
+                      initrd = "{{ $rt.initrd }}"
+                      image = ""
+                    {{- end }}
                     containerd:
                       snapshotter: ""
                     crio:
