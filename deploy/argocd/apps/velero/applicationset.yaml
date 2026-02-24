@@ -93,14 +93,14 @@ spec:
             include: "namespace.yaml"
 
         {{- if and .features.s3.enabled (eq .features.s3.provider "rook") }}
-        # Source: S3 ObjectBucketClaim (creates bucket + credentials via Rook-Ceph)
+        # Source: PreSync check - wait for Ceph storage + OBC CRD readiness
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/velero/resources
           directory:
-            include: "objectbucketclaim.yaml"
+            include: "ceph-storage-presync-check.yaml"
 
-        # Source: PreSync Job to create Velero S3 credentials + BSL from OBC
+        # Source: PreSync Job to create OBC + Velero S3 credentials + BSL
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/velero/resources

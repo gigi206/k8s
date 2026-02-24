@@ -1,0 +1,159 @@
+---
+# =============================================================================
+# PreSync Job - Wait for Ceph storage before creating ObjectBucketClaim
+# =============================================================================
+# This Job runs before Velero resources are synced and verifies that
+# Ceph storage and the ObjectBucketClaim CRD are operational.
+# This prevents sync failures when Rook-Ceph is not yet ready.
+# =============================================================================
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ceph-storage-presync-check
+  namespace: velero
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ceph-storage-presync-check-velero
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  - apiGroups: ["ceph.rook.io"]
+    resources: ["cephclusters", "cephobjectstores"]
+    verbs: ["get", "list"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ceph-storage-presync-check-velero
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ceph-storage-presync-check-velero
+subjects:
+  - kind: ServiceAccount
+    name: ceph-storage-presync-check
+    namespace: velero
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ceph-storage-presync-check
+  namespace: velero
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        kyverno.io/exclude-sa-token: "true"
+    spec:
+      serviceAccountName: ceph-storage-presync-check
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: check
+          image: bitnami/kubectl:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for Ceph storage to be ready before creating ObjectBucketClaim..."
+
+              # Check if rook-ceph namespace exists
+              echo "Step 1: Checking rook-ceph namespace..."
+              for i in $(seq 1 120); do
+                if kubectl get namespace rook-ceph >/dev/null 2>&1; then
+                  echo "rook-ceph namespace exists"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120: rook-ceph namespace not found, waiting..."
+                sleep 5
+              done
+
+              # Wait for CephCluster to be Ready
+              echo "Step 2: Checking CephCluster status..."
+              for i in $(seq 1 120); do
+                PHASE=$(kubectl get cephcluster -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+                if [ "$PHASE" = "Ready" ]; then
+                  echo "CephCluster is Ready!"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120: CephCluster phase is '$PHASE', waiting..."
+                sleep 5
+              done
+
+              # Wait for CephObjectStore to be Ready
+              echo "Step 3: Checking CephObjectStore status..."
+              for i in $(seq 1 120); do
+                STORE_PHASE=$(kubectl get cephobjectstore -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+                if [ "$STORE_PHASE" = "Ready" ]; then
+                  echo "CephObjectStore is Ready!"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120: CephObjectStore phase is '$STORE_PHASE', waiting..."
+                sleep 5
+              done
+
+              # Wait for ObjectBucketClaim CRD to be established
+              echo "Step 4: Checking ObjectBucketClaim CRD..."
+              for i in $(seq 1 120); do
+                if kubectl get crd objectbucketclaims.objectbucket.io >/dev/null 2>&1; then
+                  echo "ObjectBucketClaim CRD is available!"
+                  break
+                fi
+                [ $((i % 12)) -eq 0 ] && echo "Attempt $i/120: OBC CRD not found, waiting..."
+                sleep 5
+              done
+
+              # Final verification
+              CLUSTER_READY=$(kubectl get cephcluster -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+              STORE_READY=$(kubectl get cephobjectstore -n rook-ceph -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+              OBC_CRD=$(kubectl get crd objectbucketclaims.objectbucket.io -o jsonpath='{.metadata.name}' 2>/dev/null)
+
+              if [ "$CLUSTER_READY" = "Ready" ] && [ "$STORE_READY" = "Ready" ] && [ -n "$OBC_CRD" ]; then
+                echo "Ceph storage is fully ready for Velero!"
+                echo "  - CephCluster: $CLUSTER_READY"
+                echo "  - CephObjectStore: $STORE_READY"
+                echo "  - OBC CRD: available"
+                echo "ObjectBucketClaim can now be created safely."
+                exit 0
+              fi
+
+              echo "ERROR: Ceph storage did not become ready in time (10 minutes)"
+              echo "  - CephCluster: $CLUSTER_READY"
+              echo "  - CephObjectStore: $STORE_READY"
+              echo "  - OBC CRD: ${OBC_CRD:-not found}"
+              exit 1

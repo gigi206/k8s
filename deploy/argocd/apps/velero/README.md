@@ -13,8 +13,8 @@ Velero Server (Deployment)
   |-- Node-Agent DaemonSet (data mover: snapshot → S3)
   |-- Backup Schedules (configurable cron)
   |
-  ObjectBucketClaim --> Rook-Ceph ObjectStore
-  PreSync Job --> Credentials Secret + BSL CR
+  PreSync Check --> Ceph + OBC CRD readiness
+  PreSync Job --> OBC + Credentials Secret + BSL CR
 ```
 
 ### Backup Strategy: CSI Snapshots + Data Movement
@@ -487,22 +487,25 @@ Le **node-agent** est un DaemonSet qui tourne en root sur chaque noeud. Il est r
 
 ### Created Resources
 
-| Resource                        | Type                | Description                                           |
-| ------------------------------- | ------------------- | ----------------------------------------------------- |
-| `namespace.yaml`                | Namespace           | Namespace with PSA labels (privileged for node-agent) |
-| `objectbucketclaim.yaml`        | ObjectBucketClaim   | S3 bucket via Rook-Ceph (PreSync)                     |
-| `velero-s3-credentials.yaml`    | Job + RBAC          | PreSync Job creating credentials Secret + BSL         |
-| `volumesnapshotclass.yaml`      | VolumeSnapshotClass | Ceph RBD snapshot class with Velero label             |
-| `kyverno-policy-exception.yaml` | PolicyException     | SA token mount for K8s API access                     |
-| `kustomize/monitoring/`         | PrometheusRules     | Backup failure/missing alerts                         |
+| Resource                            | Type                | Description                                                     |
+| ----------------------------------- | ------------------- | --------------------------------------------------------------- |
+| `namespace.yaml`                    | Namespace           | Namespace with PSA labels (privileged for node-agent)           |
+| `ceph-storage-presync-check.yaml`   | Job + RBAC          | PreSync check: waits for Ceph + OBC CRD readiness              |
+| `velero-s3-credentials.yaml`        | Job + RBAC          | PreSync Job creating OBC + credentials Secret + BSL             |
+| `volumesnapshotclass.yaml`          | VolumeSnapshotClass | Ceph RBD snapshot class with Velero label                       |
+| `kyverno-policy-exception.yaml`     | PolicyException     | SA token mount for K8s API access                               |
+| `kustomize/monitoring/`             | PrometheusRules     | Backup failure/missing alerts                                   |
 
 ### S3 Credentials Flow (PreSync)
 
-1. **PreSync wave 0**: `ObjectBucketClaim` creates a bucket in Rook-Ceph ObjectStore
-2. **PreSync wave 1**: Job reads OBC Secret/ConfigMap and creates:
+1. **PreSync wave 0**: `ceph-storage-presync-check` waits for CephCluster, CephObjectStore, and OBC CRD to be ready
+2. **PreSync wave 1**: Job creates `ObjectBucketClaim` via kubectl, waits for it to be Bound, then creates:
    - `velero-s3-credentials` Secret (Velero AWS credentials format)
    - `default` BackupStorageLocation CR pointing to the S3 bucket
 3. **Sync**: Velero starts with credentials available
+
+> **Note**: The OBC is created by the Job (via `kubectl apply`) rather than as a direct ArgoCD resource.
+> This avoids ArgoCD REST mapper cache issues when the OBC CRD is not yet known to ArgoCD.
 
 ### CSI Snapshot Flow
 
