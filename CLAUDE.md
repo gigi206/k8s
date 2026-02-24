@@ -168,6 +168,7 @@ sops decrypt apps/<app>/secrets/dev/secret.yaml              # View
 - **Helm admin secrets**: use `existingSecret*` pattern + SOPS instead of hardcoding passwords in values
 - **Bootstrap features** (Cilium encryption, mutual auth, audit logging): applied via `install_master.sh`, NOT ArgoCD
 - **Audit policy fragments**: apps can declare `audit-rules.yaml` with K8s audit rules (bare YAML list items, no `rules:` wrapper). Assembled at bootstrap by `install_master.sh` into `/etc/rancher/rke2/audit-policy.yaml` from `deploy/argocd/audit-policy-base.yaml` + all `apps/*/audit-rules.yaml`. Rules for uninstalled CRDs are harmless. Requires cluster rebuild to pick up new fragments
+- **Kyverno SA token PolicyExceptions**: apps needing K8s API access must include `resources/kyverno-policy-exception.yaml` with `sync-wave: "-5"` (regular resource, **NOT** a PreSync hook). This ensures the PE is always tracked by ArgoCD and never deleted between syncs. PreSync hooks with `BeforeHookCreation` cause race conditions at bootstrap where the PE gets deleted before recreation, leaving Kyverno to mutate deployments with `automountServiceAccountToken: false`. For PreSync hook Jobs that need K8s API access (presync-check jobs, Helm certgen), add label `kyverno.io/exclude-sa-token: "true"` to the pod template instead (PEs don't exist yet during PreSync phase)
 
 ## Common Commands
 

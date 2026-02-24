@@ -59,6 +59,9 @@ spec:
   ttlSecondsAfterFinished: 60
   backoffLimit: 10
   template:
+    metadata:
+      labels:
+        kyverno.io/exclude-sa-token: "true"
     spec:
       serviceAccountName: harbor-cnpg-webhook-presync-check
       restartPolicy: OnFailure

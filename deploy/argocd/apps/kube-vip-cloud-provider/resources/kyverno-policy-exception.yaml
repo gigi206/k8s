@@ -11,15 +11,14 @@ metadata:
   name: kube-vip-cloud-provider
   namespace: kube-system
   annotations:
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-    argocd.argoproj.io/sync-wave: "-10"
+    argocd.argoproj.io/sync-wave: "-5"
 spec:
   exceptions:
-    - policyName: disallow-auto-mount-service-account-token
+    - policyName: disable-automount-sa-token
       ruleNames:
-        - validate-automountServiceAccountToken
-        - validate-pod-automountServiceAccountToken
+        - disable-automount-sa-token
+        - autogen-disable-automount-sa-token
+        - autogen-cronjob-disable-automount-sa-token
   match:
     any:
       - resources:

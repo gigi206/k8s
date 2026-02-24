@@ -64,6 +64,14 @@ spec:
           - resources:
               namespaces:
                 - cilium-spire
+          # === ArgoCD PreSync hooks that need K8s API access ===
+          # PreSync hooks run BEFORE sync-wave resources, so PolicyExceptions
+          # (deployed at sync-wave -5) don't exist yet when these pods are created.
+          # Excluded by label to avoid a chicken-and-egg problem.
+          - resources:
+              selector:
+                matchLabels:
+                  kyverno.io/exclude-sa-token: "true"
       mutate:
         patchStrategicMerge:
           spec:

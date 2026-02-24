@@ -168,6 +168,9 @@ spec:
               certgen:
                 job:
                   ttlSecondsAfterFinished: ""
+                  pod:
+                    labels:
+                      kyverno.io/exclude-sa-token: "true"
                   {{- if .envoyGateway.certgen }}
                   {{- if .envoyGateway.certgen.resources }}
                   resources:
@@ -298,6 +301,9 @@ spec:
               certgen:
                 job:
                   ttlSecondsAfterFinished: ""
+                  pod:
+                    labels:
+                      kyverno.io/exclude-sa-token: "true"
                   {{- if .envoyGateway.certgen }}
                   {{- if .envoyGateway.certgen.resources }}
                   resources:

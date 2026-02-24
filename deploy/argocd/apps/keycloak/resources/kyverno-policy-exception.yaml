@@ -7,9 +7,7 @@ metadata:
   name: keycloak-automount-sa-token
   namespace: keycloak
   annotations:
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-    argocd.argoproj.io/sync-wave: "-10"
+    argocd.argoproj.io/sync-wave: "-5"
 spec:
   exceptions:
     - policyName: disable-automount-sa-token
