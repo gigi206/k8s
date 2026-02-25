@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - kube-loxilb External Egress
+# =============================================================================
+# Allows kube-loxilb to reach the external loxilb API (Docker container
+# running on a dedicated VM outside the cluster).
+# Only needed in external mode; in internal mode, loxilb is in-cluster
+# and covered by the default cluster traffic rules.
+#
+# The IP and port placeholders are patched via Kustomize in the ApplicationSet
+# using values extracted from loxilb.loxiURL.
+#
+# Note: RKE2 Calico (crd.projectcalico.org/v1) does NOT support the
+# "domains" field. We use "nets" with the VM IP instead.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: loxilb-allow-external-egress
+  namespace: kube-system
+spec:
+  selector: app == 'kube-loxilb-app'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      protocol: TCP
+      destination:
+        nets:
+          - "PLACEHOLDER_IP/32"
+        ports:
+          - 11111

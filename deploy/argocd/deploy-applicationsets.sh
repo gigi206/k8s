@@ -429,6 +429,9 @@ if [[ "$FEAT_SERVICE_MESH" == "true" ]] && [[ "$FEAT_SERVICE_MESH_PROVIDER" == "
   fi
 fi
 
+# Cluster configuration
+CLUSTER_DISTRIBUTION=$(get_feature '.cluster.distribution' 'rke2')
+
 # CNI configuration
 FEAT_CNI_PRIMARY=$(get_feature '.cni.primary' 'cilium')
 FEAT_CNI_MULTUS=$(get_feature '.cni.multus.enabled' 'false')
@@ -466,6 +469,7 @@ log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION
 log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
 log_debug "  cilium.mutualAuth.spire.dataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
 log_debug "  containerRuntime: $FEAT_CONTAINER_RUNTIME ($FEAT_CONTAINER_RUNTIME_PROVIDER, defaultClass: ${FEAT_CONTAINER_RUNTIME_DEFAULT_CLASS:-none})"
+log_debug "  cluster.distribution: $CLUSTER_DISTRIBUTION"
 log_debug "  cni.primary: $FEAT_CNI_PRIMARY"
 log_debug "  cni.multus: $FEAT_CNI_MULTUS"
 log_debug "  cni.whereabouts: $FEAT_CNI_WHEREABOUTS"
@@ -689,12 +693,20 @@ validate_dependencies() {
   fi
 
   # Vérifier que loxilb avec Cilium nécessite Multus CNI pour isolation eBPF
+  # Exception: external mode (loxilb runs outside the cluster), no eBPF conflict
   if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]]; then
-    if [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
+    local loxilb_app_config="${SCRIPT_DIR}/apps/loxilb/config/${ENVIRONMENT}.yaml"
+    local loxilb_mode="internal"
+    if [[ -f "$loxilb_app_config" ]]; then
+      loxilb_mode=$(yq -r '.loxilb.mode // "internal"' "$loxilb_app_config" 2>/dev/null)
+    fi
+    if [[ "$loxilb_mode" == "external" ]]; then
+      log_info "LoxiLB en mode external: Multus non requis (pas de conflit eBPF)"
+    elif [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
       log_error "LoxiLB nécessite Multus CNI pour fonctionner avec Cilium"
       log_error "  LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP et entrent en conflit"
       log_error "  Activer: cni.multus.enabled: true dans config.yaml"
-      log_error "  Puis recréer le cluster avec: make vagrant-dev-destroy && make dev-full"
+      log_error "  Ou passer en mode external: loxilb.mode: \"external\" dans apps/loxilb/config/${ENVIRONMENT}.yaml"
       log_error "  Voir: deploy/argocd/apps/loxilb/README.md pour plus de détails"
       errors=$((errors + 1))
     else
@@ -2312,6 +2324,7 @@ echo "  SSO:               $FEAT_SSO ($FEAT_SSO_PROVIDER)"
 echo "  OAuth2-Proxy:      $FEAT_OAUTH2_PROXY"
 echo "  NeuVector:         $FEAT_NEUVECTOR"
 echo "  Kubescape:         $FEAT_KUBESCAPE"
+echo "  Cluster Distrib:   $CLUSTER_DISTRIBUTION"
 echo "  CNI Primary:       $FEAT_CNI_PRIMARY"
 echo "  CNI Multus:        $FEAT_CNI_MULTUS"
 echo ""

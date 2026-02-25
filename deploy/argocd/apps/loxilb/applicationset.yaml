@@ -73,8 +73,186 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
+        {{- if eq .loxilb.mode "external" }}
         # =======================================================================
-        # Source 1: kube-loxilb (controller)
+        # External Mode: kube-loxilb only (no in-cluster loxilb DaemonSet)
+        # =======================================================================
+        # loxilb runs as an external Docker container (e.g. --net=host on k3d)
+        # kube-loxilb connects to it via --loxiURL.
+        # No eBPF conflict with Cilium (no Multus required).
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/kube-loxilb-external
+          kustomize:
+            images:
+              - 'ghcr.io/loxilb-io/kube-loxilb={{ .loxilb.kubeLoxilbImage }}:{{ .loxilb.kubeLoxilbTag }}'
+            patches:
+              - target:
+                  group: apps
+                  version: v1
+                  kind: Deployment
+                  name: kube-loxilb
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/initContainers/0/env/0/value
+                    value: '{{ .loxilb.loxiURL }}'
+                  - op: replace
+                    path: /spec/template/spec/containers/0/args
+                    value:
+                      - --loxiURL={{ .loxilb.loxiURL }}
+                      - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
+                      - --setRoles=0.0.0.0
+                      - --setLBMode={{ .loxilb.setLBMode }}
+                      - --noZoneName
+              {{- if .loxilb.bgp.enabled }}
+                      - --setBGP={{ .loxilb.bgp.localASN }}
+                      - --extBGPPeers={{ .loxilb.bgp.extBGPPeers }}
+              {{- end }}
+        {{- if .features.networkPolicy.egressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium egress policy (external loxilb API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/cilium-egress
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumNetworkPolicy
+                  name: loxilb-allow-external-egress
+                patch: |
+                  - op: replace
+                    path: /spec/egress/0/toCIDR/0
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                  - op: replace
+                    path: /spec/egress/0/toPorts/0/ports/0/port
+                    value: '{{ regexReplaceAll ".*:([0-9]+)$" .loxilb.loxiURL "$1" }}'
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico egress policy (external loxilb API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/calico-egress
+          kustomize:
+            patches:
+              - target:
+                  kind: NetworkPolicy
+                  name: loxilb-allow-external-egress
+                patch: |
+                  - op: replace
+                    path: /spec/egress/0/destination/nets/0
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                  - op: replace
+                    path: /spec/egress/0/destination/ports/0
+                    value: {{ regexReplaceAll ".*:([0-9]+)$" .loxilb.loxiURL "$1" }}
+          {{- end }}
+        {{- end }}
+        {{- if .loxilb.bgp.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium BGP peering (PodCIDR advertisement to loxilb)
+        # Cilium v1.19+: CiliumBGPClusterConfig + CiliumBGPPeerConfig + CiliumBGPAdvertisement
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/cilium-bgp-peering
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumBGPClusterConfig
+                  name: loxilb-external-bgp
+                patch: |
+                  - op: replace
+                    path: /spec/bgpInstances/0/localASN
+                    value: {{ .features.loadBalancer.bgp.localASN }}
+                  - op: replace
+                    path: /spec/bgpInstances/0/peers/0/peerASN
+                    value: {{ .loxilb.bgp.localASN }}
+                  - op: replace
+                    path: /spec/bgpInstances/0/peers/0/peerAddress
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}'
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico BGP peering (PodCIDR advertisement to loxilb)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/calico-bgp-peering
+          kustomize:
+            patches:
+              - target:
+                  group: crd.projectcalico.org
+                  version: v1
+                  kind: BGPPeer
+                  name: loxilb-external-bgp
+                patch: |
+                  - op: replace
+                    path: /spec/peerIP
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}'
+                  - op: replace
+                    path: /spec/asNumber
+                    value: {{ .loxilb.bgp.localASN }}
+          {{- end }}
+        {{- end }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium ingress policy (allow DNAT'd LB traffic from loxilb to pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/cilium-ingress
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumClusterwideNetworkPolicy
+                  name: loxilb-allow-external-ingress
+                patch: |
+                  - op: replace
+                    path: /spec/ingress/0/fromCIDR/0
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico ingress policy (allow DNAT'd LB traffic from loxilb to pods)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/calico-ingress
+          kustomize:
+            patches:
+              - target:
+                  kind: GlobalNetworkPolicy
+                  name: loxilb-allow-external-ingress
+                patch: |
+                  - op: replace
+                    path: /spec/ingress/0/source/nets/0
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+          {{- end }}
+        {{- end }}
+        {{- if and .loxilb.bgp.enabled .features.networkPolicy.ingressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium host ingress policy (allow BGP port 179 from loxilb to nodes)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/cilium-host-ingress
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumClusterwideNetworkPolicy
+                  name: loxilb-bgp-host-ingress
+                patch: |
+                  - op: replace
+                    path: /spec/ingress/0/fromCIDR/0
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico host ingress policy (allow BGP port 179 from loxilb to nodes)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/loxilb/kustomize/calico-host-ingress
+          kustomize:
+            patches:
+              - target:
+                  kind: GlobalNetworkPolicy
+                  name: loxilb-bgp-host-ingress
+                patch: |
+                  - op: replace
+                    path: /spec/ingress/0/source/nets/0
+                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+          {{- end }}
+        {{- end }}
+        {{- else }}
+        # =======================================================================
+        # Source 1: kube-loxilb (controller) - In-cluster mode
         # =======================================================================
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -178,4 +356,5 @@ spec:
                   - op: replace
                     path: /spec/remoteAs
                     value: {{ (index .features.loadBalancer.bgp.peers 0).asn }}
+        {{- end }}
         {{- end }}

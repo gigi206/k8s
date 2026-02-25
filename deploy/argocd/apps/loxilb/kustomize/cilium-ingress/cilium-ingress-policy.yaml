@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - LoxiLB External Pod Ingress
+# =============================================================================
+# Allow pod ingress from external LoxiLB (DNAT'd LoadBalancer traffic).
+#
+# When default-deny-pod-ingress is active, traffic from LoxiLB (identity
+# "world") is blocked. This policy allows LoxiLB's DNAT'd traffic to reach
+# pods across all namespaces.
+#
+# The LoxiLB IP placeholder is patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: loxilb-allow-external-ingress
+spec:
+  description: "Allow pod ingress from external LoxiLB (DNAT'd LB traffic)"
+
+  endpointSelector: {}
+
+  ingress:
+    - fromCIDR:
+        - "PLACEHOLDER_IP/32"

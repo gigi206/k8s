@@ -169,6 +169,16 @@ if [ "$CONTAINER_RUNTIME_ENABLED" = "true" ] && [ "$CONTAINER_RUNTIME_PROVIDER" 
   echo "Container Runtime: Kata Containers (socketLB.hostNamespaceOnly=true)"
 fi
 
+# Determine BGP Control Plane setting
+# Enabled when LoxiLB external mode uses BGP for PodCIDR route advertisement
+LOXILB_BGP_ENABLED="${LOXILB_BGP_ENABLED:-false}"
+if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
+  BGP_CONTROL_PLANE_ENABLED="true"
+  echo "Cilium BGP Control Plane: ENABLED (LoxiLB external BGP peering)"
+else
+  BGP_CONTROL_PLANE_ENABLED="false"
+fi
+
 if [ "$LB_PROVIDER" = "cilium" ]; then
   L2_ANNOUNCEMENTS_ENABLED="true"
   # Both interfaces for Cilium L2 announcements
@@ -176,10 +186,18 @@ if [ "$LB_PROVIDER" = "cilium" ]; then
   echo "LoadBalancer Provider: Cilium LB-IPAM (L2 announcements ENABLED)"
 elif [ "$LB_PROVIDER" = "loxilb" ]; then
   L2_ANNOUNCEMENTS_ENABLED="false"
-  # LoxiLB with Multus/macvlan: exclude eth1 to prevent Cilium eBPF hooks from
-  # intercepting traffic before it reaches LoxiLB on the macvlan interface
-  CILIUM_DEVICES_YAML=$'    - eth0'
-  echo "LoadBalancer Provider: LoxiLB (Cilium L2 DISABLED, eth1 excluded from Cilium devices)"
+  LOXILB_MODE="${LOXILB_MODE:-internal}"
+  if [ "$LOXILB_MODE" = "external" ]; then
+    # External mode: LoxiLB runs on a separate VM, no eBPF conflict on eth1
+    # eth1 must be included for BPF masquerade so pods can reach the external LoxiLB API
+    CILIUM_DEVICES_YAML=$'    - eth0\n    - eth1'
+    echo "LoadBalancer Provider: LoxiLB external (Cilium L2 DISABLED, eth1 included for masquerade)"
+  else
+    # Internal/Multus mode: exclude eth1 to prevent Cilium eBPF hooks from
+    # intercepting traffic before it reaches LoxiLB on the macvlan interface
+    CILIUM_DEVICES_YAML=$'    - eth0'
+    echo "LoadBalancer Provider: LoxiLB internal (Cilium L2 DISABLED, eth1 excluded from Cilium devices)"
+  fi
 elif [ "$LB_PROVIDER" = "klipper" ]; then
   L2_ANNOUNCEMENTS_ENABLED="false"
   CILIUM_DEVICES_YAML=$'    - eth0\n    - eth1'
@@ -355,14 +373,10 @@ ${ENCRYPTION_BLOCK}
     #   qps: 10
     #   burst: 25
 
-    # BGP - DISABLED (not needed for this setup)
-    # bgp:
-    #   enabled: true
-    #   announce:
-    #     loadbalancerIP: true
-    #     podCIDR: true
-    # bgpControlPlane:
-    #   enabled: true
+    # BGP Control Plane
+    # Enabled when LoxiLB external mode uses BGP for PodCIDR advertisement
+    bgpControlPlane:
+      enabled: ${BGP_CONTROL_PLANE_ENABLED}
 
     # sctp:
     #   # -- Enable SCTP support. NOTE: Currently, SCTP support does not support rewriting ports or multihoming.

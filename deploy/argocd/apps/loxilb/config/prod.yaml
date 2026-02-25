@@ -14,6 +14,14 @@ loxilb:
   # 0 = DNAT (default), 1 = one-arm, 2 = fullNAT
   setLBMode: 0
 
+  # Deployment mode: "internal" (in-cluster DaemonSet) or "external" (standalone Docker container)
+  mode: "internal"
+
+  bgp:
+    enabled: false
+    localASN: 0
+    extBGPPeers: ""
+
   # Resources for kube-loxilb (prod: higher limits)
   kubeLoxilb:
     resources:

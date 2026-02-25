@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# CiliumBGPAdvertisement - PodCIDR Routes for LoxiLB
+# =============================================================================
+# Advertises PodCIDR prefixes to the external LoxiLB container via BGP.
+# This allows LoxiLB to route DNAT'd LoadBalancer traffic directly to pods.
+#
+# Only PodCIDR is advertised -- LoxiLB handles VIPs via ARP (--net=host),
+# so no service IP advertisement is needed.
+#
+# Matched by CiliumBGPPeerConfig via label selector: advertise=loxilb-bgp
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: loxilb-pod-cidr
+  labels:
+    advertise: "loxilb-bgp"
+spec:
+  advertisements:
+    - advertisementType: "PodCIDR"

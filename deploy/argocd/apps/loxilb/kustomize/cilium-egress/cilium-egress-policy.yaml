@@ -1,0 +1,32 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - kube-loxilb External Egress
+# =============================================================================
+# Allows kube-loxilb to reach the external loxilb API (Docker container
+# running on a dedicated VM outside the cluster).
+# Only needed in external mode; in internal mode, loxilb is in-cluster
+# and covered by the default cluster entity rule.
+#
+# The IP and port placeholders are patched via Kustomize in the ApplicationSet
+# using values extracted from loxilb.loxiURL.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: loxilb-allow-external-egress
+  namespace: kube-system
+spec:
+  description: "Allow kube-loxilb to reach external loxilb API"
+
+  endpointSelector:
+    matchLabels:
+      app: kube-loxilb-app
+
+  egress:
+    - toCIDR:
+        - "PLACEHOLDER_IP/32"
+      toPorts:
+        - ports:
+            - port: "PLACEHOLDER_PORT"
+              protocol: TCP

@@ -31,6 +31,10 @@ CNI_PRIMARY := $(shell yq -r '.cni.primary // "cilium"' $(CONFIG_YAML) 2>/dev/nu
 # Passed to Vagrant so configure_cilium.sh generates HelmChartConfig with correct gatewayAPI settings
 GATEWAY_API_PROVIDER := $(shell yq -r '.features.gatewayAPI.controller.provider // "traefik"' $(CONFIG_YAML) 2>/dev/null || echo "traefik")
 
+# Common Vagrant environment variables (passed to all vagrant commands so the Vagrantfile
+# can conditionally define VMs based on config - e.g. loxilb external VM)
+VAGRANT_VARS = CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER)
+
 # Default target
 help:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
@@ -83,7 +87,7 @@ vagrant-dev-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🚀 Démarrage du cluster DEV (RKE2)$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=dev CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
+	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant up
 	@echo ""
 	@echo "$(GREEN)✅ Cluster RKE2 DEV démarré!$(NC)"
 	@echo ""
@@ -95,49 +99,49 @@ vagrant-dev-up:
 
 vagrant-dev-status:
 	@echo "$(BLUE)📊 Statut du cluster DEV:$(NC)"
-	@cd vagrant && K8S_ENV=dev vagrant status
+	@cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant status
 
 vagrant-dev-ssh:
-	@cd vagrant && K8S_ENV=dev vagrant ssh k8s-dev-m1
+	@cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant ssh k8s-dev-m1
 
 vagrant-dev-down:
 	@echo "$(YELLOW)⏸️  Arrêt du cluster DEV...$(NC)"
-	cd vagrant && K8S_ENV=dev vagrant halt
+	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant halt
 
 vagrant-dev-destroy:
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous êtes sur le point de DÉTRUIRE le cluster DEV$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=dev vagrant destroy -f
+	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant destroy -f
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Cluster DEV détruit et résidus nettoyés$(NC)"
 
 vagrant-dev-snapshot-list:
 	@echo "$(BLUE)📸 Snapshots disponibles pour le cluster DEV:$(NC)"
-	@cd vagrant && K8S_ENV=dev vagrant snapshot list
+	@cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant snapshot list
 
 vagrant-dev-snapshot-save:
 	@echo "$(BLUE)📸 Création d'un snapshot du cluster DEV$(NC)"
 	@read -p "Nom du snapshot: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
-	cd vagrant && K8S_ENV=dev vagrant snapshot save "$$name" && \
+	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant snapshot save "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' créé avec succès$(NC)"
 
 vagrant-dev-snapshot-delete:
 	@echo "$(YELLOW)⚠️  Suppression d'un snapshot du cluster DEV$(NC)"
-	@cd vagrant && K8S_ENV=dev vagrant snapshot list
+	@cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant snapshot list
 	@echo ""
 	@read -p "Nom du snapshot à supprimer: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
 	read -p "Confirmer la suppression de '$$name' (yes): " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1) && \
-	cd vagrant && K8S_ENV=dev vagrant snapshot delete "$$name" && \
+	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant snapshot delete "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' supprimé$(NC)"
 
 vagrant-dev-snapshot-restore:
 	@echo "$(YELLOW)⚠️  Restauration d'un snapshot du cluster DEV$(NC)"
-	@cd vagrant && K8S_ENV=dev vagrant snapshot list
+	@cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant snapshot list
 	@echo ""
 	@read -p "Nom du snapshot à restaurer: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
 	read -p "Confirmer la restauration de '$$name' (yes): " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1) && \
-	cd vagrant && K8S_ENV=dev vagrant snapshot restore "$$name" && \
+	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant snapshot restore "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' restauré$(NC)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -148,50 +152,50 @@ vagrant-staging-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(BLUE)🏗️  Démarrage du cluster STAGING$(NC)"
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=staging CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
+	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant up
 
 vagrant-staging-status:
 	@echo "$(BLUE)📊 Statut du cluster STAGING:$(NC)"
-	@cd vagrant && K8S_ENV=staging vagrant status
+	@cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant status
 
 vagrant-staging-down:
 	@echo "$(YELLOW)⏸️  Arrêt du cluster STAGING...$(NC)"
-	cd vagrant && K8S_ENV=staging vagrant halt
+	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant halt
 
 vagrant-staging-destroy:
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous êtes sur le point de DÉTRUIRE le cluster STAGING$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=staging vagrant destroy -f
+	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant destroy -f
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Cluster STAGING détruit et résidus nettoyés$(NC)"
 
 vagrant-staging-snapshot-list:
 	@echo "$(BLUE)📸 Snapshots disponibles pour le cluster STAGING:$(NC)"
-	@cd vagrant && K8S_ENV=staging vagrant snapshot list
+	@cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant snapshot list
 
 vagrant-staging-snapshot-save:
 	@echo "$(BLUE)📸 Création d'un snapshot du cluster STAGING$(NC)"
 	@read -p "Nom du snapshot: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
-	cd vagrant && K8S_ENV=staging vagrant snapshot save "$$name" && \
+	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant snapshot save "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' créé avec succès$(NC)"
 
 vagrant-staging-snapshot-delete:
 	@echo "$(YELLOW)⚠️  Suppression d'un snapshot du cluster STAGING$(NC)"
-	@cd vagrant && K8S_ENV=staging vagrant snapshot list
+	@cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant snapshot list
 	@echo ""
 	@read -p "Nom du snapshot à supprimer: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
 	read -p "Confirmer la suppression de '$$name' (yes): " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1) && \
-	cd vagrant && K8S_ENV=staging vagrant snapshot delete "$$name" && \
+	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant snapshot delete "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' supprimé$(NC)"
 
 vagrant-staging-snapshot-restore:
 	@echo "$(YELLOW)⚠️  Restauration d'un snapshot du cluster STAGING$(NC)"
-	@cd vagrant && K8S_ENV=staging vagrant snapshot list
+	@cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant snapshot list
 	@echo ""
 	@read -p "Nom du snapshot à restaurer: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
 	read -p "Confirmer la restauration de '$$name' (yes): " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1) && \
-	cd vagrant && K8S_ENV=staging vagrant snapshot restore "$$name" && \
+	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant snapshot restore "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' restauré$(NC)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -204,51 +208,51 @@ vagrant-prod-up:
 	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous démarrez un environnement de PRODUCTION$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=prod CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER) vagrant up
+	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant up
 
 vagrant-prod-status:
 	@echo "$(BLUE)📊 Statut du cluster PROD:$(NC)"
-	@cd vagrant && K8S_ENV=prod vagrant status
+	@cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant status
 
 vagrant-prod-down:
 	@echo "$(YELLOW)⏸️  Arrêt du cluster PROD...$(NC)"
-	cd vagrant && K8S_ENV=prod vagrant halt
+	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant halt
 
 vagrant-prod-destroy:
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous êtes sur le point de DÉTRUIRE le cluster PROD$(NC)"
 	@read -p "Taper 'DESTROY-PROD' pour confirmer: " confirm && [ "$$confirm" = "DESTROY-PROD" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=prod vagrant destroy -f
+	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant destroy -f
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Cluster PROD détruit et résidus nettoyés$(NC)"
 
 vagrant-prod-snapshot-list:
 	@echo "$(BLUE)📸 Snapshots disponibles pour le cluster PROD:$(NC)"
-	@cd vagrant && K8S_ENV=prod vagrant snapshot list
+	@cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant snapshot list
 
 vagrant-prod-snapshot-save:
 	@echo "$(BLUE)📸 Création d'un snapshot du cluster PROD$(NC)"
 	@read -p "Nom du snapshot: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
 	read -p "Confirmer la création du snapshot '$$name' en PROD (yes): " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1) && \
-	cd vagrant && K8S_ENV=prod vagrant snapshot save "$$name" && \
+	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant snapshot save "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' créé avec succès$(NC)"
 
 vagrant-prod-snapshot-delete:
 	@echo "$(YELLOW)⚠️  Suppression d'un snapshot du cluster PROD$(NC)"
-	@cd vagrant && K8S_ENV=prod vagrant snapshot list
+	@cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant snapshot list
 	@echo ""
 	@read -p "Nom du snapshot à supprimer: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
 	read -p "Confirmer la suppression de '$$name' en PROD (DESTROY-SNAPSHOT): " confirm && [ "$$confirm" = "DESTROY-SNAPSHOT" ] || (echo "Annulé" && exit 1) && \
-	cd vagrant && K8S_ENV=prod vagrant snapshot delete "$$name" && \
+	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant snapshot delete "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' supprimé$(NC)"
 
 vagrant-prod-snapshot-restore:
 	@echo "$(YELLOW)⚠️  Restauration d'un snapshot du cluster PROD$(NC)"
-	@cd vagrant && K8S_ENV=prod vagrant snapshot list
+	@cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant snapshot list
 	@echo ""
 	@read -p "Nom du snapshot à restaurer: " name && [ -n "$$name" ] || (echo "Nom requis" && exit 1) && \
 	read -p "Confirmer la restauration de '$$name' en PROD (RESTORE-PROD): " confirm && [ "$$confirm" = "RESTORE-PROD" ] || (echo "Annulé" && exit 1) && \
-	cd vagrant && K8S_ENV=prod vagrant snapshot restore "$$name" && \
+	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant snapshot restore "$$name" && \
 	echo "$(GREEN)✅ Snapshot '$$name' restauré$(NC)"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -264,9 +268,9 @@ argocd-install-dev:
 	@echo "$(GREEN)📦 Étape 1/6: Récupération du kubeconfig (bootstrap avec IP VM)...$(NC)"
 	@mkdir -p $(KUBE_DIR)
 	@cd $(VAGRANT_DIR) && \
-		MASTER_IP=$$(K8S_ENV=dev vagrant ssh k8s-dev-m1 -c 'hostname -I | awk "{print \$$1}"' 2>/dev/null | tr -d '\r\n' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g') && \
+		MASTER_IP=$$(K8S_ENV=dev $(VAGRANT_VARS) vagrant ssh k8s-dev-m1 -c 'hostname -I | awk "{print \$$1}"' 2>/dev/null | tr -d '\r\n' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g') && \
 		echo "  → IP VM: $$MASTER_IP" && \
-		K8S_ENV=dev vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
+		K8S_ENV=dev $(VAGRANT_VARS) vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
 		sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r' | \
 		sed "s/127.0.0.1/$$MASTER_IP/g" > .kube/config-dev
 	@export KUBECONFIG=$(KUBECONFIG_DEV) && \
@@ -316,7 +320,7 @@ argocd-install-dev:
 		sleep 1; \
 	done && \
 	cd $(VAGRANT_DIR) && \
-	K8S_ENV=dev vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
+	K8S_ENV=dev $(VAGRANT_VARS) vagrant ssh k8s-dev-m1 -c "sudo cat /etc/rancher/rke2/rke2.yaml" 2>/dev/null | \
 	sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' | tr -d '\r' | \
 	sed "s/127.0.0.1/$$KUBE_VIP/g" > .kube/config-dev && \
 	echo "  → Kubeconfig mis à jour avec VIP: $$KUBE_VIP"
@@ -332,9 +336,9 @@ clean-all:
 	@echo "$(YELLOW)🧹 Nettoyage de tous les environnements...$(NC)"
 	@echo "$(YELLOW)⚠️  Cela va supprimer tous les clusters Vagrant$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	-cd vagrant && K8S_ENV=dev vagrant destroy -f
-	-cd vagrant && K8S_ENV=staging vagrant destroy -f
-	-cd vagrant && K8S_ENV=prod vagrant destroy -f
+	-cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant destroy -f
+	-cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant destroy -f
+	-cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant destroy -f
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Nettoyage terminé$(NC)"

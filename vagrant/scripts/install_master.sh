@@ -102,21 +102,39 @@ LB_PROVIDER_CONFIG=${LB_PROVIDER_CONFIG:-metallb}
 export CNI_MULTUS_ENABLED
 
 # Validate CNI/provider compatibility
+# Read loxilb mode from app config (external mode doesn't need Multus)
+ENVIRONMENT=$(yq_read '.environment' "$ARGOCD_CONFIG_FILE")
+ENVIRONMENT=${ENVIRONMENT:-dev}
+LOXILB_APP_CONFIG="$PROJECT_ROOT/deploy/argocd/apps/loxilb/config/${ENVIRONMENT}.yaml"
+LOXILB_MODE="internal"
+if [ -f "$LOXILB_APP_CONFIG" ]; then
+  LOXILB_MODE=$(yq_read '.loxilb.mode' "$LOXILB_APP_CONFIG")
+  LOXILB_MODE=${LOXILB_MODE:-internal}
+fi
+
 if [ "$CNI_PRIMARY" = "cilium" ] && [ "$LB_PROVIDER_CONFIG" = "loxilb" ] && [ "$CNI_MULTUS_ENABLED" != "true" ]; then
-  echo "============================================================"
-  echo "ERREUR: LoxiLB nécessite Multus CNI pour fonctionner avec Cilium"
-  echo "============================================================"
-  echo "LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP"
-  echo "et entrent en conflit sans isolation via Multus."
-  echo ""
-  echo "Solution: Activer Multus dans config.yaml:"
-  echo "  cni:"
-  echo "    multus:"
-  echo "      enabled: true"
-  echo ""
-  echo "Puis relancer: make vagrant-dev-destroy && make dev-full"
-  echo "============================================================"
-  exit 1
+  if [ "$LOXILB_MODE" = "external" ]; then
+    echo "LoxiLB en mode external: Multus non requis (pas de conflit eBPF)"
+  else
+    echo "============================================================"
+    echo "ERREUR: LoxiLB nécessite Multus CNI pour fonctionner avec Cilium"
+    echo "============================================================"
+    echo "LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP"
+    echo "et entrent en conflit sans isolation via Multus."
+    echo ""
+    echo "Solutions:"
+    echo "  1. Activer Multus dans config.yaml:"
+    echo "     cni:"
+    echo "       multus:"
+    echo "         enabled: true"
+    echo "  2. Ou passer en mode external dans apps/loxilb/config/${ENVIRONMENT}.yaml:"
+    echo "     loxilb:"
+    echo "       mode: \"external\""
+    echo ""
+    echo "Puis relancer: make vagrant-dev-destroy && make dev-full"
+    echo "============================================================"
+    exit 1
+  fi
 fi
 
 if [ "$CNI_MULTUS_ENABLED" = "true" ]; then
@@ -379,8 +397,15 @@ if [ "$CNI_PRIMARY" = "cilium" ]; then
   CONTAINER_RUNTIME_PROVIDER=$(yq_read '.features.containerRuntime.provider' "$ARGOCD_CONFIG_FILE")
   CONTAINER_RUNTIME_PROVIDER=${CONTAINER_RUNTIME_PROVIDER:-none}
   export CILIUM_ENCRYPTION_ENABLED CILIUM_ENCRYPTION_TYPE CILIUM_NODE_ENCRYPTION CILIUM_STRICT_MODE
+  # Read LoxiLB BGP setting from app config
+  LOXILB_BGP_ENABLED="false"
+  if [ -f "$LOXILB_APP_CONFIG" ]; then
+    LOXILB_BGP_ENABLED=$(yq_read '.loxilb.bgp.enabled' "$LOXILB_APP_CONFIG")
+    LOXILB_BGP_ENABLED=${LOXILB_BGP_ENABLED:-false}
+  fi
   export CILIUM_MUTUAL_AUTH CILIUM_MUTUAL_AUTH_PORT
   export CONTAINER_RUNTIME_ENABLED CONTAINER_RUNTIME_PROVIDER
+  export LOXILB_MODE LOXILB_BGP_ENABLED
   echo "Cilium encryption: $CILIUM_ENCRYPTION_ENABLED (type=$CILIUM_ENCRYPTION_TYPE, nodeEncryption=$CILIUM_NODE_ENCRYPTION, strictMode=$CILIUM_STRICT_MODE)"
   echo "Cilium mutual auth: $CILIUM_MUTUAL_AUTH (port=$CILIUM_MUTUAL_AUTH_PORT)"
   echo "Container runtime: $CONTAINER_RUNTIME_ENABLED (provider=$CONTAINER_RUNTIME_PROVIDER)"

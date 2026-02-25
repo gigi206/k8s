@@ -1,0 +1,19 @@
+---
+# =============================================================================
+# Calico BGPPeer - LoxiLB External BGP Peering
+# =============================================================================
+# Calico equivalent of cilium-bgp-peering/ciliumbgppeeringpolicy.yaml
+#
+# Configures Calico to peer with the external LoxiLB container via eBGP.
+# Calico advertises PodCIDR routes so LoxiLB can route DNAT'd traffic to pods.
+#
+# Placeholders are patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: BGPPeer
+metadata:
+  name: loxilb-external-bgp
+spec:
+  peerIP: "PLACEHOLDER_PEER_IP"
+  asNumber: 65002

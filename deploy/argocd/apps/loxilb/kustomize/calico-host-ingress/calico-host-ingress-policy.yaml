@@ -1,0 +1,31 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - LoxiLB BGP Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-host-ingress/cilium-host-ingress-policy.yaml
+#
+# Allow BGP traffic (TCP port 179) from the external LoxiLB container to
+# cluster nodes. Required for the eBGP session between LoxiLB and Calico.
+#
+# This complements the default-deny-host-ingress policy in the calico app.
+# The LoxiLB IP placeholder is patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: loxilb-bgp-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - "PLACEHOLDER_IP/32"
+      destination:
+        ports:
+          - 179

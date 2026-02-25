@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# =============================================================================
+# Provision LoxiLB External Container inside dedicated Vagrant VM
+# =============================================================================
+# Runs on a separate VM (k8s-<cluster>-loxilb) to avoid eBPF conflicts with
+# Cilium running on the master/worker nodes.
+# LoxiLB runs as a Docker container with --net=host inside this VM.
+#
+# Called conditionally by Vagrantfile when LB_PROVIDER=loxilb.
+# =============================================================================
+
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+# Determine project root
+if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
+  PROJECT_ROOT="/vagrant"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+fi
+
+# Read environment from Vagrant env (default: dev)
+K8S_ENV="${K8S_ENV:-dev}"
+
+ARGOCD_CONFIG="$PROJECT_ROOT/deploy/argocd/config/config.yaml"
+LOXILB_APP_CONFIG="$PROJECT_ROOT/deploy/argocd/apps/loxilb/config/${K8S_ENV}.yaml"
+
+# Check if loxilb app config exists
+if [ ! -f "$LOXILB_APP_CONFIG" ]; then
+  echo "[WARN] LoxiLB config not found: $LOXILB_APP_CONFIG"
+  exit 0
+fi
+
+# Check if LoxiLB external mode is enabled
+LB_PROVIDER=$(yq '.features.loadBalancer.provider' "$ARGOCD_CONFIG" 2>/dev/null || echo "")
+LOXILB_MODE=$(yq '.loxilb.mode' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "internal")
+
+if [[ "$LB_PROVIDER" != "loxilb" ]] || [[ "$LOXILB_MODE" != "external" ]]; then
+  echo "[INFO] LoxiLB external mode not enabled (provider=$LB_PROVIDER, mode=$LOXILB_MODE), skipping."
+  exit 0
+fi
+
+# Read BGP setting from app config
+LOXILB_BGP_ENABLED=$(yq '.loxilb.bgp.enabled' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "false")
+LOXILB_BGP_ENABLED=${LOXILB_BGP_ENABLED:-false}
+
+echo "[INFO] LoxiLB external mode enabled, provisioning..."
+echo "[INFO]   BGP: ${LOXILB_BGP_ENABLED}"
+
+# =============================================================================
+# Fix dual-interface ARP issue (eth0 Vagrant management + eth1 loxilb working)
+# =============================================================================
+# Root cause: both eth0 and eth1 are on the same subnet (192.168.121.0/24).
+# LoxiLB's IfaSelectAny() selects the GARP interface by scanning its internal
+# route trie. At startup, eth0 is processed before eth1 by NlpGet(), so
+# eth0's /24 subnet route is added to loxilb's trie first. eth1's identical
+# subnet route then fails ("subnet-route add error"). IfaSelectAny() for any
+# VIP in 192.168.121.0/24 then resolves to eth0 → GARP sent with eth0 MAC.
+# Traffic from the host arrives on eth0 instead of eth1, bypassing the eBPF
+# hook, and the kernel sends RST (no listener on eth0 for the VIP ports).
+#
+# Fix 1 (IfaSelectAny): change eth0 from /24 to /32. With /32, eth0's subnet
+# is just 192.168.121.5/32 (not /24), so it doesn't match the VIP subnet.
+# loxilb's trie then has only the eth1 /24 route, and IfaSelectAny() always
+# returns eth1 → GARP sent with eth1 MAC → traffic flows correctly.
+#
+# Fix 2 (kernel ARP): set arp_ignore=1 on eth0 so the kernel doesn't respond
+# to broadcast ARP requests for VIPs (which live on lo). Without this, eth0
+# would answer ARP for VIPs (since they're local IPs) even after Fix 1.
+# =============================================================================
+
+# Fix 2: persist arp_ignore=1 for eth0
+cat > /etc/sysctl.d/99-loxilb-arp.conf << 'EOF'
+net.ipv4.conf.eth0.arp_ignore = 1
+EOF
+sysctl -w net.ipv4.conf.eth0.arp_ignore=1
+echo "[OK] arp_ignore=1 set on eth0 (persistent)"
+
+# Fix 1: create a systemd service to set eth0 to /32 before Docker starts.
+# This runs at every boot (Before=docker.service) to ensure loxilb always
+# sees eth0 as /32. DHCP may restore /24 on renewal, but this service re-fixes
+# it before Docker (and loxilb) starts on the next boot.
+cat > /usr/local/bin/loxilb-eth0-fix.sh << 'SCRIPT'
+#!/bin/bash
+# Change eth0 from /24 to /32 so loxilb IfaSelectAny() picks eth1 for GARPs.
+ETH0_IP=$(ip -4 addr show eth0 | awk '/inet /{split($2,a,"/"); print a[1]; exit}')
+[ -z "$ETH0_IP" ] && { echo "[WARN] eth0 has no IPv4, skipping"; exit 0; }
+MASK=$(ip -4 addr show eth0 | awk '/inet /{split($2,a,"/"); print a[2]; exit}')
+[ "$MASK" = "32" ] && { echo "[OK] eth0 already /32, skipping"; exit 0; }
+ip addr del "${ETH0_IP}/24" dev eth0 2>/dev/null || true
+ip addr add "${ETH0_IP}/32" dev eth0
+ip route add 192.168.121.1/32 dev eth0 scope link 2>/dev/null || true
+ip route add default via 192.168.121.1 dev eth0 2>/dev/null || true
+echo "[OK] eth0 set to /32: ${ETH0_IP}/32"
+SCRIPT
+chmod +x /usr/local/bin/loxilb-eth0-fix.sh
+
+cat > /etc/systemd/system/loxilb-eth0-fix.service << 'SERVICE'
+[Unit]
+Description=Fix eth0 to /32 for loxilb IfaSelectAny GARP correctness
+After=network-online.target
+Before=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/loxilb-eth0-fix.sh
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable loxilb-eth0-fix.service
+/usr/local/bin/loxilb-eth0-fix.sh
+
+# Install Docker if not present
+if ! command -v docker &>/dev/null; then
+  echo "[INFO] Installing Docker..."
+  curl -fsSL https://get.docker.com | sh
+  systemctl enable --now docker
+  echo "[OK] Docker installed"
+fi
+
+# Read image/tag from app config (same versions tracked by Renovate)
+LOXILB_IMAGE=$(yq '.loxilb.loxilbImage' "$LOXILB_APP_CONFIG")
+LOXILB_TAG=$(yq '.loxilb.loxilbTag' "$LOXILB_APP_CONFIG")
+CONTAINER_NAME="loxilb-external"
+
+# Check if already running
+if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  echo "[OK] LoxiLB external container already running"
+  exit 0
+fi
+
+# Remove stopped container if exists
+docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
+
+echo "[INFO] Starting LoxiLB external container..."
+echo "[INFO]   Image: ${LOXILB_IMAGE}:${LOXILB_TAG}"
+echo "[INFO]   Network: host (--net=host inside VM)"
+
+# Build docker run command with optional --bgp flag
+DOCKER_CMD=(docker run -u root
+  --cap-add SYS_ADMIN
+  --restart unless-stopped
+  --privileged
+  -dit
+  --name "${CONTAINER_NAME}"
+  --net=host
+)
+
+# Restrict eBPF and netlink processing to eth1 only (--whitelist).
+# This ensures IfaSelectAny() resolves to eth1 for GARP, so VIPs are
+# advertised with eth1's MAC. Combined with arp_ignore=1 on eth0,
+# all VIP traffic flows through a single interface, avoiding the
+# cross-interface conntrack issue.
+LOXILB_ARGS=("--whitelist=eth1")
+
+if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
+  echo "[INFO]   BGP: enabled (GoBGP will be started inside the container)"
+  LOXILB_ARGS+=("--bgp")
+fi
+
+DOCKER_CMD+=("${LOXILB_IMAGE}:${LOXILB_TAG}" "${LOXILB_ARGS[@]}")
+
+"${DOCKER_CMD[@]}"
+
+echo "[OK] Container ${CONTAINER_NAME} started"
+
+# Wait for API to be ready
+echo "[INFO] Waiting for LoxiLB API..."
+retries=0
+max_retries=30
+while [ $retries -lt $max_retries ]; do
+  if curl -s -o /dev/null "http://127.0.0.1:11111/netlox/v1/config/loadbalancer/all" 2>/dev/null; then
+    NODE_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    echo "[OK] LoxiLB API is ready"
+    echo "[INFO] kube-loxilb should use: --loxiURL=http://${NODE_IP}:11111"
+    exit 0
+  fi
+  retries=$((retries + 1))
+  sleep 2
+done
+
+echo "[WARN] LoxiLB API did not become ready within ${max_retries} retries"
+echo "[WARN] Check container logs: docker logs ${CONTAINER_NAME}"

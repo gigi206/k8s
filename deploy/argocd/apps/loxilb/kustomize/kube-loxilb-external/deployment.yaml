@@ -1,0 +1,38 @@
+---
+# =============================================================================
+# kube-loxilb Deployment Patch - External Mode
+# =============================================================================
+# Strategic merge patch applied on top of kube-loxilb base deployment.
+# Replaces the initContainer to use HTTP wait instead of DNS lookup,
+# because in external mode the loxilb API is at a known URL (not discovered
+# via in-cluster DNS).
+#
+# Args (--loxiURL, --cidrPools, etc.) are patched by ApplicationSet.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-loxilb
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-loxilb
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for external loxilb API to be ready..."
+              echo "Target: ${LOXILB_URL}/netlox/v1/config/loadbalancer/all"
+              until wget -q -O- \
+                "${LOXILB_URL}/netlox/v1/config/loadbalancer/all" \
+                >/dev/null 2>&1; do
+                echo "Waiting for external loxilb API at ${LOXILB_URL}..."
+                sleep 2
+              done
+              echo "External loxilb API is ready"
+          env:
+            - name: LOXILB_URL
+              value: "http://192.168.121.40:11111"

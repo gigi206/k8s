@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - LoxiLB External Pod Ingress
+# =============================================================================
+# Calico equivalent of cilium-ingress/cilium-ingress-policy.yaml
+#
+# Allow pod ingress from external LoxiLB (DNAT'd LoadBalancer traffic).
+# When default-deny-pod-ingress is active, this policy allows LoxiLB's
+# DNAT'd traffic to reach pods across all namespaces.
+#
+# The LoxiLB IP placeholder is patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: loxilb-allow-external-ingress
+spec:
+  order: 400
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      source:
+        nets:
+          - "PLACEHOLDER_IP/32"

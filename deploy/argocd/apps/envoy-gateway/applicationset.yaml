@@ -237,6 +237,25 @@ spec:
                         {{- end }}
                   {{- end }}
               - target:
+                  kind: EnvoyProxy
+                  name: envoy-proxy-config
+                patch: |
+                  {{- if eq .features.loadBalancer.provider "metallb" }}
+                  - op: add
+                    path: /spec/provider/kubernetes/envoyService/annotations
+                    value:
+                      metallb.io/address-pool: gateway
+                  {{- else if eq .features.loadBalancer.provider "loxilb" }}
+                  - op: add
+                    path: /spec/provider/kubernetes/envoyService/loadBalancerClass
+                    value: 'loxilb.io/loxilb'
+                  - op: add
+                    path: /spec/provider/kubernetes/envoyService/annotations
+                    value:
+                      loxilb.io/lbmode: "onearm"
+                      loxilb.io/usepodnetwork: "yes"
+                  {{- end }}
+              - target:
                   kind: Certificate
                   name: wildcard-k8s-local
                 patch: |

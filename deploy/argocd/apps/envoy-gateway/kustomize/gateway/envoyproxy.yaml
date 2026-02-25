@@ -1,14 +1,23 @@
 ---
-# EnvoyProxy configuration for MetalLB integration
+# =============================================================================
+# EnvoyProxy - Service configuration for LoadBalancer
+# =============================================================================
+# Configures how Envoy Gateway creates the proxy Service (LoadBalancer).
+# Annotations and loadBalancerClass are patched via ApplicationSet based
+# on the active LoadBalancer provider (metallb, loxilb, cilium, etc.).
+# =============================================================================
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
   name: envoy-proxy-config
   namespace: envoy-gateway-system
 spec:
+  logging:
+    level:
+      default: warn
   provider:
     type: Kubernetes
     kubernetes:
       envoyService:
-        annotations:
-          metallb.io/address-pool: gateway
+        type: LoadBalancer
+        externalTrafficPolicy: Local

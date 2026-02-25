@@ -1,0 +1,37 @@
+---
+# =============================================================================
+# CiliumBGPClusterConfig - LoxiLB External BGP Peering
+# =============================================================================
+# Cilium v1.19+ BGP Control Plane configuration.
+# Replaces the deprecated CiliumBGPPeeringPolicy (v2alpha1).
+#
+# Defines a BGP instance on each node with a peer pointing to the external
+# LoxiLB container. The peer references a CiliumBGPPeerConfig for settings.
+# Route advertisement is handled by a separate CiliumBGPAdvertisement resource.
+#
+# NOTE: No localPort is set. By default, Cilium BGP CP does NOT listen for
+# incoming connections -- it only initiates outbound connections to peers.
+# This avoids the "bind: permission denied" error on privileged port 179
+# and is the recommended approach (Cilium connects to loxilb:179, not the
+# reverse).
+#
+# Placeholders are patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumBGPClusterConfig
+metadata:
+  name: loxilb-external-bgp
+spec:
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/os: linux
+  bgpInstances:
+    - name: "loxilb-peering"
+      localASN: 64512
+      peers:
+        - name: "loxilb-external"
+          peerASN: 65002
+          peerAddress: "PLACEHOLDER_PEER_ADDRESS"
+          peerConfigRef:
+            name: "loxilb-external-peer"

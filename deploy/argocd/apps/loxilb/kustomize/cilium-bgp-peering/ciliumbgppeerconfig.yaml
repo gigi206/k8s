@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# CiliumBGPPeerConfig - LoxiLB External Peer Settings
+# =============================================================================
+# Common peer configuration for the eBGP session with LoxiLB.
+# Referenced by CiliumBGPClusterConfig peers via peerConfigRef.
+#
+# - families: IPv4 unicast with PodCIDR advertisement
+# - timers: default BGP timers (hold=90s, keepalive=30s)
+# - gracefulRestart: enabled for session stability
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
+metadata:
+  name: loxilb-external-peer
+spec:
+  timers:
+    holdTimeSeconds: 90
+    keepAliveTimeSeconds: 30
+  gracefulRestart:
+    enabled: true
+    restartTimeSeconds: 120
+  families:
+    - afi: ipv4
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise: "loxilb-bgp"

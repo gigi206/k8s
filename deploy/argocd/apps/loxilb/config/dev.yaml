@@ -19,6 +19,23 @@ loxilb:
   # avoiding the macvlan isolation issue with the host's eth1 interface.
   setLBMode: 1
 
+  # Deployment mode: "internal" (in-cluster DaemonSet) or "external" (standalone Docker container)
+  # - internal: loxilb runs as DaemonSet inside the cluster (requires Multus with Cilium)
+  # - external: loxilb runs outside the cluster, kube-loxilb connects via loxiURL
+  mode: "external"
+
+  # External mode: URL of the external loxilb Docker container API
+  # kube-loxilb connects to this URL instead of discovering loxilb pods in-cluster.
+  # The loxilb container runs with --net=host inside a dedicated Vagrant VM.
+  # Use the LoxiLB VM's eth1 IP ($network_prefix.40).
+  loxiURL: "http://192.168.121.40:11111"
+
+  # BGP peering: Cilium advertise PodCIDR routes vers loxilb externe
+  bgp:
+    enabled: true
+    localASN: 65002
+    extBGPPeers: "192.168.121.50:64512"  # master_ip:cilium_asn
+
 syncPolicy:
   automated:
     enabled: true

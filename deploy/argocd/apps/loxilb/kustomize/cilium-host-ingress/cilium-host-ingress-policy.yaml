@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# CiliumClusterwideNetworkPolicy - LoxiLB BGP Host Ingress
+# =============================================================================
+# Allow BGP traffic (TCP port 179) from the external LoxiLB container to
+# cluster nodes. Required for the eBGP session between LoxiLB and Cilium.
+#
+# This complements the default-deny-host-ingress policy in the cilium app.
+# Pattern identical to envoy-gateway/resources/cilium-host-ingress-policy.yaml
+#
+# The LoxiLB IP placeholder is patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: loxilb-bgp-host-ingress
+spec:
+  description: "Allow BGP (TCP 179) from external LoxiLB to cluster nodes"
+
+  nodeSelector:
+    matchLabels: {}
+
+  ingress:
+    - fromCIDR:
+        - "PLACEHOLDER_IP/32"
+      toPorts:
+        - ports:
+            - port: "179"
+              protocol: TCP
