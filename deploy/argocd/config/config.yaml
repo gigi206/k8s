@@ -88,10 +88,13 @@ features:
     # BGP configuration (used when mode == "bgp")
     bgp:
       localASN: 64512 # Local AS number for the cluster
+      provider: "frr" # BGP upstream router provider: frr | bird | gobgp | none
       peers:
-        - address: "192.168.121.1" # BGP peer IP (router)
-          asn: 64512 # Peer AS number (iBGP if same as localASN)
+        - address: "192.168.121.45" # FRR VM1 IP (eth1)
+          asn: 65000 # FRR ASN (eBGP with loxilb and Cilium)
           # port: 179              # Optional: BGP port (default: 179)
+        - address: "192.168.121.46" # FRR VM2 IP (eth1)
+          asn: 65000
     pools:
       default:
         # Dynamic pool for auto-assigned LoadBalancer IPs (excludes static IPs)
@@ -296,16 +299,6 @@ features:
 # =============================================================================
 cluster:
   distribution: "rke2"  # rke2 | k3d | k3s | kubeadm
-# =============================================================================
-# FRR BGP Upstream Router Configuration
-# =============================================================================
-# Used when features.loadBalancer.mode: bgp to simulate physical BGP routers.
-# FRR runs on a dedicated Vagrant VM and peers with both loxilb and Cilium.
-# Topology: loxilb (65002) <-eBGP-> FRR (65000) <-eBGP-> Cilium (64512)
-# =============================================================================
-frr:
-  asn: 65000              # FRR router ASN (eBGP with loxilb and Cilium)
-  ip: "192.168.121.45"    # IP eth1 of the FRR Vagrant VM
 cni:
   primary: "cilium" # cilium | calico (eBPF-based, kube-proxy replacement)
   multus:

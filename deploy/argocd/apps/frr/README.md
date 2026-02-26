@@ -30,7 +30,7 @@ loxilb (65002) <-eBGP-> Cilium (64512)  +  GARP depuis loxilb
 │  Hote Vagrant (Linux)   192.168.121.0/24 (libvirt bridge virbr1)        │
 │                                                                         │
 │  ┌──────────────────────────────────────────┐                           │
-│  │  VM k8s-dev-frr                          │                           │
+│  │  VM k8s-dev-frr1                          │                           │
 │  │  eth0: 192.168.121.5/...  (Vagrant mgmt) │                           │
 │  │  eth1: 192.168.121.45/24  (FRR BGP WAN)  │                           │
 │  │                                          │                           │
@@ -95,7 +95,7 @@ loxilb:
 | VIP annonce | GARP (L2 ARP) | BGP /32 routes |
 | Cilium peer | loxilb direct | FRR router |
 | Politique BGP host-ingress | `loxilb-bgp-host-ingress` | `frr-bgp-host-ingress` |
-| VM Vagrant supplémentaire | Non | Oui (k8s-dev-frr) |
+| VM Vagrant supplémentaire | Non | Oui (k8s-dev-frr1) |
 | `--extBGPPeers` kube-loxilb | `master_ip:cilium_asn` | `frr_ip:frr_asn` |
 
 ### ApplicationSet
@@ -145,12 +145,12 @@ make vagrant-dev-destroy && make dev-full
 
 ```bash
 # 1. Sessions BGP sur FRR
-vagrant ssh k8s-dev-frr -- sudo vtysh -c "show bgp summary"
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show bgp summary"
 # Attendu: 2 neighbors "Established"
 #   192.168.121.40 (loxilb) + 192.168.121.50 (Cilium master)
 
 # 2. Routes apprises par FRR
-vagrant ssh k8s-dev-frr -- sudo vtysh -c "show bgp ipv4 unicast"
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show bgp ipv4 unicast"
 # VIPs /32 via .40 (de loxilb) + PodCIDR 10.42.0.0/24 via .50 (de Cilium)
 
 # 3. loxilb apprend PodCIDR via FRR
@@ -174,10 +174,10 @@ curl -sk https://argocd.k8s.lan | head -1  # HTTP 200
 
 ```bash
 # Vérifier que FRR est en cours d'exécution
-vagrant ssh k8s-dev-frr -- systemctl status frr
+vagrant ssh k8s-dev-frr1 -- systemctl status frr
 
 # Vérifier la config FRR
-vagrant ssh k8s-dev-frr -- sudo vtysh -c "show running-config"
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show running-config"
 
 # Vérifier la connectivité TCP 179 depuis loxilb vers FRR
 vagrant ssh k8s-dev-loxilb -- nc -zv 192.168.121.45 179
@@ -190,10 +190,10 @@ kubectl get ciliumclusterwidenetworkpolicy frr-bgp-host-ingress -o yaml
 
 ```bash
 # Vérifier sysctl sur la VM FRR
-vagrant ssh k8s-dev-frr -- sysctl net.ipv4.conf.eth1.proxy_arp
+vagrant ssh k8s-dev-frr1 -- sysctl net.ipv4.conf.eth1.proxy_arp
 # Attendu: 1
 
-vagrant ssh k8s-dev-frr -- sysctl net.ipv4.ip_forward
+vagrant ssh k8s-dev-frr1 -- sysctl net.ipv4.ip_forward
 # Attendu: 1
 ```
 

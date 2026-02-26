@@ -96,8 +96,11 @@ spec:
                   name: frr-bgp-host-ingress
                 patch: |
                   - op: replace
-                    path: /spec/ingress/0/fromCIDR/0
-                    value: '{{ .frr.ip }}/32'
+                    path: /spec/ingress/0/fromCIDR
+                    value:
+                    {{- range .features.loadBalancer.bgp.peers }}
+                      - '{{ .address }}/32'
+                    {{- end }}
         {{- else if eq .cni.primary "calico" }}
         # Source: Calico host ingress policy (allow BGP port 179 from FRR to nodes)
         - repoURL: https://github.com/gigi206/k8s
@@ -110,6 +113,9 @@ spec:
                   name: frr-bgp-host-ingress
                 patch: |
                   - op: replace
-                    path: /spec/ingress/0/source/nets/0
-                    value: '{{ .frr.ip }}/32'
+                    path: /spec/ingress/0/source/nets
+                    value:
+                    {{- range .features.loadBalancer.bgp.peers }}
+                      - '{{ .address }}/32'
+                    {{- end }}
         {{- end }}

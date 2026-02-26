@@ -170,11 +170,14 @@ if [ "$CONTAINER_RUNTIME_ENABLED" = "true" ] && [ "$CONTAINER_RUNTIME_PROVIDER" 
 fi
 
 # Determine BGP Control Plane setting
-# Enabled when LoxiLB external mode uses BGP for PodCIDR route advertisement
+# Enabled when:
+#   - LoxiLB external mode uses BGP for PodCIDR route advertisement
+#   - OR any LB provider uses bgp mode (features.loadBalancer.mode=bgp)
+# install_master.sh sets LOXILB_BGP_ENABLED=true in both cases
 LOXILB_BGP_ENABLED="${LOXILB_BGP_ENABLED:-false}"
 if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
   BGP_CONTROL_PLANE_ENABLED="true"
-  echo "Cilium BGP Control Plane: ENABLED (LoxiLB external BGP peering)"
+  echo "Cilium BGP Control Plane: ENABLED (BGP mode active)"
 else
   BGP_CONTROL_PLANE_ENABLED="false"
 fi

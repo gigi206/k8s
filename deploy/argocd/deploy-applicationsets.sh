@@ -827,8 +827,17 @@ APPLICATIONSETS=()
 # klipper: ServiceLB (RKE2/K3s built-in), uses node IPs - no ApplicationSet needed
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "metallb" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]] && APPLICATIONSETS+=("apps/loxilb/applicationset.yaml")
-# frr: FRR BGP upstream router VM (for pure BGP mode - no GARP, VIPs via BGP)
-[[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]] && [[ "$FEAT_LB_MODE" == "bgp" ]] && APPLICATIONSETS+=("apps/frr/applicationset.yaml")
+# frr: FRR BGP upstream router VM network policies (for pure BGP mode - any provider except klipper)
+# klipper is incompatible with BGP (uses node IPs directly, no VIP allocation)
+if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_MODE" == "bgp" ]]; then
+  if [[ "$FEAT_LB_PROVIDER" == "klipper" ]]; then
+    log_error "loadBalancer.provider=klipper is incompatible with loadBalancer.mode=bgp"
+    log_error "  klipper (ServiceLB) uses node IPs directly, BGP VIP allocation is not supported"
+    log_error "  Use mode=l2 with klipper, or switch to a BGP-capable provider (metallb, cilium, loxilb)"
+    exit 1
+  fi
+  APPLICATIONSETS+=("apps/frr/applicationset.yaml")
+fi
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "kube-vip" ]] && APPLICATIONSETS+=("apps/kube-vip-cloud-provider/applicationset.yaml")
 # kube-vip provider requires kubeVip.enabled=true (kube-vip announces VIPs via ARP)
 if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "kube-vip" ]] && [[ "$FEAT_KUBEVIP" != "true" ]]; then

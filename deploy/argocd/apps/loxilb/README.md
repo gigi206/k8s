@@ -242,7 +242,7 @@ En environnement Vagrant avec RKE2, le mode external déploie LoxiLB sur une **V
 │  Hote Vagrant (Linux)   192.168.121.0/24 (libvirt bridge virbr1)        │
 │                                                                         │
 │  ┌──────────────────────────────────────────┐                           │
-│  │  VM k8s-dev-loxilb                       │                           │
+│  │  VM k8s-dev-loxilb1                       │                           │
 │  │  eth0: 192.168.121.5/32  (Vagrant mgmt)  │                           │
 │  │  eth1: 192.168.121.40/24 (LoxiLB WAN)    │                           │
 │  │                                          │                           │
@@ -284,7 +284,7 @@ Client (hote) → VIP 192.168.121.210 (eth1 loxilb VM) → loxilb eBPF DNAT
 
 ### Provisioning automatique
 
-Le Vagrantfile crée la VM `k8s-dev-loxilb` et appelle `provision-loxilb-external.sh` automatiquement quand `LB_PROVIDER=loxilb` et `loxilb.mode: "external"` dans `config/dev.yaml`.
+Le Vagrantfile crée la VM `k8s-dev-loxilb1` et appelle `provision-loxilb-external.sh` automatiquement quand `LB_PROVIDER=loxilb` et `loxilb.mode: "external"` dans `config/dev.yaml`.
 
 Le script installe Docker, applique les fixes réseau (voir ci-dessous) et démarre le container loxilb.
 
@@ -403,7 +403,7 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
                                    │
                                    ▼
 ┌──────────────────────┐                          ┌──────────────────────┐
-│   k8s-dev-loxilb     │    eBGP TCP/179          │    k8s-dev-m1        │
+│   k8s-dev-loxilb1     │    eBGP TCP/179          │    k8s-dev-m1        │
 │   192.168.121.40     │◄────────────────────────►│    192.168.121.50    │
 │                      │  ASN 65002 ↔ ASN 64512   │                      │
 │   loxilb             │                          │   Cilium (ASN 64512) │
@@ -435,7 +435,7 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
                                            │
                                            ▼
 ┌──────────────────────┐  eBGP TCP/179  ┌──────────────────────┐  eBGP TCP/179  ┌──────────────────────┐
-│   k8s-dev-loxilb     │                │    k8s-dev-frr       │                │    k8s-dev-m1        │
+│   k8s-dev-loxilb1     │                │    k8s-dev-frr1       │                │    k8s-dev-m1        │
 │   192.168.121.40     │◄──────────────►│    192.168.121.45    │◄──────────────►│    192.168.121.50    │
 │                      │  ASN 65002     │                      │  ASN 65000     │                      │
 │   loxilb             │      ↕         │   FRR (ASN 65000)    │      ↕         │   Cilium (ASN 64512) │
@@ -461,7 +461,7 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
 | Aspect              | Mode `l2`                      | Mode `bgp`                          |
 | ------------------- | ------------------------------ | ----------------------------------- |
 | **Annonce VIPs**    | GARP/ARP (L2)                  | BGP /32 routes (L3)                 |
-| **VM FRR requise**  | Non                            | Oui (`k8s-dev-frr`, ASN 65000)      |
+| **VM FRR requise**  | Non                            | Oui (`k8s-dev-frr1`, ASN 65000)      |
 | **Peering loxilb**  | Direct vers Cilium (.50:64512) | Vers FRR uniquement (.45:65000)     |
 | **Peering Cilium**  | Vers loxilb (.40:65002)        | Vers FRR (.45:65000)                |
 | **proxy-ARP**       | Non (GARP suffit)              | Oui — eth1 FRR repond pour les VIPs |
@@ -492,12 +492,12 @@ ArgoCD deploie automatiquement (via ApplicationSet) :
 
 ```bash
 # Session BGP etablie (peer = Cilium master .50)
-vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp neighbor
+vagrant ssh k8s-dev-loxilb1 -- docker exec loxilb-external gobgp neighbor
 # Peer           AS      Up/Down  State       |#Received  Accepted
 # 192.168.121.50 64512  00:27:34 Established |        1         1
 
 # Routes PodCIDR apprises par loxilb
-vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp global rib
+vagrant ssh k8s-dev-loxilb1 -- docker exec loxilb-external gobgp global rib
 # Network         Next Hop        AS_PATH  Age        Attrs
 # 10.42.0.0/24   192.168.121.50  64512   00:27:34   [{Origin: i}]
 
@@ -512,24 +512,24 @@ dig @192.168.121.201 google.com
 
 ```bash
 # 1. Verifier la session BGP loxilb ↔ FRR (peer = FRR .45)
-vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp neighbor
+vagrant ssh k8s-dev-loxilb1 -- docker exec loxilb-external gobgp neighbor
 # Peer           AS      Up/Down  State       |#Received  Accepted
 # 192.168.121.45 65000  00:15:12 Established |        1         1
 
 # Routes VIPs annoncees par loxilb vers FRR
-vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp global rib
+vagrant ssh k8s-dev-loxilb1 -- docker exec loxilb-external gobgp global rib
 # Network            Next Hop  AS_PATH  Age        Attrs
 # 192.168.121.210/32 0.0.0.0  65002   00:15:12   [{Origin: i}]
 # 192.168.121.201/32 0.0.0.0  65002   00:15:12   [{Origin: i}]
 
 # 2. Verifier la table BGP FRR (sessions des deux cotes)
-vagrant ssh k8s-dev-frr -- sudo vtysh -c "show bgp summary"
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show bgp summary"
 # Neighbor        V  AS      MsgRcvd  MsgSent  TblVer  InQ  OutQ  Up/Down  State/PfxRcd
 # 192.168.121.40  4  65002   ...      ...      ...     0    0     ...      2
 # 192.168.121.50  4  64512   ...      ...      ...     0    0     ...      1
 
 # Routes dans la RIB FRR
-vagrant ssh k8s-dev-frr -- sudo vtysh -c "show ip route bgp"
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show ip route bgp"
 # B>* 10.42.0.0/24       [20/0] via 192.168.121.50, eth1
 # B>* 192.168.121.210/32 [20/0] via 192.168.121.40, eth1
 # B>* 192.168.121.201/32 [20/0] via 192.168.121.40, eth1
@@ -538,7 +538,7 @@ vagrant ssh k8s-dev-frr -- sudo vtysh -c "show ip route bgp"
 kubectl get ciliumbgppeeringpolicy loxilb-external-bgp -o yaml
 
 # 4. Verifier le proxy-ARP sur FRR (eth1 doit repondre pour les VIPs)
-vagrant ssh k8s-dev-frr -- cat /proc/sys/net/ipv4/conf/eth1/proxy_arp
+vagrant ssh k8s-dev-frr1 -- cat /proc/sys/net/ipv4/conf/eth1/proxy_arp
 # Attendu: 1
 
 # Test end-to-end
@@ -925,7 +925,7 @@ ip neigh show 192.168.121.210   # HTTPS VIP
 
 # Les deux doivent pointer vers la meme MAC (eth1 de la VM loxilb)
 # Obtenir la MAC de eth1 depuis la VM
-vagrant ssh k8s-dev-loxilb -- ip link show eth1 | grep ether
+vagrant ssh k8s-dev-loxilb1 -- ip link show eth1 | grep ether
 
 # Si une VIP pointe vers eth0 MAC → probleme IfaSelectAny() loxilb
 # (voir section "Probleme dual-interface ARP/GARP")
@@ -935,25 +935,25 @@ vagrant ssh k8s-dev-loxilb -- ip link show eth1 | grep ether
 
 ```bash
 # Verifier que eth0 est en /32 (pas /24)
-vagrant ssh k8s-dev-loxilb -- ip addr show eth0
+vagrant ssh k8s-dev-loxilb1 -- ip addr show eth0
 # Attendu: inet 192.168.121.5/32 brd 192.168.121.5 scope global eth0
 
 # Verifier le service systemd
-vagrant ssh k8s-dev-loxilb -- systemctl status loxilb-eth0-fix.service
+vagrant ssh k8s-dev-loxilb1 -- systemctl status loxilb-eth0-fix.service
 
 # Verifier arp_ignore
-vagrant ssh k8s-dev-loxilb -- sysctl net.ipv4.conf.eth0.arp_ignore
+vagrant ssh k8s-dev-loxilb1 -- sysctl net.ipv4.conf.eth0.arp_ignore
 # Attendu: net.ipv4.conf.eth0.arp_ignore = 1
 
 # Verifier --whitelist dans les args du container
-vagrant ssh k8s-dev-loxilb -- docker inspect loxilb-external | grep -A5 Cmd
+vagrant ssh k8s-dev-loxilb1 -- docker inspect loxilb-external | grep -A5 Cmd
 ```
 
 #### Forcer un nouveau GARP apres correction
 
 ```bash
 # Redemarrer loxilb pour qu'il re-envoie les GARPs avec la bonne MAC
-vagrant ssh k8s-dev-loxilb -- docker restart loxilb-external
+vagrant ssh k8s-dev-loxilb1 -- docker restart loxilb-external
 
 # Attendre ~10s puis verifier l'ARP cache
 sleep 10
@@ -967,21 +967,21 @@ ip neigh show 192.168.121.210
 kubectl exec -n kube-system deploy/kube-loxilb -- loxicmd get lb -o wide
 
 # Si COUNTERS=0:0, verifier que le trafic arrive bien sur eth1 (pas eth0)
-vagrant ssh k8s-dev-loxilb -- tcpdump -i eth1 -n 'port 443' -c 10 &
+vagrant ssh k8s-dev-loxilb1 -- tcpdump -i eth1 -n 'port 443' -c 10 &
 curl -sk https://argocd.k8s.lan > /dev/null
 
 # Si rien sur eth1 mais trafic sur eth0 → ARP pointe vers eth0 MAC
-vagrant ssh k8s-dev-loxilb -- tcpdump -i eth0 -n 'port 443' -c 5
+vagrant ssh k8s-dev-loxilb1 -- tcpdump -i eth0 -n 'port 443' -c 5
 ```
 
 #### Logs utiles loxilb
 
 ```bash
 # Erreur "subnet-route add error" = eth0 a ajoute /24 avant eth1
-vagrant ssh k8s-dev-loxilb -- docker logs loxilb-external 2>&1 | grep -E "subnet-route|eth0|eth1|IfaSelect"
+vagrant ssh k8s-dev-loxilb1 -- docker logs loxilb-external 2>&1 | grep -E "subnet-route|eth0|eth1|IfaSelect"
 
 # GARP envoye avec quelle interface
-vagrant ssh k8s-dev-loxilb -- docker logs loxilb-external 2>&1 | grep -i "garp\|adv"
+vagrant ssh k8s-dev-loxilb1 -- docker logs loxilb-external 2>&1 | grep -i "garp\|adv"
 ```
 
 ### Port 443 absent apres demarrage (bug kube-loxilb multi-port)
@@ -1020,7 +1020,7 @@ kubectl exec -n kube-system deploy/kube-loxilb -- loxicmd get lb -o wide
 
 ```bash
 # Verifier l'etat de la session BGP
-vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp neighbor
+vagrant ssh k8s-dev-loxilb1 -- docker exec loxilb-external gobgp neighbor
 # Si "Active" au lieu de "Established" → TCP 179 bloque
 
 # Verifier que Cilium ecoute sur 179
@@ -1033,7 +1033,7 @@ kubectl get ciliumbgppeeringpolicy -o yaml
 kubectl get ciliumclusterwidenetworkpolicy loxilb-bgp-host-ingress -o yaml
 
 # Tester la connectivite TCP 179 depuis la VM loxilb vers le master
-vagrant ssh k8s-dev-loxilb -- nc -zv 192.168.121.50 179
+vagrant ssh k8s-dev-loxilb1 -- nc -zv 192.168.121.50 179
 ```
 
 ### Mode External (k3d) - Problemes courants
@@ -1145,6 +1145,59 @@ Vérifiez que le ClusterRole est à jour avec les permissions `namespaces`, `sec
 # Accéder à l'API loxilb (depuis un nœud control-plane)
 curl http://localhost:11111/netlox/v1/config/loadbalancer/all
 ```
+
+## Mode External multi-serveurs (HA)
+
+En mode externe, il est possible de configurer plusieurs instances loxilb pour la haute disponibilité. kube-loxilb supporte nativement plusieurs URLs via `--loxiURL=url1,url2,...`.
+
+### Configuration 2 instances
+
+Le Vagrantfile dérive automatiquement le nombre de VMs depuis la liste `loxilb.loxiURL`. Il suffit de modifier **un seul fichier** :
+
+**`deploy/argocd/apps/loxilb/config/dev.yaml`**
+
+```yaml
+loxilb:
+  mode: "external"
+  loxiURL:
+    - "http://192.168.121.40:11111"   # 1re instance (VM k8s-dev-loxilb1)
+    - "http://192.168.121.41:11111"   # 2e instance (VM k8s-dev-loxilb2)
+  setLBMode: 1
+  bgp:
+    enabled: true
+    localASN: 65002
+    extBGPPeers: "192.168.121.50:64512"
+```
+
+**Lancer `vagrant up`**
+
+```bash
+LB_PROVIDER=loxilb make vagrant-dev-up
+# Crée automatiquement : k8s-dev-loxilb1 (192.168.121.40) et k8s-dev-loxilb2 (192.168.121.41)
+```
+
+### Attribution des IPs
+
+| Instance | VM Vagrant         | IP eth1             |
+| -------- | ------------------ | ------------------- |
+| 1        | `k8s-dev-loxilb1`   | `192.168.121.40`    |
+| 2        | `k8s-dev-loxilb2`  | `192.168.121.41`    |
+| 3        | `k8s-dev-loxilb3`  | `192.168.121.42`    |
+
+### Effet sur les manifests générés
+
+- **`--loxiURL`** : toutes les URLs jointes par virgule → `--loxiURL=http://...40:11111,http://...41:11111`
+- **initContainer** `LOXILB_URL` : seule la 1re URL (health-check au démarrage)
+- **Egress policies** (Cilium/Calico) : `toCIDR`/`nets` remplace le tableau complet avec N CIDRs `/32`
+- **Ingress policies** (pod + host BGP) : idem, `fromCIDR`/`nets` avec N entrées
+- **BGP direct peers** (Cilium, mode non-bgp) : génère N peers `loxilb-direct-0`, `loxilb-direct-1`, ...
+- **BGP peer Calico** : seule la 1re IP (limitation Calico : un seul `BGPPeer` par ressource)
+
+### Comportement à 1 instance
+
+Avec `$loxilb_count = 1` et une seule URL, le comportement est **identique à l'ancien scalaire**.
+
+---
 
 ## Références
 

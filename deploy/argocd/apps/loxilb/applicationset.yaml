@@ -95,11 +95,11 @@ spec:
                 patch: |
                   - op: replace
                     path: /spec/template/spec/initContainers/0/env/0/value
-                    value: '{{ .loxilb.loxiURL }}'
+                    value: '{{ index .loxilb.loxiURL 0 }}'
                   - op: replace
                     path: /spec/template/spec/containers/0/args
                     value:
-                      - --loxiURL={{ .loxilb.loxiURL }}
+                      - --loxiURL={{ join "," .loxilb.loxiURL }}
                       - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
                       - --setRoles=0.0.0.0
                       - --setLBMode={{ .loxilb.setLBMode }}
@@ -107,7 +107,7 @@ spec:
               {{- if .loxilb.bgp.enabled }}
                       - --setBGP={{ .loxilb.bgp.localASN }}
                       {{- if eq .features.loadBalancer.mode "bgp" }}
-                      - --extBGPPeers={{ .frr.ip }}:{{ .frr.asn }}
+                      - --extBGPPeers={{ range $i, $p := .features.loadBalancer.bgp.peers }}{{ if $i }},{{ end }}{{ $p.address }}:{{ $p.asn }}{{ end }}
                       {{- else }}
                       - --extBGPPeers={{ .loxilb.bgp.extBGPPeers }}
                       {{- end }}
@@ -125,11 +125,14 @@ spec:
                   name: loxilb-allow-external-egress
                 patch: |
                   - op: replace
-                    path: /spec/egress/0/toCIDR/0
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                    path: /spec/egress/0/toCIDR
+                    value:
+                    {{- range .loxilb.loxiURL }}
+                      - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
+                    {{- end }}
                   - op: replace
                     path: /spec/egress/0/toPorts/0/ports/0/port
-                    value: '{{ regexReplaceAll ".*:([0-9]+)$" .loxilb.loxiURL "$1" }}'
+                    value: '{{ regexReplaceAll ".*:([0-9]+)$" (index .loxilb.loxiURL 0) "$1" }}'
           {{- else if eq .cni.primary "calico" }}
         # Source: Calico egress policy (external loxilb API access)
         - repoURL: https://github.com/gigi206/k8s
@@ -142,11 +145,14 @@ spec:
                   name: loxilb-allow-external-egress
                 patch: |
                   - op: replace
-                    path: /spec/egress/0/destination/nets/0
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                    path: /spec/egress/0/destination/nets
+                    value:
+                    {{- range .loxilb.loxiURL }}
+                      - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
+                    {{- end }}
                   - op: replace
                     path: /spec/egress/0/destination/ports/0
-                    value: {{ regexReplaceAll ".*:([0-9]+)$" .loxilb.loxiURL "$1" }}
+                    value: {{ regexReplaceAll ".*:([0-9]+)$" (index .loxilb.loxiURL 0) "$1" }}
           {{- end }}
         {{- end }}
         {{- if .loxilb.bgp.enabled }}
@@ -166,11 +172,25 @@ spec:
                     path: /spec/bgpInstances/0/localASN
                     value: {{ .features.loadBalancer.bgp.localASN }}
                   - op: replace
-                    path: /spec/bgpInstances/0/peers/0/peerASN
-                    value: {{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.asn }}{{ else }}{{ .loxilb.bgp.localASN }}{{ end }}
-                  - op: replace
-                    path: /spec/bgpInstances/0/peers/0/peerAddress
-                    value: '{{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.ip }}{{ else }}{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}{{ end }}'
+                    path: /spec/bgpInstances/0/peers
+                    value:
+                    {{- if eq .features.loadBalancer.mode "bgp" }}
+                    {{- range .features.loadBalancer.bgp.peers }}
+                      - name: "peer-{{ .address }}"
+                        peerASN: {{ .asn }}
+                        peerAddress: '{{ .address }}'
+                        peerConfigRef:
+                          name: "loxilb-external-peer"
+                    {{- end }}
+                    {{- else }}
+                    {{- range $i, $url := .loxilb.loxiURL }}
+                      - name: "loxilb-direct-{{ $i }}"
+                        peerASN: {{ $.loxilb.bgp.localASN }}
+                        peerAddress: '{{ regexReplaceAll "https?://([0-9.]+):.*" $url "$1" }}'
+                        peerConfigRef:
+                          name: "loxilb-external-peer"
+                    {{- end }}
+                    {{- end }}
           {{- else if eq .cni.primary "calico" }}
         # Source: Calico BGP peering (PodCIDR advertisement via BGP)
         # In bgp mode: peer with FRR router instead of loxilb directly
@@ -187,10 +207,10 @@ spec:
                 patch: |
                   - op: replace
                     path: /spec/peerIP
-                    value: '{{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.ip }}{{ else }}{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}{{ end }}'
+                    value: '{{ if eq .features.loadBalancer.mode "bgp" }}{{ (index .features.loadBalancer.bgp.peers 0).address }}{{ else }}{{ regexReplaceAll "https?://([0-9.]+):.*" (index .loxilb.loxiURL 0) "$1" }}{{ end }}'
                   - op: replace
                     path: /spec/asNumber
-                    value: {{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.asn }}{{ else }}{{ .loxilb.bgp.localASN }}{{ end }}
+                    value: {{ if eq .features.loadBalancer.mode "bgp" }}{{ (index .features.loadBalancer.bgp.peers 0).asn }}{{ else }}{{ .loxilb.bgp.localASN }}{{ end }}
           {{- end }}
         {{- end }}
         {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
@@ -206,8 +226,11 @@ spec:
                   name: loxilb-allow-external-ingress
                 patch: |
                   - op: replace
-                    path: /spec/ingress/0/fromCIDR/0
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                    path: /spec/ingress/0/fromCIDR
+                    value:
+                    {{- range .loxilb.loxiURL }}
+                      - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
+                    {{- end }}
           {{- else if eq .cni.primary "calico" }}
         # Source: Calico ingress policy (allow DNAT'd LB traffic from loxilb to pods)
         - repoURL: https://github.com/gigi206/k8s
@@ -220,8 +243,11 @@ spec:
                   name: loxilb-allow-external-ingress
                 patch: |
                   - op: replace
-                    path: /spec/ingress/0/source/nets/0
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                    path: /spec/ingress/0/source/nets
+                    value:
+                    {{- range .loxilb.loxiURL }}
+                      - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
+                    {{- end }}
           {{- end }}
         {{- end }}
         {{- if and .loxilb.bgp.enabled .features.networkPolicy.ingressPolicy.enabled (ne .features.loadBalancer.mode "bgp") }}
@@ -238,8 +264,11 @@ spec:
                   name: loxilb-bgp-host-ingress
                 patch: |
                   - op: replace
-                    path: /spec/ingress/0/fromCIDR/0
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                    path: /spec/ingress/0/fromCIDR
+                    value:
+                    {{- range .loxilb.loxiURL }}
+                      - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
+                    {{- end }}
           {{- else if eq .cni.primary "calico" }}
         # Source: Calico host ingress policy (allow BGP port 179 from loxilb to nodes)
         - repoURL: https://github.com/gigi206/k8s
@@ -252,8 +281,11 @@ spec:
                   name: loxilb-bgp-host-ingress
                 patch: |
                   - op: replace
-                    path: /spec/ingress/0/source/nets/0
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
+                    path: /spec/ingress/0/source/nets
+                    value:
+                    {{- range .loxilb.loxiURL }}
+                      - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
+                    {{- end }}
           {{- end }}
         {{- end }}
         {{- else }}

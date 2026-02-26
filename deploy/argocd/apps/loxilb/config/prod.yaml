@@ -17,6 +17,10 @@ loxilb:
   # Deployment mode: "internal" (in-cluster DaemonSet) or "external" (standalone Docker container)
   mode: "internal"
 
+  # External mode only: list of loxilb API URLs (not used in internal mode)
+  # loxiURL:
+  #   - "http://<loxilb-ip>:11111"
+
   bgp:
     enabled: false
     localASN: 0

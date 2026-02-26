@@ -64,49 +64,85 @@ Vagrant.configure("2") do |config|
     end
   end
 
-  # LoxiLB external mode: dedicated VM to avoid eBPF conflicts with Cilium
+  # LoxiLB external mode: dedicated VM(s) to avoid eBPF conflicts with Cilium
+  # Number of VMs derived from loxilb.loxiURL list in deploy/argocd/apps/loxilb/config/<env>.yaml.
+  # IPs: $network_prefix.40 (1st), .41 (2nd), .42 (3rd), ...
   if lb_provider == 'loxilb'
-    config.vm.define "k8s-#{$cluster_name}-loxilb" do |loxilb|
-      loxilb.vm.box = $vm_box
-      loxilb.vm.box_check_update = $box_check_update
-      loxilb.vm.hostname = "k8s-#{$cluster_name}-loxilb"
-      loxilb.vm.network "private_network", ip: "#{$network_prefix}.40"
+    require 'yaml'
+    loxilb_app_config = File.join(File.dirname(__FILE__), '..', 'deploy', 'argocd', 'apps', 'loxilb', 'config', "#{env}.yaml")
+    loxilb_count = 1
+    if File.exist?(loxilb_app_config)
+      cfg  = YAML.safe_load(File.read(loxilb_app_config))
+      urls = cfg.dig('loxilb', 'loxiURL')
+      loxilb_count = urls.is_a?(Array) ? urls.length : 1
+    end
 
-      loxilb.vm.provider "libvirt" do |domain|
-        domain.default_prefix = ""
-        domain.cpus = 2
-        domain.memory = 2048
-        domain.machine_virtual_size = 10
-        domain.keymap = $keymap
+    (1..loxilb_count).each do |i|
+      vm_ip   = "#{$network_prefix}.#{39 + i}"
+      vm_name = "k8s-#{$cluster_name}-loxilb#{i}"
+
+      config.vm.define vm_name do |loxilb|
+        loxilb.vm.box              = $vm_box
+        loxilb.vm.box_check_update = $box_check_update
+        loxilb.vm.hostname         = vm_name
+        loxilb.vm.network "private_network", ip: vm_ip
+
+        loxilb.vm.provider "libvirt" do |domain|
+          domain.default_prefix          = ""
+          domain.cpus                    = 2
+          domain.memory                  = 2048
+          domain.machine_virtual_size    = 10
+          domain.keymap                  = $keymap
+        end
+
+        loxilb.vm.provision "shell", path: "scripts/install_common.sh", args: ["loxilb"]
+        loxilb.vm.provision "shell",
+          path: "../deploy/argocd/apps/loxilb/vagrant/provision-loxilb-external.sh",
+          env: {"K8S_ENV" => env}
       end
-
-      loxilb.vm.provision "shell", path: "scripts/install_common.sh", args: ["loxilb"]
-      loxilb.vm.provision "shell", path: "../deploy/argocd/apps/loxilb/vagrant/provision-loxilb-external.sh", env: {"K8S_ENV" => env}
     end
   end
 
-  # FRR BGP router VM: upstream router for pure BGP mode (no GARP, VIPs via BGP)
-  # Created when lb_provider=loxilb and lb_mode=bgp to simulate physical BGP routers.
-  # Topology: loxilb (65002) <-eBGP-> FRR (65000) <-eBGP-> Cilium (64512)
-  if lb_provider == 'loxilb' && lb_mode == 'bgp'
-    config.vm.define "k8s-#{$cluster_name}-frr" do |frr|
-      frr.vm.box = $vm_box
-      frr.vm.box_check_update = $box_check_update
-      frr.vm.hostname = "k8s-#{$cluster_name}-frr"
-      frr.vm.network "private_network", ip: "#{$network_prefix}.45"
+  # FRR BGP router VM(s): upstream router for pure BGP mode (no GARP, VIPs via BGP)
+  # Created when lb_mode=bgp for any provider except klipper (klipper uses node IPs, no VIP BGP).
+  # Number of VMs and their IPs derived from features.loadBalancer.bgp.peers in
+  # deploy/argocd/config/config.yaml — the same list used by the FRR ApplicationSet.
+  # Topology depends on provider:
+  #   loxilb:  loxilb (65002) <-eBGP-> FRR (65000) <-eBGP-> Cilium (64512)
+  #   metallb: metallb-speaker (64512) <-eBGP-> FRR (65000)
+  #   cilium:  cilium bgpControlPlane (64512) <-eBGP-> FRR (65000)
+  if lb_mode == 'bgp' && lb_provider != 'klipper'
+    require 'yaml'
+    global_config = File.join(File.dirname(__FILE__), '..', 'deploy', 'argocd', 'config', 'config.yaml')
+    frr_peers = [{'address' => "#{$network_prefix}.45"}]  # fallback
+    if File.exist?(global_config)
+      cfg   = YAML.safe_load(File.read(global_config))
+      peers = cfg.dig('features', 'loadBalancer', 'bgp', 'peers')
+      frr_peers = peers if peers.is_a?(Array) && !peers.empty?
+    end
 
-      frr.vm.provider "libvirt" do |domain|
-        domain.default_prefix = ""
-        domain.cpus = 1
-        domain.memory = 512
-        domain.machine_virtual_size = 10
-        domain.keymap = $keymap
+    frr_peers.each_with_index do |peer, idx|
+      vm_name   = "k8s-#{$cluster_name}-frr#{idx + 1}"
+
+      config.vm.define vm_name do |frr|
+        frr.vm.box              = $vm_box
+        frr.vm.box_check_update = $box_check_update
+        frr.vm.hostname         = vm_name
+        frr.vm.network "private_network", ip: peer['address']
+
+        frr.vm.provider "libvirt" do |domain|
+          domain.default_prefix       = ""
+          domain.cpus                 = 1
+          domain.memory               = 512
+          domain.machine_virtual_size = 10
+          domain.keymap               = $keymap
+        end
+
+        frr.vm.provision "shell", path: "scripts/install_common.sh", args: ["frr"]
+        frr.vm.provision "shell",
+          path: "../deploy/argocd/apps/frr/vagrant/provision-frr.sh",
+          env: {"K8S_ENV" => env}
       end
-
-      frr.vm.provision "shell", path: "scripts/install_common.sh", args: ["frr"]
-      frr.vm.provision "shell",
-        path: "../deploy/argocd/apps/frr/vagrant/provision-frr.sh",
-        env: {"K8S_ENV" => env}
     end
   end
 
@@ -172,7 +208,7 @@ Vagrant.configure("2") do |config|
       end
 
       master.vm.provision "shell", path: "scripts/install_common.sh"
-      master.vm.provision "shell", path: "scripts/install_master.sh", env: {"CNI_PRIMARY" => cni_primary, "LB_PROVIDER" => lb_provider, "GATEWAY_API_PROVIDER" => gateway_api_provider}
+      master.vm.provision "shell", path: "scripts/install_master.sh", env: {"CNI_PRIMARY" => cni_primary, "LB_PROVIDER" => lb_provider, "LB_MODE" => lb_mode, "GATEWAY_API_PROVIDER" => gateway_api_provider}
 
       # Premier master: export kubeconfig et token
       if i == 1

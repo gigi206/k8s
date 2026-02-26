@@ -397,11 +397,19 @@ if [ "$CNI_PRIMARY" = "cilium" ]; then
   CONTAINER_RUNTIME_PROVIDER=$(yq_read '.features.containerRuntime.provider' "$ARGOCD_CONFIG_FILE")
   CONTAINER_RUNTIME_PROVIDER=${CONTAINER_RUNTIME_PROVIDER:-none}
   export CILIUM_ENCRYPTION_ENABLED CILIUM_ENCRYPTION_TYPE CILIUM_NODE_ENCRYPTION CILIUM_STRICT_MODE
-  # Read LoxiLB BGP setting from app config
+  # Read LoxiLB BGP setting from app config (loxilb provider only)
   LOXILB_BGP_ENABLED="false"
   if [ -f "$LOXILB_APP_CONFIG" ]; then
     LOXILB_BGP_ENABLED=$(yq_read '.loxilb.bgp.enabled' "$LOXILB_APP_CONFIG")
     LOXILB_BGP_ENABLED=${LOXILB_BGP_ENABLED:-false}
+  fi
+  # Activate bgpControlPlane for any LB provider using bgp mode (not only loxilb)
+  # bgpControlPlane is required so Cilium can advertise PodCIDR routes to FRR upstream
+  LB_MODE_CONFIG=$(yq_read '.features.loadBalancer.mode' "$ARGOCD_CONFIG_FILE")
+  LB_MODE_CONFIG=${LB_MODE_CONFIG:-l2}
+  if [ "$LB_MODE_CONFIG" = "bgp" ] && [ "$LB_PROVIDER" != "loxilb" ]; then
+    LOXILB_BGP_ENABLED="true"
+    echo "Cilium BGP Control Plane: ENABLED (loadBalancer.mode=bgp, provider=$LB_PROVIDER)"
   fi
   export CILIUM_MUTUAL_AUTH CILIUM_MUTUAL_AUTH_PORT
   export CONTAINER_RUNTIME_ENABLED CONTAINER_RUNTIME_PROVIDER

@@ -24,11 +24,15 @@ loxilb:
   # - external: loxilb runs outside the cluster, kube-loxilb connects via loxiURL
   mode: "external"
 
-  # External mode: URL of the external loxilb Docker container API
-  # kube-loxilb connects to this URL instead of discovering loxilb pods in-cluster.
-  # The loxilb container runs with --net=host inside a dedicated Vagrant VM.
-  # Use the LoxiLB VM's eth1 IP ($network_prefix.40).
-  loxiURL: "http://192.168.121.40:11111"
+  # External mode: list of external loxilb Docker container API URLs
+  # kube-loxilb connects to all URLs via --loxiURL=url1,url2,...
+  # The loxilb container runs with --net=host inside dedicated Vagrant VMs.
+  # IPs: $network_prefix.40 (1st), .41 (2nd), .42 (3rd), ...
+  # The Vagrantfile derives the VM count automatically from this list.
+  loxiURL:
+    - "http://192.168.121.40:11111"
+    - "http://192.168.121.41:11111"
+    - "http://192.168.121.42:11111"
 
   # BGP peering: Cilium advertise PodCIDR routes vers loxilb externe
   bgp:

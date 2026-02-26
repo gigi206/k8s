@@ -3,19 +3,21 @@
 # Provision FRR BGP Upstream Router inside dedicated Vagrant VM
 # =============================================================================
 # Runs on a separate VM (k8s-<cluster>-frr) to simulate a physical BGP router
-# upstream of both LoxiLB and Cilium in pure BGP mode (loadBalancer.mode: bgp).
+# upstream of the cluster in pure BGP mode (loadBalancer.mode: bgp).
 #
-# Topology:
-#   loxilb (ASN 65002) <-eBGP-> FRR (ASN 65000) <-eBGP-> Cilium (ASN 64512)
+# Topology depends on LB provider:
+#   loxilb:  loxilb (65002) <-eBGP-> FRR (65000) <-eBGP-> Cilium (64512)
+#   metallb: metallb-speaker (64512) <-eBGP-> FRR (65000)
+#   cilium:  cilium bgpControlPlane (64512) <-eBGP-> FRR (65000)
 #
-# FRR acts as a route reflector / ECMP router:
-#   - Learns VIP /32 routes from loxilb via eBGP
+# FRR acts as a route reflector / ECMP upstream router:
+#   - Learns VIP /32 routes from loxilb (loxilb mode) or LB provider via eBGP
 #   - Learns PodCIDR routes from Cilium via eBGP
-#   - Proxy-ARP on eth1: responds to ARP for VIPs -> forwards to loxilb
-#   - ip_forward: routes packets between loxilb and cluster nodes
+#   - Proxy-ARP on eth1: responds to ARP for VIPs -> forwards to LB provider
+#   - ip_forward: routes packets between LB provider and cluster nodes
 #
 # Called conditionally by Vagrantfile when:
-#   LB_PROVIDER=loxilb and LB_MODE=bgp
+#   LB_MODE=bgp and LB_PROVIDER != klipper
 # =============================================================================
 
 set -euo pipefail
@@ -47,35 +49,29 @@ if [[ "$LB_MODE" != "bgp" ]]; then
   exit 0
 fi
 
-# Read ASNs from config
-FRR_ASN=$(yq '.frr.asn' "$ARGOCD_CONFIG" 2>/dev/null || echo "65000")
-CILIUM_ASN=$(yq '.features.loadBalancer.bgp.localASN' "$ARGOCD_CONFIG" 2>/dev/null || echo "64512")
+# Detect LB provider to determine FRR peering topology
+LB_PROVIDER=$(yq '.features.loadBalancer.provider // "metallb"' "$ARGOCD_CONFIG" 2>/dev/null || echo "metallb")
 
-# Read loxilb config
-if [ ! -f "$LOXILB_APP_CONFIG" ]; then
-  echo "[WARN] LoxiLB config not found: $LOXILB_APP_CONFIG"
-  exit 1
-fi
-LOXILB_ASN=$(yq '.loxilb.bgp.localASN' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "65002")
-LOXILB_URL=$(yq '.loxilb.loxiURL' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "http://192.168.121.40:11111")
-# Extract loxilb IP from URL (http://192.168.121.40:11111 -> 192.168.121.40)
-LOXILB_IP=$(echo "$LOXILB_URL" | sed 's|https\?://\([0-9.]*\):.*|\1|')
+# FRR ASN: this VM's own ASN = peers[0].asn (FRR is peers[0] from the cluster's perspective)
+FRR_ASN=$(yq '.features.loadBalancer.bgp.peers[0].asn // 65000' "$ARGOCD_CONFIG" 2>/dev/null || echo "65000")
+# Cluster ASN: the local ASN used by the LB provider (metallb speakers / cilium bgpControlPlane)
+CLUSTER_ASN=$(yq '.features.loadBalancer.bgp.localASN // 64512' "$ARGOCD_CONFIG" 2>/dev/null || echo "64512")
 
 # Determine eth1 IP (this VM: .45), master IP (.50)
 ETH1_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "")
 if [ -z "$ETH1_IP" ]; then
-  echo "[WARN] eth1 has no IPv4 address yet, using configured IP from frr.ip"
-  ETH1_IP=$(yq '.frr.ip' "$ARGOCD_CONFIG" 2>/dev/null || echo "192.168.121.45")
+  echo "[WARN] eth1 has no IPv4 address yet, using configured peer address"
+  ETH1_IP=$(yq '.features.loadBalancer.bgp.peers[0].address // "192.168.121.45"' "$ARGOCD_CONFIG" 2>/dev/null || echo "192.168.121.45")
 fi
 # Derive master IP by replacing last octet with 50
 NETWORK_PREFIX=$(echo "$ETH1_IP" | cut -d. -f1-3)
 MASTER_IP="${NETWORK_PREFIX}.50"
 
-echo "[INFO] FRR BGP router provisioning (mode: bgp)"
+echo "[INFO] FRR BGP router provisioning (mode: bgp, provider: $LB_PROVIDER)"
 echo "[INFO]   FRR IP:       $ETH1_IP (eth1)"
 echo "[INFO]   FRR ASN:      $FRR_ASN"
-echo "[INFO]   LoxiLB IP:    $LOXILB_IP (ASN $LOXILB_ASN)"
-echo "[INFO]   Master IP:    $MASTER_IP (Cilium ASN $CILIUM_ASN)"
+echo "[INFO]   Cluster ASN:  $CLUSTER_ASN"
+echo "[INFO]   Master IP:    $MASTER_IP"
 
 # =============================================================================
 # Install FRR
@@ -97,10 +93,44 @@ sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
 grep "^bgpd=" /etc/frr/daemons
 
 # =============================================================================
-# Generate /etc/frr/frr.conf
+# Generate /etc/frr/frr.conf (topology depends on LB provider)
 # =============================================================================
-echo "[INFO] Writing /etc/frr/frr.conf..."
-cat > /etc/frr/frr.conf << EOF
+echo "[INFO] Writing /etc/frr/frr.conf (provider: $LB_PROVIDER)..."
+
+if [ "$LB_PROVIDER" = "loxilb" ]; then
+  # loxilb mode: FRR peers with both loxilb (for VIP /32 routes) and master (for PodCIDR routes)
+  # Topology: loxilb (LOXILB_ASN) <-eBGP-> FRR (FRR_ASN) <-eBGP-> Cilium (CLUSTER_ASN)
+  if [ ! -f "$LOXILB_APP_CONFIG" ]; then
+    echo "[WARN] LoxiLB config not found: $LOXILB_APP_CONFIG"
+    exit 1
+  fi
+  LOXILB_ASN=$(yq '.loxilb.bgp.localASN' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "65002")
+  # loxiURL is a list — read all entries and extract IPs
+  mapfile -t LOXILB_URLS < <(yq -r '.loxilb.loxiURL[]' "$LOXILB_APP_CONFIG" 2>/dev/null)
+  [ ${#LOXILB_URLS[@]} -eq 0 ] && LOXILB_URLS=("http://192.168.121.40:11111")
+  LOXILB_IPS=()
+  for url in "${LOXILB_URLS[@]}"; do
+    LOXILB_IPS+=("$(echo "$url" | sed 's|https\?://\([0-9.]*\):.*|\1|')")
+  done
+  echo "[INFO]   LoxiLB IPs:   ${LOXILB_IPS[*]} (ASN $LOXILB_ASN)"
+
+  # Build neighbor declaration and activation blocks for frr.conf
+  NEIGHBOR_DECL=""
+  NEIGHBOR_ACTIVATE=""
+  for i in "${!LOXILB_IPS[@]}"; do
+    lox_ip="${LOXILB_IPS[$i]}"
+    NEIGHBOR_DECL+=" neighbor ${lox_ip} remote-as ${LOXILB_ASN}
+ neighbor ${lox_ip} description loxilb-external-$((i+1))
+ neighbor ${lox_ip} ebgp-multihop 2
+ !
+"
+    NEIGHBOR_ACTIVATE+="  neighbor ${lox_ip} activate
+  neighbor ${lox_ip} soft-reconfiguration inbound
+"
+  done
+  ECMP_PATHS=$(( ${#LOXILB_IPS[@]} + 1 ))
+
+  cat > /etc/frr/frr.conf << EOF
 frr version 8.1
 frr defaults traditional
 log syslog informational
@@ -112,17 +142,42 @@ router bgp ${FRR_ASN}
  no bgp ebgp-requires-policy
  no bgp network import-check
  !
- neighbor ${LOXILB_IP} remote-as ${LOXILB_ASN}
- neighbor ${LOXILB_IP} description loxilb-external
- neighbor ${LOXILB_IP} ebgp-multihop 2
- !
- neighbor ${MASTER_IP} remote-as ${CILIUM_ASN}
+${NEIGHBOR_DECL} neighbor ${MASTER_IP} remote-as ${CLUSTER_ASN}
  neighbor ${MASTER_IP} description cilium-master
  neighbor ${MASTER_IP} ebgp-multihop 2
  !
  address-family ipv4 unicast
-  neighbor ${LOXILB_IP} activate
-  neighbor ${LOXILB_IP} soft-reconfiguration inbound
+${NEIGHBOR_ACTIVATE}  neighbor ${MASTER_IP} activate
+  neighbor ${MASTER_IP} soft-reconfiguration inbound
+  maximum-paths ${ECMP_PATHS}
+ exit-address-family
+!
+line vty
+!
+EOF
+else
+  # metallb / cilium mode: FRR peers only with the master node
+  # metallb-speaker and cilium bgpControlPlane both run on the master and peer from its IP
+  # Topology: LB provider (CLUSTER_ASN, master .50) <-eBGP-> FRR (FRR_ASN)
+  echo "[INFO]   Mode: $LB_PROVIDER (single peer: master node $MASTER_IP ASN $CLUSTER_ASN)"
+
+  cat > /etc/frr/frr.conf << EOF
+frr version 8.1
+frr defaults traditional
+log syslog informational
+no ipv6 forwarding
+service integrated-vtysh-config
+
+router bgp ${FRR_ASN}
+ bgp router-id ${ETH1_IP}
+ no bgp ebgp-requires-policy
+ no bgp network import-check
+ !
+ neighbor ${MASTER_IP} remote-as ${CLUSTER_ASN}
+ neighbor ${MASTER_IP} description ${LB_PROVIDER}-master
+ neighbor ${MASTER_IP} ebgp-multihop 2
+ !
+ address-family ipv4 unicast
   neighbor ${MASTER_IP} activate
   neighbor ${MASTER_IP} soft-reconfiguration inbound
   maximum-paths 2
@@ -131,6 +186,7 @@ router bgp ${FRR_ASN}
 line vty
 !
 EOF
+fi
 
 echo "[OK] /etc/frr/frr.conf written"
 
@@ -173,5 +229,9 @@ vtysh -c "show bgp summary" 2>/dev/null || echo "[INFO] vtysh not yet ready"
 echo ""
 echo "[OK] FRR BGP router provisioned successfully"
 echo "[INFO] Verify BGP sessions after cluster is up:"
-echo "  vagrant ssh k8s-${K8S_ENV}-frr -- sudo vtysh -c 'show bgp summary'"
-echo "  # Expected: ${LOXILB_IP} (Established) + ${MASTER_IP} (Established)"
+echo "  vagrant ssh $(hostname) -- sudo vtysh -c 'show bgp summary'"
+if [ "$LB_PROVIDER" = "loxilb" ]; then
+  echo "  # Expected: ${LOXILB_IPS[*]} (Established) + ${MASTER_IP} (Established)"
+else
+  echo "  # Expected: ${MASTER_IP} (Established)"
+fi
