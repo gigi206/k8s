@@ -11,6 +11,11 @@ kind: EnvoyProxy
 metadata:
   name: envoy-proxy-config
   namespace: envoy-gateway-system
+  annotations:
+    # Applied before Gateway (wave 0) so the controller sees the correct
+    # loadBalancerClass before creating the LoadBalancer service.
+    # loadBalancerClass is immutable — wrong order causes a stuck pending VIP.
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   logging:
     level:
