@@ -1,0 +1,115 @@
+---
+# =============================================================================
+# FRR ApplicationSet (BGP Upstream Router Network Policies)
+# =============================================================================
+# Deploys network policies allowing BGP traffic (TCP 179) from the FRR
+# upstream router VM to cluster nodes.
+#
+# This ApplicationSet is ONLY added to the cluster when:
+#   features.loadBalancer.mode: bgp  (via deploy-applicationsets.sh)
+#
+# In BGP mode, FRR acts as an upstream router between LoxiLB and Cilium:
+#   loxilb (65002) <-eBGP-> FRR (65000) <-eBGP-> Cilium (64512)
+#
+# The BGP host-ingress policy is always deployed when this ApplicationSet
+# exists (i.e. when mode=bgp) since BGP connectivity is required.
+# Safe even when ingressPolicy.enabled=false (no-op without default-deny).
+#
+# FRR is generic: it could be used by other LB providers, not just loxilb.
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: frr
+  namespace: argo-cd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Config de base (valeurs par défaut)
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # Config spécifique à l'application
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/frr/config/*.yaml
+
+  template:
+    metadata:
+      name: frr
+      namespace: argo-cd
+    spec:
+      project: default
+
+      sources:
+        # Placeholder - remplacé par templatePatch
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: 'HEAD'
+          path: deploy/argocd/apps/frr/kustomize/cilium-bgp-host-ingress
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: kube-system
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+      sources:
+        {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium host ingress policy (allow BGP port 179 from FRR to nodes)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/frr/kustomize/cilium-bgp-host-ingress
+          kustomize:
+            patches:
+              - target:
+                  kind: CiliumClusterwideNetworkPolicy
+                  name: frr-bgp-host-ingress
+                patch: |
+                  - op: replace
+                    path: /spec/ingress/0/fromCIDR/0
+                    value: '{{ .frr.ip }}/32'
+        {{- else if eq .cni.primary "calico" }}
+        # Source: Calico host ingress policy (allow BGP port 179 from FRR to nodes)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/frr/kustomize/calico-bgp-host-ingress
+          kustomize:
+            patches:
+              - target:
+                  kind: GlobalNetworkPolicy
+                  name: frr-bgp-host-ingress
+                patch: |
+                  - op: replace
+                    path: /spec/ingress/0/source/nets/0
+                    value: '{{ .frr.ip }}/32'
+        {{- end }}

@@ -106,7 +106,11 @@ spec:
                       - --noZoneName
               {{- if .loxilb.bgp.enabled }}
                       - --setBGP={{ .loxilb.bgp.localASN }}
+                      {{- if eq .features.loadBalancer.mode "bgp" }}
+                      - --extBGPPeers={{ .frr.ip }}:{{ .frr.asn }}
+                      {{- else }}
                       - --extBGPPeers={{ .loxilb.bgp.extBGPPeers }}
+                      {{- end }}
               {{- end }}
         {{- if .features.networkPolicy.egressPolicy.enabled }}
           {{- if eq .cni.primary "cilium" }}
@@ -163,12 +167,13 @@ spec:
                     value: {{ .features.loadBalancer.bgp.localASN }}
                   - op: replace
                     path: /spec/bgpInstances/0/peers/0/peerASN
-                    value: {{ .loxilb.bgp.localASN }}
+                    value: {{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.asn }}{{ else }}{{ .loxilb.bgp.localASN }}{{ end }}
                   - op: replace
                     path: /spec/bgpInstances/0/peers/0/peerAddress
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}'
+                    value: '{{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.ip }}{{ else }}{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}{{ end }}'
           {{- else if eq .cni.primary "calico" }}
-        # Source: Calico BGP peering (PodCIDR advertisement to loxilb)
+        # Source: Calico BGP peering (PodCIDR advertisement via BGP)
+        # In bgp mode: peer with FRR router instead of loxilb directly
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/loxilb/kustomize/calico-bgp-peering
@@ -182,10 +187,10 @@ spec:
                 patch: |
                   - op: replace
                     path: /spec/peerIP
-                    value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}'
+                    value: '{{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.ip }}{{ else }}{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}{{ end }}'
                   - op: replace
                     path: /spec/asNumber
-                    value: {{ .loxilb.bgp.localASN }}
+                    value: {{ if eq .features.loadBalancer.mode "bgp" }}{{ .frr.asn }}{{ else }}{{ .loxilb.bgp.localASN }}{{ end }}
           {{- end }}
         {{- end }}
         {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
@@ -219,9 +224,10 @@ spec:
                     value: '{{ regexReplaceAll "https?://([0-9.]+):.*" .loxilb.loxiURL "$1" }}/32'
           {{- end }}
         {{- end }}
-        {{- if and .loxilb.bgp.enabled .features.networkPolicy.ingressPolicy.enabled }}
+        {{- if and .loxilb.bgp.enabled .features.networkPolicy.ingressPolicy.enabled (ne .features.loadBalancer.mode "bgp") }}
           {{- if eq .cni.primary "cilium" }}
         # Source: Cilium host ingress policy (allow BGP port 179 from loxilb to nodes)
+        # (In bgp mode, the frr app deploys this policy for FRR IP instead)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/loxilb/kustomize/cilium-host-ingress

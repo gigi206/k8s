@@ -296,6 +296,16 @@ features:
 # =============================================================================
 cluster:
   distribution: "rke2"  # rke2 | k3d | k3s | kubeadm
+# =============================================================================
+# FRR BGP Upstream Router Configuration
+# =============================================================================
+# Used when features.loadBalancer.mode: bgp to simulate physical BGP routers.
+# FRR runs on a dedicated Vagrant VM and peers with both loxilb and Cilium.
+# Topology: loxilb (65002) <-eBGP-> FRR (65000) <-eBGP-> Cilium (64512)
+# =============================================================================
+frr:
+  asn: 65000              # FRR router ASN (eBGP with loxilb and Cilium)
+  ip: "192.168.121.45"    # IP eth1 of the FRR Vagrant VM
 cni:
   primary: "cilium" # cilium | calico (eBPF-based, kube-proxy replacement)
   multus:

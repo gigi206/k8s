@@ -1,0 +1,13 @@
+---
+# Configuration FRR BGP Router - Prod
+environment: prod
+appName: frr
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true

@@ -19,6 +19,7 @@ CONFIG_YAML := $(ARGOCD_DIR)/config/config.yaml
 # When metallb: Cilium L2 announcements are disabled, MetalLB handles LoadBalancer IPs
 # When cilium: Cilium L2 announcements are enabled, Cilium LB-IPAM handles LoadBalancer IPs
 LB_PROVIDER := $(shell yq -r '.features.loadBalancer.provider // "metallb"' $(CONFIG_YAML) 2>/dev/null || echo "metallb")
+LB_MODE := $(shell yq -r '.features.loadBalancer.mode // "l2"' $(CONFIG_YAML) 2>/dev/null || echo "l2")
 
 # Read CNI primary provider from config.yaml
 # CNI_PRIMARY: cilium (default) or calico - controls which CNI is installed and configured
@@ -33,7 +34,7 @@ GATEWAY_API_PROVIDER := $(shell yq -r '.features.gatewayAPI.controller.provider 
 
 # Common Vagrant environment variables (passed to all vagrant commands so the Vagrantfile
 # can conditionally define VMs based on config - e.g. loxilb external VM)
-VAGRANT_VARS = CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER)
+VAGRANT_VARS = CNI_PRIMARY=$(CNI_PRIMARY) LB_PROVIDER=$(LB_PROVIDER) LB_MODE=$(LB_MODE) GATEWAY_API_PROVIDER=$(GATEWAY_API_PROVIDER)
 
 # Default target
 help:

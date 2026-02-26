@@ -385,25 +385,88 @@ curl -sk https://argocd.k8s.lan | head -1  # Doit retourner HTML ✅
 
 ## BGP peering Cilium <-> LoxiLB externe
 
-Le BGP est utilise pour que Cilium **advertise les routes PodCIDR vers loxilb**. Sans cela, loxilb peut DNAT le trafic vers l'IP d'un pod mais ne sait pas router vers `10.42.0.0/16`.
+Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/config.yaml` :
 
-> **Note** : `loadBalancer.mode` reste `l2` (ARP/GARP pour les VIPs). Le BGP sert **uniquement** au routage PodCIDR, pas a l'annonce des VIPs.
+- **Mode `l2`** : le BGP sert **uniquement** au routage PodCIDR (loxilb apprend `10.42.0.0/24` depuis Cilium). Les VIPs sont annoncees via GARP/ARP, pas via BGP. Peering direct loxilb ↔ Cilium.
+- **Mode `bgp`** : les VIPs sont annoncees via BGP /32. Une VM FRR intermediaire est obligatoire. Peering loxilb ↔ FRR ↔ Cilium.
 
-### Architecture BGP
+### Mode L2 — BGP PodCIDR direct (loadBalancer.mode: l2)
 
 ```
-LoxiLB VM (ASN 65002)          Cluster RKE2 (ASN 64512 = Cilium)
-192.168.121.40                  192.168.121.50 (master)
-
-  GoBGP (--bgp flag)    ←eBGP→  Cilium bgpControlPlane
-  kube-loxilb configures         CiliumBGPPeeringPolicy:
-  peers via API REST:              - exportPodCIDR: true
-    --setBGP=65002                 - neighbors: loxilb VM
-    --extBGPPeers=...:64512
-
-Routes apprises par loxilb:
-  10.42.0.0/24 via 192.168.121.50 (master node)
+    ┌──────────────────────────────────────────────────────────────────┐
+    │  HÔTE  (libvirt virbr0 — 192.168.121.0/24)                       │
+    │  $ curl https://argocd.k8s.lan  →  DNS: 192.168.121.210          │
+    └──────────────────────────────┬───────────────────────────────────┘
+                                   │
+               GARP loxilb → MAC eth1 pour .210/.201
+               trafic IP → loxilb direct → DNAT → pod
+                                   │
+                                   ▼
+┌──────────────────────┐                          ┌──────────────────────┐
+│   k8s-dev-loxilb     │    eBGP TCP/179          │    k8s-dev-m1        │
+│   192.168.121.40     │◄────────────────────────►│    192.168.121.50    │
+│                      │  ASN 65002 ↔ ASN 64512   │                      │
+│   loxilb             │                          │   Cilium (ASN 64512) │
+│   GoBGP (ASN 65002)  │  ← PodCIDR 10.42/24      │   bgpControlPlane    │
+│                      │ (pas d'annonce VIPs BGP) │                      │
+│   LB Rules (onearm): │                          │   kube-loxilb:       │
+│   .210:80  → :10080  │                          │   --loxiURL=.40:11111│
+│   .210:443 → :10443  │                          │   --setBGP=65002     │
+│   .201:53  → :53     │                          │   --extBGPPeers=     │
+│                      │                          │     .50:64512        │
+│   GARP → VIPs /32    │                          │                      │
+│   DNAT → 10.42.0.x   │                          │   Pods:              │
+└──────────┬───────────┘                          │   .206 envoy-gw      │
+           │                                      │   .210 coredns       │
+           │◄──────── REST API HTTP :11111 ────── │                      │
+           │          (programme les règles LB)   └──────────────────────┘
 ```
+
+### Mode BGP — FRR comme intermédiaire (loadBalancer.mode: bgp)
+
+```
+    ┌─────────────────────────────────────────────────────────────────────────────┐
+    │  HÔTE  (libvirt virbr0 — 192.168.121.0/24)                                  │
+    │  $ curl https://argocd.k8s.lan  →  DNS: 192.168.121.210                     │
+    └──────────────────────────────────────┬──────────────────────────────────────┘
+                                           │
+                  ARP .210/.201 ?          │        FRR répond (proxy-ARP eth1)
+                  trafic IP vers .210 ─────▼──► FRR route vers .40 ──► DNAT pod
+                                           │
+                                           ▼
+┌──────────────────────┐  eBGP TCP/179  ┌──────────────────────┐  eBGP TCP/179  ┌──────────────────────┐
+│   k8s-dev-loxilb     │                │    k8s-dev-frr       │                │    k8s-dev-m1        │
+│   192.168.121.40     │◄──────────────►│    192.168.121.45    │◄──────────────►│    192.168.121.50    │
+│                      │  ASN 65002     │                      │  ASN 65000     │                      │
+│   loxilb             │      ↕         │   FRR (ASN 65000)    │      ↕         │   Cilium (ASN 64512) │
+│   GoBGP (ASN 65002)  │  ASN 65000     │   proxy_arp eth1=1   │  ASN 64512     │   bgpControlPlane    │
+│                      │                │   ip_forward=1       │                │                      │
+│                      │ → VIPs /32     │                      │ → VIPs /32     │                      │
+│                      │ ← PodCIDR /24  │   BGP RIB:           │ ← PodCIDR /24  │                      │
+│                      │                │   .210/32  via .40   │                │                      │
+│   LB Rules (onearm): │                │   .201/32  via .40   │                │   kube-loxilb:       │
+│   .210:80  → :10080  │                │   10.42/24 via .50   │                │   --loxiURL=.40:11111│
+│   .210:443 → :10443  │                │                      │                │   --setBGP=65002     │
+│   .201:53  → :53     │                │                      │                │   --extBGPPeers=.45  │
+│                      │                │                      │                │                      │
+│   DNAT → 10.42.0.x   │                │                      │                │   Pods:              │
+└──────────┬───────────┘                └──────────────────────┘                │   .206 envoy-gw      │
+           │                                                                    │   .210 coredns       │
+           │◄──────────────────────── REST API HTTP :11111 ──────────────────── │                      │
+           │                      (programme les règles LB)                     └──────────────────────┘
+```
+
+### Comparaison L2 vs BGP pur
+
+| Aspect              | Mode `l2`                      | Mode `bgp`                          |
+| ------------------- | ------------------------------ | ----------------------------------- |
+| **Annonce VIPs**    | GARP/ARP (L2)                  | BGP /32 routes (L3)                 |
+| **VM FRR requise**  | Non                            | Oui (`k8s-dev-frr`, ASN 65000)      |
+| **Peering loxilb**  | Direct vers Cilium (.50:64512) | Vers FRR uniquement (.45:65000)     |
+| **Peering Cilium**  | Vers loxilb (.40:65002)        | Vers FRR (.45:65000)                |
+| **proxy-ARP**       | Non (GARP suffit)              | Oui — eth1 FRR repond pour les VIPs |
+| **Routage PodCIDR** | Appris via BGP depuis Cilium   | Appris via BGP depuis Cilium (idem) |
+| **`--extBGPPeers`** | `192.168.121.50:64512`         | `192.168.121.45:65000`              |
 
 ### Configuration
 
@@ -425,22 +488,62 @@ ArgoCD deploie automatiquement (via ApplicationSet) :
 
 ### Verification BGP
 
+#### Mode L2 — peering direct loxilb ↔ Cilium
+
 ```bash
-# Session BGP etablie
-docker exec loxilb-external gobgp neighbor
-# Peer          AS      Up/Down  State       |#Received  Accepted
+# Session BGP etablie (peer = Cilium master .50)
+vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp neighbor
+# Peer           AS      Up/Down  State       |#Received  Accepted
 # 192.168.121.50 64512  00:27:34 Established |        1         1
 
 # Routes PodCIDR apprises par loxilb
-docker exec loxilb-external gobgp global rib
-# Network         Next Hop      AS_PATH  Age        Attrs
-# 10.42.0.0/24   192.168.121.50 64512   00:27:34   [{Origin: i}]
+vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp global rib
+# Network         Next Hop        AS_PATH  Age        Attrs
+# 10.42.0.0/24   192.168.121.50  64512   00:27:34   [{Origin: i}]
 
 # CiliumBGPPeeringPolicy
 kubectl get ciliumbgppeeringpolicy loxilb-external-bgp -o yaml
 
 # Test end-to-end (DNS via VIP)
 dig @192.168.121.201 google.com
+```
+
+#### Mode BGP — peering via FRR intermédiaire
+
+```bash
+# 1. Verifier la session BGP loxilb ↔ FRR (peer = FRR .45)
+vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp neighbor
+# Peer           AS      Up/Down  State       |#Received  Accepted
+# 192.168.121.45 65000  00:15:12 Established |        1         1
+
+# Routes VIPs annoncees par loxilb vers FRR
+vagrant ssh k8s-dev-loxilb -- docker exec loxilb-external gobgp global rib
+# Network            Next Hop  AS_PATH  Age        Attrs
+# 192.168.121.210/32 0.0.0.0  65002   00:15:12   [{Origin: i}]
+# 192.168.121.201/32 0.0.0.0  65002   00:15:12   [{Origin: i}]
+
+# 2. Verifier la table BGP FRR (sessions des deux cotes)
+vagrant ssh k8s-dev-frr -- sudo vtysh -c "show bgp summary"
+# Neighbor        V  AS      MsgRcvd  MsgSent  TblVer  InQ  OutQ  Up/Down  State/PfxRcd
+# 192.168.121.40  4  65002   ...      ...      ...     0    0     ...      2
+# 192.168.121.50  4  64512   ...      ...      ...     0    0     ...      1
+
+# Routes dans la RIB FRR
+vagrant ssh k8s-dev-frr -- sudo vtysh -c "show ip route bgp"
+# B>* 10.42.0.0/24       [20/0] via 192.168.121.50, eth1
+# B>* 192.168.121.210/32 [20/0] via 192.168.121.40, eth1
+# B>* 192.168.121.201/32 [20/0] via 192.168.121.40, eth1
+
+# 3. Verifier la session BGP Cilium ↔ FRR (peer = FRR .45)
+kubectl get ciliumbgppeeringpolicy loxilb-external-bgp -o yaml
+
+# 4. Verifier le proxy-ARP sur FRR (eth1 doit repondre pour les VIPs)
+vagrant ssh k8s-dev-frr -- cat /proc/sys/net/ipv4/conf/eth1/proxy_arp
+# Attendu: 1
+
+# Test end-to-end
+dig @192.168.121.201 google.com
+curl -sk https://argocd.k8s.lan | head -1
 ```
 
 ---
@@ -454,9 +557,9 @@ En environnement client avec des routeurs BGP physiques (Cisco, Juniper, Arista)
                         │   Routeurs physiques   ASN 65000         │
                         │   (Cisco / Juniper / Arista)             │
                         │                                          │
-                        │   VIP 10.0.1.0/24 → ECMP                │
-                        │     next-hop 10.0.0.1  (loxilb-1)       │
-                        │     next-hop 10.0.0.2  (loxilb-2)       │
+                        │   VIP 10.0.1.0/24 → ECMP                 │
+                        │     next-hop 10.0.0.1  (loxilb-1)        │
+                        │     next-hop 10.0.0.2  (loxilb-2)        │
                         │                                          │
                         │   Hash par flow (src+dst IP+port)        │
                         │   → meme connexion = meme loxilb         │
@@ -475,12 +578,12 @@ En environnement client avec des routeurs BGP physiques (Cisco, Juniper, Arista)
                                └──────────┬───────────┘
                                           │
                         ┌─────────────────▼──────────────────────┐
-                        │   Cluster Kubernetes (Cilium)           │
-                        │   ASN 64512                             │
-                        │                                         │
+                        │   Cluster Kubernetes (Cilium)          │
+                        │   ASN 64512                            │
+                        │                                        │
                         │   Advertise vers loxilb-1 et loxilb-2: │
                         │     PodCIDR 10.42.0.0/16               │
-                        │                                         │
+                        │                                        │
                         │   ┌─────────┐  ┌─────────┐             │
                         │   │ node-1  │  │ node-2  │  ...        │
                         │   │ pods    │  │ pods    │             │
@@ -503,15 +606,15 @@ Autre connexion → meme VIP
 
 ### Comparaison avec le setup Vagrant
 
-| Aspect | Vagrant (lab) | Production (routeurs BGP) |
-|--------|--------------|---------------------------|
-| **VIP announcement** | GARP (L2) | BGP (L3) |
-| **Nombre loxilb** | 1 VM | 2+ (actif/actif) |
-| **Failover** | Manuel / redemarrage | Automatique via BFD (< 1s) |
-| **ECMP** | Non | Oui (routeur hash par flow) |
-| **ARP/GARP** | Requis | Non (routage L3 pur) |
-| **Scalabilite** | Limitee | Ajouter un peer BGP = scale-out |
-| **Routeur upstream** | virbr1 (pas BGP) | Cisco/Juniper/Arista/FRR |
+| Aspect               | Vagrant (lab)        | Production (routeurs BGP)       |
+| -------------------- | -------------------- | ------------------------------- |
+| **VIP announcement** | GARP (L2)            | BGP (L3)                        |
+| **Nombre loxilb**    | 1 VM                 | 2+ (actif/actif)                |
+| **Failover**         | Manuel / redemarrage | Automatique via BFD (< 1s)      |
+| **ECMP**             | Non                  | Oui (routeur hash par flow)     |
+| **ARP/GARP**         | Requis               | Non (routage L3 pur)            |
+| **Scalabilite**      | Limitee              | Ajouter un peer BGP = scale-out |
+| **Routeur upstream** | virbr1 (pas BGP)     | Cisco/Juniper/Arista/FRR        |
 
 ### Failover BGP avec BFD
 
@@ -880,6 +983,38 @@ vagrant ssh k8s-dev-loxilb -- docker logs loxilb-external 2>&1 | grep -E "subnet
 # GARP envoye avec quelle interface
 vagrant ssh k8s-dev-loxilb -- docker logs loxilb-external 2>&1 | grep -i "garp\|adv"
 ```
+
+### Port 443 absent apres demarrage (bug kube-loxilb multi-port)
+
+**Symptome** : apres un `argocd app sync` ou un premier deploiement, `loxicmd get lb` montre `.210:80` mais **`.210:443` est absent** (ou l'inverse). Les regles LB multi-port sont incompletes.
+
+**Cause** : kube-loxilb traite les endpoints en parallele. Si les endpoints d'un Service multi-port arrivent dans un ordre different de celui attendu, la regle pour le second port peut etre ignoree silencieusement (race condition a l'initialisation).
+
+**Diagnostic** :
+
+```bash
+# Verifier les regles LB presentes dans loxilb
+kubectl exec -n kube-system deploy/kube-loxilb -- loxicmd get lb -o wide
+# Si .210:443 est absent mais .210:80 present → bug multi-port
+
+# Verifier les logs kube-loxilb pour des erreurs sur le port 443
+kubectl logs -n kube-system -l app=kube-loxilb-app --tail=50 | grep -i "443\|error\|failed"
+```
+
+**Workaround** : redemarrer kube-loxilb force une re-synchronisation complete de tous les Services :
+
+```bash
+kubectl rollout restart deployment/kube-loxilb -n kube-system
+kubectl rollout status deployment/kube-loxilb -n kube-system
+
+# Verifier que les deux ports sont maintenant presents
+kubectl exec -n kube-system deploy/kube-loxilb -- loxicmd get lb -o wide
+# Attendu:
+#   192.168.121.210:80   TCP  ...
+#   192.168.121.210:443  TCP  ...
+```
+
+---
 
 ### BGP peering ne s'etablit pas
 

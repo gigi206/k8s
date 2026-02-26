@@ -365,6 +365,7 @@ log_info "Lecture des feature flags depuis config.yaml..."
 # Lecture des feature flags
 FEAT_LB_ENABLED=$(get_feature '.features.loadBalancer.enabled' 'true')
 FEAT_LB_PROVIDER=$(get_feature '.features.loadBalancer.provider' 'metallb')
+FEAT_LB_MODE=$(get_feature '.features.loadBalancer.mode' 'l2')
 FEAT_KYVERNO=$(get_feature '.features.kyverno.enabled' 'true')
 FEAT_KUBEVIP=$(get_feature '.features.kubeVip.enabled' 'true')
 FEAT_GATEWAY_API=$(get_feature '.features.gatewayAPI.enabled' 'true')
@@ -826,6 +827,8 @@ APPLICATIONSETS=()
 # klipper: ServiceLB (RKE2/K3s built-in), uses node IPs - no ApplicationSet needed
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "metallb" ]] && APPLICATIONSETS+=("apps/metallb/applicationset.yaml")
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]] && APPLICATIONSETS+=("apps/loxilb/applicationset.yaml")
+# frr: FRR BGP upstream router VM (for pure BGP mode - no GARP, VIPs via BGP)
+[[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "loxilb" ]] && [[ "$FEAT_LB_MODE" == "bgp" ]] && APPLICATIONSETS+=("apps/frr/applicationset.yaml")
 [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "kube-vip" ]] && APPLICATIONSETS+=("apps/kube-vip-cloud-provider/applicationset.yaml")
 # kube-vip provider requires kubeVip.enabled=true (kube-vip announces VIPs via ARP)
 if [[ "$FEAT_LB_ENABLED" == "true" ]] && [[ "$FEAT_LB_PROVIDER" == "kube-vip" ]] && [[ "$FEAT_KUBEVIP" != "true" ]]; then

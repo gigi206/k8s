@@ -18,6 +18,8 @@ lb_provider = ENV['LB_PROVIDER'] || 'metallb'
 cni_primary = ENV['CNI_PRIMARY'] || 'cilium'
 # Gateway API provider (cilium, traefik, istio, etc.) - passed from Makefile or env
 gateway_api_provider = ENV['GATEWAY_API_PROVIDER'] || 'traefik'
+# LoadBalancer mode (l2 or bgp) - controls FRR VM creation for pure BGP mode
+lb_mode = ENV['LB_MODE'] || 'l2'
 config_file = File.join(File.dirname(__FILE__), 'config', "#{env}.rb")
 
 unless File.exist?(config_file)
@@ -80,6 +82,31 @@ Vagrant.configure("2") do |config|
 
       loxilb.vm.provision "shell", path: "scripts/install_common.sh", args: ["loxilb"]
       loxilb.vm.provision "shell", path: "../deploy/argocd/apps/loxilb/vagrant/provision-loxilb-external.sh", env: {"K8S_ENV" => env}
+    end
+  end
+
+  # FRR BGP router VM: upstream router for pure BGP mode (no GARP, VIPs via BGP)
+  # Created when lb_provider=loxilb and lb_mode=bgp to simulate physical BGP routers.
+  # Topology: loxilb (65002) <-eBGP-> FRR (65000) <-eBGP-> Cilium (64512)
+  if lb_provider == 'loxilb' && lb_mode == 'bgp'
+    config.vm.define "k8s-#{$cluster_name}-frr" do |frr|
+      frr.vm.box = $vm_box
+      frr.vm.box_check_update = $box_check_update
+      frr.vm.hostname = "k8s-#{$cluster_name}-frr"
+      frr.vm.network "private_network", ip: "#{$network_prefix}.45"
+
+      frr.vm.provider "libvirt" do |domain|
+        domain.default_prefix = ""
+        domain.cpus = 1
+        domain.memory = 512
+        domain.machine_virtual_size = 10
+        domain.keymap = $keymap
+      end
+
+      frr.vm.provision "shell", path: "scripts/install_common.sh", args: ["frr"]
+      frr.vm.provision "shell",
+        path: "../deploy/argocd/apps/frr/vagrant/provision-frr.sh",
+        env: {"K8S_ENV" => env}
     end
   end
 

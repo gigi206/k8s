@@ -1,0 +1,32 @@
+---
+# =============================================================================
+# Calico GlobalNetworkPolicy - FRR BGP Host Ingress
+# =============================================================================
+# Calico equivalent of cilium-bgp-host-ingress/cilium-host-ingress-policy.yaml
+#
+# Allow BGP traffic (TCP port 179) from the FRR upstream router VM to
+# cluster nodes. Required for the eBGP session between FRR and Calico
+# in pure BGP mode (loadBalancer.mode: bgp).
+#
+# This complements the default-deny-host-ingress policy in the calico app.
+# The FRR IP placeholder is patched via Kustomize in the ApplicationSet.
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: frr-bgp-host-ingress
+spec:
+  order: 400
+  selector: has(kubernetes-host)
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        nets:
+          - "PLACEHOLDER_IP/32"
+      destination:
+        ports:
+          - 179
