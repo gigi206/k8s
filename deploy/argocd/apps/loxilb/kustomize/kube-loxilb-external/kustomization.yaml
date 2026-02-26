@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
   - ../kube-loxilb
+  - resync-hook.yaml
 
 patches:
   - path: deployment.yaml

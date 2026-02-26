@@ -1,0 +1,68 @@
+---
+# =============================================================================
+# kube-loxilb PostSync Resync Hook
+# =============================================================================
+# Workaround for kube-loxilb multi-port timing bug:
+# On initial startup, kube-loxilb may program only the first port of a
+# multi-port service (e.g., envoy-gateway ports 80 + 443). A rollout restart
+# triggers full re-reconciliation, ensuring all ports are programmed.
+#
+# Runs as an ArgoCD PostSync hook after every loxilb app sync.
+# kube-system is excluded from the disable-automount-sa-token Kyverno policy,
+# so no PolicyException is needed.
+# =============================================================================
+
+---
+# Role: allow kube-loxilb SA to trigger a rollout restart of itself
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kube-loxilb-restart
+  namespace: kube-system
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["kube-loxilb"]
+    verbs: ["get", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kube-loxilb-restart
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: kube-loxilb
+    namespace: kube-system
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: kube-loxilb-restart
+
+---
+# PostSync Job: restart kube-loxilb to re-reconcile all LB services
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kube-loxilb-resync
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: kube-loxilb
+      restartPolicy: Never
+      containers:
+        - name: restart
+          image: bitnami/kubectl:latest
+          command:
+            - kubectl
+            - rollout
+            - restart
+            - deployment/kube-loxilb
+            - -n
+            - kube-system
