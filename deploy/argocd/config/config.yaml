@@ -61,6 +61,7 @@ git:
 #   - cilium.monitoring.enabled → active monitoring
 #   - storage.provider=longhorn → active csiSnapshotter (recommandé)
 #   - s3.provider=rook → active storage (rook)
+#   - backup.enabled → requiert s3.enabled (stockage des backups)
 # =============================================================================
 features:
   # === Infrastructure Core ===
@@ -83,8 +84,8 @@ features:
   # =============================================================================
   loadBalancer:
     enabled: true # LoadBalancer for Services
-    provider: "cilium" # metallb | cilium | loxilb | kube-vip | klipper
-    mode: "l2" # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
+    provider: "loxilb" # metallb | cilium | loxilb | kube-vip | klipper
+    mode: "bgp" # l2 (ARP announcements) | bgp (BGP peering) - applies to all providers
     # BGP configuration (used when mode == "bgp")
     bgp:
       localASN: 64512 # Local AS number for the cluster
@@ -288,9 +289,16 @@ features:
   #   - gvisor: gVisor (user-space kernel, pas de nested virt requise) [futur]
   #   - spin: Spin/WebAssembly (WasmEdge runtime) [futur]
   containerRuntime:
-    enabled: false
+    enabled: true
     provider: "kata"  # kata | gvisor | spin
     defaultRuntimeClass: "kata"  # RuntimeClass par défaut pour les pods (ex: kata, crun, nvidia). Vide = pas de mutation
+  # === Backup & Disaster Recovery ===
+  # Velero for cluster backup and restore with S3 storage
+  # Requires: features.s3.enabled (backup data is stored in S3 object storage)
+  # Dependencies: s3.provider=rook → uses ObjectBucketClaim for bucket provisioning
+  backup:
+    enabled: true # Kubernetes backup and restore
+    provider: "velero" # velero
   # === Container Registry ===
   registry:
     enabled: false # Container registry
