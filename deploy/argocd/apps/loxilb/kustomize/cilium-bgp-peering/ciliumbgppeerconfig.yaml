@@ -6,7 +6,12 @@
 # Referenced by CiliumBGPClusterConfig peers via peerConfigRef.
 #
 # - families: IPv4 unicast with PodCIDR advertisement
-# - timers: default BGP timers (hold=90s, keepalive=30s)
+# - timers: hold=300s, keepalive=60s
+#   CRITICAL: GoBGP blocks keepalive processing for ALL peers during
+#   graceful restart of a dead peer. The hold timer counts from the
+#   last processed keepalive, so: holdTime > restartTime + keepaliveInterval
+#   Required: 300 > 120 + 60 = 180 (with 120s safety margin)
+# - connectRetryTimeSeconds: 30s for fast reconnection after session loss
 # - gracefulRestart: enabled for session stability
 # =============================================================================
 
@@ -16,8 +21,9 @@ metadata:
   name: loxilb-external-peer
 spec:
   timers:
-    holdTimeSeconds: 90
-    keepAliveTimeSeconds: 30
+    holdTimeSeconds: 300
+    keepAliveTimeSeconds: 60
+    connectRetryTimeSeconds: 30
   gracefulRestart:
     enabled: true
     restartTimeSeconds: 120

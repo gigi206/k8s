@@ -95,6 +95,13 @@ features:
           # port: 179              # Optional: BGP port (default: 179)
         - address: "192.168.121.46" # FRR VM2 IP (eth1)
           asn: 65000
+      # VRRP anycast: les 2 FRR partagent un VIP pour le data plane
+      # BGP peering reste sur les IPs réelles (.45/.46)
+      vrrp:
+        enabled: true
+        vip: "192.168.121.44"
+        vrid: 1
+        advertisementInterval: 100  # centisecondes (100 = 1s, défaut VRRPv3)
     pools:
       default:
         # Dynamic pool for auto-assigned LoadBalancer IPs (excludes static IPs)

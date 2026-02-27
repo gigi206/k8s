@@ -1036,6 +1036,89 @@ kubectl get ciliumclusterwidenetworkpolicy loxilb-bgp-host-ingress -o yaml
 vagrant ssh k8s-dev-loxilb1 -- nc -zv 192.168.121.50 179
 ```
 
+### Flood eBPF lors du failover FRR (mode BGP)
+
+**Symptome** : quand une VM FRR est arretee (`virsh shutdown`), le HTTPS via VIP tombe a ~10-20% de succes. Ping vers les autres VMs montre 40-60% de perte.
+
+**Cause** : les SYN BGP (TCP 179) des loxilb vers le FRR mort deviennent unknown-unicast sur le bridge (MAC du FRR disparu de la FDB). Le bridge les flood vers tous les ports. L'eBPF de chaque loxilb re-forwarde ces paquets, creant une boucle de feedback a 80-100k+ pps qui sature les TAP queues.
+
+**Diagnostic** :
+
+```bash
+# Mesurer le debit sur un port loxilb (> 1000 pps = flood)
+RX1=$(cat /sys/class/net/vnet13/statistics/rx_packets); sleep 1
+RX2=$(cat /sys/class/net/vnet13/statistics/rx_packets)
+echo "$(( RX2 - RX1 )) pps"
+
+# Capturer les paquets du flood
+vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external \
+  tcpdump -i eth1 -nn -c 20 2>/dev/null
+# Attendu si flood: SYN TCP 179 vers l'IP du FRR mort
+```
+
+**Fix** : desactiver le flooding unknown-unicast sur les ports bridge loxilb :
+
+```bash
+sudo vagrant/scripts/configure-loxilb-bridge-ports.sh k8s-dev-loxilb1
+sudo vagrant/scripts/configure-loxilb-bridge-ports.sh k8s-dev-loxilb2
+sudo vagrant/scripts/configure-loxilb-bridge-ports.sh k8s-dev-loxilb3
+```
+
+Ce fix est applique automatiquement via un Vagrant trigger apres `vagrant up`.
+
+> **Note** : le flood off est necessaire en mode actif-actif ET actif-standby. Meme en ECMP, quand un peer BGP tombe, les SYN TCP 179 vers son IP deviennent unknown-unicast et declenchent la boucle de feedback entre les instances loxilb restantes.
+
+> **Important** : utiliser `LB_PROVIDER=loxilb LB_MODE=bgp vagrant up` au lieu de `virsh start` pour relancer une VM loxilb. Le Vagrant trigger qui applique le flood off ne s'execute qu'avec `vagrant up`. Un `virsh start` restaure la VM mais sans le flood off sur ses ports bridge.
+
+### RST eBPF transient apres restart conteneur loxilb
+
+**Symptome** : apres un `docker restart loxilb-external`, toutes les connexions HTTPS via la VIP echouent avec RST pendant ~10-15 minutes, puis se retablissent spontanement.
+
+**Observation tcpdump** (sur eth1 du loxilb) :
+
+```
+# SYN arrive et est DNAT correctement
+client.34660 > 192.168.121.210.443: Flags [S]        → loxilb.34660 > 10.42.0.31.10443: Flags [S]
+
+# SYN-ACK revient du pod
+10.42.0.31.10443 > loxilb.34660: Flags [S.]
+
+# Mais au lieu du reverse NAT (VIP → client), un RST est envoye
+loxilb.34660 > 10.42.0.31.10443: Flags [R]
+```
+
+Le programme eBPF TC sur eth1 ingress effectue le DNAT sur le SYN, mais ne cree pas les entrees conntrack (CT) reverses necessaires pour le reverse-NAT du SYN-ACK. Le kernel envoie un RST car aucun socket ne correspond.
+
+**Cause probable** : apres un restart du conteneur, le processus loxilb reinitialise ses maps eBPF (conntrack, flow cache) et GoBGP. Tant que GoBGP n'a pas fini son initialisation interne (~10-15 min), le data plane eBPF n'est pas pleinement fonctionnel. La correlation observee :
+
+| Temps post-restart | Etat | Explication |
+| --- | --- | --- |
+| 0–10 min | RST sur tous les SYN | eBPF DNAT ok mais CT reverse non cree, GoBGP initialise |
+| ~10–15 min | BGP ESTABLISHED | GoBGP termine son init, sessions BGP s'etablissent |
+| >15 min | HTTPS 200 OK stable | Data plane pleinement fonctionnel |
+
+> **Note** : `gobgp neighbor` peut afficher `context deadline exceeded` meme quand BGP fonctionne. Utiliser `loxicmd get bgpneigh` pour verifier l'etat BGP reel.
+
+**Diagnostic** :
+
+```bash
+# Verifier les sessions BGP (loxicmd est plus fiable que gobgp CLI)
+ssh vagrant@192.168.121.40 "sudo docker exec loxilb-external loxicmd get bgpneigh"
+# Si STATE=ESTABLISHED → BGP ok, le data plane devrait fonctionner
+
+# Verifier les compteurs CT (doivent augmenter apres curl)
+CT_BEFORE=$(ssh vagrant@192.168.121.41 "sudo docker exec loxilb-external loxicmd get ct | wc -l")
+curl -sk --resolve argocd.k8s.lan:443:192.168.121.210 https://argocd.k8s.lan -o /dev/null
+CT_AFTER=$(ssh vagrant@192.168.121.41 "sudo docker exec loxilb-external loxicmd get ct | wc -l")
+echo "CT: $CT_BEFORE → $CT_AFTER"
+# Si CT n'augmente pas → data plane pas encore pret
+
+# Verifier les compteurs LB (COUNTERS doit augmenter)
+ssh vagrant@192.168.121.41 "sudo docker exec loxilb-external loxicmd get lb -o wide" | grep 443
+```
+
+**Workaround** : attendre ~15 minutes apres un restart de conteneur. Il n'existe pas de commande pour forcer l'initialisation du data plane. Eviter `docker restart` en production — privilegier un `docker stop` suivi d'un `docker start` avec un delai suffisant, ou ne pas arreter le conteneur du tout.
+
 ### Mode External (k3d) - Problemes courants
 
 #### Container LoxiLB ne demarre pas
@@ -1150,7 +1233,57 @@ curl http://localhost:11111/netlox/v1/config/loadbalancer/all
 
 En mode externe, il est possible de configurer plusieurs instances loxilb pour la haute disponibilité. kube-loxilb supporte nativement plusieurs URLs via `--loxiURL=url1,url2,...`.
 
-### Configuration 2 instances
+### Modes HA : actif-actif vs actif-standby
+
+loxilb supporte deux modes HA, contrôlés par le flag `--setRoles` de kube-loxilb :
+
+| Aspect | Actif-actif (ECMP) | Actif-standby |
+| --- | --- | --- |
+| **Flag kube-loxilb** | Pas de `--setRoles` | `--setRoles=0.0.0.0` |
+| **HA State** | `NOT_DEFINED` sur toutes les instances | `MASTER` sur 1, `BACKUP` sur les autres |
+| **BGP MED** | `MED=0` identique sur toutes les instances | `MED=10` (MASTER), `MED=70` (BACKUP) |
+| **Distribution trafic** | ECMP hash par flow via FRR (`maximum-paths`) | Tout le trafic vers le MASTER uniquement |
+| **Failover** | Automatique (FRR retire le next-hop mort) | kube-loxilb élit un nouveau MASTER |
+| **Temps de failover** | BGP hold timer (ex: 9s avec timers 3 9) | BGP hold timer + élection MASTER (~35s) |
+| **Utilisation réseau** | Toutes les instances traitent du trafic | BACKUP(s) inactif(s) sauf failover |
+
+#### Actif-actif (recommandé en mode BGP)
+
+C'est le mode par défaut quand `--setRoles` est **absent** des args kube-loxilb. Toutes les instances annoncent les VIPs en BGP avec le même MED (0). FRR distribue le trafic en ECMP (hash par 5-tuple : src/dst IP + src/dst port + proto).
+
+```
+                  FRR BGP RIB (show ip route bgp)
+                  B>* 192.168.121.210/32 [20/0] via 192.168.121.40, eth1, weight 1
+                                                 via 192.168.121.41, eth1, weight 1
+                                                 via 192.168.121.42, eth1, weight 1
+```
+
+Le `NOT_DEFINED` affiché par `loxicmd get ha` est le comportement normal : sans `--setRoles`, kube-loxilb n'envoie pas de `CIStatusModel` aux instances loxilb, donc aucun rôle MASTER/BACKUP n'est assigné. Chaque instance traite le trafic qu'elle reçoit via ECMP de manière indépendante.
+
+**Code source kube-loxilb** (`cmd/loxilb-agent/agent.go`) : la fonction `SelectInstLoxiLBRoles()` n'est appelée que si `networkConfig.SetRoles != ""`. Sans ce flag, le cycle d'élection MASTER/BACKUP est entièrement désactivé.
+
+```yaml
+# ApplicationSet kube-loxilb args (actif-actif, pas de --setRoles) :
+args:
+  - --loxiURL=http://192.168.121.40:11111,http://...41:11111,http://...42:11111
+  - --cidrPools=defaultPool=192.168.121.200-192.168.121.220
+  - --setLBMode=1
+  - --setBGP=65002
+  - --extBGPPeers=192.168.121.45:65000,192.168.121.46:65000
+  - --noZoneName
+  # PAS de --setRoles → actif-actif
+```
+
+#### Actif-standby
+
+Activé en ajoutant `--setRoles=0.0.0.0` aux args kube-loxilb. Une seule instance est élue MASTER (MED=10), les autres sont BACKUP (MED=70). Le trafic est orienté vers le MASTER par le routeur FRR grâce au MED plus faible.
+
+**Inconvénients** :
+- Les instances BACKUP sont inutilisées (gaspillage de ressources)
+- Le failover est plus lent car il combine la détection BGP + l'élection d'un nouveau MASTER par kube-loxilb
+- Le comportement de `kube-loxilb` après un restart de conteneur peut être imprévisible (l'état HA affiché peut rester `NOT_DEFINED` tant que kube-loxilb ne re-synchronise pas)
+
+### Configuration multi-instances
 
 Le Vagrantfile dérive automatiquement le nombre de VMs depuis la liste `loxilb.loxiURL`. Il suffit de modifier **un seul fichier** :
 
@@ -1162,6 +1295,7 @@ loxilb:
   loxiURL:
     - "http://192.168.121.40:11111"   # 1re instance (VM k8s-dev-loxilb1)
     - "http://192.168.121.41:11111"   # 2e instance (VM k8s-dev-loxilb2)
+    - "http://192.168.121.42:11111"   # 3e instance (VM k8s-dev-loxilb3)
   setLBMode: 1
   bgp:
     enabled: true
@@ -1172,8 +1306,8 @@ loxilb:
 **Lancer `vagrant up`**
 
 ```bash
-LB_PROVIDER=loxilb make vagrant-dev-up
-# Crée automatiquement : k8s-dev-loxilb1 (192.168.121.40) et k8s-dev-loxilb2 (192.168.121.41)
+LB_PROVIDER=loxilb LB_MODE=bgp make vagrant-dev-up
+# Crée automatiquement : k8s-dev-loxilb1 (.40), k8s-dev-loxilb2 (.41), k8s-dev-loxilb3 (.42)
 ```
 
 ### Attribution des IPs
@@ -1196,6 +1330,36 @@ LB_PROVIDER=loxilb make vagrant-dev-up
 ### Comportement à 1 instance
 
 Avec `$loxilb_count = 1` et une seule URL, le comportement est **identique à l'ancien scalaire**.
+
+### Vérification ECMP (mode actif-actif)
+
+```bash
+# 1. Vérifier que toutes les instances annoncent les VIPs avec MED=0
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show bgp ipv4 unicast 192.168.121.210/32"
+# Paths: (3 available, ..., multipath)
+#   192.168.121.40 ... metric 0, valid, external, multipath
+#   192.168.121.41 ... metric 0, valid, external, multipath
+#   192.168.121.42 ... metric 0, valid, external, multipath
+
+# 2. Vérifier la table de routage FRR (3 next-hops ECMP)
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show ip route 192.168.121.210"
+# B>* 192.168.121.210/32 ... via 192.168.121.40, eth1, weight 1
+#                            via 192.168.121.41, eth1, weight 1
+#                            via 192.168.121.42, eth1, weight 1
+
+# 3. Vérifier les compteurs LB (trafic distribué sur les 3)
+for ip in 40 41 42; do
+  echo "=== loxilb (.${ip}) ==="
+  ssh vagrant@192.168.121.${ip} "sudo docker exec loxilb-external loxicmd get lb -o wide" \
+    | grep 443
+done
+
+# 4. Vérifier les sessions BGP sur chaque instance
+for ip in 40 41 42; do
+  echo "=== loxilb (.${ip}) ==="
+  ssh vagrant@192.168.121.${ip} "sudo docker exec loxilb-external loxicmd get bgpneigh"
+done
+```
 
 ---
 

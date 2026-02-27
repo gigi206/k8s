@@ -8,7 +8,7 @@ FRR est **générique** — il n'est pas spécifique à LoxiLB. Son rôle est de
 
 - **LoxiLB** (ASN 65002) → FRR apprend les VIP `/32` routes
 - **Cilium** (ASN 64512) → FRR apprend les PodCIDR routes
-- **Proxy-ARP sur eth1** → FRR répond aux ARP de l'hôte pour les VIPs → forward vers loxilb
+- **Proxy-ARP sur eth1** → activé mais **inactif en flat L2** (voir [Control Plane vs Data Plane](#control-plane-vs-data-plane))
 
 ## Topologie BGP Mode vs L2 Mode
 
@@ -196,6 +196,273 @@ vagrant ssh k8s-dev-frr1 -- sysctl net.ipv4.conf.eth1.proxy_arp
 vagrant ssh k8s-dev-frr1 -- sysctl net.ipv4.ip_forward
 # Attendu: 1
 ```
+
+## Control Plane vs Data Plane
+
+### Comportement en réseau flat L2 (lab)
+
+En lab, toutes les VMs sont sur le même `/24` (`192.168.121.0/24`). Dans cette topologie :
+
+- loxilb ajoute les VIPs sur son interface `lo` → répond directement à l'ARP
+- Le trafic hôte → VIP va **directement** à loxilb (L2), **sans passer par FRR**
+- FRR est uniquement dans le **control plane BGP** (échange de routes)
+
+```
+# Réseau flat L2 : FRR est HORS du data plane
+Hôte (.1) ──ARP direct──→ loxilb (.40, VIP sur lo) ──DNAT──→ Pod
+                           FRR (.45) : jamais traversé par les paquets
+```
+
+### Valeur de FRR même sans data plane
+
+| Rôle | Impact |
+|------|--------|
+| BGP loxilb→FRR : loxilb apprend `10.42.0.0/24 via .50` | **Critical** : onearm SNAT a besoin des routes pods |
+| BGP FRR→Cilium : Cilium apprend les VIPs /32 | **Critical** : retour de trafic pod→client |
+| ECMP 3 paths vers VIP (MED=10/70/70) | **HA** : withdraw BGP en cas de panne loxilb |
+| Redistribution de routes inter-AS | **Découplage** : loxilb et Cilium n'ont pas besoin de se connaître |
+
+### Comportement en réseau segmenté (production)
+
+En production avec des VLANs séparés (clients, infra, cluster), FRR est le **vrai routeur** entre les segments. Le trafic DOIT passer par FRR car les VIPs ne sont pas sur le même réseau L2 que les clients.
+
+### VRRP Anycast Gateway
+
+En lab flat L2, FRR n'est dans le data plane que si des routes statiques hôte pointent vers FRR. Avec 2 FRR et ECMP statique (`nexthop via .45 nexthop via .46`), si un FRR meurt, la moitié du trafic est perdu — les routes statiques n'ont aucun health-check.
+
+**Solution** : VRRP anycast — les 2 FRR partagent un VIP unique (`.44`). L'hôte route via `.44`. Failover automatique en ~3s.
+
+```
+┌──────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  Hôte    │     │  FRR1 (.45)      │     │  FRR2 (.46)      │
+│          │     │  VRRP Master     │     │  VRRP Backup     │
+│          │     │  priority 100    │     │  priority 50     │
+│ route    │     │                  │     │                  │
+│ via .44 ─┼────→│  VIP .44 (actif) │     │  VIP .44 (veille)│
+│          │     └──────────────────┘     └──────────────────┘
+└──────────┘            ↕ VRRP advertisements (proto 112)
+```
+
+#### Configuration
+
+```yaml
+# deploy/argocd/config/config.yaml
+features:
+  loadBalancer:
+    bgp:
+      vrrp:
+        enabled: true
+        vip: "192.168.121.44"       # VIP partagé (hors pools LB)
+        vrid: 1                      # Virtual Router ID
+        advertisementInterval: 100   # centisecondes (100 = 1s)
+```
+
+- Le VIP `.44` est choisi sous `.45` (FRR1), au-dessus de `.42` (loxilb3), hors des pools LB
+- Le BGP peering reste sur les IPs réelles (`.45`/`.46`) — seul le data plane utilise le VIP
+- La priorité est calculée automatiquement depuis l'index dans `bgp.peers[]` : index 0 = 100 (master), index 1 = 50 (backup)
+
+#### Fonctionnement
+
+Le script `provision-frr.sh` :
+
+1. Active `vrrpd=yes` dans `/etc/frr/daemons`
+2. Crée une interface macvlan `vrrp4-<ifindex>-<vrid>` sur eth1 avec le MAC virtuel VRRP (`00:00:5e:00:01:<vrid>`)
+3. Ajoute la config VRRP à `/etc/frr/frr.conf` (VRRPv3, priority, advertisement-interval)
+4. Active `arp_accept=1` sur eth1 pour le gratuitous ARP de failover
+5. Persiste la macvlan via `networkd-dispatcher` pour les reboots
+
+#### Routes hôte via VRRP VIP
+
+```bash
+# Route simple via VIP (failover automatique)
+sudo ip route replace 192.168.121.210/32 via 192.168.121.44 dev virbr0
+sudo ip route replace 192.168.121.201/32 via 192.168.121.44 dev virbr0
+
+# Persistance
+sudo nmcli connection modify virbr0 \
+  +ipv4.routes "192.168.121.210/32 192.168.121.44, 192.168.121.201/32 192.168.121.44"
+```
+
+#### Vérification VRRP
+
+```bash
+# 1. Status VRRP
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show vrrp"
+# VRID 1, priority 100, Status: Master
+vagrant ssh k8s-dev-frr2 -- sudo vtysh -c "show vrrp"
+# VRID 1, priority 50, Status: Backup
+
+# 2. VIP ping
+ping -c3 192.168.121.44
+
+# 3. Test end-to-end via VIP
+sudo ip route replace 192.168.121.210/32 via 192.168.121.44 dev virbr0
+curl -sk https://argocd.k8s.lan --resolve argocd.k8s.lan:443:192.168.121.210 -w '%{http_code}\n'
+# 200
+```
+
+#### Test failover VRRP (FRR)
+
+```bash
+# 1. Arrêter FRR1 (master)
+vagrant halt k8s-dev-frr1
+# Attendre ~3s pour le failover VRRP
+
+# 2. Vérifier que FRR2 a pris le relais
+vagrant ssh k8s-dev-frr2 -- sudo vtysh -c "show vrrp"
+# Status: Master
+
+# 3. Test end-to-end (toujours fonctionnel)
+curl -sk https://argocd.k8s.lan --resolve argocd.k8s.lan:443:192.168.121.210 -w '%{http_code}\n'
+# 200
+
+# 4. Redémarrer FRR1 (preempt)
+vagrant up k8s-dev-frr1
+# Attendre ~10s
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show vrrp"
+# Status: Master (preempt, priority 100 > 50)
+```
+
+#### Test failover loxilb HA
+
+kube-loxilb gère le HA via MED BGP : MASTER annonce les VIPs avec MED=10, BACKUP avec MED=70. FRR sélectionne le plus bas MED.
+
+```bash
+# 1. Vérifier l'état HA (loxilb1=MASTER, loxilb2/3=BACKUP)
+for vm in loxilb1 loxilb2 loxilb3; do
+  vagrant ssh k8s-dev-$vm -- sudo docker exec loxilb-external loxicmd get ha
+done
+
+# 2. Arrêter le MASTER
+virsh shutdown k8s-dev-loxilb1
+
+# 3. Attendre ~15s pour convergence BGP + HA promotion
+sleep 15
+
+# 4. Vérifier promotion (un BACKUP devient MASTER)
+vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show bgp ipv4 unicast 192.168.121.210/32"
+# Best path: MED=10 via .41 ou .42 (nouveau MASTER)
+
+# 5. Test end-to-end
+for i in $(seq 1 10); do
+  curl -sk --max-time 5 -o /dev/null -w "%{http_code} " \
+    https://argocd.k8s.lan --resolve argocd.k8s.lan:443:192.168.121.210
+done; echo
+# 200 200 200 200 200 200 200 200 200 200
+
+# 6. Recovery (pas de preemption — le nouveau MASTER reste)
+virsh start k8s-dev-loxilb1
+# loxilb1 revient en BACKUP, pas d'interruption
+```
+
+#### Contrainte BGP : holdTime > restartTime + keepaliveInterval
+
+Quand un FRR tombe, GoBGP (Cilium) entre en graceful restart (GR) et **bloque le traitement des keepalives pour TOUS les peers** pendant `restartTimeSeconds`. Le hold timer compte depuis le **dernier keepalive traité** (pas depuis le début du GR). Formule :
+
+```
+holdTime > restartTime + keepaliveInterval
+```
+
+Avec `restartTime=120` et `keepalive=60` → `holdTime > 180`. On utilise `holdTime=300` (marge de 120s).
+
+**Symptôme** : après shutdown de FRR1, Cilium perd AUSSI la session BGP vers FRR2. Le trafic HTTPS est interrompu ~7 min (reconvergence BGP + entrées conntrack stale dans loxilb).
+
+**Fix Cilium** : dans `CiliumBGPPeerConfig` (`apps/loxilb/kustomize/cilium-bgp-peering/ciliumbgppeerconfig.yaml`) :
+
+```yaml
+timers:
+  holdTimeSeconds: 300        # > restartTime (120) + keepalive (60) + marge
+  keepAliveTimeSeconds: 60
+  connectRetryTimeSeconds: 30 # reconnexion rapide après perte de session
+gracefulRestart:
+  enabled: true
+  restartTimeSeconds: 120     # durée du GR
+```
+
+**Fix FRR** : dans `provision-frr.sh`, le peer Cilium a `neighbor <ip> timers 60 300` car BGP négocie le **minimum** des deux hold times. Sans ce timer côté FRR (default hold=180), le hold négocié serait `min(300, 180) = 180` — insuffisant.
+
+#### Contrainte bridge : flood off sur les ports loxilb
+
+Quand un FRR est arrêté (VM shutdown), ses ports bridge sont supprimés et son MAC disparaît de la FDB. Les instances loxilb tentent de reconnecter BGP (SYN TCP 179 vers le FRR mort). Ces SYNs ont comme MAC destination celui du FRR disparu → **unknown unicast** → le bridge les flood vers TOUS les ports, y compris les autres loxilb.
+
+L'eBPF de chaque loxilb a une route et un voisin pour le FRR mort. Il re-forwarde les SYNs reçus vers eth1 → retour au bridge → re-flood → **boucle de feedback à 80-100k+ pps**. Cette avalanche sature les TAP queues et provoque ~80% de perte de paquets sur tous les ports bridge.
+
+**Fix** : désactiver le flooding unknown-unicast sur les ports bridge des loxilb :
+
+```bash
+# Pour chaque VM loxilb
+sudo bridge link set dev <vnetX> flood off
+```
+
+Le trafic légitime (unicast avec MAC destination connu, broadcast ARP, multicast) n'est pas affecté. Seuls les paquets unknown-unicast sont filtrés.
+
+Ce fix est appliqué automatiquement via un Vagrant trigger (`vagrant/scripts/configure-loxilb-bridge-ports.sh`) après chaque `vagrant up` ou `vagrant reload` des VMs loxilb.
+
+**Résultat** : HTTPS via VIP 10/10 (100%) même avec un FRR complètement arrêté.
+
+#### Contrainte onearm : route retour via eth1
+
+En mode onearm, loxilb envoie le retour (SYN-ACK) au MAC source du paquet entrant. Quand le trafic passe par FRR, le retour va vers FRR. FRR doit alors router le paquet vers l'hôte gateway (`.1`).
+
+**Problème** : FRR a une route DHCP `192.168.121.1 dev eth0` (Vagrant management). Le retour sort par eth0 au lieu de eth1 (data plane) → le paquet n'atteint jamais le bridge → timeout.
+
+**Fix** : `ip route replace 192.168.121.1/32 dev eth1` sur chaque FRR. Ce fix est appliqué automatiquement par `provision-frr.sh` (section "Route fix") et persisté via `networkd-dispatcher`.
+
+### Forcer FRR dans le data plane (lab)
+
+Pour simuler une topologie production en lab, ajouter des routes statiques sur l'hôte pour les VIPs via FRR.
+
+**Avec VRRP (recommandé)** — route unique via le VIP partagé, failover automatique :
+
+```bash
+sudo ip route replace 192.168.121.210/32 via 192.168.121.44 dev virbr0
+sudo ip route replace 192.168.121.201/32 via 192.168.121.44 dev virbr0
+```
+
+**Sans VRRP (legacy)** — ECMP statique, pas de failover :
+
+```bash
+# Routes ECMP via FRR1 + FRR2 (multi-path)
+sudo ip route replace 192.168.121.210/32 \
+  nexthop via 192.168.121.45 dev virbr0 weight 1 \
+  nexthop via 192.168.121.46 dev virbr0 weight 1
+
+sudo ip route replace 192.168.121.201/32 \
+  nexthop via 192.168.121.45 dev virbr0 weight 1 \
+  nexthop via 192.168.121.46 dev virbr0 weight 1
+```
+
+**Hash ECMP L4** (requis pour ECMP sans VRRP avec même src/dst IP) :
+
+```bash
+sudo sysctl -w net.ipv4.fib_multipath_hash_policy=1
+```
+
+### Vérification du data plane via FRR
+
+```bash
+# Vérifier que les routes passent par FRR
+ip route get 192.168.121.210
+# Avec VRRP: 192.168.121.210 via 192.168.121.44 dev virbr0
+# Sans VRRP: 192.168.121.210 via 192.168.121.45 dev virbr0
+
+# Tracepath pour confirmer le hop intermédiaire
+tracepath -n 192.168.121.210
+
+# Test end-to-end via FRR
+curl -sk https://argocd.k8s.lan --resolve argocd.k8s.lan:443:192.168.121.210 -o /dev/null -w '%{http_code}\n'
+# Attendu: 200
+```
+
+> **Note** : ces routes hôte sont éphémères (perdues au reboot). Pour les rendre persistantes :
+> ```bash
+> # Avec VRRP
+> sudo nmcli connection modify virbr0 \
+>   +ipv4.routes "192.168.121.210/32 192.168.121.44, 192.168.121.201/32 192.168.121.44"
+> # Sans VRRP (single FRR)
+> sudo nmcli connection modify virbr0 \
+>   +ipv4.routes "192.168.121.210/32 192.168.121.45, 192.168.121.201/32 192.168.121.45"
+> ```
 
 ## Références
 

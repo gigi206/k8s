@@ -101,7 +101,6 @@ spec:
                     value:
                       - --loxiURL={{ join "," .loxilb.loxiURL }}
                       - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
-                      - --setRoles=0.0.0.0
                       - --setLBMode={{ .loxilb.setLBMode }}
                       - --noZoneName
               {{- if .loxilb.bgp.enabled }}
@@ -310,14 +309,12 @@ spec:
                     {{- if eq .features.loadBalancer.mode "bgp" }}
                     value:
                       - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
-                      - --setRoles=0.0.0.0
                       - --setBGP={{ .features.loadBalancer.bgp.localASN }}
                       - --setLBMode={{ .loxilb.setLBMode }}
                       - --noZoneName
                     {{- else }}
                     value:
                       - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
-                      - --setRoles=0.0.0.0
                       - --setLBMode={{ .loxilb.setLBMode }}
                       - --noZoneName
                     {{- end }}

@@ -23,6 +23,9 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
+# Network interface used for BGP peering and VRRP
+FRR_IFACE="${FRR_IFACE:-eth1}"
+
 # Determine project root (NFS mount at /vagrant)
 if [ -f "/vagrant/vagrant/scripts/RKE2_ENV.sh" ]; then
   PROJECT_ROOT="/vagrant"
@@ -57,21 +60,43 @@ FRR_ASN=$(yq '.features.loadBalancer.bgp.peers[0].asn // 65000' "$ARGOCD_CONFIG"
 # Cluster ASN: the local ASN used by the LB provider (metallb speakers / cilium bgpControlPlane)
 CLUSTER_ASN=$(yq '.features.loadBalancer.bgp.localASN // 64512' "$ARGOCD_CONFIG" 2>/dev/null || echo "64512")
 
-# Determine eth1 IP (this VM: .45), master IP (.50)
-ETH1_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "")
+# VRRP configuration
+VRRP_ENABLED=$(yq '.features.loadBalancer.bgp.vrrp.enabled // false' "$ARGOCD_CONFIG" 2>/dev/null || echo "false")
+VRRP_VIP=$(yq '.features.loadBalancer.bgp.vrrp.vip // ""' "$ARGOCD_CONFIG" 2>/dev/null || echo "")
+VRRP_VRID=$(yq '.features.loadBalancer.bgp.vrrp.vrid // 1' "$ARGOCD_CONFIG" 2>/dev/null || echo "1")
+VRRP_ADV_INTERVAL=$(yq '.features.loadBalancer.bgp.vrrp.advertisementInterval // 100' "$ARGOCD_CONFIG" 2>/dev/null || echo "100")
+VRRP_PRIORITY=50  # default: backup
+
+# Determine FRR_IFACE IP (this VM: .45), master IP (.50)
+ETH1_IP=$(ip -4 addr show "$FRR_IFACE" | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "")
 if [ -z "$ETH1_IP" ]; then
-  echo "[WARN] eth1 has no IPv4 address yet, using configured peer address"
+  echo "[WARN] $FRR_IFACE has no IPv4 address yet, using configured peer address"
   ETH1_IP=$(yq '.features.loadBalancer.bgp.peers[0].address // "192.168.121.45"' "$ARGOCD_CONFIG" 2>/dev/null || echo "192.168.121.45")
 fi
 # Derive master IP by replacing last octet with 50
 NETWORK_PREFIX=$(echo "$ETH1_IP" | cut -d. -f1-3)
 MASTER_IP="${NETWORK_PREFIX}.50"
 
+# Calculate VRRP priority: index 0 in peers[] = priority 100 (master), index 1 = priority 50 (backup)
+if [[ "$VRRP_ENABLED" == "true" ]]; then
+  PEER_COUNT=$(yq '.features.loadBalancer.bgp.peers | length' "$ARGOCD_CONFIG" 2>/dev/null || echo "0")
+  for ((i=0; i<PEER_COUNT; i++)); do
+    PEER_IP=$(yq ".features.loadBalancer.bgp.peers[$i].address" "$ARGOCD_CONFIG" 2>/dev/null || echo "")
+    if [[ "$PEER_IP" == "$ETH1_IP" ]]; then
+      VRRP_PRIORITY=$((100 - i * 50))
+      break
+    fi
+  done
+fi
+
 echo "[INFO] FRR BGP router provisioning (mode: bgp, provider: $LB_PROVIDER)"
-echo "[INFO]   FRR IP:       $ETH1_IP (eth1)"
+echo "[INFO]   FRR IP:       $ETH1_IP ($FRR_IFACE)"
 echo "[INFO]   FRR ASN:      $FRR_ASN"
 echo "[INFO]   Cluster ASN:  $CLUSTER_ASN"
 echo "[INFO]   Master IP:    $MASTER_IP"
+if [[ "$VRRP_ENABLED" == "true" ]]; then
+  echo "[INFO]   VRRP:         enabled (VIP=$VRRP_VIP, VRID=$VRRP_VRID, priority=$VRRP_PRIORITY)"
+fi
 
 # =============================================================================
 # Install FRR
@@ -90,7 +115,44 @@ fi
 # =============================================================================
 echo "[INFO] Enabling bgpd in /etc/frr/daemons..."
 sed -i 's/^bgpd=no/bgpd=yes/' /etc/frr/daemons
+if [[ "$VRRP_ENABLED" == "true" ]]; then
+  echo "[INFO] Enabling vrrpd in /etc/frr/daemons..."
+  sed -i 's/^vrrpd=no/vrrpd=yes/' /etc/frr/daemons
+fi
 grep "^bgpd=" /etc/frr/daemons
+
+# =============================================================================
+# Create VRRP macvlan interface (before frr.conf generation)
+# =============================================================================
+# FRR vrrpd uses a macvlan interface with the VRRP virtual MAC.
+# Pre-create it for reliability (FRR auto-creates but manual is more robust).
+if [[ "$VRRP_ENABLED" == "true" && -n "$VRRP_VIP" ]]; then
+  VRRP_MAC=$(printf '00:00:5e:00:01:%02x' "$VRRP_VRID")
+  FRR_IFINDEX=$(cat /sys/class/net/"$FRR_IFACE"/ifindex 2>/dev/null || echo "2")
+  VRRP_MACVLAN="vrrp4-${FRR_IFINDEX}-${VRRP_VRID}"
+
+  echo "[INFO] Creating VRRP macvlan interface $VRRP_MACVLAN (MAC=$VRRP_MAC, VIP=$VRRP_VIP)..."
+  ip link del "$VRRP_MACVLAN" 2>/dev/null || true
+  ip link add "$VRRP_MACVLAN" link "$FRR_IFACE" type macvlan mode bridge
+  ip link set dev "$VRRP_MACVLAN" address "$VRRP_MAC"
+  ip addr add "${VRRP_VIP}/24" dev "$VRRP_MACVLAN"
+  ip link set dev "$VRRP_MACVLAN" up
+  echo "[OK] VRRP macvlan $VRRP_MACVLAN created"
+
+  # Persist macvlan across reboots via networkd-dispatcher
+  cat > /etc/networkd-dispatcher/routable.d/50-vrrp-macvlan.sh << MACVLAN_EOF
+#!/bin/bash
+if [[ "\$IFACE" == "${FRR_IFACE}" ]]; then
+  ip link del ${VRRP_MACVLAN} 2>/dev/null || true
+  ip link add ${VRRP_MACVLAN} link ${FRR_IFACE} type macvlan mode bridge
+  ip link set dev ${VRRP_MACVLAN} address ${VRRP_MAC}
+  ip addr add ${VRRP_VIP}/24 dev ${VRRP_MACVLAN}
+  ip link set dev ${VRRP_MACVLAN} up
+fi
+MACVLAN_EOF
+  chmod +x /etc/networkd-dispatcher/routable.d/50-vrrp-macvlan.sh
+  echo "[OK] VRRP macvlan persistence script installed"
+fi
 
 # =============================================================================
 # Generate /etc/frr/frr.conf (topology depends on LB provider)
@@ -122,6 +184,7 @@ if [ "$LB_PROVIDER" = "loxilb" ]; then
     NEIGHBOR_DECL+=" neighbor ${lox_ip} remote-as ${LOXILB_ASN}
  neighbor ${lox_ip} description loxilb-external-$((i+1))
  neighbor ${lox_ip} ebgp-multihop 2
+ neighbor ${lox_ip} timers 3 9
  !
 "
     NEIGHBOR_ACTIVATE+="  neighbor ${lox_ip} activate
@@ -145,6 +208,7 @@ router bgp ${FRR_ASN}
 ${NEIGHBOR_DECL} neighbor ${MASTER_IP} remote-as ${CLUSTER_ASN}
  neighbor ${MASTER_IP} description cilium-master
  neighbor ${MASTER_IP} ebgp-multihop 2
+ neighbor ${MASTER_IP} timers 60 300
  !
  address-family ipv4 unicast
 ${NEIGHBOR_ACTIVATE}  neighbor ${MASTER_IP} activate
@@ -176,6 +240,7 @@ router bgp ${FRR_ASN}
  neighbor ${MASTER_IP} remote-as ${CLUSTER_ASN}
  neighbor ${MASTER_IP} description ${LB_PROVIDER}-master
  neighbor ${MASTER_IP} ebgp-multihop 2
+ neighbor ${MASTER_IP} timers 60 300
  !
  address-family ipv4 unicast
   neighbor ${MASTER_IP} activate
@@ -191,16 +256,61 @@ fi
 echo "[OK] /etc/frr/frr.conf written"
 
 # =============================================================================
-# Sysctl: ip_forward + proxy_arp on eth1
+# Append VRRP configuration to frr.conf
 # =============================================================================
-echo "[INFO] Setting sysctl (ip_forward + proxy_arp on eth1)..."
+if [[ "$VRRP_ENABLED" == "true" && -n "$VRRP_VIP" ]]; then
+  echo "[INFO] Appending VRRP config to /etc/frr/frr.conf (VRID=$VRRP_VRID, priority=$VRRP_PRIORITY)..."
+  cat >> /etc/frr/frr.conf << VRRP_EOF
+
+interface ${FRR_IFACE}
+ vrrp ${VRRP_VRID} version 3
+ vrrp ${VRRP_VRID} priority ${VRRP_PRIORITY}
+ vrrp ${VRRP_VRID} advertisement-interval ${VRRP_ADV_INTERVAL}
+ vrrp ${VRRP_VRID} ip ${VRRP_VIP}
+!
+VRRP_EOF
+  echo "[OK] VRRP config appended"
+fi
+
+# =============================================================================
+# Sysctl: ip_forward + proxy_arp on FRR_IFACE
+# =============================================================================
+echo "[INFO] Setting sysctl (ip_forward + proxy_arp on $FRR_IFACE)..."
 cat > /etc/sysctl.d/99-frr-routing.conf << EOF
 # FRR BGP upstream router - IP forwarding and proxy-ARP for VIPs
 net.ipv4.ip_forward = 1
-net.ipv4.conf.eth1.proxy_arp = 1
+net.ipv4.conf.${FRR_IFACE}.proxy_arp = 1
 EOF
+if [[ "$VRRP_ENABLED" == "true" ]]; then
+  cat >> /etc/sysctl.d/99-frr-routing.conf << EOF
+# VRRP: accept gratuitous ARP for fast failover
+net.ipv4.conf.${FRR_IFACE}.arp_accept = 1
+EOF
+fi
 sysctl -p /etc/sysctl.d/99-frr-routing.conf
 echo "[OK] sysctl applied"
+
+# =============================================================================
+# Route fix: ensure host gateway is reachable via FRR_IFACE (not eth0)
+# =============================================================================
+# In loxilb onearm mode, return packets are sent to FRR's MAC with dst=gateway.
+# Without this fix, FRR routes them via eth0 (Vagrant management) instead of
+# FRR_IFACE (data plane), breaking the return path.
+if [ "$LB_PROVIDER" = "loxilb" ]; then
+  GATEWAY_IP="${NETWORK_PREFIX}.1"
+  echo "[INFO] Adding host gateway route: ${GATEWAY_IP}/32 dev ${FRR_IFACE}"
+  ip route replace "${GATEWAY_IP}/32" dev "$FRR_IFACE"
+
+  # Persist across reboots via networkd-dispatcher
+  cat > /etc/networkd-dispatcher/routable.d/51-frr-gateway-route.sh << GWROUTE_EOF
+#!/bin/bash
+if [[ "\$IFACE" == "${FRR_IFACE}" ]]; then
+  ip route replace ${GATEWAY_IP}/32 dev ${FRR_IFACE}
+fi
+GWROUTE_EOF
+  chmod +x /etc/networkd-dispatcher/routable.d/51-frr-gateway-route.sh
+  echo "[OK] Host gateway route added and persisted"
+fi
 
 # =============================================================================
 # Start FRR
@@ -234,4 +344,22 @@ if [ "$LB_PROVIDER" = "loxilb" ]; then
   echo "  # Expected: ${LOXILB_IPS[*]} (Established) + ${MASTER_IP} (Established)"
 else
   echo "  # Expected: ${MASTER_IP} (Established)"
+fi
+
+# =============================================================================
+# Verify VRRP
+# =============================================================================
+if [[ "$VRRP_ENABLED" == "true" ]]; then
+  echo ""
+  echo "[INFO] VRRP status:"
+  vtysh -c "show vrrp" 2>/dev/null || echo "[INFO] vrrpd not yet ready"
+  echo ""
+  echo "[INFO] VRRP anycast configured:"
+  echo "  VIP:      $VRRP_VIP (shared between all FRR instances)"
+  echo "  VRID:     $VRRP_VRID"
+  echo "  Priority: $VRRP_PRIORITY (100=master, 50=backup)"
+  echo ""
+  echo "[INFO] To route host traffic via VRRP VIP:"
+  echo "  sudo ip route replace 192.168.121.210/32 via $VRRP_VIP dev virbr0"
+  echo "  sudo ip route replace 192.168.121.201/32 via $VRRP_VIP dev virbr0"
 fi
