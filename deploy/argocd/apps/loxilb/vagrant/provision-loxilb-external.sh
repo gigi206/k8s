@@ -77,6 +77,23 @@ EOF
 sysctl -w net.ipv4.conf.eth0.arp_ignore=1
 echo "[OK] arp_ignore=1 set on eth0 (persistent)"
 
+# Install arping for gateway MAC resolution at boot time
+# (loxilb-eth0-fix.sh runs Before=docker.service when eth0 ARP cache is empty)
+if ! command -v arping &>/dev/null; then
+  apt-get install -y -qq iputils-arping
+  echo "[OK] iputils-arping installed"
+fi
+
+# Write extra neighbor IPs to resolve at boot (e.g., VRRP VIP)
+mkdir -p /etc/loxilb
+> /etc/loxilb/extra-neighbors.conf
+VRRP_ENABLED=$(yq '.features.loadBalancer.bgp.vrrp.enabled' "$ARGOCD_CONFIG" 2>/dev/null || echo "false")
+VRRP_VIP=$(yq '.features.loadBalancer.bgp.vrrp.vip' "$ARGOCD_CONFIG" 2>/dev/null || echo "")
+if [ "$VRRP_ENABLED" = "true" ] && [ -n "$VRRP_VIP" ] && [ "$VRRP_VIP" != "null" ]; then
+  echo "$VRRP_VIP" >> /etc/loxilb/extra-neighbors.conf
+  echo "[OK] VRRP VIP ${VRRP_VIP} added to boot-time neighbor resolution"
+fi
+
 # Fix 1: create a systemd service to set eth0 to /32 before Docker starts.
 # This runs at every boot (Before=docker.service) to ensure loxilb always
 # sees eth0 as /32. DHCP may restore /24 on renewal, but this service re-fixes
@@ -87,18 +104,77 @@ cat > /usr/local/bin/loxilb-eth0-fix.sh << 'SCRIPT'
 ETH0_IP=$(ip -4 addr show eth0 | awk '/inet /{split($2,a,"/"); print a[1]; exit}')
 [ -z "$ETH0_IP" ] && { echo "[WARN] eth0 has no IPv4, skipping"; exit 0; }
 MASK=$(ip -4 addr show eth0 | awk '/inet /{split($2,a,"/"); print a[2]; exit}')
-[ "$MASK" = "32" ] && { echo "[OK] eth0 already /32, skipping"; exit 0; }
-ip addr del "${ETH0_IP}/24" dev eth0 2>/dev/null || true
-ip addr add "${ETH0_IP}/32" dev eth0
-ip route add 192.168.121.1/32 dev eth0 scope link 2>/dev/null || true
-ip route add default via 192.168.121.1 dev eth0 2>/dev/null || true
-echo "[OK] eth0 set to /32: ${ETH0_IP}/32"
+if [ "$MASK" != "32" ]; then
+  ip addr del "${ETH0_IP}/24" dev eth0 2>/dev/null || true
+  ip addr add "${ETH0_IP}/32" dev eth0
+  ip route add 192.168.121.1/32 dev eth0 scope link 2>/dev/null || true
+  ip route add default via 192.168.121.1 dev eth0 2>/dev/null || true
+  echo "[OK] eth0 set to /32: ${ETH0_IP}/32"
+else
+  echo "[OK] eth0 already /32, skipping"
+fi
+
+# -----------------------------------------------------------------------
+# Fix 3: add permanent neighbors on eth1 for loxilb eBPF reverse NAT
+# -----------------------------------------------------------------------
+# With eth0 set to /32, the kernel routes the gateway via eth0 exclusively.
+# loxilb (--whitelist=eth1) only monitors eth1 neighbors for its internal
+# neighbor map (populated via netlink from the kernel ARP cache — NOT via
+# bpf_fib_lookup). On the reverse NAT path (SYN-ACK from backend → client),
+# the eBPF looks up the client's next-hop L2 addr in this internal map.
+# If the client is behind the gateway (e.g. the hypervisor at .1), the
+# gateway's MAC is not in loxilb's eth1 neighbor table → the lookup fails
+# → eBPF returns TC_ACT_OK → kernel sends RST (no socket).
+#
+# Fix: add permanent ARP entries on eth1 for:
+#   - gateway (for clients behind the default route)
+#   - VRRP VIP (for traffic routed via the FRR anycast VIP)
+# Uses arping with retry loop since eth0 ARP cache is empty at early boot.
+# -----------------------------------------------------------------------
+resolve_and_add_neighbor() {
+  local TARGET_IP="$1"
+  local RESOLVED_MAC=""
+  for attempt in $(seq 1 10); do
+    # Method 1: arping on eth1 (active ARP request, works with empty cache)
+    if command -v arping &>/dev/null; then
+      RESOLVED_MAC=$(arping -I eth1 -c 1 -w 3 "$TARGET_IP" 2>/dev/null | awk '/reply/{print $5; exit}' | tr -d '[]')
+    fi
+    # Method 2: ping to populate ARP cache, then read
+    if [ -z "$RESOLVED_MAC" ]; then
+      ping -c 1 -W 2 "$TARGET_IP" >/dev/null 2>&1 || true
+      RESOLVED_MAC=$(ip neigh show "$TARGET_IP" 2>/dev/null | awk '/lladdr/{print $5; exit}')
+    fi
+    if [ -n "$RESOLVED_MAC" ]; then
+      ip neigh replace "$TARGET_IP" lladdr "$RESOLVED_MAC" dev eth1 nud permanent 2>/dev/null
+      echo "[OK] ${TARGET_IP} (${RESOLVED_MAC}) added to eth1 neighbor table"
+      return 0
+    fi
+    echo "[INFO] MAC for ${TARGET_IP} not resolved (attempt $attempt/10), retrying..."
+    sleep 2
+  done
+  echo "[WARN] Could not resolve MAC for ${TARGET_IP} after 10 attempts"
+  return 1
+}
+
+# Gateway neighbor (reverse NAT for clients behind default route)
+GW_IP=$(ip route show default dev eth0 2>/dev/null | awk '/via/{print $3; exit}')
+if [ -n "$GW_IP" ]; then
+  resolve_and_add_neighbor "$GW_IP"
+fi
+
+# Extra neighbors from provisioning config (e.g., VRRP VIP)
+if [ -f /etc/loxilb/extra-neighbors.conf ]; then
+  while IFS= read -r extra_ip || [ -n "$extra_ip" ]; do
+    [ -z "$extra_ip" ] && continue
+    resolve_and_add_neighbor "$extra_ip"
+  done < /etc/loxilb/extra-neighbors.conf
+fi
 SCRIPT
 chmod +x /usr/local/bin/loxilb-eth0-fix.sh
 
 cat > /etc/systemd/system/loxilb-eth0-fix.service << 'SERVICE'
 [Unit]
-Description=Fix eth0 to /32 for loxilb IfaSelectAny GARP correctness
+Description=Fix eth0 to /32 and add gateway neighbor on eth1 for loxilb
 After=network-online.target
 Before=docker.service
 Wants=network-online.target

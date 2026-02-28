@@ -280,6 +280,13 @@ cat > /etc/sysctl.d/99-frr-routing.conf << EOF
 # FRR BGP upstream router - IP forwarding and proxy-ARP for VIPs
 net.ipv4.ip_forward = 1
 net.ipv4.conf.${FRR_IFACE}.proxy_arp = 1
+# ECMP L4 hash: use src/dst ports in addition to src/dst IP for multipath
+# routing decisions. Without this (policy=0), all traffic from the same
+# source IP to the same VIP is sent to a single nexthop. With policy=1,
+# different connections (different src ports) are distributed across all
+# ECMP nexthops, limiting the impact of a failed LB instance to ~1/N
+# instead of 100%.
+net.ipv4.fib_multipath_hash_policy = 1
 EOF
 if [[ "$VRRP_ENABLED" == "true" ]]; then
   cat >> /etc/sysctl.d/99-frr-routing.conf << EOF

@@ -464,6 +464,22 @@ curl -sk https://argocd.k8s.lan --resolve argocd.k8s.lan:443:192.168.121.210 -o 
 >   +ipv4.routes "192.168.121.210/32 192.168.121.45, 192.168.121.201/32 192.168.121.45"
 > ```
 
+#### Contrainte ECMP : hash L4 sur FRR (fib_multipath_hash_policy=1)
+
+FRR reçoit les VIP `/32` via BGP depuis N instances loxilb → routes ECMP multipath. Par défaut, Linux utilise un hash **L3-only** (`hash_policy=0`) : seuls src IP + dst IP déterminent le nexthop.
+
+**Problème** : tout le trafic d'un même client vers une même VIP (même src/dst IP) est envoyé au MÊME loxilb. Si ce loxilb est indisponible (eBPF bug post-restart, crash), 100% du trafic client est perdu — pas 1/N.
+
+**Fix** : `fib_multipath_hash_policy=1` → hash L3+L4 (inclut les ports src/dst). Chaque connexion (port src différent) est distribuée indépendamment sur les N nexthops. Impact d'un loxilb défaillant limité à ~1/N.
+
+```bash
+# Vérifier
+sysctl net.ipv4.fib_multipath_hash_policy
+# Attendu: 1
+```
+
+Ce sysctl est appliqué automatiquement par `provision-frr.sh` via `/etc/sysctl.d/99-frr-routing.conf`.
+
 ## Références
 
 - [FRR Documentation](https://docs.frrouting.org/)

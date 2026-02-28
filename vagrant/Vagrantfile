@@ -30,6 +30,29 @@ end
 load config_file
 
 Vagrant.configure("2") do |config|
+  # Restrict vagrant-libvirt DHCP range to .100-.254 to avoid conflicts
+  # with static data IPs (.10-.60) and VRRP VIP (.44).
+  # The management network (eth0) gets DHCP on the same subnet as data (eth1),
+  # so without this restriction DHCP can assign IPs that conflict with
+  # statically configured addresses or virtual IPs.
+  config.trigger.before [:up, :reload] do |trigger|
+    trigger.name = "Restrict DHCP range on vagrant-libvirt"
+    trigger.ruby do |env, machine|
+      next if defined?(@dhcp_range_checked)
+      @dhcp_range_checked = true
+      net_xml = `virsh net-dumpxml vagrant-libvirt 2>/dev/null`
+      if net_xml.include?('end=\'192.168.121.254\'') && !net_xml.include?('start=\'192.168.121.100\'')
+        system("virsh net-update vagrant-libvirt delete ip-dhcp-range " \
+               "'<range start=\"192.168.121.1\" end=\"192.168.121.254\"/>' " \
+               "--live --config --parent-index 0 2>/dev/null")
+        system("virsh net-update vagrant-libvirt add-last ip-dhcp-range " \
+               "'<range start=\"192.168.121.100\" end=\"192.168.121.254\"/>' " \
+               "--live --config --parent-index 0 2>/dev/null")
+        puts "  DHCP range restricted to .100-.254"
+      end
+    end
+  end
+
   # Configuration NFS pour Ubuntu 24.04 (NFSv4 + TCP)
   # Mount parent directory to access deploy/argocd/config/config.yaml
   config.vm.synced_folder "..", "/vagrant",

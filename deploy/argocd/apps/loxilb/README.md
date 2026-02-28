@@ -364,7 +364,30 @@ sysctl -w net.ipv4.conf.eth0.arp_ignore=1
 
 Restreint le chargement des hooks eBPF TC et le traitement netlink a eth1 uniquement. Complementaire aux fixes 1 et 2.
 
-**Persistance** : Les fixes 1 et 2 sont automatiquement appliques au boot via un service systemd `loxilb-eth0-fix.service` (avec `Before=docker.service`) et `/etc/sysctl.d/`.
+**Fix 4 — Neighbors permanents sur eth1** (dans `loxilb-eth0-fix.sh`, section Fix 3 du script) :
+
+loxilb (`--whitelist=eth1`) ne monitore que les neighbors eth1 pour sa **neighbor map interne** (peuplee via netlink depuis le cache ARP kernel — PAS via `bpf_fib_lookup`). Sur le chemin reverse NAT (SYN-ACK backend → client), l'eBPF cherche la MAC du next-hop dans cette map. Si le client est derriere la gateway (.1) ou le VRRP VIP (.44), et que ces MACs ne sont pas dans la neighbor table eth1, le lookup echoue → `TC_ACT_OK` → kernel envoie RST.
+
+Le script ajoute des entrees ARP **PERMANENT** sur eth1 pour :
+- La gateway (`.1`) — pour les clients derriere la route par defaut
+- Le VRRP VIP (`.44`) — pour le trafic route via le FRR anycast VIP
+
+La resolution MAC utilise `arping` (requete ARP active) avec un retry loop (10 tentatives, 2s entre chaque). `arping` est installe automatiquement (`iputils-arping`) pendant le provisionnement. L'adresse VRRP VIP est lue depuis `config.yaml` et ecrite dans `/etc/loxilb/extra-neighbors.conf`.
+
+```bash
+# Verification des neighbors permanents
+vagrant ssh k8s-dev-loxilb1 -- ip neigh show dev eth1 | grep PERMANENT
+# 192.168.121.1  lladdr 52:54:00:fc:22:22 PERMANENT
+# 192.168.121.44 lladdr 52:54:00:xx:xx:xx PERMANENT
+
+# Logs du service systemd au boot
+vagrant ssh k8s-dev-loxilb1 -- sudo journalctl -u loxilb-eth0-fix.service | grep OK
+# [OK] eth0 set to /32: 192.168.121.x/32
+# [OK] 192.168.121.1 (52:54:00:FC:22:22) added to eth1 neighbor table
+# [OK] 192.168.121.44 (52:54:00:XX:XX:XX) added to eth1 neighbor table
+```
+
+**Persistance** : Les fixes 1, 2 et 4 sont automatiquement appliques au boot via un service systemd `loxilb-eth0-fix.service` (avec `Before=docker.service`) et `/etc/sysctl.d/`.
 
 ### Verification post-fix
 
@@ -951,12 +974,16 @@ vagrant ssh k8s-dev-loxilb1 -- docker inspect loxilb-external | grep -A5 Cmd
 
 #### Forcer un nouveau GARP apres correction
 
-```bash
-# Redemarrer loxilb pour qu'il re-envoie les GARPs avec la bonne MAC
-vagrant ssh k8s-dev-loxilb1 -- docker restart loxilb-external
+> **Attention** : `docker restart` peut laisser `tmac_map` vide (voir section "tmac_map vide apres docker restart"). Privilegier un reboot VM (`vagrant reload`) plutot qu'un restart conteneur.
 
-# Attendre ~10s puis verifier l'ARP cache
-sleep 10
+```bash
+# Methode recommandee : reboot VM (reattache eBPF proprement)
+LB_PROVIDER=loxilb LB_MODE=bgp vagrant reload k8s-dev-loxilb1
+
+# Methode risquee (peut casser tmac_map) :
+# vagrant ssh k8s-dev-loxilb1 -- docker restart loxilb-external
+
+# Verifier l'ARP cache apres reboot
 ip neigh show 192.168.121.210
 ```
 
@@ -1070,54 +1097,49 @@ Ce fix est applique automatiquement via un Vagrant trigger apres `vagrant up`.
 
 > **Important** : utiliser `LB_PROVIDER=loxilb LB_MODE=bgp vagrant up` au lieu de `virsh start` pour relancer une VM loxilb. Le Vagrant trigger qui applique le flood off ne s'execute qu'avec `vagrant up`. Un `virsh start` restaure la VM mais sans le flood off sur ses ports bridge.
 
-### RST eBPF transient apres restart conteneur loxilb
+### tmac_map vide apres docker restart/recreate (bug loxilb)
 
-**Symptome** : apres un `docker restart loxilb-external`, toutes les connexions HTTPS via la VIP echouent avec RST pendant ~10-15 minutes, puis se retablissent spontanement.
+**Symptome** : apres un `docker restart loxilb-external` ou `docker rm -f && docker run`, **100% des connexions** via cette instance echouent (HTTP 000/timeout). Les autres instances ECMP fonctionnent normalement.
 
-**Observation tcpdump** (sur eth1 du loxilb) :
+**Cause racine** : `tmac_map` vide. Cette map eBPF contient la MAC de l'interface whitelist (eth1). C'est la **premiere map consultee** par le programme TC ingress — si la MAC destination du paquet ne correspond a aucune entree de `tmac_map`, le paquet est bypass (`TC_ACT_OK`) → le kernel l'envoie sur la stack normale → RST (pas de socket).
+
+Lors d'un `docker restart`, le hook TC eBPF ne se detache pas proprement :
 
 ```
-# SYN arrive et est DNAT correctement
-client.34660 > 192.168.121.210.443: Flags [S]        → loxilb.34660 > 10.42.0.31.10443: Flags [S]
-
-# SYN-ACK revient du pod
-10.42.0.31.10443 > loxilb.34660: Flags [S.]
-
-# Mais au lieu du reverse NAT (VIP → client), un RST est envoye
-loxilb.34660 > 10.42.0.31.10443: Flags [R]
+ERROR common_libbpf.c:94: tc: bpf hook destroy failed for eth1:0
 ```
 
-Le programme eBPF TC sur eth1 ingress effectue le DNAT sur le SYN, mais ne cree pas les entrees conntrack (CT) reverses necessaires pour le reverse-NAT du SYN-ACK. Le kernel envoie un RST car aucun socket ne correspond.
-
-**Cause probable** : apres un restart du conteneur, le processus loxilb reinitialise ses maps eBPF (conntrack, flow cache) et GoBGP. Tant que GoBGP n'a pas fini son initialisation interne (~10-15 min), le data plane eBPF n'est pas pleinement fonctionnel. La correlation observee :
-
-| Temps post-restart | Etat | Explication |
-| --- | --- | --- |
-| 0–10 min | RST sur tous les SYN | eBPF DNAT ok mais CT reverse non cree, GoBGP initialise |
-| ~10–15 min | BGP ESTABLISHED | GoBGP termine son init, sessions BGP s'etablissent |
-| >15 min | HTTPS 200 OK stable | Data plane pleinement fonctionnel |
-
-> **Note** : `gobgp neighbor` peut afficher `context deadline exceeded` meme quand BGP fonctionne. Utiliser `loxicmd get bgpneigh` pour verifier l'etat BGP reel.
+Le nouveau programme eBPF s'attache, mais `tmac_map` n'est pas repeuplee avec la MAC de eth1.
 
 **Diagnostic** :
 
 ```bash
-# Verifier les sessions BGP (loxicmd est plus fiable que gobgp CLI)
-ssh vagrant@192.168.121.40 "sudo docker exec loxilb-external loxicmd get bgpneigh"
-# Si STATE=ESTABLISHED → BGP ok, le data plane devrait fonctionner
+# Verifier tmac_map (doit contenir la MAC de eth1)
+vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external ntc -a tmac_map
+# Si vide → bug confirme
 
-# Verifier les compteurs CT (doivent augmenter apres curl)
-CT_BEFORE=$(ssh vagrant@192.168.121.41 "sudo docker exec loxilb-external loxicmd get ct | wc -l")
-curl -sk --resolve argocd.k8s.lan:443:192.168.121.210 https://argocd.k8s.lan -o /dev/null
-CT_AFTER=$(ssh vagrant@192.168.121.41 "sudo docker exec loxilb-external loxicmd get ct | wc -l")
-echo "CT: $CT_BEFORE → $CT_AFTER"
-# Si CT n'augmente pas → data plane pas encore pret
+# Comparer avec une instance fonctionnelle
+vagrant ssh k8s-dev-loxilb2 -- sudo docker exec loxilb-external ntc -a tmac_map
+# Doit montrer: key=<eth1_mac> value=...
 
-# Verifier les compteurs LB (COUNTERS doit augmenter)
-ssh vagrant@192.168.121.41 "sudo docker exec loxilb-external loxicmd get lb -o wide" | grep 443
+# Verifier nat_map (regles LB) pour comparaison
+vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external ntc -a nat_map
+# nat_map peut etre correct meme si tmac_map est vide
 ```
 
-**Workaround** : attendre ~15 minutes apres un restart de conteneur. Il n'existe pas de commande pour forcer l'initialisation du data plane. Eviter `docker restart` en production — privilegier un `docker stop` suivi d'un `docker start` avec un delai suffisant, ou ne pas arreter le conteneur du tout.
+**Workaround** : un **reboot complet de la VM** est necessaire. Un simple `docker restart` ou `docker rm -f && docker run` ne suffit pas.
+
+```bash
+# Depuis l'hote Vagrant
+vagrant reload k8s-dev-loxilb1
+# Ou: virsh reboot k8s-dev-loxilb1
+
+# Apres reboot, verifier tmac_map
+vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external ntc -a tmac_map
+# Doit etre non-vide
+```
+
+> **Bug upstream** : a reporter sur [loxilb-io/loxilb](https://github.com/loxilb-io/loxilb/issues). Le hook TC eBPF ne se detache pas proprement lors de l'arret du conteneur, et `tmac_map` n'est pas repeuplee au redemarrage.
 
 ### Mode External (k3d) - Problemes courants
 
