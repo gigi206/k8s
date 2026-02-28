@@ -94,6 +94,11 @@ if [ "$VRRP_ENABLED" = "true" ] && [ -n "$VRRP_VIP" ] && [ "$VRRP_VIP" != "null"
   echo "[OK] VRRP VIP ${VRRP_VIP} added to boot-time neighbor resolution"
 fi
 
+# Write BGP flag for boot-time BGP readiness gate
+if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
+  echo "true" > /etc/loxilb/bgp-enabled
+fi
+
 # Fix 1: create a systemd service to set eth0 to /32 before Docker starts.
 # This runs at every boot (Before=docker.service) to ensure loxilb always
 # sees eth0 as /32. DHCP may restore /24 on renewal, but this service re-fixes
@@ -169,6 +174,24 @@ if [ -f /etc/loxilb/extra-neighbors.conf ]; then
     resolve_and_add_neighbor "$extra_ip"
   done < /etc/loxilb/extra-neighbors.conf
 fi
+
+# -----------------------------------------------------------------------
+# Fix 5: BGP readiness gate — block BGP until LB rules are synced
+# -----------------------------------------------------------------------
+# On reboot, GoBGP establishes BGP sessions and announces VIP routes
+# before kube-loxilb re-syncs the LB rules (nat_map). During this gap
+# (~10-15s), ECMP traffic arrives but there's no DNAT rule → eBPF drops.
+# Fix: block TCP 179 (BGP) via iptables at boot. loxilb-bgp-gate.service
+# (After=docker) will unblock once LB rules are detected in the API.
+# Only on reboot (docker already installed), not first provisioning.
+# -----------------------------------------------------------------------
+if [ -f /etc/loxilb/bgp-enabled ] && command -v docker &>/dev/null; then
+  iptables -C INPUT -i eth1 -p tcp --dport 179 -j DROP 2>/dev/null || \
+    iptables -I INPUT -i eth1 -p tcp --dport 179 -j DROP
+  iptables -C OUTPUT -o eth1 -p tcp --dport 179 -j DROP 2>/dev/null || \
+    iptables -I OUTPUT -o eth1 -p tcp --dport 179 -j DROP
+  echo "[OK] BGP blocked on eth1 (waiting for loxilb-bgp-gate.service)"
+fi
 SCRIPT
 chmod +x /usr/local/bin/loxilb-eth0-fix.sh
 
@@ -188,8 +211,81 @@ ExecStart=/usr/local/bin/loxilb-eth0-fix.sh
 WantedBy=multi-user.target
 SERVICE
 
+# BGP readiness gate: unblock BGP after loxilb LB rules are synced by kube-loxilb.
+# On reboot, loxilb-eth0-fix.sh blocks TCP 179 (Fix 5). This service polls the
+# loxilb API for LB rules and removes the iptables block once rules are detected.
+# Safety valve: unblock after 300s even without rules (prevents permanent BGP blackout).
+cat > /usr/local/bin/loxilb-bgp-gate.sh << 'GATESCRIPT'
+#!/bin/bash
+MAX_WAIT=300
+ELAPSED=0
+
+# Nothing to do if BGP isn't blocked
+if ! iptables -C INPUT -i eth1 -p tcp --dport 179 -j DROP 2>/dev/null; then
+  echo "[OK] BGP not blocked, nothing to do"
+  exit 0
+fi
+
+echo "[INFO] BGP gate: waiting for loxilb LB rules..."
+
+# Wait for loxilb API to be ready first
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+  if curl -s -o /dev/null "http://127.0.0.1:11111/netlox/v1/config/loadbalancer/all" 2>/dev/null; then
+    break
+  fi
+  sleep 2
+  ELAPSED=$((ELAPSED + 2))
+done
+
+if [ $ELAPSED -ge $MAX_WAIT ]; then
+  iptables -D INPUT -i eth1 -p tcp --dport 179 -j DROP 2>/dev/null
+  iptables -D OUTPUT -o eth1 -p tcp --dport 179 -j DROP 2>/dev/null
+  echo "[WARN] BGP unblocked by safety valve: loxilb API never became ready (${MAX_WAIT}s)"
+  exit 1
+fi
+
+echo "[INFO] BGP gate: loxilb API ready after ${ELAPSED}s, polling for LB rules..."
+
+# Poll for actual LB rules (externalIP in response = nat_map populated by kube-loxilb)
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+  RULES=$(curl -s "http://127.0.0.1:11111/netlox/v1/config/loadbalancer/all" 2>/dev/null)
+  if echo "$RULES" | grep -q '"externalIP"'; then
+    iptables -D INPUT -i eth1 -p tcp --dport 179 -j DROP 2>/dev/null
+    iptables -D OUTPUT -o eth1 -p tcp --dport 179 -j DROP 2>/dev/null
+    echo "[OK] BGP unblocked: LB rules detected after ${ELAPSED}s"
+    exit 0
+  fi
+  sleep 5
+  ELAPSED=$((ELAPSED + 5))
+done
+
+# Safety valve: unblock anyway to prevent permanent BGP blackout
+iptables -D INPUT -i eth1 -p tcp --dport 179 -j DROP 2>/dev/null
+iptables -D OUTPUT -o eth1 -p tcp --dport 179 -j DROP 2>/dev/null
+echo "[WARN] BGP unblocked by safety valve after ${MAX_WAIT}s (no LB rules detected)"
+GATESCRIPT
+chmod +x /usr/local/bin/loxilb-bgp-gate.sh
+
+cat > /etc/systemd/system/loxilb-bgp-gate.service << 'GATESERVICE'
+[Unit]
+Description=Unblock BGP after loxilb LB rules are synced
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/loxilb-bgp-gate.sh
+# Long timeout: safety valve is 300s + API wait
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target
+GATESERVICE
+
 systemctl daemon-reload
 systemctl enable loxilb-eth0-fix.service
+systemctl enable loxilb-bgp-gate.service
 /usr/local/bin/loxilb-eth0-fix.sh
 
 # Install Docker if not present
@@ -207,6 +303,9 @@ CONTAINER_NAME="loxilb-external"
 
 # Check if already running
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  # Clean up BGP iptables block from the manual boot script run above (re-provision case)
+  iptables -D INPUT -i eth1 -p tcp --dport 179 -j DROP 2>/dev/null || true
+  iptables -D OUTPUT -o eth1 -p tcp --dport 179 -j DROP 2>/dev/null || true
   echo "[OK] LoxiLB external container already running"
   exit 0
 fi
