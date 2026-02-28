@@ -974,14 +974,12 @@ vagrant ssh k8s-dev-loxilb1 -- docker inspect loxilb-external | grep -A5 Cmd
 
 #### Forcer un nouveau GARP apres correction
 
-> **Attention** : `docker restart` peut laisser `tmac_map` vide (voir section "tmac_map vide apres docker restart"). Privilegier un reboot VM (`vagrant reload`) plutot qu'un restart conteneur.
-
 ```bash
 # Methode recommandee : reboot VM (reattache eBPF proprement)
 LB_PROVIDER=loxilb LB_MODE=bgp vagrant reload k8s-dev-loxilb1
 
-# Methode risquee (peut casser tmac_map) :
-# vagrant ssh k8s-dev-loxilb1 -- docker restart loxilb-external
+# Alternative : docker restart (le startup detach nettoie les stale TC hooks)
+vagrant ssh k8s-dev-loxilb1 -- docker restart loxilb-external
 
 # Verifier l'ARP cache apres reboot
 ip neigh show 192.168.121.210
@@ -1097,49 +1095,30 @@ Ce fix est applique automatiquement via un Vagrant trigger apres `vagrant up`.
 
 > **Important** : utiliser `LB_PROVIDER=loxilb LB_MODE=bgp vagrant up` au lieu de `virsh start` pour relancer une VM loxilb. Le Vagrant trigger qui applique le flood off ne s'execute qu'avec `vagrant up`. Un `virsh start` restaure la VM mais sans le flood off sur ses ports bridge.
 
-### tmac_map vide apres docker restart/recreate (bug loxilb)
+### tmac_map — diagnostic en cas de probleme de datapath
 
-**Symptome** : apres un `docker restart loxilb-external` ou `docker rm -f && docker run`, **100% des connexions** via cette instance echouent (HTTP 000/timeout). Les autres instances ECMP fonctionnent normalement.
-
-**Cause racine** : `tmac_map` vide. Cette map eBPF contient la MAC de l'interface whitelist (eth1). C'est la **premiere map consultee** par le programme TC ingress — si la MAC destination du paquet ne correspond a aucune entree de `tmac_map`, le paquet est bypass (`TC_ACT_OK`) → le kernel l'envoie sur la stack normale → RST (pas de socket).
-
-Lors d'un `docker restart`, le hook TC eBPF ne se detache pas proprement :
-
-```
-ERROR common_libbpf.c:94: tc: bpf hook destroy failed for eth1:0
-```
-
-Le nouveau programme eBPF s'attache, mais `tmac_map` n'est pas repeuplee avec la MAC de eth1.
+`tmac_map` est la **premiere map eBPF consultee** par le programme TC ingress. Elle contient la MAC de l'interface whitelist (eth1). Si la MAC destination du paquet ne correspond a aucune entree de `tmac_map`, le paquet est bypass (`TC_ACT_OK`) → le kernel l'envoie sur la stack normale → RST (pas de socket).
 
 **Diagnostic** :
 
 ```bash
 # Verifier tmac_map (doit contenir la MAC de eth1)
-vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external ntc -a tmac_map
-# Si vide → bug confirme
+vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb bpftool map dump pinned /opt/loxilb/dp/bpf/tmac_map | grep -c "key:"
+# Doit retourner >= 1
 
 # Comparer avec une instance fonctionnelle
-vagrant ssh k8s-dev-loxilb2 -- sudo docker exec loxilb-external ntc -a tmac_map
-# Doit montrer: key=<eth1_mac> value=...
+vagrant ssh k8s-dev-loxilb2 -- sudo docker exec loxilb bpftool map dump pinned /opt/loxilb/dp/bpf/tmac_map | grep -c "key:"
 
-# Verifier nat_map (regles LB) pour comparaison
-vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external ntc -a nat_map
-# nat_map peut etre correct meme si tmac_map est vide
+# Verifier le cycle TC au demarrage (doit montrer attach OK)
+vagrant ssh k8s-dev-loxilb1 -- sudo docker logs loxilb 2>&1 | grep "tc:.*eth1"
+# Attendu:
+#   tc: bpf destroy OK for eth1:1
+#   tc: bpf destroy OK for eth1:0       (nettoie le stale qdisc si present)
+#   tc: bpf attach start for eth1:0
+#   tc: bpf attach OK for eth1
 ```
 
-**Workaround** : un **reboot complet de la VM** est necessaire. Un simple `docker restart` ou `docker rm -f && docker run` ne suffit pas.
-
-```bash
-# Depuis l'hote Vagrant
-vagrant reload k8s-dev-loxilb1
-# Ou: virsh reboot k8s-dev-loxilb1
-
-# Apres reboot, verifier tmac_map
-vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external ntc -a tmac_map
-# Doit etre non-vide
-```
-
-> **Bug upstream** : a reporter sur [loxilb-io/loxilb](https://github.com/loxilb-io/loxilb/issues). Le hook TC eBPF ne se detache pas proprement lors de l'arret du conteneur, et `tmac_map` n'est pas repeuplee au redemarrage.
+> **Note** : le message `tc: bpf hook destroy failed for eth1:0` au premier demarrage est **normal** — il signifie qu'il n'y avait pas de qdisc stale a nettoyer. Apres un `docker kill` + start, le message devient `destroy OK` car le stale clsact qdisc est correctement nettoye par le startup `libbpf_tc_detach()` avant que `libbpf_tc_attach()` ne s'execute.
 
 ### Mode External (k3d) - Problemes courants
 
