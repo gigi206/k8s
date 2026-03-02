@@ -6,7 +6,7 @@ appName: velero
 
 velero:
   namespace: velero
-  version: "11.3.2"  # Helm chart version - Renovate will update this
+  version: "11.4.0"  # Helm chart version - Renovate will update this
 
   # Plugin AWS pour S3 (Rook-Ceph RGW)
   pluginAws:
