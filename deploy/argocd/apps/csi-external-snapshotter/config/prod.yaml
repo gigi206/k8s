@@ -4,7 +4,7 @@ environment: prod
 appName: csi-external-snapshotter
 
 csiSnapshotter:
-  version: "v8.4.0"
+  version: "v8.5.0"
 
 syncPolicy:
   automated:
