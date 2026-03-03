@@ -434,9 +434,9 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
 │                      │ (pas d'annonce VIPs BGP) │                      │
 │   LB Rules (onearm): │                          │   kube-loxilb:       │
 │   .210:80  → :10080  │                          │   --loxiURL=.40:11111│
-│   .210:443 → :10443  │                          │   --setBGP=65002     │
-│   .201:53  → :53     │                          │   --extBGPPeers=     │
-│                      │                          │     .50:64512        │
+│   .210:443 → :10443  │                          │   (pas de --setBGP   │
+│   .201:53  → :53     │                          │    en mode l2)       │
+│                      │                          │                      │
 │   GARP → VIPs /32    │                          │                      │
 │   DNAT → 10.42.0.x   │                          │   Pods:              │
 └──────────┬───────────┘                          │   .206 envoy-gw      │
@@ -491,6 +491,25 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
 | **Routage PodCIDR** | Appris via BGP depuis Cilium   | Appris via BGP depuis Cilium (idem) |
 | **`--extBGPPeers`** | `192.168.121.50:64512`         | `192.168.121.45:65000`              |
 
+### Condition `--setBGP` dans l'ApplicationSet
+
+L'argument `--setBGP` de kube-loxilb a un double effet : il configure BGP sur les instances
+loxilb ET marque les regles LB avec `bgp: true` (VIPs annoncees en BGP au lieu de GARP/ARP).
+Pour eviter que les VIPs soient inaccessibles en mode L2, l'ApplicationSet conditionne
+`--setBGP` sur **les deux conditions** `loxilb.bgp.enabled` ET `features.loadBalancer.mode == "bgp"` :
+
+| `loxilb.bgp.enabled` | `loadBalancer.mode` | `--setBGP` | Resultat                              |
+| :-------------------: | :-----------------: | :--------: | ------------------------------------- |
+|        `true`         |        `l2`         |   **Non**  | VIPs en GARP/ARP, PodCIDR via API BGP |
+|        `true`         |        `bgp`        |  **Oui**   | VIPs + PodCIDR via BGP                |
+|        `false`        |        `l2`         |   **Non**  | L2 pur (pas de BGP)                   |
+|        `false`        |        `bgp`        |   **Non**  | Garde-fou : config BGP manquante      |
+
+> **Note** : en mode `l2`, le BGP pour les routes PodCIDR est configure directement sur les
+> conteneurs loxilb (via l'API REST au demarrage), independamment de kube-loxilb.
+> Les ressources Cilium BGP (CiliumBGPClusterConfig) restent deployees tant que
+> `loxilb.bgp.enabled: true`, quel que soit le mode d'annonce VIP.
+
 ### Configuration
 
 ```yaml
@@ -502,12 +521,12 @@ loxilb:
     extBGPPeers: "192.168.121.50:64512"
 ```
 
-ArgoCD deploie automatiquement (via ApplicationSet) :
+ArgoCD deploie automatiquement (via ApplicationSet) quand `loxilb.bgp.enabled: true` :
 
-- `CiliumBGPPeeringPolicy` — Cilium ecoute BGP et advertise les PodCIDRs
+- `CiliumBGPClusterConfig` — Cilium ecoute BGP et advertise les PodCIDRs
 - `loxilb-bgp-host-ingress` — autorise le port 179 TCP depuis la VM loxilb
 - `loxilb-allow-external-ingress` — autorise l'ingress pods depuis loxilb (DNAT)
-- kube-loxilb avec `--setBGP=65002 --extBGPPeers=...` — programme loxilb via API
+- kube-loxilb avec `--setBGP=65002 --extBGPPeers=...` — **uniquement si `features.loadBalancer.mode: "bgp"`** (voir [Condition `--setBGP`](#condition---setbgp-dans-lapplicationset))
 
 ### Verification BGP
 
