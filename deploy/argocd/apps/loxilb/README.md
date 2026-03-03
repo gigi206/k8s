@@ -1013,30 +1013,45 @@ vagrant ssh k8s-dev-loxilb1 -- docker logs loxilb-external 2>&1 | grep -i "garp\
 
 **Symptome** : apres un `argocd app sync` ou un premier deploiement, `loxicmd get lb` montre `.210:80` mais **`.210:443` est absent** (ou l'inverse). Les regles LB multi-port sont incompletes.
 
-**Cause** : kube-loxilb traite les endpoints en parallele. Si les endpoints d'un Service multi-port arrivent dans un ordre different de celui attendu, la regle pour le second port peut etre ignoree silencieusement (race condition a l'initialisation).
+**Cause** : kube-loxilb traite les endpoints en parallele. Si les endpoints d'un Service multi-port arrivent dans un ordre different de celui attendu, la regle pour le second port peut etre ignoree silencieusement (race condition non-deterministe a l'initialisation).
 
-**Diagnostic** :
+**Automatisation** : deux mecanismes dans `resync-hook.yaml` detectent et corrigent automatiquement :
+
+1. **PostSync hook** — s'execute immediatement apres chaque sync de l'app loxilb dans ArgoCD
+2. **CronJob** (toutes les 5 min) — rattrape les services crees par d'AUTRES apps apres le PostSync de loxilb (cas bootstrap : envoy-gateway est deploye apres loxilb)
+
+Les deux utilisent le meme script (via ConfigMap) :
+1. Compare les ports attendus (K8s services) vs les regles effectives (API loxilb)
+2. Ne restart kube-loxilb que si des ports manquent (evite les redemarrages inutiles)
+3. Verifie apres restart que tous les ports sont programmes
+
+Le CronJob est un no-op quand tous les ports sont correctement programmes.
+Les Jobs utilisent le label `app: kube-loxilb-app` pour matcher la CiliumNetworkPolicy
+`loxilb-allow-external-egress` (necessaire pour atteindre l'API loxilb).
+
+**Diagnostic manuel** :
 
 ```bash
-# Verifier les regles LB presentes dans loxilb
-kubectl exec -n kube-system deploy/kube-loxilb -- loxicmd get lb -o wide
+# Verifier les regles LB via l'API loxilb
+curl -s http://192.168.121.40:11111/netlox/v1/config/loadbalancer/all | python3 -m json.tool
+
+# Ou via loxicmd dans le conteneur loxilb
+vagrant ssh k8s-dev-loxilb1 -- docker exec loxilb-external loxicmd get lb -o wide
 # Si .210:443 est absent mais .210:80 present → bug multi-port
 
-# Verifier les logs kube-loxilb pour des erreurs sur le port 443
-kubectl logs -n kube-system -l app=kube-loxilb-app --tail=50 | grep -i "443\|error\|failed"
+# Verifier les logs du PostSync hook
+kubectl logs -n kube-system job/kube-loxilb-resync
 ```
 
-**Workaround** : redemarrer kube-loxilb force une re-synchronisation complete de tous les Services :
+**Workaround manuel** (si le PostSync hook n'a pas corrige) :
 
 ```bash
 kubectl rollout restart deployment/kube-loxilb -n kube-system
 kubectl rollout status deployment/kube-loxilb -n kube-system
 
 # Verifier que les deux ports sont maintenant presents
-kubectl exec -n kube-system deploy/kube-loxilb -- loxicmd get lb -o wide
-# Attendu:
-#   192.168.121.210:80   TCP  ...
-#   192.168.121.210:443  TCP  ...
+curl -s http://192.168.121.40:11111/netlox/v1/config/loadbalancer/all | python3 -m json.tool
+# Attendu: regles pour .210:80/tcp ET .210:443/tcp
 ```
 
 ---
@@ -1331,6 +1346,23 @@ LB_PROVIDER=loxilb LB_MODE=bgp make vagrant-dev-up
 ### Comportement à 1 instance
 
 Avec `$loxilb_count = 1` et une seule URL, le comportement est **identique à l'ancien scalaire**.
+
+### BGP readiness gate (protection ECMP au reboot)
+
+Quand une VM loxilb redémarre, GoBGP annonce les routes VIP ~1s AVANT que le datapath eBPF ne soit programmé pour chaque règle LB. Pendant ce gap, le trafic ECMP routé vers cette instance est droppé (pas de règle DNAT).
+
+**Mécanisme** : `loxilb-eth0-fix.sh` (Before=docker) bloque TCP 179 via iptables. `loxilb-bgp-gate.sh` (After=docker) attend que le nombre de règles LB se stabilise dans l'API loxilb (3 polls consécutifs identiques = 15s), puis débloque BGP. Ainsi toutes les règles DP sont programmées AVANT que GoBGP ne puisse annoncer les routes.
+
+**Scénarios couverts** : premier provisioning (`vagrant up`), reboot VM (`virsh reboot`), destroy+up.
+
+```bash
+# Vérifier l'état du gate après un reboot
+vagrant ssh k8s-dev-loxilb1 -- cat /var/log/loxilb-bgp-gate.log
+# [OK] BGP unblocked: 4 LB rule(s) stable for 15s (35s total)
+
+# Vérifier que les règles DP sont bien en place AVANT le BGP
+vagrant ssh k8s-dev-loxilb1 -- sudo docker exec loxilb-external loxicmd get lb -o wide
+```
 
 ### Vérification ECMP (mode actif-actif)
 

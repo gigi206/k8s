@@ -8,7 +8,7 @@ FRR est **générique** — il n'est pas spécifique à LoxiLB. Son rôle est de
 
 - **LoxiLB** (ASN 65002) → FRR apprend les VIP `/32` routes
 - **Cilium** (ASN 64512) → FRR apprend les PodCIDR routes
-- **Proxy-ARP sur eth1** → activé mais **inactif en flat L2** (voir [Control Plane vs Data Plane](#control-plane-vs-data-plane))
+- **Proxy-ARP sur eth1** → activé uniquement sans VRRP (voir [Control Plane vs Data Plane](#control-plane-vs-data-plane))
 
 ## Topologie BGP Mode vs L2 Mode
 
@@ -37,7 +37,7 @@ loxilb (65002) <-eBGP-> Cilium (64512)  +  GARP depuis loxilb
 │  │  FRR (ASN 65000)                         │                           │
 │  │  - eBGP peer loxilb .40 (ASN 65002)      │                           │
 │  │  - eBGP peer cilium  .50 (ASN 64512)     │                           │
-│  │  - proxy_arp=1 sur eth1                  │                           │
+│  │  - proxy_arp=1 (sans VRRP uniquement)    │                           │
 │  │  - ip_forward=1                          │                           │
 │  └──────────────────────────────────────────┘                           │
 │         ↑ eBGP                    ↑ eBGP                                │
@@ -130,7 +130,7 @@ Le script :
 3. Installe FRR (`apt-get install frr`)
 4. Active `bgpd=yes` dans `/etc/frr/daemons`
 5. Génère `/etc/frr/frr.conf` avec les deux peers BGP
-6. Configure sysctl persistants (`ip_forward=1`, `proxy_arp=1` sur eth1)
+6. Configure sysctl persistants (`ip_forward=1`, `arp_ignore=1` avec VRRP ou `proxy_arp=1` sans VRRP)
 7. Redémarre FRR
 
 ## Rebuild requis
@@ -267,9 +267,12 @@ Le script `provision-frr.sh` :
 
 1. Active `vrrpd=yes` dans `/etc/frr/daemons`
 2. Crée une interface macvlan `vrrp4-<ifindex>-<vrid>` sur eth1 avec le MAC virtuel VRRP (`00:00:5e:00:01:<vrid>`)
-3. Ajoute la config VRRP à `/etc/frr/frr.conf` (VRRPv3, priority, advertisement-interval)
+3. Ajoute la config VRRP à `/etc/frr/frr.conf` (VRRPv3, priority, `no preempt`, advertisement-interval)
 4. Active `arp_accept=1` sur eth1 pour le gratuitous ARP de failover
-5. Persiste la macvlan via `networkd-dispatcher` pour les reboots
+5. Active `arp_ignore=1` sur `all` et désactive `proxy_arp` (voir [arp_ignore](#contrainte-vrrp--arp_ignore1-obligatoire))
+6. Persiste la macvlan via `networkd-dispatcher` pour les reboots
+
+`no preempt` : quand un FRR redémarre, il reste Backup même s'il a la priority la plus haute. Sans cela, il préempterait le Master actuel AVANT que ses sessions BGP ne convergent → black-hole temporaire.
 
 #### Routes hôte via VRRP VIP
 
@@ -316,11 +319,11 @@ vagrant ssh k8s-dev-frr2 -- sudo vtysh -c "show vrrp"
 curl -sk https://argocd.k8s.lan --resolve argocd.k8s.lan:443:192.168.121.210 -w '%{http_code}\n'
 # 200
 
-# 4. Redémarrer FRR1 (preempt)
+# 4. Redémarrer FRR1 (no preempt → reste Backup)
 vagrant up k8s-dev-frr1
 # Attendre ~10s
 vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show vrrp"
-# Status: Master (preempt, priority 100 > 50)
+# Status: Backup (no preempt, FRR2 reste Master)
 ```
 
 #### Test failover loxilb HA
@@ -408,6 +411,34 @@ En mode onearm, loxilb envoie le retour (SYN-ACK) au MAC source du paquet entran
 
 **Fix** : `ip route replace 192.168.121.1/32 dev eth1` sur chaque FRR. Ce fix est appliqué automatiquement par `provision-frr.sh` (section "Route fix") et persisté via `networkd-dispatcher`.
 
+#### Contrainte VRRP : arp_ignore=1 obligatoire
+
+Les VMs FRR ont **deux interfaces sur le même bridge L2** (virbr2) :
+- `eth0` : management DHCP (IP dynamique .100-.254)
+- `eth1` : data plane (IP statique .45/.46)
+- `vrrp4-3-1@eth1` : macvlan VRRP avec MAC virtuel `00:00:5e:00:01:01` et VIP `.44`
+
+**Problème** : quand l'hote ARP pour `.44`, la requete broadcast arrive sur les DEUX interfaces. Par defaut (`arp_ignore=0`), le kernel repond a l'ARP sur **toute interface qui a une route vers l'IP cible**. eth0 repond avec sa MAC physique, devancant la macvlan VRRP. L'hote cache la mauvaise MAC → le trafic via `.44` va a eth0 au lieu de la macvlan → pas de forwarding ECMP.
+
+De meme, `proxy_arp=1` sur eth1 cause eth1 a repondre a l'ARP pour `.44` (IP routable) avec sa MAC physique, ecrasant la reponse de la macvlan.
+
+**Fix** (`provision-frr.sh`) :
+- `net.ipv4.conf.all.arp_ignore = 1` — chaque interface ne repond a l'ARP QUE pour ses propres IPs. eth0 ignore `.44`, eth1 ignore `.44`, seule `vrrp4-3-1` (qui porte `.44`) repond avec le MAC virtuel VRRP.
+- `proxy_arp` n'est PAS active quand VRRP est enable.
+- `arp_ignore` est sur `all` (pas par-interface) car Linux utilise `max(all, interface)`.
+
+```bash
+# Verification
+vagrant ssh k8s-dev-frr1 -- sysctl net.ipv4.conf.all.arp_ignore
+# Attendu: 1
+
+# Verification ARP cote hote
+sudo ip neigh flush 192.168.121.44 dev virbr2
+ping -c1 192.168.121.44
+ip neigh show 192.168.121.44 dev virbr2
+# Attendu: 00:00:5e:00:01:01 (MAC virtuel VRRP, PAS une MAC 52:54:00:xx:xx:xx)
+```
+
 ### Forcer FRR dans le data plane (lab)
 
 Pour simuler une topologie production en lab, ajouter des routes statiques sur l'hôte pour les VIPs via FRR.
@@ -479,6 +510,10 @@ sysctl net.ipv4.fib_multipath_hash_policy
 ```
 
 Ce sysctl est appliqué automatiquement par `provision-frr.sh` via `/etc/sysctl.d/99-frr-routing.conf`.
+
+## Version FRR
+
+Le script installe FRR depuis le **paquet Ubuntu stock** (FRR 8.x). FRR 10.x (repo officiel `deb.frrouting.org`) est **incompatible avec GoBGP de loxilb** : FRR 10.x rejette les BGP UPDATE avec "AS_PATH parse error" et retire les routes. FRR 8.x est plus tolérant et accepte les annonces GoBGP sans erreur.
 
 ## Références
 

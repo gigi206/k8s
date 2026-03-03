@@ -1,13 +1,21 @@
 ---
 # =============================================================================
-# kube-loxilb PostSync Resync Hook
+# kube-loxilb LB Rule Resync
 # =============================================================================
 # Workaround for kube-loxilb multi-port timing bug:
 # On initial startup, kube-loxilb may program only the first port of a
 # multi-port service (e.g., envoy-gateway ports 80 + 443). A rollout restart
 # triggers full re-reconciliation, ensuring all ports are programmed.
 #
-# Runs as an ArgoCD PostSync hook after every loxilb app sync.
+# Two mechanisms ensure coverage:
+# 1. PostSync hook — runs after each loxilb ArgoCD app sync (immediate fix)
+# 2. CronJob — runs every 5 min, catches services created by OTHER apps
+#    after loxilb's PostSync has already run (bootstrap timing).
+#    No-op when all rules are correctly programmed.
+#
+# Both compare expected ports (K8s services) vs actual rules (loxilb API)
+# and only restart kube-loxilb if ports are missing.
+#
 # kube-system is excluded from the disable-automount-sa-token Kyverno policy,
 # so no PolicyException is needed.
 # =============================================================================
@@ -41,7 +49,132 @@ roleRef:
   name: kube-loxilb-restart
 
 ---
-# PostSync Job: restart kube-loxilb to re-reconcile all LB services
+# ConfigMap with the resync script (shared by PostSync Job and CronJob)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-loxilb-resync-script
+  namespace: kube-system
+data:
+  resync.sh: |
+    #!/bin/bash
+    set -eo pipefail
+
+    echo "=== kube-loxilb port resync check ==="
+
+    MAX_WAIT=${MAX_WAIT:-30}
+    POLL=5
+
+    # --- Helper functions ---
+
+    get_loxi_url() {
+      kubectl get deploy kube-loxilb -n kube-system \
+        -o jsonpath='{.spec.template.spec.containers[0].args[0]}' | \
+        grep -oE 'http://[0-9.]+:[0-9]+' | head -1
+    }
+
+    # Expected LB rules from K8s services: "VIP:PORT:PROTO" per line
+    get_expected() {
+      kubectl get svc -A \
+        -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.spec.loadBalancerClass}{"\t"}{.status.loadBalancer.ingress[0].ip}{"\t"}{range .spec.ports[*]}{.port}:{.protocol}{","}{end}{"\n"}{end}' | \
+      grep 'loxilb.io/loxilb' | \
+      while IFS=$'\t' read -r _class vip ports; do
+        [ -z "$vip" ] && continue
+        echo "$ports" | tr ',' '\n' | grep -v '^\s*$' | while read -r pp; do
+          port=$(echo "$pp" | cut -d: -f1 | tr -d ' ')
+          proto=$(echo "$pp" | cut -d: -f2 | tr 'A-Z' 'a-z' | tr -d ' ')
+          [ -n "$port" ] && echo "${vip}:${port}:${proto}"
+        done
+      done | sort -u
+    }
+
+    # Actual rules from loxilb API: "VIP:PORT:PROTO" per line
+    get_actual() {
+      local url="$1"
+      curl -sf --connect-timeout 5 "${url}/netlox/v1/config/loadbalancer/all" 2>/dev/null | \
+        grep -oE '"serviceArguments":\{[^}]+\}' | \
+        while read -r block; do
+          ip=$(echo "$block" | grep -oE '"externalIP":"[^"]*"' | cut -d'"' -f4)
+          port=$(echo "$block" | grep -oE '"port":[0-9]+' | cut -d: -f2)
+          proto=$(echo "$block" | grep -oE '"protocol":"[^"]*"' | cut -d'"' -f4)
+          [ -n "$ip" ] && [ -n "$port" ] && echo "${ip}:${port}:${proto}"
+        done | sort -u
+    }
+
+    do_restart() {
+      echo "Restarting kube-loxilb..."
+      kubectl rollout restart deployment/kube-loxilb -n kube-system
+      kubectl rollout status deployment/kube-loxilb -n kube-system --timeout=120s
+    }
+
+    # --- Step 1: Wait for LB services to have VIPs ---
+    echo "Step 1: Waiting for LB services to get VIPs..."
+    elapsed=0
+    EXPECTED=""
+    while [ $elapsed -lt $MAX_WAIT ]; do
+      EXPECTED=$(get_expected)
+      if [ -n "$EXPECTED" ]; then
+        break
+      fi
+      echo "  No LB services with VIPs yet (${elapsed}s)..."
+      sleep $POLL
+      elapsed=$((elapsed + POLL))
+    done
+
+    if [ -z "$EXPECTED" ]; then
+      echo "No LB services found after ${MAX_WAIT}s. Nothing to do."
+      exit 0
+    fi
+
+    EXPECTED_COUNT=$(echo "$EXPECTED" | wc -l)
+    echo "Expected $EXPECTED_COUNT LB rule(s):"
+    echo "$EXPECTED"
+
+    # --- Step 2: Check loxilb API for programmed rules ---
+    LOXI_URL=$(get_loxi_url)
+    if [ -z "$LOXI_URL" ]; then
+      echo "WARNING: Cannot extract loxilb URL, falling back to blind restart"
+      do_restart
+      exit 0
+    fi
+    echo "Step 2: Checking loxilb rules at $LOXI_URL..."
+
+    ACTUAL=$(get_actual "$LOXI_URL")
+    echo "Actual loxilb rules:"
+    echo "${ACTUAL:-  (none)}"
+
+    MISSING=$(comm -23 <(echo "$EXPECTED") <(echo "$ACTUAL"))
+    if [ -z "$MISSING" ]; then
+      echo "All $EXPECTED_COUNT port(s) correctly programmed. No restart needed."
+      exit 0
+    fi
+
+    echo "Missing rule(s):"
+    echo "$MISSING"
+
+    # --- Step 3: Restart and verify ---
+    do_restart
+
+    echo "Step 3: Verifying after restart..."
+    elapsed=0
+    while [ $elapsed -lt 60 ]; do
+      sleep $POLL
+      elapsed=$((elapsed + POLL))
+      ACTUAL=$(get_actual "$LOXI_URL")
+      MISSING=$(comm -23 <(echo "$EXPECTED") <(echo "$ACTUAL"))
+      if [ -z "$MISSING" ]; then
+        echo "SUCCESS: All $EXPECTED_COUNT port(s) programmed after restart."
+        exit 0
+      fi
+      echo "  Waiting... $(echo "$MISSING" | wc -l) rule(s) still missing (${elapsed}s)"
+    done
+
+    echo "FAILED: Rules still missing after restart:"
+    echo "$MISSING"
+    exit 1
+
+---
+# PostSync Job: immediate check after loxilb ArgoCD app sync
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -52,17 +185,67 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   ttlSecondsAfterFinished: 300
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
   template:
+    metadata:
+      labels:
+        app: kube-loxilb-app
     spec:
       serviceAccountName: kube-loxilb
       restartPolicy: Never
       containers:
-        - name: restart
+        - name: resync
           image: bitnami/kubectl:latest
-          command:
-            - kubectl
-            - rollout
-            - restart
-            - deployment/kube-loxilb
-            - -n
-            - kube-system
+          env:
+            - name: MAX_WAIT
+              value: "180"
+          command: ["bash", "/scripts/resync.sh"]
+          volumeMounts:
+            - name: resync-script
+              mountPath: /scripts
+      volumes:
+        - name: resync-script
+          configMap:
+            name: kube-loxilb-resync-script
+
+---
+# CronJob: periodic check for services created after loxilb's PostSync
+# Catches bootstrap timing where envoy-gateway service is created AFTER
+# the loxilb app sync. No-op when all rules are correctly programmed.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kube-loxilb-resync-cron
+  namespace: kube-system
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 300
+      activeDeadlineSeconds: 120
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: kube-loxilb-app
+        spec:
+          serviceAccountName: kube-loxilb
+          restartPolicy: Never
+          containers:
+            - name: resync
+              image: bitnami/kubectl:latest
+              env:
+                - name: MAX_WAIT
+                  value: "30"
+              command: ["bash", "/scripts/resync.sh"]
+              volumeMounts:
+                - name: resync-script
+                  mountPath: /scripts
+          volumes:
+            - name: resync-script
+              configMap:
+                name: kube-loxilb-resync-script

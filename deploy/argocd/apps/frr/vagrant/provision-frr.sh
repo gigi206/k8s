@@ -99,10 +99,13 @@ if [[ "$VRRP_ENABLED" == "true" ]]; then
 fi
 
 # =============================================================================
-# Install FRR
+# Install FRR (Ubuntu stock package)
 # =============================================================================
+# Note: FRR 10.x from official repo (deb.frrouting.org) is incompatible with
+# loxilb's GoBGP — FRR 10.x rejects BGP UPDATE messages with "AS_PATH parse
+# error" and withdraws routes. Ubuntu stock FRR 8.x is more tolerant.
 if ! command -v vtysh &>/dev/null; then
-  echo "[INFO] Installing FRR..."
+  echo "[INFO] Installing FRR (Ubuntu stock)..."
   apt-get update -qq
   apt-get install -y frr frr-pythontools
   echo "[OK] FRR installed"
@@ -157,6 +160,11 @@ fi
 # =============================================================================
 # Generate /etc/frr/frr.conf (topology depends on LB provider)
 # =============================================================================
+# Detect installed FRR version for frr.conf header
+FRR_VERSION=$(dpkg-query -W -f='${Version}' frr 2>/dev/null | grep -oP '^[0-9]+\.[0-9]+' | head -1)
+FRR_VERSION="${FRR_VERSION:-8.1}"
+echo "[INFO] FRR version detected: ${FRR_VERSION}"
+
 echo "[INFO] Writing /etc/frr/frr.conf (provider: $LB_PROVIDER)..."
 
 if [ "$LB_PROVIDER" = "loxilb" ]; then
@@ -194,7 +202,7 @@ if [ "$LB_PROVIDER" = "loxilb" ]; then
   ECMP_PATHS=$(( ${#LOXILB_IPS[@]} + 1 ))
 
   cat > /etc/frr/frr.conf << EOF
-frr version 8.1
+frr version ${FRR_VERSION}
 frr defaults traditional
 log syslog informational
 no ipv6 forwarding
@@ -226,7 +234,7 @@ else
   echo "[INFO]   Mode: $LB_PROVIDER (single peer: master node $MASTER_IP ASN $CLUSTER_ASN)"
 
   cat > /etc/frr/frr.conf << EOF
-frr version 8.1
+frr version ${FRR_VERSION}
 frr defaults traditional
 log syslog informational
 no ipv6 forwarding
@@ -256,30 +264,30 @@ fi
 echo "[OK] /etc/frr/frr.conf written"
 
 # =============================================================================
-# Append VRRP configuration to frr.conf
+# Append interface configuration (VRRP) to frr.conf
 # =============================================================================
 if [[ "$VRRP_ENABLED" == "true" && -n "$VRRP_VIP" ]]; then
-  echo "[INFO] Appending VRRP config to /etc/frr/frr.conf (VRID=$VRRP_VRID, priority=$VRRP_PRIORITY)..."
-  cat >> /etc/frr/frr.conf << VRRP_EOF
-
-interface ${FRR_IFACE}
- vrrp ${VRRP_VRID} version 3
- vrrp ${VRRP_VRID} priority ${VRRP_PRIORITY}
- vrrp ${VRRP_VRID} advertisement-interval ${VRRP_ADV_INTERVAL}
- vrrp ${VRRP_VRID} ip ${VRRP_VIP}
-!
-VRRP_EOF
-  echo "[OK] VRRP config appended"
+  echo "[INFO] Appending VRRP interface config to /etc/frr/frr.conf..."
+  {
+    echo ""
+    echo "interface ${FRR_IFACE}"
+    echo " vrrp ${VRRP_VRID} version 3"
+    echo " vrrp ${VRRP_VRID} priority ${VRRP_PRIORITY}"
+    echo " no vrrp ${VRRP_VRID} preempt"
+    echo " vrrp ${VRRP_VRID} advertisement-interval ${VRRP_ADV_INTERVAL}"
+    echo " vrrp ${VRRP_VRID} ip ${VRRP_VIP}"
+    echo "!"
+  } >> /etc/frr/frr.conf
+  echo "[OK] VRRP interface config appended"
 fi
 
 # =============================================================================
 # Sysctl: ip_forward + proxy_arp on FRR_IFACE
 # =============================================================================
-echo "[INFO] Setting sysctl (ip_forward + proxy_arp on $FRR_IFACE)..."
+echo "[INFO] Setting sysctl (ip_forward on $FRR_IFACE)..."
 cat > /etc/sysctl.d/99-frr-routing.conf << EOF
-# FRR BGP upstream router - IP forwarding and proxy-ARP for VIPs
+# FRR BGP upstream router - IP forwarding
 net.ipv4.ip_forward = 1
-net.ipv4.conf.${FRR_IFACE}.proxy_arp = 1
 # ECMP L4 hash: use src/dst ports in addition to src/dst IP for multipath
 # routing decisions. Without this (policy=0), all traffic from the same
 # source IP to the same VIP is sent to a single nexthop. With policy=1,
@@ -292,6 +300,24 @@ if [[ "$VRRP_ENABLED" == "true" ]]; then
   cat >> /etc/sysctl.d/99-frr-routing.conf << EOF
 # VRRP: accept gratuitous ARP for fast failover
 net.ipv4.conf.${FRR_IFACE}.arp_accept = 1
+# VRRP: only reply to ARP if target IP belongs to the receiving interface.
+# Both eth0 (management DHCP) and eth1 (data) are on the same L2 bridge
+# (virbr2). Without arp_ignore=1, an ARP request for the VRRP VIP (.44)
+# is answered by eth0 with its physical MAC instead of letting the macvlan
+# (vrrp4-3-1) respond with the virtual MAC (00:00:5e:00:01:01). Clients
+# then cache the wrong MAC and traffic bypasses VRRP.
+# Must be set on "all" because Linux uses max(all, interface) and eth0
+# defaults to arp_ignore=0.
+net.ipv4.conf.all.arp_ignore = 1
+# proxy_arp is NOT set when VRRP is enabled: it would cause eth1 to respond
+# to ARP for the VRRP VIP with its physical MAC (proxy_arp replies for any
+# routable IP), overriding the macvlan's virtual MAC response.
+EOF
+else
+  cat >> /etc/sysctl.d/99-frr-routing.conf << EOF
+# proxy-ARP: FRR responds to ARP for VIPs it has BGP routes for,
+# allowing direct VIP routing without explicit /32 host routes.
+net.ipv4.conf.${FRR_IFACE}.proxy_arp = 1
 EOF
 fi
 sysctl -p /etc/sysctl.d/99-frr-routing.conf
