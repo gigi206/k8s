@@ -85,10 +85,7 @@ help:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 vagrant-dev-up:
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)🚀 Démarrage du cluster DEV (RKE2)$(NC)"
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant up --no-parallel
+	vagrant/scripts/vagrant-up-parallel.sh dev $(VAGRANT_VARS)
 	@echo ""
 	@echo "$(GREEN)✅ Cluster RKE2 DEV démarré!$(NC)"
 	@echo ""
@@ -150,10 +147,7 @@ vagrant-dev-snapshot-restore:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 vagrant-staging-up:
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)🏗️  Démarrage du cluster STAGING$(NC)"
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant up --no-parallel
+	vagrant/scripts/vagrant-up-parallel.sh staging $(VAGRANT_VARS)
 
 vagrant-staging-status:
 	@echo "$(BLUE)📊 Statut du cluster STAGING:$(NC)"
@@ -204,12 +198,9 @@ vagrant-staging-snapshot-restore:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 vagrant-prod-up:
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
-	@echo "$(BLUE)🏢 Démarrage du cluster PROD$(NC)"
-	@echo "$(BLUE)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous démarrez un environnement de PRODUCTION$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant up --no-parallel
+	vagrant/scripts/vagrant-up-parallel.sh prod $(VAGRANT_VARS)
 
 vagrant-prod-status:
 	@echo "$(BLUE)📊 Statut du cluster PROD:$(NC)"
