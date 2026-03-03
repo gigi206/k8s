@@ -103,13 +103,9 @@ spec:
                       - --cidrPools=defaultPool={{ .features.loadBalancer.pools.default.range }}
                       - --setLBMode={{ .loxilb.setLBMode }}
                       - --noZoneName
-              {{- if .loxilb.bgp.enabled }}
+              {{- if and .loxilb.bgp.enabled (eq .features.loadBalancer.mode "bgp") }}
                       - --setBGP={{ .loxilb.bgp.localASN }}
-                      {{- if eq .features.loadBalancer.mode "bgp" }}
                       - --extBGPPeers={{ range $i, $p := .features.loadBalancer.bgp.peers }}{{ if $i }},{{ end }}{{ $p.address }}:{{ $p.asn }}{{ end }}
-                      {{- else }}
-                      - --extBGPPeers={{ .loxilb.bgp.extBGPPeers }}
-                      {{- end }}
               {{- end }}
         {{- if .features.networkPolicy.egressPolicy.enabled }}
           {{- if eq .cni.primary "cilium" }}
