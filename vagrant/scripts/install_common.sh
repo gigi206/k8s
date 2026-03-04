@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+set -e
 export DEBIAN_FRONTEND=noninteractive
 
 # Determine script and project directories (agnostic of mount point)
