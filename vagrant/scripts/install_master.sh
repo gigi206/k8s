@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 export DEBIAN_FRONTEND=noninteractive
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
@@ -25,13 +26,6 @@ if ! command -v yq &>/dev/null || ! yq --version 2>&1 | grep -q "mikefarah"; the
   exit 1
 fi
 
-# Helper: read YAML value with yq, returns empty string if null/missing
-yq_read() {
-  local result
-  result=$(yq eval "$1" "$2" 2>/dev/null)
-  [ "$result" = "null" ] && echo "" || echo "$result"
-}
-
 curl -sfL https://get.rke2.io | sh -
 mkdir -p /etc/rancher/rke2
 
@@ -42,33 +36,18 @@ CIS_PROFILE=$(yq_read '.rke2.cis.profile' "$ARGOCD_CONFIG_FILE")
 
 # CIS Hardening: Apply required kernel parameters and create etcd user if enabled
 # https://docs.rke2.io/security/hardening_guide
+cis_base_setup
+
 if [ "$CIS_ENABLED" = "true" ]; then
-  echo "CIS Hardening enabled with profile: ${CIS_PROFILE:-cis}"
+  # Read common kubelet hardening options (shared with worker)
+  cis_read_kubelet_options "$ARGOCD_CONFIG_FILE"
 
-  # Create etcd user/group (required by CIS profile)
-  if ! id etcd &>/dev/null; then
-    useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
-  fi
-
-  # Apply CIS sysctl parameters
-  if [ -f /usr/local/share/rke2/rke2-cis-sysctl.conf ]; then
-    cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
-  elif [ -f /usr/share/rke2/rke2-cis-sysctl.conf ]; then
-    cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
-  fi
-  systemctl restart systemd-sysctl
-
-  # Read CIS hardening options from config (with defaults)
+  # Read master-only hardening options
   DENY_SERVICE_EXTERNAL_IPS=$(yq_read '.rke2.cis.hardening.admissionPlugins.denyServiceExternalIPs' "$ARGOCD_CONFIG_FILE")
   EVENT_RATE_LIMIT=$(yq_read '.rke2.cis.hardening.admissionPlugins.eventRateLimit' "$ARGOCD_CONFIG_FILE")
   ALWAYS_PULL_IMAGES=$(yq_read '.rke2.cis.hardening.admissionPlugins.alwaysPullImages' "$ARGOCD_CONFIG_FILE")
   REQUEST_TIMEOUT=$(yq_read '.rke2.cis.hardening.apiServer.requestTimeout' "$ARGOCD_CONFIG_FILE")
   SERVICE_ACCOUNT_LOOKUP=$(yq_read '.rke2.cis.hardening.apiServer.serviceAccountLookup' "$ARGOCD_CONFIG_FILE")
-  EVENT_QPS=$(yq_read '.rke2.cis.hardening.kubelet.eventQps' "$ARGOCD_CONFIG_FILE")
-  POD_MAX_PIDS=$(yq_read '.rke2.cis.hardening.kubelet.podMaxPids' "$ARGOCD_CONFIG_FILE")
-  ANONYMOUS_AUTH=$(yq_read '.rke2.cis.hardening.kubelet.anonymousAuth' "$ARGOCD_CONFIG_FILE")
-  MAKE_IPTABLES_UTIL_CHAINS=$(yq_read '.rke2.cis.hardening.kubelet.makeIptablesUtilChains' "$ARGOCD_CONFIG_FILE")
-  PROTECT_KERNEL_DEFAULTS=$(yq_read '.rke2.cis.hardening.kubelet.protectKernelDefaults' "$ARGOCD_CONFIG_FILE")
   FIX_ETCD_OWNERSHIP=$(yq_read '.rke2.cis.hardening.filePermissions.fixEtcdOwnership' "$ARGOCD_CONFIG_FILE")
   FIX_PKI_PERMISSIONS=$(yq_read '.rke2.cis.hardening.filePermissions.fixPkiPermissions' "$ARGOCD_CONFIG_FILE")
 
@@ -78,11 +57,6 @@ if [ "$CIS_ENABLED" = "true" ]; then
   ALWAYS_PULL_IMAGES=${ALWAYS_PULL_IMAGES:-false}
   REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-60s}
   SERVICE_ACCOUNT_LOOKUP=${SERVICE_ACCOUNT_LOOKUP:-true}
-  EVENT_QPS=${EVENT_QPS:-5}
-  POD_MAX_PIDS=${POD_MAX_PIDS:-4096}
-  ANONYMOUS_AUTH=${ANONYMOUS_AUTH:-false}
-  MAKE_IPTABLES_UTIL_CHAINS=${MAKE_IPTABLES_UTIL_CHAINS:-true}
-  PROTECT_KERNEL_DEFAULTS=${PROTECT_KERNEL_DEFAULTS:-true}
   FIX_ETCD_OWNERSHIP=${FIX_ETCD_OWNERSHIP:-true}
   FIX_PKI_PERMISSIONS=${FIX_PKI_PERMISSIONS:-true}
 fi

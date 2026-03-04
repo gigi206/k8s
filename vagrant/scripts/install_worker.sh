@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 # https://docs.rke2.io/install/quickstart/#linux-agent-worker-node-installation
 export PATH="${PATH}:/var/lib/rancher/rke2/bin"
 
@@ -23,13 +24,6 @@ if ! command -v yq &>/dev/null || ! yq --version 2>&1 | grep -q "mikefarah"; the
   exit 1
 fi
 
-# Helper: read YAML value with yq, returns empty string if null/missing
-yq_read() {
-  local result
-  result=$(yq eval "$1" "$2" 2>/dev/null)
-  [ "$result" = "null" ] && echo "" || echo "$result"
-}
-
 curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE="agent" sh -
 mkdir -p /etc/rancher/rke2/
 
@@ -40,35 +34,11 @@ CIS_PROFILE=$(yq_read '.rke2.cis.profile' "$CONFIG_FILE")
 
 # CIS Hardening: Apply required kernel parameters and create etcd user if enabled
 # https://docs.rke2.io/security/hardening_guide
+cis_base_setup
+
 if [ "$CIS_ENABLED" = "true" ]; then
-  echo "CIS Hardening enabled with profile: ${CIS_PROFILE:-cis}"
-
-  # Create etcd user/group (required by CIS profile)
-  if ! id etcd &>/dev/null; then
-    useradd -r -c "etcd user" -s /sbin/nologin -M etcd -U
-  fi
-
-  # Apply CIS sysctl parameters
-  if [ -f /usr/local/share/rke2/rke2-cis-sysctl.conf ]; then
-    cp -f /usr/local/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
-  elif [ -f /usr/share/rke2/rke2-cis-sysctl.conf ]; then
-    cp -f /usr/share/rke2/rke2-cis-sysctl.conf /etc/sysctl.d/60-rke2-cis.conf
-  fi
-  systemctl restart systemd-sysctl
-
-  # Read kubelet hardening options from config (with defaults)
-  EVENT_QPS=$(yq_read '.rke2.cis.hardening.kubelet.eventQps' "$CONFIG_FILE")
-  POD_MAX_PIDS=$(yq_read '.rke2.cis.hardening.kubelet.podMaxPids' "$CONFIG_FILE")
-  ANONYMOUS_AUTH=$(yq_read '.rke2.cis.hardening.kubelet.anonymousAuth' "$CONFIG_FILE")
-  MAKE_IPTABLES_UTIL_CHAINS=$(yq_read '.rke2.cis.hardening.kubelet.makeIptablesUtilChains' "$CONFIG_FILE")
-  PROTECT_KERNEL_DEFAULTS=$(yq_read '.rke2.cis.hardening.kubelet.protectKernelDefaults' "$CONFIG_FILE")
-
-  # Set defaults if not specified
-  EVENT_QPS=${EVENT_QPS:-5}
-  POD_MAX_PIDS=${POD_MAX_PIDS:-4096}
-  ANONYMOUS_AUTH=${ANONYMOUS_AUTH:-false}
-  MAKE_IPTABLES_UTIL_CHAINS=${MAKE_IPTABLES_UTIL_CHAINS:-true}
-  PROTECT_KERNEL_DEFAULTS=${PROTECT_KERNEL_DEFAULTS:-true}
+  # Read common kubelet hardening options (shared with master)
+  cis_read_kubelet_options "$CONFIG_FILE"
 fi
 echo "Waiting 1st master node to finish his installation"
 while true
