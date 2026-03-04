@@ -109,7 +109,7 @@ vagrant-dev-down:
 vagrant-dev-destroy:
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous êtes sur le point de DÉTRUIRE le cluster DEV$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant destroy -f
+	vagrant/scripts/vagrant-destroy-clean.sh dev $(VAGRANT_VARS)
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Cluster DEV détruit et résidus nettoyés$(NC)"
@@ -160,7 +160,7 @@ vagrant-staging-down:
 vagrant-staging-destroy:
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous êtes sur le point de DÉTRUIRE le cluster STAGING$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant destroy -f
+	vagrant/scripts/vagrant-destroy-clean.sh staging $(VAGRANT_VARS)
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Cluster STAGING détruit et résidus nettoyés$(NC)"
@@ -213,7 +213,7 @@ vagrant-prod-down:
 vagrant-prod-destroy:
 	@echo "$(YELLOW)⚠️  ATTENTION: Vous êtes sur le point de DÉTRUIRE le cluster PROD$(NC)"
 	@read -p "Taper 'DESTROY-PROD' pour confirmer: " confirm && [ "$$confirm" = "DESTROY-PROD" ] || (echo "Annulé" && exit 1)
-	cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant destroy -f
+	vagrant/scripts/vagrant-destroy-clean.sh prod $(VAGRANT_VARS)
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Cluster PROD détruit et résidus nettoyés$(NC)"
@@ -328,9 +328,9 @@ clean-all:
 	@echo "$(YELLOW)🧹 Nettoyage de tous les environnements...$(NC)"
 	@echo "$(YELLOW)⚠️  Cela va supprimer tous les clusters Vagrant$(NC)"
 	@read -p "Taper 'yes' pour confirmer: " confirm && [ "$$confirm" = "yes" ] || (echo "Annulé" && exit 1)
-	-cd vagrant && K8S_ENV=dev $(VAGRANT_VARS) vagrant destroy -f
-	-cd vagrant && K8S_ENV=staging $(VAGRANT_VARS) vagrant destroy -f
-	-cd vagrant && K8S_ENV=prod $(VAGRANT_VARS) vagrant destroy -f
+	-vagrant/scripts/vagrant-destroy-clean.sh dev $(VAGRANT_VARS)
+	-vagrant/scripts/vagrant-destroy-clean.sh staging $(VAGRANT_VARS)
+	-vagrant/scripts/vagrant-destroy-clean.sh prod $(VAGRANT_VARS)
 	rm -f $(VAGRANT_DIR)/k8s-token $(VAGRANT_DIR)/ip_master
 	rm -rf $(KUBE_DIR)
 	@echo "$(GREEN)✅ Nettoyage terminé$(NC)"

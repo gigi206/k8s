@@ -3,7 +3,7 @@
 # Parallel Vagrant Up
 # =============================================================================
 # Launches VMs in phases to maximize parallelism while respecting dependencies:
-#   Phase 1: LB infra (loxilb + frr) — no dependencies, fully parallel
+#   Phase 1: LB infra (loxilb + frr) — sequential (NFS export race with parallel)
 #   Phase 2: master1 — initializes cluster, must run alone
 #   Phase 3: remaining masters + workers — wait for k8s-token from master1
 #
@@ -41,8 +41,17 @@ get_vms() {
     grep -E "$pattern" || true
 }
 
-# Run vagrant up for a list of VMs (parallel if multiple)
+# Run vagrant up for a list of VMs
+# Usage: up_vms [--sequential] <phase_name> <vm1> [vm2 ...]
+#   --sequential: start VMs one at a time (avoids NFS race conditions)
+#   default: parallel when multiple VMs
 up_vms() {
+  local sequential=false
+  if [ "$1" = "--sequential" ]; then
+    sequential=true
+    shift
+  fi
+
   local phase_name="$1"
   shift
   local vms=("$@")
@@ -53,8 +62,10 @@ up_vms() {
 
   echo -e "${BLUE}  Phase: ${phase_name} (${#vms[@]} VM(s): ${vms[*]})${NC}"
 
-  if [ ${#vms[@]} -eq 1 ]; then
-    vagrant_cmd up "${vms[0]}" --no-parallel
+  if [ ${#vms[@]} -eq 1 ] || [ "$sequential" = true ]; then
+    for vm in "${vms[@]}"; do
+      vagrant_cmd up "$vm" --no-parallel
+    done
   else
     vagrant_cmd up "${vms[@]}" --parallel
   fi
@@ -65,6 +76,36 @@ echo -e "${BLUE}  Parallel Vagrant Up (env: ${ENV})${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 CLUSTER_NAME="$ENV"
+PREFIX="k8s-${CLUSTER_NAME}-"
+
+# --- Pre-flight: clean orphan libvirt resources ---
+orphan_domains=$(virsh list --all --name 2>/dev/null | grep "^${PREFIX}" || true)
+orphan_volumes=$(virsh vol-list default 2>/dev/null | awk 'NR>2 && /'"${PREFIX}"'/ {print $1}' || true)
+
+if [ -n "$orphan_domains" ] || [ -n "$orphan_volumes" ]; then
+  echo -e "${YELLOW}  Pre-flight: orphan libvirt resources detected, cleaning...${NC}"
+  for domain in $orphan_domains; do
+    if virsh domstate "$domain" 2>/dev/null | grep -q "running"; then
+      virsh destroy "$domain" 2>/dev/null || true
+    fi
+    virsh undefine "$domain" --remove-all-storage --nvram 2>/dev/null || \
+      virsh undefine "$domain" --remove-all-storage 2>/dev/null || \
+      virsh undefine "$domain" 2>/dev/null || true
+    echo -e "    Removed domain: $domain"
+  done
+  for vol in $orphan_volumes; do
+    virsh vol-delete "$vol" --pool default 2>/dev/null || true
+    echo -e "    Removed volume: $vol"
+  done
+  # Clean stale .vagrant/machines state
+  if [ -d ".vagrant/machines" ]; then
+    for machine_dir in .vagrant/machines/${PREFIX}*/; do
+      [ -d "$machine_dir" ] && rm -rf "$machine_dir" && echo -e "    Removed state: $(basename "$machine_dir")"
+    done
+  fi
+  echo -e "${GREEN}  Pre-flight cleanup done${NC}"
+  echo ""
+fi
 
 # Discover VMs by role
 LOXILB_VMS=($(get_vms "^k8s-${CLUSTER_NAME}-loxilb"))
@@ -78,9 +119,9 @@ TOTAL=$((${#INFRA_VMS[@]} + ${#MASTER_VMS[@]} + ${#WORKER_VMS[@]}))
 echo -e "${GREEN}  Discovered: ${#LOXILB_VMS[@]} loxilb, ${#FRR_VMS[@]} frr, ${#MASTER_VMS[@]} master(s), ${#WORKER_VMS[@]} worker(s)${NC}"
 echo ""
 
-# --- Phase 1: LB infrastructure (loxilb + frr in parallel) ---
+# --- Phase 1: LB infrastructure (loxilb + frr, sequential to avoid NFS race) ---
 if [ ${#INFRA_VMS[@]} -gt 0 ]; then
-  up_vms "LB infrastructure (loxilb + frr)" "${INFRA_VMS[@]}"
+  up_vms --sequential "LB infrastructure (loxilb + frr)" "${INFRA_VMS[@]}"
   echo ""
 fi
 
