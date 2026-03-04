@@ -403,10 +403,17 @@ if [ "$CNI_PRIMARY" = "cilium" ]; then
     LOXILB_BGP_ENABLED=$(yq_read '.loxilb.bgp.enabled' "$LOXILB_APP_CONFIG")
     LOXILB_BGP_ENABLED=${LOXILB_BGP_ENABLED:-false}
   fi
-  # Activate bgpControlPlane for any LB provider using bgp mode (not only loxilb)
-  # bgpControlPlane is required so Cilium can advertise PodCIDR routes to FRR upstream
+  # Validate: mode=bgp requires loxilb.bgp.enabled=true (for loxilb provider)
   LB_MODE_CONFIG=$(yq_read '.features.loadBalancer.mode' "$ARGOCD_CONFIG_FILE")
   LB_MODE_CONFIG=${LB_MODE_CONFIG:-l2}
+  if [ "$LB_MODE_CONFIG" = "bgp" ] && [ "$LB_PROVIDER" = "loxilb" ] && [ "$LOXILB_BGP_ENABLED" != "true" ]; then
+    echo "ERROR: features.loadBalancer.mode=bgp requires loxilb.bgp.enabled=true in $LOXILB_APP_CONFIG"
+    echo "       BGP mode needs GoBGP on loxilb + Cilium bgpControlPlane + CiliumBGPClusterConfig."
+    echo "       Set loxilb.bgp.enabled: true and configure localASN/extBGPPeers."
+    exit 1
+  fi
+  # Activate bgpControlPlane for any LB provider using bgp mode (not only loxilb)
+  # bgpControlPlane is required so Cilium can advertise PodCIDR routes to FRR upstream
   if [ "$LB_MODE_CONFIG" = "bgp" ] && [ "$LB_PROVIDER" != "loxilb" ]; then
     LOXILB_BGP_ENABLED="true"
     echo "Cilium BGP Control Plane: ENABLED (loadBalancer.mode=bgp, provider=$LB_PROVIDER)"

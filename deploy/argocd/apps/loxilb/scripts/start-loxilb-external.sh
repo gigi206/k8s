@@ -16,12 +16,16 @@
 # Environment variables:
 #   LOXILB_IMAGE    - LoxiLB image (default: ghcr.io/loxilb-io/loxilb:latest)
 #   LOXILB_NAME     - Container name (default: loxilb-external)
+#   LOXILB_BGP_AS   - Local BGP AS number (optional, enables BGP for PodCIDR routing)
+#   LOXILB_BGP_PEERS - Comma-separated BGP peers as ip:asn (e.g. "192.168.121.50:64512")
 # =============================================================================
 
 set -euo pipefail
 
 LOXILB_IMAGE="${LOXILB_IMAGE:-ghcr.io/loxilb-io/loxilb:latest}"
 LOXILB_NAME="${LOXILB_NAME:-loxilb-external}"
+LOXILB_BGP_AS="${LOXILB_BGP_AS:-}"
+LOXILB_BGP_PEERS="${LOXILB_BGP_PEERS:-}"
 
 # Colors
 RED='\033[0;31m'
@@ -67,6 +71,65 @@ show_status() {
   fi
 }
 
+configure_bgp() {
+  if [ -z "$LOXILB_BGP_AS" ] || [ -z "$LOXILB_BGP_PEERS" ]; then
+    return 0
+  fi
+
+  log_info "Configuring BGP (AS ${LOXILB_BGP_AS}) for PodCIDR routing..."
+
+  # Set local AS with routerId (required by GoBGP).
+  # GoBGP starts asynchronously inside loxilb. The REST API (port 11111) becomes
+  # ready before GoBGP's internal gRPC (port 50052) is connected. If we POST the
+  # BGP global config too early, the REST API returns 200 but GoBGP never receives
+  # the config. Retry until GoBGP confirms via "BGP session ready" in container logs.
+  local router_id
+  router_id=$(hostname -I | awk '{print $1}')
+  local bgp_configured=false
+  local retries=0
+  local max_retries=30
+
+  while [ "$bgp_configured" = "false" ] && [ $retries -lt $max_retries ]; do
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+      "http://127.0.0.1:11111/netlox/v1/config/bgp/global" \
+      -H "Content-Type: application/json" \
+      -d "{\"localAs\": ${LOXILB_BGP_AS}, \"routerId\": \"${router_id}\"}" 2>/dev/null)
+
+    if [ "$http_code" = "200" ] || [ "$http_code" = "204" ]; then
+      if docker logs "${LOXILB_NAME}" 2>&1 | tail -20 | grep -q "BGP session.*ready"; then
+        bgp_configured=true
+        break
+      fi
+    fi
+
+    retries=$((retries + 1))
+    [ $retries -lt $max_retries ] && sleep 2
+  done
+
+  if [ "$bgp_configured" = "true" ]; then
+    log_success "BGP global AS ${LOXILB_BGP_AS} configured (verified after ${retries} attempts)"
+  else
+    log_warning "BGP global config not confirmed after ${max_retries} retries"
+  fi
+
+  # Add peers
+  IFS=',' read -ra PEERS <<< "$LOXILB_BGP_PEERS"
+  for peer in "${PEERS[@]}"; do
+    local ip="${peer%%:*}"
+    local asn="${peer##*:}"
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+      "http://127.0.0.1:11111/netlox/v1/config/bgp/neigh" \
+      -H "Content-Type: application/json" \
+      -d "{\"ipAddress\": \"${ip}\", \"remoteAs\": ${asn}}" 2>/dev/null)
+    if [ "$http_code" = "200" ] || [ "$http_code" = "204" ]; then
+      log_success "BGP peer ${ip} (AS ${asn}) added"
+    else
+      log_warning "BGP peer ${ip} returned HTTP ${http_code} (may already exist)"
+    fi
+  done
+}
+
 start_container() {
   # Check if already running
   if docker ps --format '{{.Names}}' | grep -q "^${LOXILB_NAME}$"; then
@@ -105,6 +168,7 @@ start_container() {
   while [ $retries -lt $max_retries ]; do
     if curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:11111/netlox/v1/config/loadbalancer/all" 2>/dev/null | grep -q "200"; then
       log_success "LoxiLB API is ready at http://127.0.0.1:11111"
+      configure_bgp
       echo ""
       echo "Configure kube-loxilb with:"
       echo "  --loxiURL=http://$(hostname -I | awk '{print $1}'):11111"
@@ -137,8 +201,10 @@ case "${1:-}" in
     echo "  --help, -h     Show this help"
     echo ""
     echo "Environment variables:"
-    echo "  LOXILB_IMAGE   LoxiLB image (default: ghcr.io/loxilb-io/loxilb:latest)"
-    echo "  LOXILB_NAME    Container name (default: loxilb-external)"
+    echo "  LOXILB_IMAGE      LoxiLB image (default: ghcr.io/loxilb-io/loxilb:latest)"
+    echo "  LOXILB_NAME       Container name (default: loxilb-external)"
+    echo "  LOXILB_BGP_AS     Local BGP AS number (enables BGP for PodCIDR routing)"
+    echo "  LOXILB_BGP_PEERS  Comma-separated peers as ip:asn (e.g. 192.168.121.50:64512)"
     ;;
   *)
     start_container

@@ -242,7 +242,7 @@ En environnement Vagrant avec RKE2, le mode external déploie LoxiLB sur une **V
 │  Hote Vagrant (Linux)   192.168.121.0/24 (libvirt bridge virbr1)        │
 │                                                                         │
 │  ┌──────────────────────────────────────────┐                           │
-│  │  VM k8s-dev-loxilb1                       │                           │
+│  │  VM k8s-dev-loxilb1                      │                           │
 │  │  eth0: 192.168.121.5/32  (Vagrant mgmt)  │                           │
 │  │  eth1: 192.168.121.40/24 (LoxiLB WAN)    │                           │
 │  │                                          │                           │
@@ -250,7 +250,7 @@ En environnement Vagrant avec RKE2, le mode external déploie LoxiLB sur une **V
 │  │  │ Container loxilb-external           │ │                           │
 │  │  │ --net=host --privileged             │ │                           │
 │  │  │ --whitelist=eth1                    │ │                           │
-│  │  │ --bgp (si BGP active)               │ │                           │
+│  │  │ --bgp (si bgp.enabled=true)         │ │                           │
 │  │  │ API REST: 0.0.0.0:11111             │ │                           │
 │  │  │ GoBGP  : 0.0.0.0:179                │ │                           │
 │  │  └─────────────────────────────────────┘ │                           │
@@ -263,7 +263,7 @@ En environnement Vagrant avec RKE2, le mode external déploie LoxiLB sur une **V
 │  │  ┌──────────────────────────────────────────────────────────┐   │    │
 │  │  │  kube-loxilb Deployment (kube-system)                    │   │    │
 │  │  │  --loxiURL=http://192.168.121.40:11111                   │   │    │
-│  │  │  --setBGP=65002 --extBGPPeers=192.168.121.50:64512       │   │    │
+│  │  │  (--setBGP seulement si mode=bgp)                        │   │    │
 │  │  └──────────────────────────────────────────────────────────┘   │    │
 │  │                                                                 │    │
 │  │  ┌──────────────────────────────────────────────────────────┐   │    │
@@ -369,6 +369,7 @@ Restreint le chargement des hooks eBPF TC et le traitement netlink a eth1 unique
 loxilb (`--whitelist=eth1`) ne monitore que les neighbors eth1 pour sa **neighbor map interne** (peuplee via netlink depuis le cache ARP kernel — PAS via `bpf_fib_lookup`). Sur le chemin reverse NAT (SYN-ACK backend → client), l'eBPF cherche la MAC du next-hop dans cette map. Si le client est derriere la gateway (.1) ou le VRRP VIP (.44), et que ces MACs ne sont pas dans la neighbor table eth1, le lookup echoue → `TC_ACT_OK` → kernel envoie RST.
 
 Le script ajoute des entrees ARP **PERMANENT** sur eth1 pour :
+
 - La gateway (`.1`) — pour les clients derriere la route par defaut
 - Le VRRP VIP (`.44`) — pour le trafic route via le FRR anycast VIP
 
@@ -388,6 +389,24 @@ vagrant ssh k8s-dev-loxilb1 -- sudo journalctl -u loxilb-eth0-fix.service | grep
 ```
 
 **Persistance** : Les fixes 1, 2 et 4 sont automatiquement appliques au boot via un service systemd `loxilb-eth0-fix.service` (avec `Before=docker.service`) et `/etc/sysctl.d/`.
+
+### Services systemd (ordre de boot)
+
+| Service/Timer                | Quand                           | Rôle                                                                           |
+| ---------------------------- | ------------------------------- | ------------------------------------------------------------------------------ |
+| `loxilb-eth0-fix.service`    | `Before=docker`                 | Fix eth0 /32, neighbors permanents, bloque port 179 (si BGP)                   |
+| `docker.service`             | —                               | Démarre le conteneur loxilb (`--restart unless-stopped`)                       |
+| `loxilb-bgp-config.service`  | `After=docker, Before=bgp-gate` | Reconfigure GoBGP via API (L2+BGP seulement, lit `/etc/loxilb/bgp-config.env`) |
+| `loxilb-bgp-config.timer`   | `OnBootSec=30, OnUnitActiveSec=30` | Re-check periodique BGP config (idempotent, gere restart conteneur Docker)  |
+| `loxilb-bgp-gate.service`   | `After=docker`                  | Attend que les LB rules soient stables, puis débloque port 179                 |
+
+> En mode BGP pur, `loxilb-bgp-config.service` exit immédiatement (pas de fichier config).
+> En L2 pur (`bgp.enabled: false`), les services BGP sont inactifs (pas de fichiers `/etc/loxilb/bgp-*`).
+>
+> Le timer `loxilb-bgp-config.timer` relance le script toutes les 30s. Le script est idempotent :
+> il sort immédiatement si les peers BGP sont déjà configurés. Ce timer couvre trois scenarios :
+> provisionnement initial (multi-user.target déjà atteint), reboot VM, et restart du conteneur
+> Docker (GoBGP perd son état en mémoire).
 
 ### Verification post-fix
 
@@ -426,7 +445,7 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
                                    │
                                    ▼
 ┌──────────────────────┐                          ┌──────────────────────┐
-│   k8s-dev-loxilb1     │    eBGP TCP/179          │    k8s-dev-m1        │
+│   k8s-dev-loxilb1    │    eBGP TCP/179          │    k8s-dev-m1        │
 │   192.168.121.40     │◄────────────────────────►│    192.168.121.50    │
 │                      │  ASN 65002 ↔ ASN 64512   │                      │
 │   loxilb             │                          │   Cilium (ASN 64512) │
@@ -458,7 +477,7 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
                                            │
                                            ▼
 ┌──────────────────────┐  eBGP TCP/179  ┌──────────────────────┐  eBGP TCP/179  ┌──────────────────────┐
-│   k8s-dev-loxilb1     │                │    k8s-dev-frr1       │                │    k8s-dev-m1        │
+│   k8s-dev-loxilb1    │                │    k8s-dev-frr1      │                │    k8s-dev-m1        │
 │   192.168.121.40     │◄──────────────►│    192.168.121.45    │◄──────────────►│    192.168.121.50    │
 │                      │  ASN 65002     │                      │  ASN 65000     │                      │
 │   loxilb             │      ↕         │   FRR (ASN 65000)    │      ↕         │   Cilium (ASN 64512) │
@@ -484,7 +503,7 @@ Deux modes BGP sont disponibles selon `features.loadBalancer.mode` dans `config/
 | Aspect              | Mode `l2`                      | Mode `bgp`                          |
 | ------------------- | ------------------------------ | ----------------------------------- |
 | **Annonce VIPs**    | GARP/ARP (L2)                  | BGP /32 routes (L3)                 |
-| **VM FRR requise**  | Non                            | Oui (`k8s-dev-frr1`, ASN 65000)      |
+| **VM FRR requise**  | Non                            | Oui (`k8s-dev-frr1`, ASN 65000)     |
 | **Peering loxilb**  | Direct vers Cilium (.50:64512) | Vers FRR uniquement (.45:65000)     |
 | **Peering Cilium**  | Vers loxilb (.40:65002)        | Vers FRR (.45:65000)                |
 | **proxy-ARP**       | Non (GARP suffit)              | Oui — eth1 FRR repond pour les VIPs |
@@ -498,15 +517,18 @@ loxilb ET marque les regles LB avec `bgp: true` (VIPs annoncees en BGP au lieu d
 Pour eviter que les VIPs soient inaccessibles en mode L2, l'ApplicationSet conditionne
 `--setBGP` sur **les deux conditions** `loxilb.bgp.enabled` ET `features.loadBalancer.mode == "bgp"` :
 
-| `loxilb.bgp.enabled` | `loadBalancer.mode` | `--setBGP` | Resultat                              |
-| :-------------------: | :-----------------: | :--------: | ------------------------------------- |
-|        `true`         |        `l2`         |   **Non**  | VIPs en GARP/ARP, PodCIDR via API BGP |
-|        `true`         |        `bgp`        |  **Oui**   | VIPs + PodCIDR via BGP                |
-|        `false`        |        `l2`         |   **Non**  | L2 pur (pas de BGP)                   |
-|        `false`        |        `bgp`        |   **Non**  | Garde-fou : config BGP manquante      |
+| `loxilb.bgp.enabled` | `loadBalancer.mode` | `--setBGP` | Resultat                                                 |
+| :------------------: | :-----------------: | :--------: | -------------------------------------------------------- |
+|        `true`        |        `l2`         |  **Non**   | VIPs en GARP/ARP, PodCIDR via API BGP (persisté au boot) |
+|        `true`        |        `bgp`        |  **Oui**   | VIPs + PodCIDR via BGP                                   |
+|       `false`        |        `l2`         |  **Non**   | L2 pur (pas de BGP)                                      |
+|       `false`        |        `bgp`        |  **Non**   | Garde-fou : config BGP manquante                         |
 
 > **Note** : en mode `l2`, le BGP pour les routes PodCIDR est configure directement sur les
-> conteneurs loxilb (via l'API REST au demarrage), independamment de kube-loxilb.
+> conteneurs loxilb via l'API REST, independamment de kube-loxilb. La configuration est
+> persistee dans `/etc/loxilb/bgp-config.env` et re-appliquee par le timer systemd
+> `loxilb-bgp-config.timer` (toutes les 30s, idempotent). GoBGP perd sa config au
+> redemarrage du conteneur ; le timer detecte l'absence de peers et reconfigure.
 > Les ressources Cilium BGP (CiliumBGPClusterConfig) restent deployees tant que
 > `loxilb.bgp.enabled: true`, quel que soit le mode d'annonce VIP.
 
@@ -544,7 +566,7 @@ vagrant ssh k8s-dev-loxilb1 -- docker exec loxilb-external gobgp global rib
 # 10.42.0.0/24   192.168.121.50  64512   00:27:34   [{Origin: i}]
 
 # CiliumBGPPeeringPolicy
-kubectl get ciliumbgppeeringpolicy loxilb-external-bgp -o yaml
+kubectl get ciliumbgpclusterconfig loxilb-external-bgp -o yaml
 
 # Test end-to-end (DNS via VIP)
 dig @192.168.121.201 google.com
@@ -577,7 +599,7 @@ vagrant ssh k8s-dev-frr1 -- sudo vtysh -c "show ip route bgp"
 # B>* 192.168.121.201/32 [20/0] via 192.168.121.40, eth1
 
 # 3. Verifier la session BGP Cilium ↔ FRR (peer = FRR .45)
-kubectl get ciliumbgppeeringpolicy loxilb-external-bgp -o yaml
+kubectl get ciliumbgpclusterconfig loxilb-external-bgp -o yaml
 
 # 4. Verifier le proxy-ARP sur FRR (eth1 doit repondre pour les VIPs)
 vagrant ssh k8s-dev-frr1 -- cat /proc/sys/net/ipv4/conf/eth1/proxy_arp
@@ -691,9 +713,9 @@ C'est le meme principe que les hyperscalers (Google Maglev, Meta Katran) et les 
 | **Connectivite kube-loxilb** | DNS interne           | IP bridge Docker      | IP eth1 VM (`loxiURL`)                 |
 | **eBPF**                     | Sur interfaces nodes  | Sur interfaces hote   | Sur eth1 VM uniquement (`--whitelist`) |
 | **Multus requis**            | Avec Cilium           | Non                   | Non                                    |
-| **setLBMode**                | 0 ou 1                | 1 (onearm)            | 0 (DNAT + BGP routing)                 |
+| **setLBMode**                | 0 ou 1                | 1 (onearm)            | 1 (onearm)                             |
 | **VIP range**                | IP reseau physique    | IP sous-reseau Docker | IP reseau Vagrant (`192.168.121.x`)    |
-| **BGP**                      | Optionnel             | N/A                   | Requis (PodCIDR routing)               |
+| **BGP**                      | Optionnel             | N/A                   | Optionnel (PodCIDR routing si enabled) |
 
 ## Configuration
 
@@ -748,11 +770,15 @@ features:
           asn: 64512
 ```
 
-En mode BGP, l'ApplicationSet déploie automatiquement:
+En mode BGP (`features.loadBalancer.mode: "bgp"`), l'ApplicationSet déploie automatiquement:
 
 - Les CRDs BGP (`bgppeerservices.bgppeer.loxilb.io`)
-- Le DaemonSet loxilb avec `--bgp` flag
+- Le DaemonSet `loxilb-bgp` avec `--bgp` flag (mode in-cluster uniquement)
 - Le CR `BGPPeerService` configuré avec les peers
+- kube-loxilb avec `--setBGP` et `--extBGPPeers`
+
+En mode externe avec `bgp.enabled: true` et `mode: "l2"`, le flag `--bgp` est passé au
+conteneur Docker (pas au DaemonSet) et la config BGP est appliquée via API REST.
 
 ## LoadBalancerClass
 
@@ -1040,6 +1066,7 @@ vagrant ssh k8s-dev-loxilb1 -- docker logs loxilb-external 2>&1 | grep -i "garp\
 2. **CronJob** (toutes les 5 min) — rattrape les services crees par d'AUTRES apps apres le PostSync de loxilb (cas bootstrap : envoy-gateway est deploye apres loxilb)
 
 Les deux utilisent le meme script (via ConfigMap) :
+
 1. Compare les ports attendus (K8s services) vs les regles effectives (API loxilb)
 2. Ne restart kube-loxilb que si des ports manquent (evite les redemarrages inutiles)
 3. Verifie apres restart que tous les ports sont programmes
@@ -1272,15 +1299,22 @@ En mode externe, il est possible de configurer plusieurs instances loxilb pour l
 
 loxilb supporte deux modes HA, contrôlés par le flag `--setRoles` de kube-loxilb :
 
-| Aspect | Actif-actif (ECMP) | Actif-standby |
-| --- | --- | --- |
-| **Flag kube-loxilb** | Pas de `--setRoles` | `--setRoles=0.0.0.0` |
-| **HA State** | `NOT_DEFINED` sur toutes les instances | `MASTER` sur 1, `BACKUP` sur les autres |
-| **BGP MED** | `MED=0` identique sur toutes les instances | `MED=10` (MASTER), `MED=70` (BACKUP) |
+| Aspect                  | Actif-actif (ECMP)                           | Actif-standby (L2 GARP)                 |
+| ----------------------- | -------------------------------------------- | ---------------------------------------- |
+| **Flag kube-loxilb**    | Pas de `--setRoles`                          | `--setRoles=0.0.0.0`                     |
+| **HA State**            | `NOT_DEFINED` sur toutes les instances       | `MASTER` sur 1, `BACKUP` sur les autres  |
+| **VIP announcement**    | BGP uniquement (pas de GARP)                 | GARP sur le MASTER (VIP ajouté sur `lo`) |
+| **BGP MED**             | `MED=0` identique sur toutes les instances   | `MED=10` (MASTER), `MED=70` (BACKUP)     |
 | **Distribution trafic** | ECMP hash par flow via FRR (`maximum-paths`) | Tout le trafic vers le MASTER uniquement |
-| **Failover** | Automatique (FRR retire le next-hop mort) | kube-loxilb élit un nouveau MASTER |
-| **Temps de failover** | BGP hold timer (ex: 9s avec timers 3 9) | BGP hold timer + élection MASTER (~35s) |
-| **Utilisation réseau** | Toutes les instances traitent du trafic | BACKUP(s) inactif(s) sauf failover |
+| **Failover**            | Automatique (FRR retire le next-hop mort)    | kube-loxilb élit un nouveau MASTER       |
+
+> **CRITIQUE** : en mode L2, `--setRoles=0.0.0.0` est **obligatoire**. Sans ce flag, loxilb reste
+> en état `NOT_DEFINED` : il ne fait pas de GARP et n'ajoute pas les VIPs aux interfaces OS.
+> Les VIPs sont alors injoignables depuis le réseau L2. L'ApplicationSet ajoute automatiquement
+> `--setRoles=0.0.0.0` quand le mode n'est pas BGP pur.
+>
+> **Code source loxilb** (`pkg/loxinet/rules.go:AdvRuleVIP()`) : GARP n'est envoyé que si
+> `ciState == "MASTER"`. En `NOT_DEFINED`, les VIPs sont seulement trackés en interne.
 
 #### Actif-actif (recommandé en mode BGP)
 
@@ -1314,6 +1348,7 @@ args:
 Activé en ajoutant `--setRoles=0.0.0.0` aux args kube-loxilb. Une seule instance est élue MASTER (MED=10), les autres sont BACKUP (MED=70). Le trafic est orienté vers le MASTER par le routeur FRR grâce au MED plus faible.
 
 **Inconvénients** :
+
 - Les instances BACKUP sont inutilisées (gaspillage de ressources)
 - Le failover est plus lent car il combine la détection BGP + l'élection d'un nouveau MASTER par kube-loxilb
 - Le comportement de `kube-loxilb` après un restart de conteneur peut être imprévisible (l'état HA affiché peut rester `NOT_DEFINED` tant que kube-loxilb ne re-synchronise pas)
@@ -1328,9 +1363,9 @@ Le Vagrantfile dérive automatiquement le nombre de VMs depuis la liste `loxilb.
 loxilb:
   mode: "external"
   loxiURL:
-    - "http://192.168.121.40:11111"   # 1re instance (VM k8s-dev-loxilb1)
-    - "http://192.168.121.41:11111"   # 2e instance (VM k8s-dev-loxilb2)
-    - "http://192.168.121.42:11111"   # 3e instance (VM k8s-dev-loxilb3)
+    - "http://192.168.121.40:11111" # 1re instance (VM k8s-dev-loxilb1)
+    - "http://192.168.121.41:11111" # 2e instance (VM k8s-dev-loxilb2)
+    - "http://192.168.121.42:11111" # 3e instance (VM k8s-dev-loxilb3)
   setLBMode: 1
   bgp:
     enabled: true
@@ -1347,11 +1382,11 @@ LB_PROVIDER=loxilb LB_MODE=bgp make vagrant-dev-up
 
 ### Attribution des IPs
 
-| Instance | VM Vagrant         | IP eth1             |
-| -------- | ------------------ | ------------------- |
-| 1        | `k8s-dev-loxilb1`   | `192.168.121.40`    |
-| 2        | `k8s-dev-loxilb2`  | `192.168.121.41`    |
-| 3        | `k8s-dev-loxilb3`  | `192.168.121.42`    |
+| Instance | VM Vagrant        | IP eth1          |
+| -------- | ----------------- | ---------------- |
+| 1        | `k8s-dev-loxilb1` | `192.168.121.40` |
+| 2        | `k8s-dev-loxilb2` | `192.168.121.41` |
+| 3        | `k8s-dev-loxilb3` | `192.168.121.42` |
 
 ### Effet sur les manifests générés
 

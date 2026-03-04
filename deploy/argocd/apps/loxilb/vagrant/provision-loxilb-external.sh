@@ -44,9 +44,18 @@ fi
 # Read BGP setting from app config
 LOXILB_BGP_ENABLED=$(yq '.loxilb.bgp.enabled' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "false")
 LOXILB_BGP_ENABLED=${LOXILB_BGP_ENABLED:-false}
+LB_MODE=$(yq '.features.loadBalancer.mode' "$ARGOCD_CONFIG" 2>/dev/null || echo "l2")
+LB_MODE=${LB_MODE:-l2}
+
+# In L2 mode, BGP peers are configured directly via loxilb API (not kube-loxilb).
+# In BGP mode, kube-loxilb handles this via --setBGP and --extBGPPeers.
+if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
+  LOXILB_BGP_LOCAL_ASN=$(yq '.loxilb.bgp.localASN' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "")
+  LOXILB_BGP_EXT_PEERS=$(yq '.loxilb.bgp.extBGPPeers' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "")
+fi
 
 echo "[INFO] LoxiLB external mode enabled, provisioning..."
-echo "[INFO]   BGP: ${LOXILB_BGP_ENABLED}"
+echo "[INFO]   BGP: ${LOXILB_BGP_ENABLED}, LB mode: ${LB_MODE}"
 
 # =============================================================================
 # Fix dual-interface ARP issue (eth0 Vagrant management + eth1 loxilb working)
@@ -97,6 +106,16 @@ fi
 # Write BGP flag for boot-time BGP readiness gate
 if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
   echo "true" > /etc/loxilb/bgp-enabled
+fi
+
+# Persist BGP config for boot-time reconfiguration (L2+BGP mode).
+# GoBGP loses API config on container restart; this file is read by
+# loxilb-bgp-config.service to reconfigure after every boot.
+if [ "$LOXILB_BGP_ENABLED" = "true" ] && [ "$LB_MODE" = "l2" ]; then
+  cat > /etc/loxilb/bgp-config.env << BGPENV
+LOXILB_BGP_LOCAL_ASN=${LOXILB_BGP_LOCAL_ASN}
+LOXILB_BGP_EXT_PEERS=${LOXILB_BGP_EXT_PEERS}
+BGPENV
 fi
 
 # Fix 1: create a systemd service to set eth0 to /32 before Docker starts.
@@ -327,9 +346,171 @@ TimeoutStartSec=600
 WantedBy=multi-user.target
 GATESERVICE
 
+# BGP config script: reconfigure GoBGP via API after container restart (L2+BGP).
+# In L2 mode, kube-loxilb does NOT pass --setBGP, so GoBGP has no config after
+# a container restart. This script reads persisted config from /etc/loxilb/bgp-config.env
+# and re-applies it via HTTP API. In BGP mode, kube-loxilb handles this automatically.
+# Idempotent: checks existing config before applying. Safe to call repeatedly (timer).
+cat > /usr/local/bin/loxilb-bgp-config.sh << 'BGPSCRIPT'
+#!/bin/bash
+set -uo pipefail
+
+CONFIG_FILE="/etc/loxilb/bgp-config.env"
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "[OK] No BGP config to apply (not L2+BGP mode)"
+  exit 0
+fi
+
+source "$CONFIG_FILE"
+if [ -z "${LOXILB_BGP_LOCAL_ASN:-}" ] || [ -z "${LOXILB_BGP_EXT_PEERS:-}" ]; then
+  echo "[WARN] BGP config incomplete, skipping"
+  exit 0
+fi
+
+# Check if loxilb container is running
+CONTAINER_NAME=$(docker ps --format '{{.Names}}' | grep loxilb 2>/dev/null | head -1)
+if [ -z "$CONTAINER_NAME" ]; then
+  echo "[INFO] loxilb container not running, skipping"
+  exit 1
+fi
+
+# Wait for loxilb API (short timeout for timer invocations, longer for first boot)
+ELAPSED=0
+MAX_WAIT=30
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+  if curl -s -o /dev/null "http://127.0.0.1:11111/netlox/v1/config/loadbalancer/all" 2>/dev/null; then
+    break
+  fi
+  sleep 2
+  ELAPSED=$((ELAPSED + 2))
+done
+
+if [ $ELAPSED -ge $MAX_WAIT ]; then
+  echo "[ERROR] loxilb API not ready after ${MAX_WAIT}s"
+  exit 1
+fi
+
+NODE_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+
+# Idempotency check: query existing BGP global config.
+# If neighbors already exist with correct config, skip reconfiguration.
+EXISTING_NEIGH=$(curl -s "http://127.0.0.1:11111/netlox/v1/config/bgp/neigh" 2>/dev/null || echo "")
+IFS=',' read -ra PEERS <<< "$LOXILB_BGP_EXT_PEERS"
+ALL_PEERS_CONFIGURED=true
+for peer in "${PEERS[@]}"; do
+  peer_ip="${peer%%:*}"
+  if ! echo "$EXISTING_NEIGH" | grep -q "\"ipAddress\":\"${peer_ip}\""; then
+    ALL_PEERS_CONFIGURED=false
+    break
+  fi
+done
+
+if [ "$ALL_PEERS_CONFIGURED" = "true" ] && [ ${#PEERS[@]} -gt 0 ]; then
+  echo "[OK] BGP already configured (${#PEERS[@]} peer(s) present), nothing to do"
+  exit 0
+fi
+
+# GoBGP starts asynchronously inside loxilb. The REST API (port 11111) becomes
+# ready before GoBGP's internal gRPC (port 50052) is connected. If we POST the
+# BGP global config too early, the REST API returns 200 but GoBGP never receives
+# the config. Retry until GoBGP confirms the ASN is set (cistate shows the BGP
+# handler acknowledged the config via the "BGP session ready" path).
+echo "[INFO] Configuring BGP via API (AS ${LOXILB_BGP_LOCAL_ASN}, routerId ${NODE_IP})..."
+BGP_CONFIGURED=false
+BGP_RETRIES=0
+BGP_MAX_RETRIES=30
+while [ "$BGP_CONFIGURED" = "false" ] && [ $BGP_RETRIES -lt $BGP_MAX_RETRIES ]; do
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    "http://127.0.0.1:11111/netlox/v1/config/bgp/global" \
+    -H "Content-Type: application/json" \
+    -d "{\"localAs\": ${LOXILB_BGP_LOCAL_ASN}, \"routerId\": \"${NODE_IP}\"}" 2>/dev/null)
+
+  if [ "$http_code" = "200" ] || [ "$http_code" = "204" ]; then
+    # Verify GoBGP actually accepted the config by checking the container logs.
+    # "BGP session ready" means GoBGP saw ASN != 0 after our POST.
+    if docker logs "$CONTAINER_NAME" 2>&1 | tail -20 | grep -q "BGP session.*ready"; then
+      BGP_CONFIGURED=true
+      break
+    fi
+  fi
+
+  BGP_RETRIES=$((BGP_RETRIES + 1))
+  if [ $BGP_RETRIES -lt $BGP_MAX_RETRIES ]; then
+    sleep 2
+  fi
+done
+
+if [ "$BGP_CONFIGURED" = "true" ]; then
+  echo "[OK] BGP global AS ${LOXILB_BGP_LOCAL_ASN} configured (verified after ${BGP_RETRIES} attempts)"
+else
+  echo "[WARN] BGP global config not confirmed after ${BGP_MAX_RETRIES} retries (GoBGP may not be ready)"
+  exit 1
+fi
+
+for peer in "${PEERS[@]}"; do
+  peer_ip="${peer%%:*}"
+  peer_asn="${peer##*:}"
+  # Skip if peer already exists
+  if echo "$EXISTING_NEIGH" | grep -q "\"ipAddress\":\"${peer_ip}\""; then
+    echo "[OK] BGP peer ${peer_ip} (AS ${peer_asn}) already configured"
+    continue
+  fi
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+    "http://127.0.0.1:11111/netlox/v1/config/bgp/neigh" \
+    -H "Content-Type: application/json" \
+    -d "{\"ipAddress\": \"${peer_ip}\", \"remoteAs\": ${peer_asn}}" 2>/dev/null)
+  if [ "$http_code" = "200" ] || [ "$http_code" = "204" ]; then
+    echo "[OK] BGP peer ${peer_ip} (AS ${peer_asn}) added"
+  else
+    echo "[WARN] BGP peer ${peer_ip} returned HTTP ${http_code}"
+  fi
+done
+BGPSCRIPT
+chmod +x /usr/local/bin/loxilb-bgp-config.sh
+
+cat > /etc/systemd/system/loxilb-bgp-config.service << 'BGPCONFIGSERVICE'
+[Unit]
+Description=Reconfigure GoBGP via loxilb API after container restart (L2+BGP)
+After=docker.service
+Before=loxilb-bgp-gate.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/loxilb-bgp-config.sh
+TimeoutStartSec=180
+BGPCONFIGSERVICE
+
+# Timer: re-check BGP config periodically.
+# Handles Docker container restart (GoBGP loses in-memory state) and
+# initial provisioning where multi-user.target is already reached.
+# The script is idempotent: exits immediately if config is already present.
+cat > /etc/systemd/system/loxilb-bgp-config.timer << 'BGPCONFIGTIMER'
+[Unit]
+Description=Periodic BGP config re-check for loxilb (handles container restart)
+
+[Timer]
+# First run 30s after boot (covers initial provisioning)
+OnBootSec=30
+# Re-check every 30s (idempotent, exits fast if already configured)
+OnUnitActiveSec=30
+# Randomize slightly to avoid thundering herd across VMs
+RandomizedDelaySec=5
+
+[Install]
+WantedBy=timers.target
+BGPCONFIGTIMER
+
 systemctl daemon-reload
 systemctl enable loxilb-eth0-fix.service
 systemctl enable loxilb-bgp-gate.service
+systemctl enable loxilb-bgp-config.service
+systemctl enable loxilb-bgp-config.timer
+# Start the timer now — covers initial provisioning where multi-user.target
+# is already reached and the oneshot service won't auto-start.
+# The timer fires every 30s until BGP is configured, then the idempotent
+# script exits immediately on each subsequent invocation.
+systemctl start loxilb-bgp-config.timer
 /usr/local/bin/loxilb-eth0-fix.sh
 
 # Install Docker if not present
@@ -398,6 +579,16 @@ while [ $retries -lt $max_retries ]; do
     NODE_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
     echo "[OK] LoxiLB API is ready"
     echo "[INFO] kube-loxilb should use: --loxiURL=http://${NODE_IP}:11111"
+
+    # In L2 mode, configure BGP peers directly via loxilb API for PodCIDR routing.
+    # kube-loxilb does NOT pass --setBGP in L2 mode (it would mark VIPs as
+    # BGP-announced instead of GARP/ARP). So we configure BGP here instead.
+    # In BGP mode, kube-loxilb handles this via --setBGP/--extBGPPeers.
+    # Uses the same script as the systemd boot service (single source of truth).
+    # Non-fatal: if GoBGP isn't ready yet, the timer will retry every 30s.
+    if [ "$LOXILB_BGP_ENABLED" = "true" ] && [ "$LB_MODE" = "l2" ]; then
+      /usr/local/bin/loxilb-bgp-config.sh || echo "[INFO] BGP config deferred to timer (GoBGP not ready yet)"
+    fi
 
     # Start BGP gate in background: unblocks BGP after LB rules stabilize.
     # On first provision, systemd gate service won't auto-start until next boot.
