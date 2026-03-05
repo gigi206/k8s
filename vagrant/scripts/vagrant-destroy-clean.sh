@@ -49,10 +49,8 @@ else
   # --- Step 2: Force stop and undefine domains ---
   echo -e "${BLUE}  Step 2: virsh domain cleanup${NC}"
   for domain in $(virsh list --all --name 2>/dev/null | grep "^${PREFIX}" || true); do
-    # Force stop if running
-    if virsh domstate "$domain" 2>/dev/null | grep -q "running"; then
-      virsh destroy "$domain" 2>/dev/null || true
-    fi
+    # Force stop (safe on already-stopped domains)
+    virsh destroy "$domain" 2>/dev/null || true
     # Undefine with storage removal
     virsh undefine "$domain" --remove-all-storage --nvram 2>/dev/null || \
       virsh undefine "$domain" --remove-all-storage 2>/dev/null || \
