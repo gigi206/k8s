@@ -19,6 +19,11 @@ set -e
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Charger la lib de progression
+LIB_PROGRESS="${SCRIPT_DIR}/../../vagrant/scripts/lib_progress.sh"
+# shellcheck source=../../vagrant/scripts/lib_progress.sh
+[[ -f "$LIB_PROGRESS" ]] && source "$LIB_PROGRESS"
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argo-cd}"
 
 # Timeouts (configurables via variables d'environnement)
@@ -127,11 +132,12 @@ wait_for_condition() {
   log_info "$description"
 
   while true; do
-    # Effacer la barre de progression avant d'appeler le callback
-    # pour que son log_success s'affiche sur une ligne propre
+    # Effacer la barre de progression avant d'appeler la condition
+    # (la condition peut appeler log_success qui imprime sur la ligne)
     [[ $progress_shown -eq 1 ]] && printf "\r\033[K"
 
     if $condition_func; then
+      [[ $progress_shown -eq 1 ]] && progress_bar_done "$description" "${elapsed}s/${timeout}s"
       return 0
     fi
 
@@ -140,14 +146,10 @@ wait_for_condition() {
       return 1
     fi
 
-    # Barre de progression simple
+    # Barre de progression (lib_progress.sh)
     progress_shown=1
     local progress=$((elapsed * 100 / timeout))
-    local bar_len=$((progress * 20 / 100))
-    [[ $bar_len -lt 0 ]] && bar_len=0
-    printf "\r  [%-20s] %3d%% (%ds/%ds)" \
-      "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
-      "$progress" "$elapsed" "$timeout"
+    progress_bar "$progress" "$description" "${elapsed}s/${timeout}s"
 
     sleep $interval
     elapsed=$((elapsed + interval))
@@ -203,7 +205,8 @@ detect_environment() {
   # Détecter via kubeconfig
   local kubeconfig="${KUBECONFIG:-$HOME/.kube/config}"
   if [[ -f "$kubeconfig" ]]; then
-    local context=$(kubectl config current-context 2>/dev/null || echo "")
+    local context
+    context=$(kubectl config current-context 2>/dev/null || echo "")
     case "$context" in
       *dev*)
         echo "dev"
@@ -279,9 +282,12 @@ echo ""
 log_info "Environnement: ${BOLD}$ENVIRONMENT${RESET}"
 log_info "Namespace ArgoCD: ${BOLD}$ARGOCD_NAMESPACE${RESET}"
 log_info "Kubeconfig: ${BOLD}${KUBECONFIG:-~/.kube/config}${RESET}"
-echo ""
+
+# Progression globale (12 étapes max, ajusté dynamiquement)
+progress_init 11 "Deploy ApplicationSets"
 
 # Validation
+progress_step "Validation des prérequis"
 validate_prerequisites
 
 # =============================================================================
@@ -335,6 +341,7 @@ setup_sops_secret() {
 }
 
 # Configurer le secret SOPS
+progress_step "Configuration SOPS/KSOPS"
 setup_sops_secret
 
 # =============================================================================
@@ -808,6 +815,7 @@ validate_dependencies() {
 }
 
 # Appeler dans cet ordre
+progress_step "Résolution des dépendances"
 resolve_dependencies
 validate_dependencies
 
@@ -1315,6 +1323,7 @@ apply_bootstrap_network_policies_calico() {
 }
 
 # Dispatch bootstrap network policies based on CNI
+progress_step "Bootstrap NetworkPolicies"
 if [[ "$FEAT_CNI_PRIMARY" == "cilium" ]]; then
   apply_bootstrap_network_policies_cilium
 elif [[ "$FEAT_CNI_PRIMARY" == "calico" ]]; then
@@ -1351,6 +1360,7 @@ check_repo_server_ready() {
   return 1
 }
 
+progress_step "Attente du repo-server ArgoCD"
 wait_for_condition \
   "Attente du repo-server ArgoCD..." \
   "$TIMEOUT_APPSETS" \
@@ -1391,10 +1401,11 @@ apply_manifest_patches() {
 # become stuck (spec.template is immutable on Jobs, so ArgoCD can't update them).
 
 TEMP_MANIFEST=$(mktemp)
-trap "rm -f $TEMP_MANIFEST" EXIT
+trap 'rm -f $TEMP_MANIFEST' EXIT
 
 if [[ -n "$KYVERNO_APPSET" ]]; then
   echo ""
+  progress_step "Phase 1.1: Kyverno (policy engine)"
   log_info "Phase 1.1: Déploiement de Kyverno (policy engine)..."
 
   # Deploy Kyverno ApplicationSet
@@ -1486,6 +1497,7 @@ fi
 # =============================================================================
 if [[ -n "$EXTERNAL_SECRETS_APPSET" ]]; then
   echo ""
+  progress_step "Phase 1.2: External-secrets"
   log_info "Phase 1.2: Déploiement de external-secrets (secret management)..."
 
   cat "${SCRIPT_DIR}/${EXTERNAL_SECRETS_APPSET}" > "$TEMP_MANIFEST"
@@ -1518,10 +1530,11 @@ fi
 # =============================================================================
 
 echo ""
+progress_step "Phase 2: Déploiement ApplicationSets"
 log_info "Phase 2: Déploiement des ApplicationSets..."
 
 # Build manifest with all remaining ApplicationSets
-> "$TEMP_MANIFEST"
+: > "$TEMP_MANIFEST"
 for appset in "${APPLICATIONSETS[@]}"; do
   appset_path="${SCRIPT_DIR}/${appset}"
   cat "$appset_path" >> "$TEMP_MANIFEST"
@@ -1545,7 +1558,8 @@ log_success "ApplicationSets déployés"
 
 echo ""
 check_appsets_created() {
-  local current=$(kubectl get applicationset -n "$ARGOCD_NAMESPACE" --no-headers 2>/dev/null | wc -l)
+  local current
+  current=$(kubectl get applicationset -n "$ARGOCD_NAMESPACE" --no-headers 2>/dev/null | wc -l)
   local expected=$EXPECTED_APPS_COUNT
 
   if [[ $current -ge $expected ]]; then
@@ -1567,6 +1581,7 @@ wait_for_condition \
 # =============================================================================
 
 echo ""
+progress_step "Génération des Applications"
 log_info "Attente de la génération des Applications (attendu: $EXPECTED_APPS_COUNT)..."
 apps_gen_elapsed=0
 apps_gen_interval=5
@@ -1575,10 +1590,7 @@ while true; do
   current_apps=$(kubectl get application -A --no-headers 2>/dev/null | wc -l)
 
   if [[ $current_apps -ge $EXPECTED_APPS_COUNT ]]; then
-    # Afficher la barre de progression finale à 100%
-    printf "\r  [%-20s] %3d%% (%d/%d Applications)\n" \
-      "$(printf '#%.0s' $(seq 1 20))" \
-      100 "$current_apps" "$EXPECTED_APPS_COUNT"
+    progress_bar_done "Applications" "$current_apps/$EXPECTED_APPS_COUNT"
     log_success "Toutes les Applications générées: $current_apps/$EXPECTED_APPS_COUNT"
     break
   fi
@@ -1601,11 +1613,7 @@ while true; do
 
   # Barre de progression
   progress=$((current_apps * 100 / EXPECTED_APPS_COUNT))
-  bar_len=$((progress * 20 / 100))
-  [[ $bar_len -lt 0 ]] && bar_len=0
-  printf "\r  [%-20s] %3d%% (%d/%d Applications)" \
-    "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
-    "$progress" "$current_apps" "$EXPECTED_APPS_COUNT"
+  progress_bar "$progress" "Applications" "$current_apps/$EXPECTED_APPS_COUNT"
 
   sleep $apps_gen_interval
   apps_gen_elapsed=$((apps_gen_elapsed + apps_gen_interval))
@@ -1616,6 +1624,7 @@ done
 # =============================================================================
 
 echo ""
+progress_step "Synchronisation des Applications"
 if [[ $WAIT_HEALTHY -eq 1 ]]; then
   log_info "Attente de la synchronisation et santé des Applications (sans timeout)..."
 else
@@ -1646,31 +1655,20 @@ while true; do
   [[ $TOTAL_APPS -gt $target_apps ]] && target_apps=$TOTAL_APPS
   progress=$((SYNCED_AND_HEALTHY * 100 / target_apps))
 
-  bar_len=$((progress * 20 / 100))
-  [[ $bar_len -lt 0 ]] && bar_len=0
   if [[ $WAIT_HEALTHY -eq 1 ]]; then
-    printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy, %ds)" \
-      "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
-      "$progress" "$SYNCED_AND_HEALTHY" "$target_apps" "$sync_elapsed"
+    progress_bar "$progress" "Synced+Healthy" "$SYNCED_AND_HEALTHY/$target_apps ${sync_elapsed}s"
   else
-    printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy)" \
-      "$(printf '#%.0s' $(seq 1 $bar_len) 2>/dev/null)" \
-      "$progress" "$SYNCED_AND_HEALTHY" "$target_apps"
+    progress_bar "$progress" "Synced+Healthy" "$SYNCED_AND_HEALTHY/$target_apps"
   fi
 
   log_debug "Synced: $SYNCED, Healthy: $HEALTHY, Total: $TOTAL_APPS, Expected: $EXPECTED_APPS_COUNT"
 
   # Condition de succès: toutes les apps attendues sont synced et healthy
   if [[ $SYNCED_AND_HEALTHY -ge $EXPECTED_APPS_COUNT ]] && [[ $TOTAL_APPS -ge $EXPECTED_APPS_COUNT ]]; then
-    # Afficher la barre de progression finale à 100%
     if [[ $WAIT_HEALTHY -eq 1 ]]; then
-      printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy, %ds)\n" \
-        "$(printf '#%.0s' $(seq 1 20))" \
-        100 "$SYNCED_AND_HEALTHY" "$EXPECTED_APPS_COUNT" "$sync_elapsed"
+      progress_bar_done "Synced+Healthy" "$SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT ${sync_elapsed}s"
     else
-      printf "\r  [%-20s] %3d%% (%d/%d Synced+Healthy)\n" \
-        "$(printf '#%.0s' $(seq 1 20))" \
-        100 "$SYNCED_AND_HEALTHY" "$EXPECTED_APPS_COUNT"
+      progress_bar_done "Synced+Healthy" "$SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT"
     fi
     log_success "Toutes les applications sont Synced + Healthy! ($SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT)"
     break
@@ -2070,6 +2068,7 @@ JOBEOF
 
 # Condition d'entrée: cilium CNI + mutual auth + storage + spire dataStorage activés
 if [[ "$FEAT_CNI_PRIMARY" == "cilium" ]] && [[ "$FEAT_CILIUM_MUTUAL_AUTH" == "true" ]] && [[ "$FEAT_STORAGE" == "true" ]] && [[ "$FEAT_SPIRE_DATA_STORAGE" == "true" ]]; then
+  progress_step "Phase 2.5: Migration SPIRE storage"
   migrate_spire_storage
 else
   log_debug "Migration SPIRE storage non applicable (cni=$FEAT_CNI_PRIMARY, mutualAuth=$FEAT_CILIUM_MUTUAL_AUTH, storage=$FEAT_STORAGE, spireDataStorage=$FEAT_SPIRE_DATA_STORAGE)"
@@ -2272,7 +2271,7 @@ VIRTUALSERVICE_HOSTS=$(kubectl get virtualservice -A -o json 2>/dev/null | jq -r
 [[ -n "$VIRTUALSERVICE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${VIRTUALSERVICE_HOSTS}\n"
 
 # 7. Traefik IngressRoute
-INGRESSROUTE_HOSTS=$(kubectl get ingressroute -A -o json 2>/dev/null | jq -r '.items[].spec.routes[]?.match // empty' 2>/dev/null | grep -oP 'Host\(`\K[^`]+' | sort -u)
+INGRESSROUTE_HOSTS=$(kubectl get ingressroute -A -o json 2>/dev/null | jq -r '.items[].spec.routes[]?.match // empty' 2>/dev/null | grep -oP "Host\(\`\K[^\`]+" | sort -u)
 [[ -n "$INGRESSROUTE_HOSTS" ]] && ALL_HOSTS="${ALL_HOSTS}${INGRESSROUTE_HOSTS}\n"
 
 # Combiner et dédupliquer les hosts
@@ -2341,4 +2340,5 @@ echo "  CNI Primary:       $FEAT_CNI_PRIMARY"
 echo "  CNI Multus:        $FEAT_CNI_MULTUS"
 echo ""
 
+progress_done
 log_success "Déploiement terminé! 🎉"
