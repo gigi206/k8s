@@ -123,16 +123,17 @@ Vagrant.configure("2") do |config|
           path: "../deploy/argocd/apps/loxilb/vagrant/provision-loxilb-external.sh",
           env: {"K8S_ENV" => env}
 
-        # Disable unknown-unicast flooding on bridge ports to prevent eBPF
-        # feedback loop when a BGP peer VM goes down (see scripts/configure-loxilb-bridge-ports.sh)
-        # Only needed with multiple loxilb instances (feedback loop) + FRR BGP peers (dead peer MAC)
-        if loxilb_count > 1 && lb_mode == 'bgp'
-          loxilb.trigger.after [:up, :reload] do |trigger|
-            trigger.name = "Configure loxilb bridge ports (flood off)"
-            trigger.run = {
-              inline: "sudo #{File.join(File.dirname(__FILE__), 'scripts', 'configure-loxilb-bridge-ports.sh')} #{vm_name}"
-            }
-          end
+        # Secure bridge ports for loxilb VMs (see scripts/configure-loxilb-bridge-ports.sh)
+        # loxilb eBPF reflects broadcast frames (GARP, ARP) onto the bridge with the
+        # original source MAC, causing the bridge to re-learn the master's MAC on a
+        # loxilb port — breaking all TCP to the master's eth1 (K8s API, SSH, etc.)
+        # Also prevents unknown-unicast feedback loops in BGP mode.
+        loxilb.trigger.after [:up, :reload] do |trigger|
+          trigger.name = "Configure loxilb bridge ports (flood off, learning off)"
+          trigger.run = {
+            path: File.join(File.dirname(__FILE__), 'scripts', 'configure-loxilb-bridge-ports.sh'),
+            args: [vm_name]
+          }
         end
 
       end

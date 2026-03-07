@@ -54,8 +54,19 @@ if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
   LOXILB_BGP_EXT_PEERS=$(yq '.loxilb.bgp.extBGPPeers' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "")
 fi
 
+# Read all loxiURL entries for HA clustering
+# Extract IPs from URLs like "http://192.168.121.40:11111"
+LOXI_URLS=$(yq -r '.loxilb.loxiURL[]' "$LOXILB_APP_CONFIG" 2>/dev/null || echo "")
+LOXI_IPS=()
+while IFS= read -r url; do
+  [ -z "$url" ] && continue
+  ip=$(echo "$url" | sed -E 's|https?://([0-9.]+):.*|\1|')
+  [ -n "$ip" ] && LOXI_IPS+=("$ip")
+done <<< "$LOXI_URLS"
+
 echo "[INFO] LoxiLB external mode enabled, provisioning..."
 echo "[INFO]   BGP: ${LOXILB_BGP_ENABLED}, LB mode: ${LB_MODE}"
+echo "[INFO]   Cluster instances: ${LOXI_IPS[*]}"
 
 # =============================================================================
 # Fix dual-interface ARP issue (eth0 Vagrant management + eth1 loxilb working)
@@ -95,7 +106,7 @@ fi
 
 # Write extra neighbor IPs to resolve at boot (e.g., VRRP VIP)
 mkdir -p /etc/loxilb
-> /etc/loxilb/extra-neighbors.conf
+true > /etc/loxilb/extra-neighbors.conf
 VRRP_ENABLED=$(yq '.features.loadBalancer.bgp.vrrp.enabled' "$ARGOCD_CONFIG" 2>/dev/null || echo "false")
 VRRP_VIP=$(yq '.features.loadBalancer.bgp.vrrp.vip' "$ARGOCD_CONFIG" 2>/dev/null || echo "")
 if [ "$VRRP_ENABLED" = "true" ] && [ -n "$VRRP_VIP" ] && [ "$VRRP_VIP" != "null" ]; then
@@ -562,6 +573,35 @@ LOXILB_ARGS=("--whitelist=eth1")
 if [ "$LOXILB_BGP_ENABLED" = "true" ]; then
   echo "[INFO]   BGP: enabled (GoBGP will be started inside the container)"
   LOXILB_ARGS+=("--bgp")
+fi
+
+# HA clustering: enable fast failover between loxilb instances.
+# --cluster: comma-separated peer IPs (all instances except self)
+# --self: index of this instance in the cluster (0, 1, 2, ...)
+# --ka: BFD keepalive for sub-second failure detection (RemoteIP:SourceIP:Interval)
+#   Interval is in milliseconds (500 = 500ms detection)
+NODE_IP=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+if [ ${#LOXI_IPS[@]} -gt 1 ] && [ -n "$NODE_IP" ]; then
+  PEER_IPS=()
+  SELF_INDEX=0
+  for i in "${!LOXI_IPS[@]}"; do
+    if [ "${LOXI_IPS[$i]}" = "$NODE_IP" ]; then
+      SELF_INDEX=$i
+    else
+      PEER_IPS+=("${LOXI_IPS[$i]}")
+    fi
+  done
+
+  LOXILB_ARGS+=("--cluster=$(IFS=,; echo "${PEER_IPS[*]}")")
+  LOXILB_ARGS+=("--self=$SELF_INDEX")
+
+  # BFD keepalive with each peer (500ms interval for sub-second failover)
+  for peer_ip in "${PEER_IPS[@]}"; do
+    LOXILB_ARGS+=("--ka=${peer_ip}:${NODE_IP}:500")
+  done
+
+  echo "[INFO]   HA cluster: self=$SELF_INDEX ($NODE_IP), peers=${PEER_IPS[*]}"
+  echo "[INFO]   BFD keepalive: 500ms interval"
 fi
 
 DOCKER_CMD+=("${LOXILB_IMAGE}:${LOXILB_TAG}" "${LOXILB_ARGS[@]}")
