@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# CiliumBGPAdvertisement - LoadBalancer VIP Routes
+# =============================================================================
+# Advertises LoadBalancer Service IPs to FRR upstream routers via BGP.
+# FRR redistributes these routes to the network (with optional VRRP anycast).
+#
+# Only LoadBalancerIP is advertised -- Cilium LB-IPAM assigns VIPs from
+# CiliumLoadBalancerIPPool, and BGP announces them to FRR peers.
+#
+# Matched by CiliumBGPPeerConfig via label selector: advertise=cilium-bgp
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
+metadata:
+  name: cilium-lb-vips
+  labels:
+    advertise: "cilium-bgp"
+spec:
+  advertisements:
+    - advertisementType: "Service"
+      service:
+        addresses:
+          - LoadBalancerIP
+      selector:
+        matchLabels: {}
