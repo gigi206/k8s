@@ -236,6 +236,7 @@ spec:
                         kube-vip.io/loadbalancerIPs: '{{ .features.loadBalancer.staticIPs.gateway }}'
                         {{- end }}
                   {{- end }}
+              {{- if or (eq .features.loadBalancer.provider "metallb") (eq .features.loadBalancer.provider "loxilb") }}
               - target:
                   kind: EnvoyProxy
                   name: envoy-proxy-config
@@ -255,6 +256,7 @@ spec:
                       loxilb.io/lbmode: "onearm"
                       loxilb.io/usepodnetwork: "yes"
                   {{- end }}
+              {{- end }}
               - target:
                   kind: Certificate
                   name: wildcard-k8s-local
