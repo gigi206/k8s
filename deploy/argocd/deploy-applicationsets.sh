@@ -373,6 +373,12 @@ log_info "Lecture des feature flags depuis config.yaml..."
 FEAT_LB_ENABLED=$(get_feature '.features.loadBalancer.enabled' 'true')
 FEAT_LB_PROVIDER=$(get_feature '.features.loadBalancer.provider' 'metallb')
 FEAT_LB_MODE=$(get_feature '.features.loadBalancer.mode' 'l2')
+FEAT_LB_BGP_VRRP_ENABLED=$(get_feature '.features.loadBalancer.bgp.vrrp.enabled' 'false')
+FEAT_LB_BGP_VRRP_VIP=$(get_feature '.features.loadBalancer.bgp.vrrp.vip' '')
+FEAT_LB_STATIC_K8S_API=$(get_feature '.features.loadBalancer.staticIPs.kubernetesApi' '')
+FEAT_LB_STATIC_DNS=$(get_feature '.features.loadBalancer.staticIPs.externalDns' '')
+FEAT_LB_STATIC_GATEWAY=$(get_feature '.features.loadBalancer.staticIPs.gateway' '')
+FEAT_LB_POOL_RANGE=$(get_feature '.features.loadBalancer.pools.default.range' '')
 FEAT_KYVERNO=$(get_feature '.features.kyverno.enabled' 'true')
 FEAT_KUBEVIP=$(get_feature '.features.kubeVip.enabled' 'true')
 FEAT_GATEWAY_API=$(get_feature '.features.gatewayAPI.enabled' 'true')
@@ -2339,6 +2345,66 @@ echo "  Cluster Distrib:   $CLUSTER_DISTRIBUTION"
 echo "  CNI Primary:       $FEAT_CNI_PRIMARY"
 echo "  CNI Multus:        $FEAT_CNI_MULTUS"
 echo ""
+
+# =============================================================================
+# Routes statiques pour le mode BGP
+# =============================================================================
+# En mode BGP, les VIPs ne répondent pas à l'ARP sur le réseau L2.
+# L'hôte doit router le trafic vers les VIPs via les routeurs FRR:
+#   - VRRP activé:    route via le VRRP VIP (single next-hop)
+#   - VRRP désactivé: route ECMP via chaque peer FRR (multipath)
+# =============================================================================
+
+if [[ "$FEAT_LB_MODE" == "bgp" ]]; then
+  # Construire le next-hop selon VRRP activé ou non
+  if [[ "$FEAT_LB_BGP_VRRP_ENABLED" == "true" ]] && [[ -n "$FEAT_LB_BGP_VRRP_VIP" ]]; then
+    NEXTHOP="via ${FEAT_LB_BGP_VRRP_VIP}"
+    NEXTHOP_DESC="VRRP VIP (${FEAT_LB_BGP_VRRP_VIP})"
+  else
+    # ECMP multipath via chaque peer FRR
+    NEXTHOP=""
+    PEER_ADDRESSES=$(yq -r '.features.loadBalancer.bgp.peers[].address' "$CONFIG_FILE" 2>/dev/null)
+    for peer_addr in $PEER_ADDRESSES; do
+      NEXTHOP="${NEXTHOP} nexthop via ${peer_addr}"
+    done
+    NEXTHOP_DESC="ECMP multipath ($(echo "$PEER_ADDRESSES" | tr '\n' ',' | sed 's/,$//'))"
+  fi
+
+  echo ""
+  echo -e "${YELLOW}⚠️  Mode BGP: routes statiques requises sur l'hôte${RESET}"
+  echo -e "${YELLOW}   Les VIPs ne répondent pas à l'ARP. Ajoutez ces routes via ${NEXTHOP_DESC}:${RESET}"
+  echo ""
+
+  # Helper pour afficher une commande ip route
+  _print_route() {
+    local vip="$1"
+    if [[ "$FEAT_LB_BGP_VRRP_ENABLED" == "true" ]] && [[ -n "$FEAT_LB_BGP_VRRP_VIP" ]]; then
+      echo "  sudo ip route add ${vip}/32 via ${FEAT_LB_BGP_VRRP_VIP}"
+    else
+      echo "  sudo ip route add ${vip}/32${NEXTHOP}"
+    fi
+  }
+
+  # IPs statiques
+  for vip in "$FEAT_LB_STATIC_K8S_API" "$FEAT_LB_STATIC_DNS" "$FEAT_LB_STATIC_GATEWAY"; do
+    [[ -n "$vip" ]] && _print_route "$vip"
+  done
+
+  # Pool dynamique
+  if [[ -n "$FEAT_LB_POOL_RANGE" ]]; then
+    POOL_START="${FEAT_LB_POOL_RANGE%%-*}"
+    POOL_STOP="${FEAT_LB_POOL_RANGE##*-}"
+    echo ""
+    echo -e "  ${YELLOW}# Pool dynamique (${POOL_START} - ${POOL_STOP}):${RESET}"
+    PREFIX="${POOL_START%.*}"
+    START_OCTET="${POOL_START##*.}"
+    STOP_OCTET="${POOL_STOP##*.}"
+    for ((octet=START_OCTET; octet<=STOP_OCTET; octet++)); do
+      _print_route "${PREFIX}.${octet}"
+    done
+  fi
+  echo ""
+fi
 
 progress_done
 log_success "Déploiement terminé! 🎉"
