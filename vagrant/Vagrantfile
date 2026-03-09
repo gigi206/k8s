@@ -181,6 +181,22 @@ Vagrant.configure("2") do |config|
           env: {"K8S_ENV" => env}
       end
     end
+
+    # Enable ECMP dead nexthop detection on the host
+    # Without this (default=0), the kernel sends traffic to unreachable FRR peers
+    # (ARP INCOMPLETE) instead of failing over to healthy peers.
+    if frr_peers.length > 1
+      config.trigger.after [:up, :reload] do |trigger|
+        trigger.name = "Enable ECMP dead nexthop detection (fib_multipath_use_neigh)"
+        trigger.ruby do |env, machine|
+          next if defined?(@ecmp_neigh_set)
+          @ecmp_neigh_set = true
+          current = `sysctl -n net.ipv4.fib_multipath_use_neigh 2>/dev/null`.strip
+          next if current == '1'
+          system('sudo sysctl -w net.ipv4.fib_multipath_use_neigh=1')
+        end
+      end
+    end
   end
 
   # Configuration des masters
