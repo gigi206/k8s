@@ -584,9 +584,9 @@ resolve_dependencies() {
     fi
 
     # =========================================================================
-    # longhorn/rook → csiSnapshotter (recommandé)
+    # longhorn/rook → csiSnapshotter (recommandé, sauf RKE2 qui l'intègre)
     # =========================================================================
-    if [[ "$FEAT_STORAGE" == "true" ]]; then
+    if [[ "$FEAT_STORAGE" == "true" ]] && [[ "$CLUSTER_DISTRIBUTION" != "rke2" ]]; then
       if [[ "$FEAT_STORAGE_PROVIDER" == "longhorn" ]] || [[ "$FEAT_STORAGE_PROVIDER" == "rook" ]]; then
         if [[ "$FEAT_CSI_SNAPSHOTTER" != "true" ]]; then
           log_info "  → Activation de csiSnapshotter (recommandé pour $FEAT_STORAGE_PROVIDER)"
@@ -943,7 +943,7 @@ APPLICATIONSETS+=("apps/argocd/applicationset.yaml")
 
 # Storage
 if [[ "$FEAT_STORAGE" == "true" ]]; then
-  [[ "$FEAT_CSI_SNAPSHOTTER" == "true" ]] && APPLICATIONSETS+=("apps/csi-external-snapshotter/applicationset.yaml")
+  [[ "$FEAT_CSI_SNAPSHOTTER" == "true" ]] && [[ "$CLUSTER_DISTRIBUTION" != "rke2" ]] && APPLICATIONSETS+=("apps/csi-external-snapshotter/applicationset.yaml")
   case "$FEAT_STORAGE_PROVIDER" in
     longhorn)
       APPLICATIONSETS+=("apps/longhorn/applicationset.yaml")
