@@ -204,6 +204,11 @@ spec:
 EOF
 fi
 
+# Delete existing deployment to avoid field-manager conflicts on re-deploy.
+# The Rancher agent modifies the Deployment after install (kubectl client-side-apply),
+# which conflicts with Helm's server-side-apply on subsequent upgrades.
+kubectl delete deployment cattle-cluster-agent -n "$NAMESPACE" --ignore-not-found
+
 echo "[INFO] Deploying Helm chart..."
 helm upgrade --install "$RELEASE_NAME" "${APP_DIR}/chart" \
   --namespace "$NAMESPACE" \

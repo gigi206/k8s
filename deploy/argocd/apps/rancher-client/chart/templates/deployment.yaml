@@ -75,6 +75,14 @@ spec:
         - name: cluster-register
           image: {{ .Values.agent.image }}:{{ .Values.server.version }}
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: false
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: CATTLE_SERVER
               value: {{ .Values.server.url | quote }}
