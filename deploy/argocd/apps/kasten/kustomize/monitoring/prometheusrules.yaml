@@ -1,0 +1,50 @@
+---
+# PrometheusRules for Kasten K10 backup monitoring
+# K10 exposes catalog_actions_count{type, status} metrics via aggregatedapis
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kasten-k10-alerts
+  namespace: kasten-io
+spec:
+  groups:
+    - name: kasten.rules
+      rules:
+        - alert: KastenBackupFailed
+          annotations:
+            summary: "K10 backup action failed in namespace {{ $labels.namespace }}"
+            description: "Kasten K10 has recorded failed backup actions. Check K10 dashboard for details."
+          expr: |-
+            increase(catalog_actions_count{type="backup", status="failed"}[1h]) > 0
+          for: 5m
+          labels:
+            severity: warning
+        - alert: KastenBackupFailingPersistent
+          annotations:
+            summary: "K10 backup actions have been failing for 6h"
+            description: "Kasten K10 backup actions have been consistently failing for over 6 hours. Immediate attention required."
+          expr: |-
+            increase(catalog_actions_count{type="backup", status="failed"}[6h]) > 0
+            and
+            increase(catalog_actions_count{type="backup", status="complete"}[6h]) == 0
+          for: 1h
+          labels:
+            severity: critical
+        - alert: KastenExportFailed
+          annotations:
+            summary: "K10 export action failed"
+            description: "Kasten K10 has recorded failed export actions. S3 location profile or Ceph storage may be unavailable."
+          expr: |-
+            increase(catalog_actions_count{type="export", status="failed"}[1h]) > 0
+          for: 5m
+          labels:
+            severity: warning
+        - alert: KastenPolicyErrored
+          annotations:
+            summary: "K10 policy {{ $labels.policy_name }} has errored"
+            description: "Kasten K10 policy {{ $labels.policy_name }} has errored. Check K10 dashboard for details."
+          expr: |-
+            increase(catalog_policies_count{status="errored"}[1h]) > 0
+          for: 5m
+          labels:
+            severity: warning

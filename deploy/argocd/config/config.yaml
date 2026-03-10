@@ -61,6 +61,7 @@ git:
 #   - cilium.monitoring.enabled → active monitoring
 #   - storage.provider=longhorn → active csiSnapshotter (recommandé)
 #   - s3.provider=rook → active storage (rook)
+#   - backup.enabled → requiert s3.enabled (stockage des backups)
 # =============================================================================
 features:
   # === Infrastructure Core ===
@@ -291,6 +292,13 @@ features:
     enabled: false
     provider: "kata"  # kata | gvisor | spin
     defaultRuntimeClass: "kata"  # RuntimeClass par défaut pour les pods (ex: kata, crun, nvidia). Vide = pas de mutation
+  # === Backup & Disaster Recovery ===
+  # Velero or Kasten K10 for cluster backup and restore with S3 storage
+  # Requires: features.s3.enabled (backup data is stored in S3 object storage)
+  # Dependencies: s3.provider=rook → uses ObjectBucketClaim for bucket provisioning
+  backup:
+    enabled: false # Kubernetes backup and restore
+    provider: "velero" # velero | kasten
   # === Container Registry ===
   registry:
     enabled: false # Container registry

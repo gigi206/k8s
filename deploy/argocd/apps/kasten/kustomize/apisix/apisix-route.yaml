@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# ApisixRoute - Kasten K10 Dashboard
+# =============================================================================
+# Routes traffic to K10 Dashboard gateway service
+# =============================================================================
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: kasten
+  namespace: kasten-io
+spec:
+  ingressClassName: apisix
+  http:
+    - name: kasten
+      match:
+        hosts:
+          - kasten.PLACEHOLDER_DOMAIN  # Patched via Kustomize from common.domain
+        paths:
+          - /*
+      backends:
+        - serviceName: gateway
+          servicePort: 80

@@ -1,0 +1,19 @@
+---
+# ServiceMonitor for Kasten K10 metrics
+# K10 exposes Prometheus metrics on port 8000 via the aggregatedapis service
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kasten-k10
+  namespace: kasten-io
+spec:
+  selector:
+    matchLabels:
+      app: k10
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+  namespaceSelector:
+    matchNames:
+      - kasten-io

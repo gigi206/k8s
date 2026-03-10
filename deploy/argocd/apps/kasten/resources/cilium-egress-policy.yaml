@@ -1,0 +1,43 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - K10 External Egress (upgrade check)
+# =============================================================================
+# Allows K10 dashboardbff to reach gcr.io for version/upgrade checks.
+#
+# This policy complements the cluster-wide default-deny-external-egress policy
+# defined in deploy/argocd/apps/cilium/resources/
+# =============================================================================
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kasten-allow-external-egress
+  namespace: kasten-io
+spec:
+  description: "Allow K10 dashboardbff to check for upgrades on gcr.io"
+
+  endpointSelector:
+    matchLabels:
+      component: dashboardbff
+
+  egress:
+    # Allow DNS resolution
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "gcr.io"
+
+    # Allow HTTPS to gcr.io
+    - toFQDNs:
+        - matchName: "gcr.io"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

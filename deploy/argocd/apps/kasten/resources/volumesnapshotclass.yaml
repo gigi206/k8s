@@ -1,0 +1,34 @@
+---
+# =============================================================================
+# VolumeSnapshotClass for Ceph RBD CSI snapshots (Kasten K10 backups)
+# =============================================================================
+# The annotation k10.kasten.io/is-snapshot-class: "true" allows K10 to
+# automatically discover this class for CSI snapshot operations.
+# deletionPolicy: Delete = snapshot local supprime apres export en S3.
+# =============================================================================
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: ceph-block-snapshot
+  annotations:
+    k10.kasten.io/is-snapshot-class: "true"
+driver: rook-ceph.rbd.csi.ceph.com
+deletionPolicy: Delete
+parameters:
+  clusterID: rook-ceph
+  csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph
+---
+# VolumeSnapshotClass for Ceph RBD CSI snapshots (manual rollback)
+# No K10 annotation = not used by K10 automated backups.
+# deletionPolicy: Retain = snapshot local conserve pour restauration instantanee.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: ceph-block-snapshot-retain
+driver: rook-ceph.rbd.csi.ceph.com
+deletionPolicy: Retain
+parameters:
+  clusterID: rook-ceph
+  csi.storage.k8s.io/snapshotter-secret-name: rook-csi-rbd-provisioner
+  csi.storage.k8s.io/snapshotter-secret-namespace: rook-ceph

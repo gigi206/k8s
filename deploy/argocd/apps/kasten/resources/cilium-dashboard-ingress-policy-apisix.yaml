@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kasten K10 Dashboard Ingress from APISIX
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kasten-dashboard-ingress-apisix
+  namespace: kasten-io
+spec:
+  description: "Allow ingress to Kasten K10 Dashboard from APISIX"
+  endpointSelector:
+    matchLabels:
+      component: gateway
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: apisix
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

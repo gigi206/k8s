@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kasten K10 Dashboard Ingress from Cilium Gateway
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kasten-dashboard-ingress-cilium
+  namespace: kasten-io
+spec:
+  description: "Allow ingress to Kasten K10 Dashboard from Cilium Gateway"
+  endpointSelector:
+    matchLabels:
+      component: gateway
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

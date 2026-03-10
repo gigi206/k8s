@@ -1,0 +1,427 @@
+---
+# =============================================================================
+# Kasten K10 ApplicationSet (Kubernetes Data Protection)
+# =============================================================================
+# Deploys Kasten K10 for application-centric backup and disaster recovery.
+# Uses S3 storage via Rook-Ceph ObjectStore for backup data export.
+# Volume backups use CSI snapshots (Ceph RBD).
+# S3 Location Profile is created by a PostSync Job (kasten-s3-profile.yaml).
+# Docs: https://docs.kasten.io/latest/
+# =============================================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: kasten
+  namespace: argo-cd
+  annotations:
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+    - merge:
+        mergeKeys:
+          - environment
+        generators:
+          # Global config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/config/config.yaml
+
+          # App-specific config
+          - git:
+              repoURL: https://github.com/gigi206/k8s
+              revision: 'HEAD'
+              files:
+                - path: deploy/argocd/apps/kasten/config/*.yaml
+
+  template:
+    metadata:
+      name: kasten
+      namespace: argo-cd
+      annotations:
+    spec:
+      project: default
+
+      source:
+        repoURL: https://charts.kasten.io/
+        targetRevision: '{{ .kasten.version }}'
+        chart: k10
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .kasten.namespace }}'
+
+      syncPolicy:
+        retry:
+          limit: 10
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 10m
+
+  templatePatch: |
+    spec:
+      ignoreDifferences:
+        - group: ""
+          kind: Secret
+          name: kopia-tls-cert
+          jsonPointers:
+            - /data
+        - group: ""
+          kind: Secret
+          name: kopia-tls-key
+          jsonPointers:
+            - /data
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .spec.data[]
+            - .spec.target
+      syncPolicy:
+        syncOptions:
+        {{- range .syncPolicy.syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- if .syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ .syncPolicy.automated.prune }}
+          selfHeal: {{ .syncPolicy.automated.selfHeal }}
+      {{- end }}
+
+      sources:
+        # Source: Namespace with PSA labels
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "namespace.yaml"
+
+        {{- if and .features.s3.enabled (eq .features.s3.provider "rook") }}
+        # Source: PreSync check - wait for Ceph storage + OBC CRD readiness
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "ceph-storage-presync-check.yaml"
+
+        # Source: PreSync Job to create OBC + K10 S3 credentials
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "kasten-s3-credentials.yaml"
+
+        # Source: PostSync Job to create K10 Location Profile (after CRDs are installed)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "kasten-s3-profile.yaml"
+
+        # Source: VolumeSnapshotClass for Ceph RBD CSI snapshots
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "volumesnapshotclass.yaml"
+        {{- end }}
+
+        {{- if .features.kyverno.enabled }}
+        # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "kyverno-policy-exception.yaml"
+        {{- end }}
+
+        {{- if .features.networkPolicy.egressPolicy.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium egress policy for K10 upgrade check (gcr.io)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-egress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico egress policy for K10 upgrade check (gcr.io)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-egress-policy.yaml"
+          {{- end }}
+        {{- end }}
+
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+          {{- if eq .cni.primary "cilium" }}
+        # Source: Cilium policy for internal K10 traffic
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-ingress-policy.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        # Source: Calico policy for internal K10 traffic
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-ingress-policy.yaml"
+          {{- end }}
+        {{- end }}
+
+        # Source: Kasten K10 Helm Chart
+        - repoURL: https://charts.kasten.io/
+          targetRevision: '{{ .kasten.version }}'
+          chart: k10
+          helm:
+            releaseName: k10
+            valuesObject:
+              # EULA acceptance (required)
+              eula:
+                accept: true
+                company: '{{ .kasten.eula.company }}'
+                email: '{{ .kasten.eula.email }}'
+
+              # Metering (airgap = no license check)
+              metering:
+                mode: airgap
+
+              # Authentication (K10 only allows one auth type at a time)
+              auth:
+              {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+                tokenAuth:
+                  enabled: false
+                oidcAuth:
+                  enabled: true
+                  providerURL: 'https://keycloak.{{ .common.domain }}/realms/k8s'
+                  redirectURL: 'https://kasten.{{ .common.domain }}/'
+                  scopes: "groups profile email"
+                  prompt: "select_account"
+                  clientID: "kasten"
+                  clientSecretName: kasten-oidc-credentials
+                  usernameClaim: "email"
+                  usernamePrefix: "-"
+                  groupClaim: "groups"
+
+              # Custom CA for TLS verification (self-signed cluster issuer)
+              cacertconfigmap:
+                name: k10-custom-ca
+                key: custom-ca-bundle.pem
+              {{- else }}
+                tokenAuth:
+                  enabled: true
+              {{- end }}
+
+              # Persistence (K10 catalog)
+              global:
+                persistence:
+                  storageClass: '{{ .kasten.persistence.storageClass }}'
+                  catalog:
+                    size: '{{ .kasten.persistence.catalogSize }}'
+              {{- if .features.monitoring.enabled }}
+                prometheus:
+                  external:
+                    host: '{{ .features.monitoring.release }}-kube-prom-prometheus.monitoring.svc.cluster.local'
+              {{- end }}
+
+              # Global resource overrides for K10 services
+              genericVolumeSnapshot:
+                resources:
+                  requests:
+                    cpu: '{{ .kasten.resources.requests.cpu }}'
+                    memory: '{{ .kasten.resources.requests.memory }}'
+                  limits:
+                    cpu: '{{ .kasten.resources.limits.cpu }}'
+                    memory: '{{ .kasten.resources.limits.memory }}'
+
+              # Multi-cluster
+              multicluster:
+                enabled: {{ .kasten.multicluster.enabled }}
+
+              # Metrics
+              prometheus:
+                server:
+                  enabled: false
+              {{- if .features.monitoring.enabled }}
+              grafana:
+                enabled: false
+              {{- end }}
+            {{- if .features.monitoring.enabled }}
+            parameters:
+              - name: global.prometheus.external.port
+                value: "9090"
+                forceString: true
+            {{- end }}
+
+        {{- if .features.monitoring.enabled }}
+        # Source: Monitoring resources (ServiceMonitor + PrometheusRules for K10)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/kustomize/monitoring
+          kustomize:
+            commonLabels:
+              release: '{{ .features.monitoring.release }}'
+              grafana_dashboard: '{{ .features.monitoring.dashboard.label }}'
+            commonAnnotations:
+              "{{ .features.monitoring.dashboard.folderAnnotation }}": '{{ .features.monitoring.dashboard.baseFolder }}/{{ .dashboard.folder }}'
+        {{- end }}
+
+        {{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}
+        # Source: SOPS-encrypted secrets (OIDC client secret for K10)
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/secrets/{{ .environment }}
+
+        # Source: SSO - Keycloak OIDC client creation + CA cert
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/kustomize/sso
+          kustomize:
+            images:
+              - 'curlimages/curl={{ .images.curl.repository }}:{{ .images.curl.tag }}'
+            patches:
+              - target:
+                  kind: Job
+                  name: kasten-keycloak-oidc-client
+                patch: |
+                  - op: replace
+                    path: /spec/template/spec/containers/0/env/0/value
+                    value: {{ .common.domain }}
+        {{- end }}
+
+        {{- if .features.gatewayAPI.enabled }}
+        {{- if .features.gatewayAPI.httpRoute.enabled }}
+        # Source: HTTPRoute for K10 Dashboard
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/kustomize/httproute
+          kustomize:
+            patches:
+              - target:
+                  kind: HTTPRoute
+                  name: kasten
+                patch: |
+                  - op: replace
+                    path: /spec/hostnames/0
+                    value: kasten.{{ .common.domain }}
+                  - op: replace
+                    path: /spec/parentRefs/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+              - target:
+                  kind: ReferenceGrant
+                  name: gateway-kasten-tls
+                patch: |
+                  - op: replace
+                    path: /spec/from/0/namespace
+                    value: '{{ .features.gatewayAPI.controller.gatewayNamespace }}'
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+        # Source: APISIX native CRDs for K10 Dashboard
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/kustomize/apisix
+          kustomize:
+            patches:
+              - target:
+                  kind: ApisixRoute
+                  name: kasten
+                patch: |
+                  - op: replace
+                    path: /spec/http/0/match/hosts/0
+                    value: kasten.{{ .common.domain }}
+        {{- end }}
+        {{- end }}
+
+        {{- if .features.networkPolicy.ingressPolicy.enabled }}
+        # Source: K10 Dashboard ingress policy - conditional per Gateway provider
+        {{- if eq .features.gatewayAPI.controller.provider "istio" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-istio.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-istio.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "apisix" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-apisix.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-apisix.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "traefik" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-traefik.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-traefik.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "nginx-gwf" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-nginx-gwf.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-nginx-gwf.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "envoy-gateway" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-envoy-gateway.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-envoy-gateway.yaml"
+          {{- end }}
+        {{- else if eq .features.gatewayAPI.controller.provider "cilium" }}
+          {{- if eq .cni.primary "cilium" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "cilium-dashboard-ingress-policy-cilium.yaml"
+          {{- else if eq .cni.primary "calico" }}
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/kasten/resources
+          directory:
+            include: "calico-dashboard-ingress-policy-cilium.yaml"
+          {{- end }}
+        {{- end }}
+        {{- end }}

@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Kasten K10 Dashboard Ingress from Istio Gateway
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kasten-dashboard-ingress-istio
+  namespace: kasten-io
+spec:
+  selector: component == "gateway"
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "istio-system"'
+      destination:
+        ports:
+          - 8000

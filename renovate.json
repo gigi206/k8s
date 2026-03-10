@@ -609,6 +609,20 @@
       ],
       "depNameTemplate": "ghcr.io/loxilb-io/kube-loxilb",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Kasten K10 Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kasten/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kasten:\\s*\\n\\s*namespace:[^\\n]*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "k10",
+      "packageNameTemplate": "k10",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.kasten.io/"
     }
   ]
 }

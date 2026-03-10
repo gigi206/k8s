@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# NetworkPolicy - Allow internal traffic within kasten-io namespace (Calico)
+# =============================================================================
+# Equivalent Calico of cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kasten-internal
+  namespace: kasten-io
+spec:
+  podSelector: {}  # Applies to all pods in namespace
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 8000
+          protocol: TCP
+
+    # Allow traffic from any pod in the same namespace
+    - from:
+        - podSelector: {}
+
+  egress:
+    # Allow traffic to any pod in the same namespace
+    - to:
+        - podSelector: {}

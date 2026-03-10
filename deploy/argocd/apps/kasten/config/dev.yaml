@@ -1,0 +1,42 @@
+---
+# Configuration Kasten K10 - Dev
+# Single instance, minimal resources
+environment: dev
+appName: kasten
+
+kasten:
+  namespace: kasten-io
+  version: "8.5.4"  # Helm chart version - Renovate will update this
+
+  # EULA acceptance (required)
+  eula:
+    company: "k8s-dev"
+    email: "admin@k8s.local"
+
+  # Resources (K10 services)
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+  # Multi-cluster menu visibility
+  multicluster:
+    enabled: true
+
+  # Persistence (K10 catalog)
+  persistence:
+    storageClass: ceph-block
+    catalogSize: 20Gi
+
+# Grafana dashboard folder
+dashboard:
+  folder: "Kasten"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

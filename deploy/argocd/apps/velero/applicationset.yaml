@@ -113,6 +113,11 @@ spec:
           path: deploy/argocd/apps/velero/resources
           directory:
             include: "volumesnapshotclass.yaml"
+
+        # Source: SOPS-encrypted repo credentials (replaces default "static-passw0rd")
+        - repoURL: https://github.com/gigi206/k8s
+          targetRevision: '{{ .git.revision }}'
+          path: deploy/argocd/apps/velero/secrets-repo/{{ .environment }}
         {{- end }}
 
         {{- if .features.kyverno.enabled }}

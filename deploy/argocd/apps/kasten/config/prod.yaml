@@ -1,0 +1,42 @@
+---
+# Configuration Kasten K10 - Prod
+# Production resources, manual sync
+environment: prod
+appName: kasten
+
+kasten:
+  namespace: kasten-io
+  version: "8.5.4"  # Helm chart version - Renovate will update this
+
+  # EULA acceptance (required)
+  eula:
+    company: "k8s-prod"
+    email: "admin@k8s.local"
+
+  # Resources (K10 services)
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+  # Multi-cluster menu visibility
+  multicluster:
+    enabled: true
+
+  # Persistence (K10 catalog)
+  persistence:
+    storageClass: ceph-block
+    catalogSize: 50Gi
+
+# Grafana dashboard folder
+dashboard:
+  folder: "Kasten"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true

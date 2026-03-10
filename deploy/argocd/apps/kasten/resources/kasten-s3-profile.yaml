@@ -1,0 +1,135 @@
+---
+# =============================================================================
+# PostSync Job - Create Kasten K10 Location Profile
+# =============================================================================
+# Creates a K10 Location Profile pointing to the S3 bucket provisioned by OBC.
+# Runs as PostSync to ensure K10 CRDs are installed (Helm chart deploys
+# during the main sync phase, so CRDs are available by PostSync).
+# Reads bucket info from the OBC ConfigMap created by the PreSync Job
+# (kasten-s3-credentials.yaml).
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kasten-s3-profile
+  namespace: kasten-io
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        kyverno.io/exclude-sa-token: "true"
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: kasten-s3-profile-job
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: create-profile
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          image: docker.io/bitnami/kubectl:latest
+          env:
+            - name: OBC_CONFIGMAP_NAME
+              value: "kasten-storage"
+            - name: TARGET_SECRET_NAME
+              value: "kasten-s3-credentials"
+            - name: PROFILE_NAME
+              value: "ceph-s3"
+            - name: NAMESPACE
+              value: "kasten-io"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+
+              echo "Reading OBC bucket info..."
+              BUCKET_HOST=$(kubectl get configmap "${OBC_CONFIGMAP_NAME}" -n "${NAMESPACE}" -o jsonpath='{.data.BUCKET_HOST}')
+              BUCKET_PORT=$(kubectl get configmap "${OBC_CONFIGMAP_NAME}" -n "${NAMESPACE}" -o jsonpath='{.data.BUCKET_PORT}')
+              BUCKET_NAME=$(kubectl get configmap "${OBC_CONFIGMAP_NAME}" -n "${NAMESPACE}" -o jsonpath='{.data.BUCKET_NAME}')
+
+              echo "Creating Kasten K10 Location Profile..."
+              kubectl apply -f - <<PROFILE
+              apiVersion: config.kio.kasten.io/v1alpha1
+              kind: Profile
+              metadata:
+                name: ${PROFILE_NAME}
+                namespace: ${NAMESPACE}
+              spec:
+                type: Location
+                locationSpec:
+                  type: ObjectStore
+                  credential:
+                    secretType: AwsAccessKey
+                    secret:
+                      apiVersion: v1
+                      kind: Secret
+                      name: ${TARGET_SECRET_NAME}
+                      namespace: ${NAMESPACE}
+                  objectStore:
+                    endpoint: "http://${BUCKET_HOST}:${BUCKET_PORT}"
+                    name: ${BUCKET_NAME}
+                    objectStoreType: S3
+                    pathType: Directory
+                    region: us-east-1
+              PROFILE
+
+              echo "K10 Location Profile created successfully."
+---
+# ServiceAccount for the Profile Job
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kasten-s3-profile-job
+  namespace: kasten-io
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+automountServiceAccountToken: false
+---
+# Role for reading OBC ConfigMap and creating K10 Profile
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kasten-s3-profile-job
+  namespace: kasten-io
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
+  - apiGroups: ["config.kio.kasten.io"]
+    resources: ["profiles"]
+    verbs: ["get", "create", "update", "patch"]
+---
+# RoleBinding for the Profile Job
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kasten-s3-profile-job
+  namespace: kasten-io
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+subjects:
+  - kind: ServiceAccount
+    name: kasten-s3-profile-job
+    namespace: kasten-io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kasten-s3-profile-job

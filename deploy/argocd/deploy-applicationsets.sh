@@ -785,13 +785,13 @@ validate_dependencies() {
   if [[ "$FEAT_BACKUP" == "true" ]]; then
     if [[ "$FEAT_S3" != "true" ]]; then
       log_warning "features.backup.enabled=true mais features.s3.enabled=false"
-      log_warning "  Velero nécessite un stockage S3 pour les backups (ObjectBucketClaim)"
+      log_warning "  Le backup nécessite un stockage S3 (ObjectBucketClaim)"
       log_warning "  Activez features.s3.enabled: true dans config.yaml"
     fi
     case "$FEAT_BACKUP_PROVIDER" in
-      velero) ;;  # OK
+      velero|kasten) ;;  # OK
       *)
-        log_error "Backup provider '$FEAT_BACKUP_PROVIDER' non supporté (seul 'velero' est disponible)"
+        log_error "Backup provider '$FEAT_BACKUP_PROVIDER' non supporté (velero ou kasten)"
         errors=$((errors + 1))
         ;;
     esac
@@ -954,11 +954,14 @@ if [[ "$FEAT_STORAGE" == "true" ]]; then
   esac
 fi
 
-# Backup (Velero)
+# Backup (Velero / Kasten)
 if [[ "$FEAT_BACKUP" == "true" ]]; then
   case "$FEAT_BACKUP_PROVIDER" in
     velero)
       APPLICATIONSETS+=("apps/velero/applicationset.yaml")
+      ;;
+    kasten)
+      APPLICATIONSETS+=("apps/kasten/applicationset.yaml")
       ;;
   esac
 fi

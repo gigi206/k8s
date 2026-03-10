@@ -1,0 +1,41 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Allow internal traffic within kasten-io namespace
+# =============================================================================
+# K10 requires internal communication between its microservices:
+# - gateway -> dashboardbff, auth, catalog, state, config, etc.
+# - executor -> kanister-sidecar, catalog, state
+# - jobs -> catalog, crypto, state
+# - All services -> aggregatedapis (K10 API aggregation)
+#
+# This policy allows all pods in kasten-io namespace to communicate freely.
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kasten-internal
+  namespace: kasten-io
+spec:
+  description: "Allow all internal traffic within kasten-io namespace"
+  endpointSelector: {}  # Applies to all pods in namespace
+
+  ingress:
+    # Allow from monitoring namespace (Prometheus scrape K10 metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8000"    # K10 Prometheus metrics
+              protocol: TCP
+
+    # Allow traffic from any pod in the same namespace
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kasten-io
+
+  egress:
+    # Allow traffic to any pod in the same namespace
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kasten-io

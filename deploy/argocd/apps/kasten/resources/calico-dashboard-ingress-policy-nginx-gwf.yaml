@@ -1,0 +1,21 @@
+---
+# =============================================================================
+# Calico NetworkPolicy - Kasten K10 Dashboard Ingress from nginx-gateway-fabric
+# =============================================================================
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kasten-dashboard-ingress-nginx-gwf
+  namespace: kasten-io
+spec:
+  selector: component == "gateway"
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "nginx-gateway"'
+      destination:
+        ports:
+          - 8000

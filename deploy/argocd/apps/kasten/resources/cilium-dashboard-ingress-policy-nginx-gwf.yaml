@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kasten K10 Dashboard Ingress from nginx-gateway-fabric
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kasten-dashboard-ingress-nginx-gwf
+  namespace: kasten-io
+spec:
+  description: "Allow ingress to Kasten K10 Dashboard from nginx-gateway-fabric"
+  endpointSelector:
+    matchLabels:
+      component: gateway
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: nginx-gateway
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

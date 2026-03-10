@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kasten K10 Dashboard Ingress from Envoy Gateway
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kasten-dashboard-ingress-envoy-gateway
+  namespace: kasten-io
+spec:
+  description: "Allow ingress to Kasten K10 Dashboard from Envoy Gateway"
+  endpointSelector:
+    matchLabels:
+      component: gateway
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

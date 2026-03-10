@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - Kasten K10 Dashboard Ingress from Traefik
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kasten-dashboard-ingress-traefik
+  namespace: kasten-io
+spec:
+  description: "Allow ingress to Kasten K10 Dashboard from Traefik"
+  endpointSelector:
+    matchLabels:
+      component: gateway
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP

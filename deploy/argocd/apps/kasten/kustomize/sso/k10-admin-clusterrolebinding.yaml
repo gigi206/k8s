@@ -1,0 +1,90 @@
+---
+# =============================================================================
+# ClusterRoleBinding - K10 admin for OIDC users
+# =============================================================================
+# Grants k10-admin ClusterRole to the OIDC admin user so they can
+# see applications, policies, profiles and manage backups in the K10 UI.
+# The username matches the OIDC usernameClaim (email) from Keycloak.
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k10-admin-oidc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k10-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: admins
+---
+# =============================================================================
+# ClusterRoleBinding - K10 multi-cluster admin for OIDC users
+# =============================================================================
+# Grants k10-mc-admin ClusterRole to the OIDC admin group so they can
+# manage K10 RBAC roles/assignments (auth.kio.kasten.io API group).
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k10-mc-admin-oidc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k10-mc-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: admins
+---
+# =============================================================================
+# ClusterRole - K10 RBAC viewer for User Roles page
+# =============================================================================
+# Allows listing Kubernetes RBAC resources (clusterroles, clusterrolebindings,
+# roles, rolebindings) so the K10 User Roles page can display them.
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k10-rbac-viewer
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
+    verbs: ["get", "list", "watch"]
+---
+# =============================================================================
+# ClusterRoleBinding - K10 RBAC viewer for OIDC users
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k10-rbac-viewer-oidc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k10-rbac-viewer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: admins
+---
+# =============================================================================
+# RoleBinding - K10 namespace admin for OIDC users
+# =============================================================================
+# Grants k10-ns-admin Role in kasten-io namespace so OIDC users can
+# view K10 service deployments on the System Status page.
+# =============================================================================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k10-ns-admin-oidc
+  namespace: kasten-io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k10-ns-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: admins

@@ -1,0 +1,18 @@
+---
+# =============================================================================
+# Namespace with PSA labels for Kasten K10
+# =============================================================================
+# K10 kanister-sidecar and some data mover pods require privileged access.
+# PSA set to "privileged" to accommodate these workloads.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kasten-io
+  labels:
+    # PSA: Enforce privileged profile (kanister-sidecar requires elevated access)
+    pod-security.kubernetes.io/enforce: privileged
+    # PSA: Warn on restricted violations
+    pod-security.kubernetes.io/warn: restricted
+    # PSA: Audit restricted violations
+    pod-security.kubernetes.io/audit: restricted
