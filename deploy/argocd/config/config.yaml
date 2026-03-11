@@ -297,8 +297,8 @@ features:
   # Requires: features.s3.enabled (backup data is stored in S3 object storage)
   # Dependencies: s3.provider=rook → uses ObjectBucketClaim for bucket provisioning
   backup:
-    enabled: false # Kubernetes backup and restore
-    provider: "velero" # velero | kasten
+    enabled: true # Kubernetes backup and restore
+    provider: "kasten" # velero | kasten
   # === Container Registry ===
   registry:
     enabled: false # Container registry
