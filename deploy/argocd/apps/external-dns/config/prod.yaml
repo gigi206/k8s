@@ -50,6 +50,8 @@ externalDns:
     version: "0.5.3"
     enabled: false
     replicas: 3
+    persistence:
+      size: 8Gi
     # mTLS configuration (authentication via client certificates)
     tls:
       enabled: true

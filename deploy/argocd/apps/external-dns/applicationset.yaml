@@ -327,6 +327,8 @@ spec:
             valuesObject:
               fullnameOverride: external-dns-etcd
               replicaCount: {{ .externalDns.etcd.replicas | default 1 }}
+              persistence:
+                size: '{{ .externalDns.etcd.persistence.size }}'
               # PSA restricted compatibility
               podSecurityContext:
                 runAsNonRoot: true
