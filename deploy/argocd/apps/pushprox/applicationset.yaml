@@ -84,7 +84,7 @@ spec:
                   useServiceAccountCredentials: true
                   insecureSkipVerify: true
                 nodeSelector:
-                  node-role.kubernetes.io/master: "true"
+                  node-role.kubernetes.io/control-plane: "true"
                 tolerations:
                   - effect: NoExecute
                     operator: Exists
@@ -133,7 +133,7 @@ spec:
                   useServiceAccountCredentials: true
                   insecureSkipVerify: true
                 nodeSelector:
-                  node-role.kubernetes.io/master: "true"
+                  node-role.kubernetes.io/control-plane: "true"
                 tolerations:
                   - effect: NoExecute
                     operator: Exists
