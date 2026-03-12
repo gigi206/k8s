@@ -53,5 +53,9 @@ spec:
                 - kube-public
                 - kube-node-lease
       mutate:
+        targets:
+          - apiVersion: v1
+            kind: ServiceAccount
+            name: default
         patchStrategicMerge:
           automountServiceAccountToken: false
