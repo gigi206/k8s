@@ -218,12 +218,13 @@ spec:
                   enabled: true
               {{- end }}
 
-              # Persistence (K10 catalog)
+              # Persistence
               global:
                 persistence:
                   storageClass: '{{ .kasten.persistence.storageClass }}'
-                  catalog:
-                    size: '{{ .kasten.persistence.catalogSize }}'
+                  size: '{{ .kasten.persistence.size }}'
+                  metering:
+                    size: '{{ .kasten.persistence.meteringSize }}'
               {{- if .features.monitoring.enabled }}
                 prometheus:
                   external:

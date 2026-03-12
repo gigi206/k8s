@@ -26,10 +26,11 @@ kasten:
   multicluster:
     enabled: true
 
-  # Persistence (K10 catalog)
+  # Persistence
   persistence:
     storageClass: ceph-block
-    catalogSize: 50Gi
+    size: 20Gi
+    meteringSize: 2Gi
 
 # Grafana dashboard folder
 dashboard:

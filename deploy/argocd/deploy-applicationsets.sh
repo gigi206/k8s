@@ -1431,7 +1431,7 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
   # Wait for Kyverno to be Healthy (not Synced - ServiceMonitor CRDs may not exist yet)
   check_kyverno_healthy() {
     local health
-    health=$(kubectl get application kyverno -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
+    health=$(kubectl get applications.argoproj.io kyverno -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
     if [[ "$health" == "Healthy" ]]; then
       log_success "Kyverno est Healthy"
       return 0
@@ -1521,7 +1521,7 @@ if [[ -n "$EXTERNAL_SECRETS_APPSET" ]]; then
 
   check_external_secrets_healthy() {
     local health
-    health=$(kubectl get application external-secrets -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
+    health=$(kubectl get applications.argoproj.io external-secrets -n "$ARGOCD_NAMESPACE" -o jsonpath='{.status.health.status}' 2>/dev/null)
     [[ "$health" == "Healthy" ]] && { log_success "External-secrets est Healthy (webhook opérationnel)"; return 0; }
     return 1
   }
@@ -1647,7 +1647,7 @@ apps_gen_elapsed=0
 apps_gen_interval=5
 
 while true; do
-  current_apps=$(kubectl get application -A --no-headers 2>/dev/null | wc -l)
+  current_apps=$(kubectl get applications.argoproj.io -A --no-headers 2>/dev/null | wc -l)
 
   if [[ $current_apps -ge $EXPECTED_APPS_COUNT ]]; then
     progress_bar_done "Applications" "$current_apps/$EXPECTED_APPS_COUNT"
@@ -1661,7 +1661,7 @@ while true; do
     log_error "Timeout après ${TIMEOUT_APPS_GENERATION}s: $current_apps/$EXPECTED_APPS_COUNT Applications générées"
     echo ""
     log_info "État des Applications ArgoCD:"
-    kubectl get applications -A -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,NAMESPACE:.spec.destination.namespace' 2>/dev/null || echo "  (aucune application trouvée)"
+    kubectl get applications.argoproj.io -A -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,NAMESPACE:.spec.destination.namespace' 2>/dev/null || echo "  (aucune application trouvée)"
     echo ""
     log_info "État des ApplicationSets:"
     kubectl get applicationsets -A -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[0].type,MESSAGE:.status.conditions[0].message' 2>/dev/null || echo "  (aucun applicationset trouvé)"
@@ -1695,7 +1695,7 @@ sync_interval=5
 
 while true; do
   # Récupérer toutes les applications en une seule requête
-  APPS_JSON=$(kubectl get application -A -o json 2>/dev/null)
+  APPS_JSON=$(kubectl get applications.argoproj.io -A -o json 2>/dev/null)
   TOTAL_APPS=$(echo "$APPS_JSON" | jq -r '.items | length')
 
   if [[ $TOTAL_APPS -eq 0 ]]; then
@@ -2275,7 +2275,7 @@ echo ""
 echo ""
 
 # Vérifier l'état final des applications
-FINAL_APPS_JSON=$(kubectl get application -A -o json 2>/dev/null)
+FINAL_APPS_JSON=$(kubectl get applications.argoproj.io -A -o json 2>/dev/null)
 FINAL_TOTAL=$(echo "$FINAL_APPS_JSON" | jq -r '.items | length')
 FINAL_SYNCED_HEALTHY=$(echo "$FINAL_APPS_JSON" | jq -r '[.items[] | select(.status.sync.status=="Synced" and .status.health.status=="Healthy")] | length')
 FINAL_SYNCED=$(echo "$FINAL_APPS_JSON" | jq -r '[.items[] | select(.status.sync.status=="Synced")] | length')
@@ -2306,7 +2306,7 @@ APPSET_COUNT=$(kubectl get applicationset -n "$ARGOCD_NAMESPACE" --no-headers 2>
 echo -e "${GREEN}📱 ApplicationSets créés: ${BOLD}$APPSET_COUNT${RESET} (attendu: $EXPECTED_APPS_COUNT)"
 echo -e "${GREEN}📱 Applications générées: ${BOLD}$FINAL_TOTAL${RESET} (attendu: $EXPECTED_APPS_COUNT)"
 echo ""
-kubectl get application -A -o custom-columns=\
+kubectl get applications.argoproj.io -A -o custom-columns=\
 NAME:.metadata.name,\
 NAMESPACE:.metadata.namespace,\
 SYNC:.status.sync.status,\
