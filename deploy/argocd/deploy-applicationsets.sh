@@ -1562,6 +1562,57 @@ fi
 log_success "ApplicationSets déployés"
 
 # =============================================================================
+# Nettoyage des ApplicationSets obsolètes
+# =============================================================================
+# Supprime les ApplicationSets qui ne sont plus dans la liste attendue
+# (ex: csi-external-snapshotter skippé sur RKE2 après un changement de config)
+
+# Build expected names list from APPLICATIONSETS + kyverno + external-secrets
+EXPECTED_APPSET_NAMES=()
+for _appset_path in "${APPLICATIONSETS[@]}"; do
+  # Extract name: apps/<name>/applicationset.yaml -> <name>
+  _name="${_appset_path#apps/}"
+  _name="${_name%/applicationset.yaml}"
+  EXPECTED_APPSET_NAMES+=("$_name")
+done
+[[ -n "$KYVERNO_APPSET" ]] && EXPECTED_APPSET_NAMES+=("kyverno")
+[[ -n "$EXTERNAL_SECRETS_APPSET" ]] && EXPECTED_APPSET_NAMES+=("external-secrets")
+
+# Get current ApplicationSet names on cluster
+_current_appsets=$(kubectl get applicationset -n "$ARGOCD_NAMESPACE" --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null || true)
+
+if [[ -n "$_current_appsets" ]]; then
+  _stale_count=0
+  while IFS= read -r _appset_name; do
+    [[ -z "$_appset_name" ]] && continue
+    # Only cleanup known apps (those with a matching apps/ directory)
+    if [[ ! -d "${SCRIPT_DIR}/apps/${_appset_name}" ]]; then
+      log_debug "ApplicationSet '$_appset_name' ignoré (pas géré par ce script)"
+      continue
+    fi
+    # Check if in expected list
+    _is_expected=false
+    for _expected in "${EXPECTED_APPSET_NAMES[@]}"; do
+      if [[ "$_appset_name" == "$_expected" ]]; then
+        _is_expected=true
+        break
+      fi
+    done
+    if [[ "$_is_expected" == "false" ]]; then
+      log_warning "Suppression de l'ApplicationSet obsolète: $_appset_name"
+      kubectl delete applicationset "$_appset_name" -n "$ARGOCD_NAMESPACE" --ignore-not-found
+      _stale_count=$((_stale_count + 1))
+    fi
+  done <<< "$_current_appsets"
+
+  if [[ $_stale_count -gt 0 ]]; then
+    log_success "Nettoyage terminé: $_stale_count ApplicationSet(s) obsolète(s) supprimé(s)"
+  else
+    log_debug "Aucun ApplicationSet obsolète à nettoyer"
+  fi
+fi
+
+# =============================================================================
 # Attente de la création des ApplicationSets
 # =============================================================================
 
@@ -1660,14 +1711,30 @@ while true; do
   SYNCED_AND_HEALTHY=$(echo "$APPS_JSON" | jq -r '[.items[] | select(.status.sync.status=="Synced" and .status.health.status=="Healthy")] | length')
 
   # Affichage de l'état - utiliser le nombre attendu pour la progression
-  target_apps=$EXPECTED_APPS_COUNT
-  [[ $TOTAL_APPS -gt $target_apps ]] && target_apps=$TOTAL_APPS
-  progress=$((SYNCED_AND_HEALTHY * 100 / target_apps))
+  progress=$((SYNCED_AND_HEALTHY * 100 / EXPECTED_APPS_COUNT))
+  [[ $progress -gt 100 ]] && progress=100
 
   if [[ $WAIT_HEALTHY -eq 1 ]]; then
-    progress_bar "$progress" "Synced+Healthy" "$SYNCED_AND_HEALTHY/$target_apps ${sync_elapsed}s"
+    progress_bar "$progress" "Synced+Healthy" "$SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT ${sync_elapsed}s"
   else
-    progress_bar "$progress" "Synced+Healthy" "$SYNCED_AND_HEALTHY/$target_apps"
+    progress_bar "$progress" "Synced+Healthy" "$SYNCED_AND_HEALTHY/$EXPECTED_APPS_COUNT"
+  fi
+
+  # Avertir si le nombre d'apps sur le cluster diffère de l'attendu
+  if [[ $TOTAL_APPS -ne $EXPECTED_APPS_COUNT ]] && [[ ${_apps_mismatch_warned:-0} -eq 0 ]]; then
+    _apps_mismatch_warned=1
+    printf "\n"
+    log_warning "Applications sur le cluster ($TOTAL_APPS) ≠ attendu ($EXPECTED_APPS_COUNT)"
+    if [[ $TOTAL_APPS -gt $EXPECTED_APPS_COUNT ]]; then
+      log_warning "Applications inattendues:"
+      echo "$APPS_JSON" | jq -r '.items[].metadata.name' | while IFS= read -r _app; do
+        _found=false
+        for _exp in "${EXPECTED_APPSET_NAMES[@]}"; do
+          [[ "$_app" == "$_exp" ]] && _found=true && break
+        done
+        [[ "$_found" == "false" ]] && echo "  - $_app (non attendue)"
+      done
+    fi
   fi
 
   log_debug "Synced: $SYNCED, Healthy: $HEALTHY, Total: $TOTAL_APPS, Expected: $EXPECTED_APPS_COUNT"
