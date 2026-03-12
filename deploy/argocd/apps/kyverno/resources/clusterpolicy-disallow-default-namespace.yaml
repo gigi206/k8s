@@ -1,0 +1,47 @@
+---
+# =============================================================================
+# ClusterPolicy: Disallow Default Namespace
+# =============================================================================
+# Prevents workloads from being created in the "default" namespace.
+# All workloads must be deployed in a dedicated namespace.
+#
+# CIS Kubernetes Benchmark 5.6.4:
+# "The default namespace should not be used"
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-default-namespace
+  annotations:
+    policies.kyverno.io/title: Disallow Default Namespace
+    policies.kyverno.io/category: Security Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      The default namespace should not be used for workloads.
+      This policy validates that Pods, Deployments, StatefulSets,
+      DaemonSets, Jobs, and CronJobs are not created in the default namespace.
+spec:
+  admission: true
+  emitWarning: true
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: disallow-default-namespace
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+                - StatefulSet
+                - DaemonSet
+                - Job
+                - CronJob
+              namespaces:
+                - default
+      validate:
+        message: >-
+          Using the default namespace is not allowed (CIS 5.6.4).
+          Create a dedicated namespace for your workload.
+        deny: {}
