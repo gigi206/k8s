@@ -107,6 +107,28 @@ if [ -n "$orphan_domains" ] || [ -n "$orphan_volumes" ]; then
   echo ""
 fi
 
+# --- Pre-flight: ensure vagrant-libvirt network exists and is active ---
+if ! virsh net-info vagrant-libvirt &>/dev/null; then
+  echo -e "${YELLOW}  Pre-flight: vagrant-libvirt network missing, creating...${NC}"
+  virsh net-define /dev/stdin <<'NETXML'
+<network>
+  <name>vagrant-libvirt</name>
+  <forward mode='nat'/>
+  <bridge name='virbr0' stp='on' delay='0'/>
+  <ip address='192.168.121.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.121.100' end='192.168.121.254'/>
+    </dhcp>
+  </ip>
+</network>
+NETXML
+fi
+if ! virsh net-info vagrant-libvirt 2>/dev/null | grep -q "Actif.*oui\|Active.*yes"; then
+  virsh net-start vagrant-libvirt
+  echo -e "${GREEN}  vagrant-libvirt network started${NC}"
+fi
+virsh net-autostart vagrant-libvirt &>/dev/null
+
 # Discover VMs by role
 LOXILB_VMS=($(get_vms "^k8s-${CLUSTER_NAME}-loxilb"))
 FRR_VMS=($(get_vms "^k8s-${CLUSTER_NAME}-frr"))
