@@ -1,0 +1,13 @@
+---
+# Configuration PushProx - Dev
+environment: dev
+appName: pushprox
+
+pushprox:
+  version: "0.1.6"
+
+syncPolicy:
+  automated:
+    enabled: true
+    prune: true
+    selfHeal: true

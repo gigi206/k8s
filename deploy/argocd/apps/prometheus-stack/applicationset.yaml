@@ -640,6 +640,14 @@ spec:
           helm:
             parameters:
             # Base parameters (must be here because templatePatch overwrites template)
+
+            # Disable native ServiceMonitors for controller-manager and scheduler
+            # PushProx handles scraping via localhost relay (CIS 1.3.7 / 1.4.2)
+            - name: kubeControllerManager.enabled
+              value: "false"
+            - name: kubeScheduler.enabled
+              value: "false"
+
             # Prometheus: retention and storage
             - name: prometheus.prometheusSpec.retention
               value: '{{ .prometheusStack.prometheus.retention | default "7d" }}'
