@@ -4,7 +4,7 @@ environment: dev
 appName: oauth2-proxy
 
 oauth2Proxy:
-  version: "10.1.3"
+  version: "10.1.4"
   # Replicas
   replicas: 1
 
