@@ -63,7 +63,7 @@ spec:
           targetRevision: '{{ .pushprox.version }}'
           chart: pushprox
           helm:
-            releaseName: pushprox-kube-controller-manager
+            releaseName: prometheus-stack
             valuesObject:
               component: kube-controller-manager
               metricsPort: 10257
@@ -112,7 +112,7 @@ spec:
           targetRevision: '{{ .pushprox.version }}'
           chart: pushprox
           helm:
-            releaseName: pushprox-kube-scheduler
+            releaseName: prometheus-stack
             valuesObject:
               component: kube-scheduler
               metricsPort: 10259
