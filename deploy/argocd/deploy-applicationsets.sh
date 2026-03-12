@@ -985,9 +985,12 @@ if [[ "$FEAT_LOGGING" == "true" ]] && [[ "$FEAT_LOGGING_LOKI" == "true" ]]; then
   esac
 fi
 
-# Monitoring (prometheus-stack + cilium)
+# Monitoring (prometheus-stack + pushprox + cilium)
 if [[ "$FEAT_MONITORING" == "true" ]]; then
   APPLICATIONSETS+=("apps/prometheus-stack/applicationset.yaml")
+  # PushProx: relay for kube-controller-manager/kube-scheduler metrics (CIS 1.3.7/1.4.2)
+  # Allows Prometheus to scrape localhost-bound metrics via proxy+client DaemonSet
+  APPLICATIONSETS+=("apps/pushprox/applicationset.yaml")
 fi
 
 # Cilium (CNI installé par RKE2, cette app ajoute monitoring + network policies)
