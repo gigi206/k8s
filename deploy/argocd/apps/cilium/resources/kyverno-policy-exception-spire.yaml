@@ -14,3 +14,15 @@ spec:
       ruleNames:
         - disable-automount-sa-token-controllers
         - disable-automount-sa-token-pods
+  match:
+    any:
+      - resources:
+          namespaces:
+            - cilium-spire
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
