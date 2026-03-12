@@ -133,7 +133,9 @@ tls-san:
 - 192.168.121.200
 # debug:true
 kube-controller-manager-arg:
-# - address=0.0.0.0
+# CIS 1.3.7 EXCEPTION: bind-address=0.0.0.0 required for Prometheus to scrape metrics via node IP.
+# Default 127.0.0.1 would break ServiceMonitor (prometheus-stack-kube-prom-kube-controller-manager).
+# Fix: deploy PushProx to relay localhost metrics, then remove this override.
 - bind-address=0.0.0.0
 # kube-proxy-arg:
 # - address=0.0.0.0
@@ -141,6 +143,7 @@ kube-controller-manager-arg:
 # kube-apiserver-arg:
 #   - feature-gates=TopologyAwareHints=true,JobTrackingWithFinalizers=true
 kube-scheduler-arg:
+# CIS 1.4.2 EXCEPTION: same as 1.3.7 — required for Prometheus scraping.
 - bind-address=0.0.0.0
 etcd-expose-metrics: true
 # etcd-snapshot-name: xxx
