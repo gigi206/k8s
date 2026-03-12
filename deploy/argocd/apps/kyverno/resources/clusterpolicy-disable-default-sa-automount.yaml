@@ -30,11 +30,11 @@ spec:
   admission: true
   emitWarning: false
   validationFailureAction: Audit
-  mutateExistingOnPolicyUpdate: true
-  background: true
+  mutateExistingOnPolicyUpdate: false
+  background: false
   rules:
     - name: disable-default-sa-automount
-      skipBackgroundRequests: false
+      skipBackgroundRequests: true
       match:
         any:
           - resources:
@@ -53,9 +53,5 @@ spec:
                 - kube-public
                 - kube-node-lease
       mutate:
-        targets:
-          - apiVersion: v1
-            kind: ServiceAccount
-            name: default
         patchStrategicMerge:
           automountServiceAccountToken: false
