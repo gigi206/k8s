@@ -32,7 +32,7 @@ cis_base_setup() {
 
 # Read common kubelet hardening options from config
 # Sets: ANONYMOUS_AUTH, PROTECT_KERNEL_DEFAULTS, EVENT_QPS,
-#       POD_MAX_PIDS, MAKE_IPTABLES_UTIL_CHAINS
+#       POD_MAX_PIDS, MAKE_IPTABLES_UTIL_CHAINS, SECCOMP_DEFAULT, TLS_CIPHER_SUITES
 # Usage: cis_read_kubelet_options <config_file>
 cis_read_kubelet_options() {
   local config_file="$1"
@@ -42,6 +42,8 @@ cis_read_kubelet_options() {
   ANONYMOUS_AUTH=$(yq_read '.rke2.cis.hardening.kubelet.anonymousAuth' "$config_file")
   MAKE_IPTABLES_UTIL_CHAINS=$(yq_read '.rke2.cis.hardening.kubelet.makeIptablesUtilChains' "$config_file")
   PROTECT_KERNEL_DEFAULTS=$(yq_read '.rke2.cis.hardening.kubelet.protectKernelDefaults' "$config_file")
+  SECCOMP_DEFAULT=$(yq_read '.rke2.cis.hardening.kubelet.seccompDefault' "$config_file")
+  TLS_CIPHER_SUITES=$(yq_read '.rke2.cis.hardening.kubelet.tlsCipherSuites' "$config_file")
 
   # Set defaults if not specified
   EVENT_QPS=${EVENT_QPS:-5}
@@ -49,4 +51,6 @@ cis_read_kubelet_options() {
   ANONYMOUS_AUTH=${ANONYMOUS_AUTH:-false}
   MAKE_IPTABLES_UTIL_CHAINS=${MAKE_IPTABLES_UTIL_CHAINS:-true}
   PROTECT_KERNEL_DEFAULTS=${PROTECT_KERNEL_DEFAULTS:-true}
+  SECCOMP_DEFAULT=${SECCOMP_DEFAULT:-true}
+  TLS_CIPHER_SUITES=${TLS_CIPHER_SUITES:-"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"}
 }

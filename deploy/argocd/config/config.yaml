@@ -348,6 +348,8 @@ rke2:
         eventQps: 5                     # K.4.2.8 - Limit kubelet event rate
         podMaxPids: 4096                # K.4.2.13 - Limit PIDs per pod (DoS protection)
         protectKernelDefaults: true     # K.4.2.11 - Protect kernel tunable parameters
+        seccompDefault: true             # K.4.2.14 - Use RuntimeDefault seccomp profile
+        tlsCipherSuites: "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"  # K.4.2.12 - Strong TLS ciphers only
       # Audit logging (K.1.2.11-14)
       # CIS profile auto-configures kube-apiserver flags (audit-log-path, maxage, maxbackup, maxsize)
       # This creates a custom audit policy to replace the CIS default (level: None)

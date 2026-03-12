@@ -316,13 +316,15 @@ ADMISSIONEOF
     echo "⚠ Audit logging disabled in config - CIS default policy (level: None) will be used"
   fi
 
-  # Add kubelet args for CIS hardening (K.4.2.1, K.4.2.6, K.4.2.8, K.4.2.11, K.4.2.13)
+  # Add kubelet args for CIS hardening (K.4.2.1, K.4.2.6, K.4.2.8, K.4.2.11, K.4.2.12, K.4.2.13, K.4.2.14)
   echo "kubelet-arg:" >> /etc/rancher/rke2/config.yaml
   echo "- anonymous-auth=$ANONYMOUS_AUTH" >> /etc/rancher/rke2/config.yaml
   echo "- make-iptables-util-chains=$MAKE_IPTABLES_UTIL_CHAINS" >> /etc/rancher/rke2/config.yaml
   echo "- event-qps=$EVENT_QPS" >> /etc/rancher/rke2/config.yaml
   echo "- pod-max-pids=$POD_MAX_PIDS" >> /etc/rancher/rke2/config.yaml
   echo "- protect-kernel-defaults=$PROTECT_KERNEL_DEFAULTS" >> /etc/rancher/rke2/config.yaml
+  echo "- seccomp-default=$SECCOMP_DEFAULT" >> /etc/rancher/rke2/config.yaml
+  echo "- tls-cipher-suites=$TLS_CIPHER_SUITES" >> /etc/rancher/rke2/config.yaml
 fi
 
 # echo "kube-controller-manager-arg: [node-monitor-period=2s, node-monitor-grace-period=16s, pod-eviction-timeout=30s]" >> /etc/rancher/rke2/config.yaml
