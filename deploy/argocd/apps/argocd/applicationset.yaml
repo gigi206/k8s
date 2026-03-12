@@ -525,6 +525,10 @@ spec:
                 value: '{{ .argocd.notifications.resources.limits.memory }}'
               {{- end }}
 
+            # Redis serviceAccount (CIS 5.1.5 - avoid default SA)
+              - name: redis.serviceAccount.create
+                value: "true"
+
             # Redis resources
               {{- if .argocd.redis.resources }}
               - name: redis.resources.requests.cpu
