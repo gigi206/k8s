@@ -16,9 +16,8 @@ spec:
   exceptions:
     - policyName: disable-automount-sa-token
       ruleNames:
-        - disable-automount-sa-token
-        - autogen-disable-automount-sa-token
-        - autogen-cronjob-disable-automount-sa-token
+        - disable-automount-sa-token-controllers
+        - disable-automount-sa-token-pods
   match:
     any:
       - resources:
