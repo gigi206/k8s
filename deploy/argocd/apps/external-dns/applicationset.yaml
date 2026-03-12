@@ -227,6 +227,8 @@ spec:
             valuesObject:
               replicaCount: {{ .externalDns.coredns.replicas | default 1 }}
               serviceType: '{{ .externalDns.coredns.serviceType | default "ClusterIP" }}'
+              serviceAccount:
+                create: true
               rbac:
                 create: true
               isClusterService: false

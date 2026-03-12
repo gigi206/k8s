@@ -1,0 +1,57 @@
+---
+# =============================================================================
+# ClusterPolicy: Disable Default ServiceAccount Automount
+# =============================================================================
+# Mutates the "default" ServiceAccount in every namespace to set
+# automountServiceAccountToken: false. This ensures pods using the default SA
+# don't get a token mounted unless explicitly overridden at the pod level.
+#
+# CIS Kubernetes Benchmark 5.1.5:
+# "Ensure that default service accounts are not actively used"
+#
+# Combined with the disable-automount-sa-token policy (which mutates workloads),
+# this provides defense-in-depth: even if a workload doesn't set the flag,
+# the SA itself prevents token mounting.
+# =============================================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disable-default-sa-automount
+  annotations:
+    policies.kyverno.io/title: Disable Default ServiceAccount Automount
+    policies.kyverno.io/category: Security Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: ServiceAccount
+    policies.kyverno.io/description: >-
+      Sets automountServiceAccountToken to false on all default ServiceAccounts.
+      This prevents automatic token mounting for pods that don't specify a
+      dedicated ServiceAccount, reducing the attack surface per CIS 5.1.5.
+spec:
+  admission: true
+  emitWarning: false
+  validationFailureAction: Audit
+  mutateExistingOnPolicyUpdate: true
+  background: true
+  rules:
+    - name: disable-default-sa-automount
+      skipBackgroundRequests: false
+      match:
+        any:
+          - resources:
+              kinds:
+                - ServiceAccount
+              names:
+                - default
+              operations:
+                - CREATE
+                - UPDATE
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      mutate:
+        patchStrategicMerge:
+          automountServiceAccountToken: false
