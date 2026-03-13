@@ -11,6 +11,12 @@
 # to ClusterIPs is seen as traffic to the ClusterIP, not the backend pod IP.
 # The node CIDR is still included for direct node access (kubelet, etcd).
 #
+# IMPORTANT: Uses projectcalico.org/namespace (Calico internal label present
+# only on workload endpoints/pods) to exclude HostEndpoints. The commonly
+# documented "kubernetes-host" label does NOT exist on auto-created HEPs
+# (only projectcalico.org/created-by is present), so !has(kubernetes-host)
+# would incorrectly match them, blocking Felix health checks on localhost.
+#
 # Canal equivalent of: apps/calico/resources/default-deny-external-egress.yaml
 # =============================================================================
 
@@ -20,9 +26,9 @@ metadata:
   name: default-deny-external-egress
 spec:
   order: 500
-  namespaceSelector: >-
-    kubernetes.io/metadata.name not in {"kube-system", "kube-public", "kube-node-lease"}
-  selector: "!has(kubernetes-host)"
+  selector: >-
+    has(projectcalico.org/namespace) &&
+    projectcalico.org/namespace not in {"kube-system", "kube-public", "kube-node-lease"}
   types: [Egress]
   egress:
     # Rule 1: Allow DNS resolution (kube-dns)

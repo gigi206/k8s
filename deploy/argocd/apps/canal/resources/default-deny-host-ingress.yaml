@@ -22,7 +22,7 @@ metadata:
   name: default-deny-host-ingress
 spec:
   order: 500
-  selector: has(kubernetes-host)
+  selector: "!has(projectcalico.org/namespace)"
   types: [Ingress]
   ingress:
     # Allow all cluster-internal traffic (pod-to-node, node-to-node)
@@ -31,7 +31,7 @@ spec:
         nets: ["10.42.0.0/16", "10.43.0.0/16"]
     - action: Allow
       source:
-        selector: has(kubernetes-host)
+        selector: "!has(projectcalico.org/namespace)"
     # SSH - accessible from everywhere
     - action: Allow
       protocol: TCP

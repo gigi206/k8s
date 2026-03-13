@@ -11,6 +11,12 @@
 # DNATed to the master node IP (e.g. 192.168.121.176:6443). Therefore we must
 # allow traffic to node endpoints via selector, not just by CIDR.
 #
+# IMPORTANT: Uses projectcalico.org/namespace (Calico internal label present
+# only on workload endpoints/pods) to exclude HostEndpoints. The commonly
+# documented "kubernetes-host" label does NOT exist on auto-created HEPs
+# (only projectcalico.org/created-by is present), so !has(kubernetes-host)
+# would incorrectly match them, blocking Felix health checks on localhost.
+#
 # Calico equivalent of: apps/cilium/resources/default-deny-external-egress.yaml
 # =============================================================================
 
@@ -20,9 +26,9 @@ metadata:
   name: default-deny-external-egress
 spec:
   order: 500
-  namespaceSelector: >-
-    kubernetes.io/metadata.name not in {"calico-system", "calico-apiserver", "kube-system", "kube-public", "kube-node-lease", "tigera-operator"}
-  selector: "!has(kubernetes-host)"
+  selector: >-
+    has(projectcalico.org/namespace) &&
+    projectcalico.org/namespace not in {"calico-system", "calico-apiserver", "kube-system", "kube-public", "kube-node-lease", "tigera-operator"}
   types: [Egress]
   egress:
     # Rule 1: Allow DNS resolution (kube-dns)

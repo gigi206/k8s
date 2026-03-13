@@ -12,6 +12,10 @@
 # EXCLUDED: kube-system, kube-public, kube-node-lease
 # (Canal runs in kube-system, unlike Calico which runs in calico-system)
 #
+# IMPORTANT: Uses projectcalico.org/namespace to select only workload endpoints.
+# See default-deny-external-egress.yaml for details on why has(kubernetes-host)
+# cannot be used with auto-created HostEndpoints.
+#
 # Canal equivalent of: apps/calico/resources/default-deny-pod-ingress.yaml
 # =============================================================================
 
@@ -21,15 +25,15 @@ metadata:
   name: default-deny-pod-ingress
 spec:
   order: 500
-  namespaceSelector: >-
-    kubernetes.io/metadata.name not in {"kube-system", "kube-public", "kube-node-lease"}
-  selector: "!has(kubernetes-host)"
+  selector: >-
+    has(projectcalico.org/namespace) &&
+    projectcalico.org/namespace not in {"kube-system", "kube-public", "kube-node-lease"}
   types: [Ingress]
   ingress:
     # Rule 1: Allow health checks from kubelet (host endpoints)
     - action: Allow
       source:
-        selector: has(kubernetes-host)
+        selector: "!has(projectcalico.org/namespace)"
     # Rule 2: Allow from kube-system (essential cluster services: DNS, metrics-server, CNI)
     - action: Allow
       source:
