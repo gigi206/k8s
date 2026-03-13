@@ -1495,18 +1495,36 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
 
   # Retry failed PolicyExceptions (webhook may not be fully ready yet)
   if [[ ${#pe_failed_files[@]} -gt 0 ]]; then
-    log_info "Retry des ${#pe_failed_files[@]} PolicyExceptions échouées (attente webhook)..."
-    sleep 5
+    # Log first failure reason for diagnostics
+    pe_error=$(kubectl apply -f "${pe_failed_files[0]}" 2>&1) || true
+    log_info "Retry des ${#pe_failed_files[@]} PolicyExceptions échouées (raison: ${pe_error:-inconnue})..."
+    sleep 10
     retry_failed=0
+    pe_retry_failed_files=()
     for pe_file in "${pe_failed_files[@]}"; do
       if kubectl apply -f "$pe_file" > /dev/null 2>&1; then
         pe_count=$((pe_count + 1))
         log_debug "  PolicyException (retry): $(basename "$(dirname "$(dirname "$pe_file")")")"
       else
         retry_failed=$((retry_failed + 1))
-        log_warning "  Échec PolicyException: $pe_file"
+        pe_retry_failed_files+=("$pe_file")
       fi
     done
+    # Second retry with longer delay if still failing
+    if [[ ${#pe_retry_failed_files[@]} -gt 0 ]]; then
+      log_info "Second retry des ${#pe_retry_failed_files[@]} PolicyExceptions (attente 15s)..."
+      sleep 15
+      retry_failed=0
+      for pe_file in "${pe_retry_failed_files[@]}"; do
+        if kubectl apply -f "$pe_file" > /dev/null 2>&1; then
+          pe_count=$((pe_count + 1))
+          log_debug "  PolicyException (retry2): $(basename "$(dirname "$(dirname "$pe_file")")")"
+        else
+          retry_failed=$((retry_failed + 1))
+          log_warning "  Échec PolicyException: $pe_file"
+        fi
+      done
+    fi
     [[ $retry_failed -gt 0 ]] && log_warning "$retry_failed PolicyExceptions toujours en échec"
   fi
 
