@@ -28,6 +28,7 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
+    calicoKubeControllers: true
     flannel:
       iface: "eth1"
       backend: "${CANAL_BACKEND}"
@@ -44,8 +45,8 @@ echo "  - Interface: eth1"
 echo "  - Prometheus metrics: enabled (Felix:9091)"
 
 # Auto-create HostEndpoints for host firewall policies
-# The rke2-canal chart does NOT expose hostEndpoint.autoCreate in values.yaml
-# (unlike rke2-calico which uses tigera-operator). We create the CRD directly.
+# calicoKubeControllers: true (above) deploys calico-kube-controllers which processes this CRD.
+# The chart does NOT expose hostEndpoint.autoCreate in values.yaml, so we create the CRD directly.
 # This is required for default-deny-host-ingress.yaml (selector: has(kubernetes-host))
 # RKE2 auto-applies manifests in /var/lib/rancher/rke2/server/manifests/
 cat <<EOF >/var/lib/rancher/rke2/server/manifests/canal-kube-controllers-config.yaml

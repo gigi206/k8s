@@ -23,7 +23,7 @@ spec:
     - kube-system
   selector:
     matchLabels:
-      k8s-app: canal-node
+      k8s-app: canal-felix-metrics
   endpoints:
   - port: http-metrics
     interval: 30s
