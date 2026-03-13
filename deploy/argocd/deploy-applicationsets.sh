@@ -1497,7 +1497,7 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
   if [[ ${#pe_failed_files[@]} -gt 0 ]]; then
     log_info "Retry des ${#pe_failed_files[@]} PolicyExceptions échouées (attente webhook)..."
     sleep 5
-    local retry_failed=0
+    retry_failed=0
     for pe_file in "${pe_failed_files[@]}"; do
       if kubectl apply -f "$pe_file" > /dev/null 2>&1; then
         pe_count=$((pe_count + 1))
