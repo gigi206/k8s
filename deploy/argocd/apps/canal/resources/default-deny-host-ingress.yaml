@@ -30,10 +30,16 @@ spec:
   # webhooks) would be dropped, breaking Kyverno/cert-manager webhooks.
   types: [Ingress, Egress]
   ingress:
-    # Allow all cluster-internal traffic (pod-to-node, node-to-node)
+    # Allow loopback traffic (Felix health 9099, RKE2 supervisor 9345, etc.)
+    # Loopback source 127.0.0.1 is NOT in pod/node CIDRs or HEP ipsets,
+    # so it must be explicitly allowed to prevent dropping local health checks.
     - action: Allow
       source:
-        nets: ["10.42.0.0/16", "10.43.0.0/16"]
+        nets: ["127.0.0.0/8"]
+    # Allow all cluster-internal traffic (pod-to-node, node-to-node, node CIDR)
+    - action: Allow
+      source:
+        nets: ["10.42.0.0/16", "10.43.0.0/16", "192.168.121.0/24"]
     - action: Allow
       source:
         selector: "!has(projectcalico.org/namespace)"
