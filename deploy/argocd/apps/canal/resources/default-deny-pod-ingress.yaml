@@ -23,6 +23,7 @@ spec:
   order: 500
   namespaceSelector: >-
     kubernetes.io/metadata.name not in {"kube-system", "kube-public", "kube-node-lease"}
+  selector: "!has(kubernetes-host)"
   types: [Ingress]
   ingress:
     # Rule 1: Allow health checks from kubelet (host endpoints)

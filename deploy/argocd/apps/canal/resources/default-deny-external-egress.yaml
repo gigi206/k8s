@@ -22,6 +22,7 @@ spec:
   order: 500
   namespaceSelector: >-
     kubernetes.io/metadata.name not in {"kube-system", "kube-public", "kube-node-lease"}
+  selector: "!has(kubernetes-host)"
   types: [Egress]
   egress:
     # Rule 1: Allow DNS resolution (kube-dns)

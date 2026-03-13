@@ -1246,11 +1246,17 @@ apply_bootstrap_network_policies_calico() {
     return 0
   fi
 
-  log_info "Pré-déploiement des GlobalNetworkPolicies Calico pour bootstrap..."
+  # Use canal-specific policies when CNI is canal, calico otherwise
+  local policy_dir="calico"
+  if [[ "$FEAT_CNI_PRIMARY" == "canal" ]]; then
+    policy_dir="canal"
+  fi
+
+  log_info "Pré-déploiement des GlobalNetworkPolicies ($policy_dir) pour bootstrap..."
 
   # 1. Egress clusterwide policy - bloque le trafic externe, autorise le trafic interne
   if [[ "$FEAT_NP_EGRESS_POLICY" == "true" ]]; then
-    local egress_policy="${SCRIPT_DIR}/apps/calico/resources/default-deny-external-egress.yaml"
+    local egress_policy="${SCRIPT_DIR}/apps/${policy_dir}/resources/default-deny-external-egress.yaml"
     if [[ -f "$egress_policy" ]]; then
       if kubectl apply -f "$egress_policy" > /dev/null 2>&1; then
         log_success "GlobalNetworkPolicy egress appliquée (trafic interne autorisé)"
@@ -1264,7 +1270,7 @@ apply_bootstrap_network_policies_calico() {
 
   # 2. Host ingress policy - protège les nœuds (SSH, API, HTTP/HTTPS autorisés)
   if [[ "$FEAT_NP_INGRESS_POLICY" == "true" ]]; then
-    local ingress_policy="${SCRIPT_DIR}/apps/calico/resources/default-deny-host-ingress.yaml"
+    local ingress_policy="${SCRIPT_DIR}/apps/${policy_dir}/resources/default-deny-host-ingress.yaml"
     if [[ -f "$ingress_policy" ]]; then
       if kubectl apply -f "$ingress_policy" > /dev/null 2>&1; then
         log_success "GlobalNetworkPolicy host ingress appliquée (SSH, API, Kubelet, ICMP)"
