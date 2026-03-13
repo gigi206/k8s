@@ -92,7 +92,7 @@ Always use conditions based on `config/config.yaml` to enable optional features:
 
 **Combined conditions**: `{{- if and .features.sso.enabled (eq .features.sso.provider "keycloak") }}`
 
-**CNI branching**: nest `{{- if eq .cni.primary "cilium" }}` / `{{- else if eq .cni.primary "calico" }}` inside feature conditions.
+**CNI branching**: nest `{{- if eq .cni.primary "cilium" }}` / `{{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}` inside feature conditions. Canal reuses Calico CRDs for network policies.
 
 **Gateway API routing**: when `gatewayAPI.enabled`, use `httpRoute.enabled` for HTTPRoute, else check `controller.provider` for native CRDs (e.g., ApisixRoute).
 
@@ -162,7 +162,7 @@ sops decrypt apps/<app>/secrets/dev/secret.yaml              # View
 - **Multi-source apps**: Helm source with `$values` ref + Git source with `ref: values` + Kustomize paths
 - **Network policies**: CNI-specific files (`cilium-*-policy.yaml` / `calico-*-policy.yaml`). See `apps/cilium/README.md`
 - **Cluster distribution**: `cluster.distribution: "rke2" | "k3d" | "k3s" | "kubeadm"` in `config/config.yaml`. Controls distribution-specific resources (e.g., K3d webhook policies)
-- **CNI selection**: `cni.primary: "cilium" | "calico"` in `config/config.yaml`. See `apps/cilium/README.md`, `apps/calico/README.md` (if exists)
+- **CNI selection**: `cni.primary: "cilium" | "calico" | "canal"` in `config/config.yaml`. Canal = Flannel VXLAN + Calico policies (RKE2 default, does NOT replace kube-proxy). See `apps/cilium/README.md`, `apps/calico/README.md`, `apps/canal/README.md`
 - **LoadBalancer providers**: metallb, cilium, loxilb, kube-vip, klipper. See `deploy-applicationsets.sh`
 - **LoxiLB external mode**: controlled by explicit `loxilb.mode: "external"` in app config (e.g., `dev.yaml` for k3d) or `loxilb.mode: "internal"` (e.g., `prod.yaml` for RKE2). ApplicationSet uses `{{- if eq .loxilb.mode "external" }}` — NOT auto-deduced from `cluster.distribution`. In external mode, LoxiLB runs as a Docker container on the host (`--net=host --privileged`) instead of a DaemonSet in the cluster. kube-loxilb connects via `--loxiURL` (configured in `loxilb.loxiURL`). Start the container BEFORE creating the k3d cluster with `deploy/argocd/apps/loxilb/scripts/start-loxilb-external.sh`. Use `setLBMode: 1` (onearm) and VIP range within the k3d Docker bridge subnet (e.g., `172.18.0.200-172.18.0.220`). No Multus required (no eBPF conflict since loxilb runs outside the cluster).
 - **PostSync hooks**: use `hook-delete-policy: BeforeHookCreation,HookSucceeded` for idempotent Jobs (allows re-sync after failure)

@@ -143,7 +143,7 @@ spec:
           path: deploy/argocd/apps/rook/resources
           directory:
             include: "cilium-ingress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico policy for internal Rook traffic (required for pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -200,7 +200,7 @@ spec:
           directory:
             include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico ingress policy - conditional per Gateway provider
         {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s

@@ -147,7 +147,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-egress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico egress policy for K10 upgrade check (gcr.io)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -165,7 +165,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-ingress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico policy for internal K10 traffic
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -347,7 +347,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-dashboard-ingress-policy-istio.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kasten/resources
@@ -361,7 +361,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-dashboard-ingress-policy-apisix.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kasten/resources
@@ -375,7 +375,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-dashboard-ingress-policy-traefik.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kasten/resources
@@ -389,7 +389,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-dashboard-ingress-policy-nginx-gwf.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kasten/resources
@@ -403,7 +403,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-dashboard-ingress-policy-envoy-gateway.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kasten/resources
@@ -417,7 +417,7 @@ spec:
           path: deploy/argocd/apps/kasten/resources
           directory:
             include: "cilium-dashboard-ingress-policy-cilium.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/kasten/resources

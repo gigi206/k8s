@@ -245,6 +245,16 @@ features:
     encapsulation: "VXLAN" # VXLAN | IPIP | None (BGP pur)
     bgp:
       enabled: false # Enable BGP peering for Calico
+  # === Canal (Flannel + Calico policies) ===
+  # Only used when cni.primary=canal. Canal is the RKE2 default CNI.
+  # Flannel provides VXLAN overlay networking, Calico Felix enforces network policies via iptables.
+  # Canal does NOT replace kube-proxy (unlike Cilium/Calico BPF).
+  # Docs: https://docs.rke2.io/networking/basic_network_options
+  canal:
+    monitoring:
+      enabled: true # ServiceMonitor for Felix metrics (requires monitoring.enabled)
+    mtu: 1450 # MTU for Flannel VXLAN (1450 = 1500 - 50 VXLAN overhead)
+    backend: "vxlan" # vxlan (default) | wireguard
   # === Observability: Logging ===
   logging:
     enabled: true # Active le logging centralisé
@@ -315,7 +325,7 @@ features:
 cluster:
   distribution: "rke2"  # rke2 | k3d | k3s | kubeadm
 cni:
-  primary: "cilium" # cilium | calico (eBPF-based, kube-proxy replacement)
+  primary: "cilium" # cilium | calico | canal (Flannel VXLAN + Calico policies)
   multus:
     enabled: false # Enable multi-network support
     whereabouts: true # Cluster-wide IPAM for secondary interfaces

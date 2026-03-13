@@ -1,0 +1,57 @@
+---
+# =============================================================================
+# GlobalNetworkPolicy - Default Deny External Egress (Canal)
+# =============================================================================
+# Blocks ALL external egress traffic from the cluster.
+# Each application needing external access must define its own NetworkPolicy.
+# Internal cluster traffic (DNS, API, pod-to-pod, node-to-node) remains unrestricted.
+#
+# Canal uses Calico Felix with iptables dataplane (no BPF DNAT).
+# Unlike Calico BPF mode, iptables evaluates policies AFTER DNAT, so traffic
+# to ClusterIPs is seen as traffic to the ClusterIP, not the backend pod IP.
+# The node CIDR is still included for direct node access (kubelet, etcd).
+#
+# Canal equivalent of: apps/calico/resources/default-deny-external-egress.yaml
+# =============================================================================
+
+apiVersion: crd.projectcalico.org/v1
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-deny-external-egress
+spec:
+  order: 500
+  namespaceSelector: >-
+    kubernetes.io/metadata.name not in {"kube-system", "kube-public", "kube-node-lease"}
+  types: [Egress]
+  egress:
+    # Rule 1: Allow DNS resolution (kube-dns)
+    - action: Allow
+      protocol: UDP
+      destination:
+        selector: 'k8s-app == "kube-dns"'
+        ports: [53]
+    - action: Allow
+      protocol: TCP
+      destination:
+        selector: 'k8s-app == "kube-dns"'
+        ports: [53]
+    # Rule 2: Allow all traffic to cluster-internal CIDRs (pod + service)
+    - action: Allow
+      destination:
+        nets: ["10.42.0.0/16", "10.43.0.0/16"]
+    # Rule 3: Allow traffic to cluster nodes (for direct node access)
+    - action: Allow
+      destination:
+        nets: ["192.168.121.0/24"]
+    # Rule 4: Allow DNS forwarding to external resolvers (required for kube-dns)
+    - action: Allow
+      protocol: UDP
+      destination:
+        ports: [53]
+        notNets: ["10.42.0.0/16", "10.43.0.0/16"]
+    - action: Allow
+      protocol: TCP
+      destination:
+        ports: [53]
+        notNets: ["10.42.0.0/16", "10.43.0.0/16"]
+    # Implicit deny for everything else (world egress blocked)

@@ -83,7 +83,7 @@ spec:
           path: deploy/argocd/apps/cert-manager/resources
           directory:
             include: "cilium-egress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico egress policy
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -108,7 +108,7 @@ spec:
           directory:
             include: "cilium-webhook-policy-k3d.yaml"
           {{- end }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico ingress policy
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

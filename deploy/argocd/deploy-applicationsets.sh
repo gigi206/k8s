@@ -418,6 +418,8 @@ FEAT_NP_INGRESS_POLICY=$(get_feature '.features.networkPolicy.ingressPolicy.enab
 FEAT_NP_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.networkPolicy.defaultDenyPodIngress.enabled' 'true')
 # Calico-specific features
 FEAT_CALICO_MONITORING=$(get_feature '.features.calico.monitoring.enabled' 'true')
+# Canal-specific features
+FEAT_CANAL_MONITORING=$(get_feature '.features.canal.monitoring.enabled' 'true')
 FEAT_CILIUM_ENCRYPTION=$(get_feature '.features.cilium.encryption.enabled' 'true')
 FEAT_CILIUM_ENCRYPTION_TYPE=$(get_feature '.features.cilium.encryption.type' 'wireguard')
 FEAT_CILIUM_MUTUAL_AUTH=$(get_feature '.features.cilium.mutualAuth.enabled' 'true')
@@ -479,6 +481,7 @@ log_debug "  networkPolicy.egressPolicy: $FEAT_NP_EGRESS_POLICY"
 log_debug "  networkPolicy.ingressPolicy: $FEAT_NP_INGRESS_POLICY"
 log_debug "  networkPolicy.defaultDenyPodIngress: $FEAT_NP_DEFAULT_DENY_POD_INGRESS"
 log_debug "  calico.monitoring: $FEAT_CALICO_MONITORING"
+log_debug "  canal.monitoring: $FEAT_CANAL_MONITORING"
 log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
 log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
 log_debug "  cilium.mutualAuth.spire.dataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
@@ -683,9 +686,9 @@ validate_dependencies() {
 
   # Vérifier CNI primary est valide
   case "$FEAT_CNI_PRIMARY" in
-    cilium|calico) ;;
+    cilium|calico|canal) ;;
     *)
-      log_error "cni.primary=$FEAT_CNI_PRIMARY non supporté (valeurs: cilium, calico)"
+      log_error "cni.primary=$FEAT_CNI_PRIMARY non supporté (valeurs: cilium, calico, canal)"
       errors=$((errors + 1))
       ;;
   esac
@@ -716,7 +719,7 @@ validate_dependencies() {
     fi
     if [[ "$loxilb_mode" == "external" ]]; then
       log_info "LoxiLB en mode external: Multus non requis (pas de conflit eBPF)"
-    elif [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
+    elif [[ "$FEAT_CNI_PRIMARY" == "cilium" ]] && [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
       log_error "LoxiLB nécessite Multus CNI pour fonctionner avec Cilium"
       log_error "  LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP et entrent en conflit"
       log_error "  Activer: cni.multus.enabled: true dans config.yaml"
@@ -1001,6 +1004,11 @@ fi
 # Calico (CNI installé par RKE2, cette app ajoute monitoring + network policies)
 if [[ "$FEAT_CALICO_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" == "calico" ]]; then
   APPLICATIONSETS+=("apps/calico/applicationset.yaml")
+fi
+
+# Canal (CNI par défaut RKE2 = Flannel + Calico policies, cette app ajoute monitoring + network policies)
+if [[ "$FEAT_CANAL_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" == "canal" ]]; then
+  APPLICATIONSETS+=("apps/canal/applicationset.yaml")
 fi
 
 # Distributed Tracing
@@ -1338,7 +1346,7 @@ apply_bootstrap_network_policies_calico() {
 progress_step "Bootstrap NetworkPolicies"
 if [[ "$FEAT_CNI_PRIMARY" == "cilium" ]]; then
   apply_bootstrap_network_policies_cilium
-elif [[ "$FEAT_CNI_PRIMARY" == "calico" ]]; then
+elif [[ "$FEAT_CNI_PRIMARY" == "calico" ]] || [[ "$FEAT_CNI_PRIMARY" == "canal" ]]; then
   apply_bootstrap_network_policies_calico
 fi
 
@@ -2401,7 +2409,7 @@ echo "  Service Mesh:      $FEAT_SERVICE_MESH ($FEAT_SERVICE_MESH_PROVIDER)"
 echo "  Storage:           $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
 echo "  Database Operator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 echo "  Monitoring:        $FEAT_MONITORING"
-echo "  CNI Monitoring:    Cilium=$FEAT_CILIUM_MONITORING Calico=$FEAT_CALICO_MONITORING"
+echo "  CNI Monitoring:    Cilium=$FEAT_CILIUM_MONITORING Calico=$FEAT_CALICO_MONITORING Canal=$FEAT_CANAL_MONITORING"
 echo "  NP Egress:         $FEAT_NP_EGRESS_POLICY"
 echo "  NP Ingress:        $FEAT_NP_INGRESS_POLICY"
 echo "  NP Pod Ingress:    $FEAT_NP_DEFAULT_DENY_POD_INGRESS"

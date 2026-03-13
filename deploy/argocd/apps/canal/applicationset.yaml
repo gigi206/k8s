@@ -1,15 +1,18 @@
 ---
 # =============================================================================
-# Kube-VIP ApplicationSet (Load Balancer for API Server)
+# Canal ApplicationSet (After Prometheus-Stack)
 # =============================================================================
-# Déploie Kube-VIP pour fournir une VIP HA pour l'API Kubernetes
-# Docs: https://kube-vip.io/
+# Canal CNI (Flannel + Calico) is installed by RKE2 during cluster bootstrap.
+# This ApplicationSet deploys additional resources:
+# - ServiceMonitors for Prometheus scraping (Felix)
+# - PrometheusRules for alerting
+# - GlobalNetworkPolicy for cluster-wide default-deny
 # =============================================================================
 
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: kube-vip
+  name: canal
   namespace: argo-cd
   annotations:
 spec:
@@ -21,23 +24,23 @@ spec:
         mergeKeys:
           - environment
         generators:
-          # Config de base (valeurs par défaut)
+          # Config de base (valeurs par defaut)
           - git:
               repoURL: https://github.com/gigi206/k8s
               revision: 'HEAD'
               files:
                 - path: deploy/argocd/config/config.yaml
 
-          # Config spécifique à l'application
+          # Config specifique a l'application
           - git:
               repoURL: https://github.com/gigi206/k8s
               revision: 'HEAD'
               files:
-                - path: deploy/argocd/apps/kube-vip/config/*.yaml
+                - path: deploy/argocd/apps/canal/config/*.yaml
 
   template:
     metadata:
-      name: kube-vip
+      name: canal
       namespace: argo-cd
       annotations:
     spec:
@@ -46,7 +49,10 @@ spec:
       source:
         repoURL: https://github.com/gigi206/k8s
         targetRevision: '{{ .git.revision }}'
-        path: 'deploy/argocd/apps/{{ .appName }}/resources'
+        path: deploy/argocd/apps/canal/kustomize/monitoring
+        kustomize:
+          commonLabels:
+            release: '{{ .features.monitoring.release }}'
 
       destination:
         server: https://kubernetes.default.svc
@@ -62,6 +68,13 @@ spec:
 
   templatePatch: |
     spec:
+      ignoreDifferences:
+        - group: external-secrets.io
+          kind: ExternalSecret
+          jqPathExpressions:
+            - .spec.data[].remoteRef.conversionStrategy
+            - .spec.data[].remoteRef.decodingStrategy
+            - .spec.data[].remoteRef.metadataPolicy
       syncPolicy:
         syncOptions:
         {{- range .syncPolicy.syncOptions }}
@@ -73,70 +86,42 @@ spec:
           selfHeal: {{ .syncPolicy.automated.selfHeal }}
       {{- end }}
       sources:
-        # Source 1: Kube-VIP RBAC
+        {{- if .features.networkPolicy.egressPolicy.enabled }}
+        # Source: Egress Policy - blocks external egress, allows internal cluster traffic
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: 'deploy/argocd/apps/{{ .appName }}/resources'
+          path: deploy/argocd/apps/canal/resources
           directory:
-            include: "rbac.yaml"
-
-        # Source 2: Kube-VIP DaemonSet (with VIP patch from config.yaml)
-        - repoURL: https://github.com/gigi206/k8s
-          targetRevision: '{{ .git.revision }}'
-          path: 'deploy/argocd/apps/{{ .appName }}/kustomize/daemonset'
-          kustomize:
-            patches:
-              - target:
-                  kind: DaemonSet
-                  name: kube-vip
-                patch: |
-                  - op: replace
-                    path: /spec/template/spec/containers/0/env/13/value
-                    value: '{{ .features.loadBalancer.staticIPs.kubernetesApi }}'
-              {{- if eq .features.loadBalancer.provider "kube-vip" }}
-              # Enable Services mode when using kube-vip as LoadBalancer provider
-              # svc_enable is at env index 7 in the DaemonSet
-              - target:
-                  kind: DaemonSet
-                  name: kube-vip
-                patch: |
-                  - op: replace
-                    path: /spec/template/spec/containers/0/env/7/value
-                    value: "true"
-              {{- end }}
-
+            include: "default-deny-external-egress.yaml"
+        {{- end }}
         {{- if .features.networkPolicy.ingressPolicy.enabled }}
-          {{- if eq .cni.primary "cilium" }}
-        # Source: Cilium host ingress policy - allows external access to API VIP
+        # Source: Host Ingress Policy - protects nodes (SSH, API allowed)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/kube-vip/resources
+          path: deploy/argocd/apps/canal/resources
           directory:
-            include: "cilium-host-ingress-policy.yaml"
-          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
-        # Source: Calico host ingress policy - allows external access to API VIP
+            include: "default-deny-host-ingress.yaml"
+        {{- end }}
+        {{- if .features.networkPolicy.defaultDenyPodIngress.enabled }}
+        # Source: Pod Ingress Policy - Zero Trust (deny all pod-to-pod except explicit allows)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/kube-vip/resources
+          path: deploy/argocd/apps/canal/resources
           directory:
-            include: "calico-host-ingress-policy.yaml"
-          {{- end }}
+            include: "default-deny-pod-ingress.yaml"
         {{- end }}
         {{- if .features.kyverno.enabled }}
         # Source: Kyverno PolicyException (allows SA token mount for K8s API access)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/kube-vip/resources
+          path: deploy/argocd/apps/canal/resources
           directory:
             include: "kyverno-policy-exception.yaml"
         {{- end }}
-
-        {{- if .features.monitoring.enabled }}
-        # Source: PrometheusRules (avec label release)
+        # Source: Kustomize monitoring resources (ServiceMonitors, PrometheusRules)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
-          path: deploy/argocd/apps/kube-vip/kustomize/monitoring
+          path: deploy/argocd/apps/canal/kustomize/monitoring
           kustomize:
             commonLabels:
               release: '{{ .features.monitoring.release }}'
-        {{- end }}
