@@ -28,11 +28,11 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    calicoKubeControllers: true
     flannel:
       iface: "eth1"
       backend: "${CANAL_BACKEND}"
     calico:
+      calicoKubeControllers: true
       mtu: ${CANAL_MTU}
       felix:
         prometheusMetricsEnabled: true
