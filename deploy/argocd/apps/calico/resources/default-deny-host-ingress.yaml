@@ -23,7 +23,12 @@ metadata:
 spec:
   order: 500
   selector: "!has(projectcalico.org/namespace)"
-  types: [Ingress]
+  # IMPORTANT: Must include both Ingress AND Egress types. When a policy
+  # matches a HostEndpoint and creates a tier, Calico drops all unmatched
+  # traffic at the end of the tier in BOTH directions. Without explicit
+  # Egress allow-all, host egress to non-failsafe ports (e.g. 443 for
+  # webhooks) would be dropped, breaking Kyverno/cert-manager webhooks.
+  types: [Ingress, Egress]
   ingress:
     # Allow all cluster-internal traffic (pod-to-node, node-to-node)
     - action: Allow
@@ -53,3 +58,6 @@ spec:
       icmp:
         type: 8
     # Implicit deny for all other external ingress
+  egress:
+    # Allow all host egress (this policy only controls ingress)
+    - action: Allow
