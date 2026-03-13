@@ -1466,6 +1466,7 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
   # Pre-apply all PolicyExceptions for apps that will be deployed
   log_info "Pré-déploiement des PolicyExceptions..."
   pe_count=0
+  pe_failed_files=()
 
   for appset in "${APPLICATIONSETS[@]}"; do
     app_dir="${SCRIPT_DIR}/$(dirname "$appset")"
@@ -1486,11 +1487,28 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
           pe_count=$((pe_count + 1))
           log_debug "  PolicyException: $pe_ns"
         else
-          log_warning "  Échec PolicyException: $pe_file"
+          pe_failed_files+=("$pe_file")
         fi
       fi
     done
   done
+
+  # Retry failed PolicyExceptions (webhook may not be fully ready yet)
+  if [[ ${#pe_failed_files[@]} -gt 0 ]]; then
+    log_info "Retry des ${#pe_failed_files[@]} PolicyExceptions échouées (attente webhook)..."
+    sleep 5
+    local retry_failed=0
+    for pe_file in "${pe_failed_files[@]}"; do
+      if kubectl apply -f "$pe_file" > /dev/null 2>&1; then
+        pe_count=$((pe_count + 1))
+        log_debug "  PolicyException (retry): $(basename "$(dirname "$(dirname "$pe_file")")")"
+      else
+        retry_failed=$((retry_failed + 1))
+        log_warning "  Échec PolicyException: $pe_file"
+      fi
+    done
+    [[ $retry_failed -gt 0 ]] && log_warning "$retry_failed PolicyExceptions toujours en échec"
+  fi
 
   # SPIRE PolicyException: must be applied regardless of whether the cilium
   # ApplicationSet is in APPLICATIONSETS[] (it's conditional on monitoring).
