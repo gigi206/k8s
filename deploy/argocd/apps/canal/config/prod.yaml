@@ -1,0 +1,14 @@
+---
+# Configuration Canal - Prod
+environment: prod
+appName: canal
+
+# Dashboard configuration
+dashboard:
+  folder: "Canal"
+
+syncPolicy:
+  automated:
+    enabled: false
+    prune: false
+    selfHeal: false

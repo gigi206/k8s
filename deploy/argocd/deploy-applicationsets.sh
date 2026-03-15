@@ -418,6 +418,8 @@ FEAT_NP_INGRESS_POLICY=$(get_feature '.features.networkPolicy.ingressPolicy.enab
 FEAT_NP_DEFAULT_DENY_POD_INGRESS=$(get_feature '.features.networkPolicy.defaultDenyPodIngress.enabled' 'true')
 # Calico-specific features
 FEAT_CALICO_MONITORING=$(get_feature '.features.calico.monitoring.enabled' 'true')
+# Canal-specific features
+FEAT_CANAL_MONITORING=$(get_feature '.features.canal.monitoring.enabled' 'true')
 FEAT_CILIUM_ENCRYPTION=$(get_feature '.features.cilium.encryption.enabled' 'true')
 FEAT_CILIUM_ENCRYPTION_TYPE=$(get_feature '.features.cilium.encryption.type' 'wireguard')
 FEAT_CILIUM_MUTUAL_AUTH=$(get_feature '.features.cilium.mutualAuth.enabled' 'true')
@@ -479,6 +481,7 @@ log_debug "  networkPolicy.egressPolicy: $FEAT_NP_EGRESS_POLICY"
 log_debug "  networkPolicy.ingressPolicy: $FEAT_NP_INGRESS_POLICY"
 log_debug "  networkPolicy.defaultDenyPodIngress: $FEAT_NP_DEFAULT_DENY_POD_INGRESS"
 log_debug "  calico.monitoring: $FEAT_CALICO_MONITORING"
+log_debug "  canal.monitoring: $FEAT_CANAL_MONITORING"
 log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION_TYPE)"
 log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
 log_debug "  cilium.mutualAuth.spire.dataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
@@ -683,9 +686,9 @@ validate_dependencies() {
 
   # Vérifier CNI primary est valide
   case "$FEAT_CNI_PRIMARY" in
-    cilium|calico) ;;
+    cilium|calico|canal) ;;
     *)
-      log_error "cni.primary=$FEAT_CNI_PRIMARY non supporté (valeurs: cilium, calico)"
+      log_error "cni.primary=$FEAT_CNI_PRIMARY non supporté (valeurs: cilium, calico, canal)"
       errors=$((errors + 1))
       ;;
   esac
@@ -716,7 +719,7 @@ validate_dependencies() {
     fi
     if [[ "$loxilb_mode" == "external" ]]; then
       log_info "LoxiLB en mode external: Multus non requis (pas de conflit eBPF)"
-    elif [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
+    elif [[ "$FEAT_CNI_PRIMARY" == "cilium" ]] && [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
       log_error "LoxiLB nécessite Multus CNI pour fonctionner avec Cilium"
       log_error "  LoxiLB et Cilium utilisent tous deux des hooks eBPF/XDP et entrent en conflit"
       log_error "  Activer: cni.multus.enabled: true dans config.yaml"
@@ -1003,6 +1006,11 @@ if [[ "$FEAT_CALICO_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" 
   APPLICATIONSETS+=("apps/calico/applicationset.yaml")
 fi
 
+# Canal (CNI par défaut RKE2 = Flannel + Calico policies, cette app ajoute monitoring + network policies)
+if [[ "$FEAT_CANAL_MONITORING" == "true" ]] && [[ "$FEAT_MONITORING" == "true" ]] && [[ "$FEAT_CNI_PRIMARY" == "canal" ]]; then
+  APPLICATIONSETS+=("apps/canal/applicationset.yaml")
+fi
+
 # Distributed Tracing
 if [[ "$FEAT_TRACING" == "true" ]]; then
   case "$FEAT_TRACING_PROVIDER" in
@@ -1238,11 +1246,17 @@ apply_bootstrap_network_policies_calico() {
     return 0
   fi
 
-  log_info "Pré-déploiement des GlobalNetworkPolicies Calico pour bootstrap..."
+  # Use canal-specific policies when CNI is canal, calico otherwise
+  local policy_dir="calico"
+  if [[ "$FEAT_CNI_PRIMARY" == "canal" ]]; then
+    policy_dir="canal"
+  fi
+
+  log_info "Pré-déploiement des GlobalNetworkPolicies ($policy_dir) pour bootstrap..."
 
   # 1. Egress clusterwide policy - bloque le trafic externe, autorise le trafic interne
   if [[ "$FEAT_NP_EGRESS_POLICY" == "true" ]]; then
-    local egress_policy="${SCRIPT_DIR}/apps/calico/resources/default-deny-external-egress.yaml"
+    local egress_policy="${SCRIPT_DIR}/apps/${policy_dir}/resources/default-deny-external-egress.yaml"
     if [[ -f "$egress_policy" ]]; then
       if kubectl apply -f "$egress_policy" > /dev/null 2>&1; then
         log_success "GlobalNetworkPolicy egress appliquée (trafic interne autorisé)"
@@ -1256,7 +1270,7 @@ apply_bootstrap_network_policies_calico() {
 
   # 2. Host ingress policy - protège les nœuds (SSH, API, HTTP/HTTPS autorisés)
   if [[ "$FEAT_NP_INGRESS_POLICY" == "true" ]]; then
-    local ingress_policy="${SCRIPT_DIR}/apps/calico/resources/default-deny-host-ingress.yaml"
+    local ingress_policy="${SCRIPT_DIR}/apps/${policy_dir}/resources/default-deny-host-ingress.yaml"
     if [[ -f "$ingress_policy" ]]; then
       if kubectl apply -f "$ingress_policy" > /dev/null 2>&1; then
         log_success "GlobalNetworkPolicy host ingress appliquée (SSH, API, Kubelet, ICMP)"
@@ -1338,7 +1352,7 @@ apply_bootstrap_network_policies_calico() {
 progress_step "Bootstrap NetworkPolicies"
 if [[ "$FEAT_CNI_PRIMARY" == "cilium" ]]; then
   apply_bootstrap_network_policies_cilium
-elif [[ "$FEAT_CNI_PRIMARY" == "calico" ]]; then
+elif [[ "$FEAT_CNI_PRIMARY" == "calico" ]] || [[ "$FEAT_CNI_PRIMARY" == "canal" ]]; then
   apply_bootstrap_network_policies_calico
 fi
 
@@ -1452,6 +1466,7 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
   # Pre-apply all PolicyExceptions for apps that will be deployed
   log_info "Pré-déploiement des PolicyExceptions..."
   pe_count=0
+  pe_failed_files=()
 
   for appset in "${APPLICATIONSETS[@]}"; do
     app_dir="${SCRIPT_DIR}/$(dirname "$appset")"
@@ -1472,11 +1487,46 @@ if [[ -n "$KYVERNO_APPSET" ]]; then
           pe_count=$((pe_count + 1))
           log_debug "  PolicyException: $pe_ns"
         else
-          log_warning "  Échec PolicyException: $pe_file"
+          pe_failed_files+=("$pe_file")
         fi
       fi
     done
   done
+
+  # Retry failed PolicyExceptions (webhook may not be fully ready yet)
+  if [[ ${#pe_failed_files[@]} -gt 0 ]]; then
+    # Log first failure reason for diagnostics
+    pe_error=$(kubectl apply -f "${pe_failed_files[0]}" 2>&1) || true
+    log_info "Retry des ${#pe_failed_files[@]} PolicyExceptions échouées (raison: ${pe_error:-inconnue})..."
+    sleep 10
+    retry_failed=0
+    pe_retry_failed_files=()
+    for pe_file in "${pe_failed_files[@]}"; do
+      if kubectl apply -f "$pe_file" > /dev/null 2>&1; then
+        pe_count=$((pe_count + 1))
+        log_debug "  PolicyException (retry): $(basename "$(dirname "$(dirname "$pe_file")")")"
+      else
+        retry_failed=$((retry_failed + 1))
+        pe_retry_failed_files+=("$pe_file")
+      fi
+    done
+    # Second retry with longer delay if still failing
+    if [[ ${#pe_retry_failed_files[@]} -gt 0 ]]; then
+      log_info "Second retry des ${#pe_retry_failed_files[@]} PolicyExceptions (attente 15s)..."
+      sleep 15
+      retry_failed=0
+      for pe_file in "${pe_retry_failed_files[@]}"; do
+        if kubectl apply -f "$pe_file" > /dev/null 2>&1; then
+          pe_count=$((pe_count + 1))
+          log_debug "  PolicyException (retry2): $(basename "$(dirname "$(dirname "$pe_file")")")"
+        else
+          retry_failed=$((retry_failed + 1))
+          log_warning "  Échec PolicyException: $pe_file"
+        fi
+      done
+    fi
+    [[ $retry_failed -gt 0 ]] && log_warning "$retry_failed PolicyExceptions toujours en échec"
+  fi
 
   # SPIRE PolicyException: must be applied regardless of whether the cilium
   # ApplicationSet is in APPLICATIONSETS[] (it's conditional on monitoring).
@@ -2401,7 +2451,7 @@ echo "  Service Mesh:      $FEAT_SERVICE_MESH ($FEAT_SERVICE_MESH_PROVIDER)"
 echo "  Storage:           $FEAT_STORAGE ($FEAT_STORAGE_PROVIDER)"
 echo "  Database Operator: $FEAT_DATABASE_OPERATOR ($FEAT_DATABASE_PROVIDER)"
 echo "  Monitoring:        $FEAT_MONITORING"
-echo "  CNI Monitoring:    Cilium=$FEAT_CILIUM_MONITORING Calico=$FEAT_CALICO_MONITORING"
+echo "  CNI Monitoring:    Cilium=$FEAT_CILIUM_MONITORING Calico=$FEAT_CALICO_MONITORING Canal=$FEAT_CANAL_MONITORING"
 echo "  NP Egress:         $FEAT_NP_EGRESS_POLICY"
 echo "  NP Ingress:        $FEAT_NP_INGRESS_POLICY"
 echo "  NP Pod Ingress:    $FEAT_NP_DEFAULT_DENY_POD_INGRESS"

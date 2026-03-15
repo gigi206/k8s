@@ -109,7 +109,7 @@ spec:
           path: deploy/argocd/apps/istio/resources
           directory:
             include: "cilium-ingress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico internal ingress policy (monitoring, kube-system, istio-system)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: {{ .git.revision }}
@@ -152,7 +152,7 @@ spec:
           directory:
             include: "cilium-ingress-policy-cilium.yaml"
         {{- end }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico ingress policy - conditional per Gateway provider
         {{- if eq .features.gatewayAPI.controller.provider "istio" }}
         - repoURL: https://github.com/gigi206/k8s
@@ -520,6 +520,8 @@ spec:
                 cniConfDir: /etc/cni/net.d
                 {{- if eq .cni.primary "calico" }}
                 cniConfFileName: "10-calico.conflist"
+                {{- else if eq .cni.primary "canal" }}
+                cniConfFileName: "10-canal.conflist"
                 {{- else }}
                 cniConfFileName: "05-cilium.conflist"
                 {{- end }}

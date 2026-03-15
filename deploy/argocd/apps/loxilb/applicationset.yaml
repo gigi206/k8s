@@ -130,7 +130,7 @@ spec:
                   - op: replace
                     path: /spec/egress/0/toPorts/0/ports/0/port
                     value: '{{ regexReplaceAll ".*:([0-9]+)$" (index .loxilb.loxiURL 0) "$1" }}'
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico egress policy (external loxilb API access)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -188,7 +188,7 @@ spec:
                           name: "loxilb-external-peer"
                     {{- end }}
                     {{- end }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico BGP peering (PodCIDR advertisement via BGP)
         # In bgp mode: peer with FRR router instead of loxilb directly
         - repoURL: https://github.com/gigi206/k8s
@@ -228,7 +228,7 @@ spec:
                     {{- range .loxilb.loxiURL }}
                       - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
                     {{- end }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico ingress policy (allow DNAT'd LB traffic from loxilb to pods)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -266,7 +266,7 @@ spec:
                     {{- range .loxilb.loxiURL }}
                       - '{{ regexReplaceAll "https?://([0-9.]+):.*" . "$1" }}/32'
                     {{- end }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico host ingress policy (allow BGP port 179 from loxilb to nodes)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# GlobalNetworkPolicy - Default Deny Host Ingress (Calico)
+# GlobalNetworkPolicy - Default Deny Host Ingress (Canal)
 # =============================================================================
 # Blocks ALL external ingress to Kubernetes nodes by default.
 # Only essential services are allowed:
@@ -12,8 +12,8 @@
 # Applications needing additional host ports must define their own
 # GlobalNetworkPolicy with host endpoint selectors.
 #
-# Calico equivalent of: apps/cilium/resources/default-deny-host-ingress.yaml
-# Requires: kubeControllersConfiguration.controllers.node.hostEndpoint.autoCreate: Enabled
+# Canal equivalent of: apps/calico/resources/default-deny-host-ingress.yaml
+# Requires: calico.felix HostEndpoint auto-create (configured in rke2-canal chart)
 # =============================================================================
 
 apiVersion: crd.projectcalico.org/v1

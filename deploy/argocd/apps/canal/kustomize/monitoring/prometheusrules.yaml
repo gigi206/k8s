@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# Canal PrometheusRules
+# =============================================================================
+# Alerting rules for Canal Felix dataplane (iptables-based).
+# Canal does NOT use BPF or Typha, so those alerts are excluded.
+# Docs: https://docs.tigera.io/calico/latest/operations/monitor/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: canal-alerts
+  namespace: kube-system
+spec:
+  groups:
+  - name: canal.rules
+    rules:
+    - alert: CanalNodeNotReady
+      expr: felix_active_local_endpoints == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Canal node {{ $labels.instance }} has no active endpoints"
+        description: "Felix on {{ $labels.instance }} reports 0 active local endpoints for 5 minutes."
+    - alert: CanalFelixDataplaneFailures
+      expr: rate(felix_int_dataplane_failures[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Canal Felix dataplane failures on {{ $labels.instance }}"
+        description: "Felix is experiencing dataplane programming failures."
+    - alert: CanalFelixResyncNotInSync
+      expr: felix_resync_state != 3
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Canal Felix not in sync on {{ $labels.instance }}"
+        description: "Felix resync state is not 'in-sync' (3) for 10+ minutes."
+    - alert: CanalIptablesRestoreErrors
+      expr: rate(felix_iptables_restore_errors[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Canal iptables restore errors on {{ $labels.instance }}"
+        description: "Felix is encountering iptables restore errors."

@@ -1,0 +1,31 @@
+---
+# PolicyException for Canal - requires K8s API for CNI and network policy management
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: canal-automount-sa-token
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token-controllers
+        - disable-automount-sa-token-pods
+  match:
+    any:
+      - resources:
+          namespaces:
+            - kube-system
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob
+          names:
+            - rke2-canal*
+            - canal*
+            - calico*

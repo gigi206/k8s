@@ -101,7 +101,7 @@ spec:
                     {{- range .features.loadBalancer.bgp.peers }}
                       - '{{ .address }}/32'
                     {{- end }}
-        {{- else if eq .cni.primary "calico" }}
+        {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico host ingress policy (allow BGP port 179 from FRR to nodes)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

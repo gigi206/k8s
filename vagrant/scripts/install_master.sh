@@ -121,12 +121,12 @@ fi
 echo "disable:
 - rke2-ingress-nginx
 $([ "$CNI_PRIMARY" = "cilium" ] && echo "- rke2-kube-proxy # Cilium eBPF replaces kube-proxy at bootstrap")
-- rke2-canal # disable default CNI (using $CNI_PRIMARY instead)
+$([ "$CNI_PRIMARY" != "canal" ] && echo "- rke2-canal # disable default CNI (using $CNI_PRIMARY instead)")
 # - rke2-metrics-server
 # - rke2-ingress-nginx
 # - rke2-coredns
 # disable: [rke2-ingress-nginx, rke2-coredns]
-$([ "$CNI_PRIMARY" = "cilium" ] && echo 'disable-kube-proxy: true # Cilium eBPF replaces kube-proxy' || echo '# kube-proxy kept active for Calico BPF bootstrap (Calico takes over once running)')
+$([ "$CNI_PRIMARY" = "cilium" ] && echo 'disable-kube-proxy: true # Cilium eBPF replaces kube-proxy' || echo "# kube-proxy kept active for $CNI_PRIMARY (does not replace kube-proxy at bootstrap)")
 write-kubeconfig-mode: "0644"
 tls-san:
 - k8s-api.k8s.lan
@@ -411,8 +411,18 @@ elif [ "$CNI_PRIMARY" = "calico" ]; then
   echo "Calico dataplane: $CALICO_DATAPLANE (encapsulation=$CALICO_ENCAPSULATION, bgp=$CALICO_BGP_ENABLED)"
 
   $SCRIPT_DIR/configure_calico.sh
+elif [ "$CNI_PRIMARY" = "canal" ]; then
+  # Canal is RKE2 default CNI — read Canal-specific settings from ArgoCD config
+  CANAL_MTU=$(yq_read '.features.canal.mtu' "$ARGOCD_CONFIG_FILE")
+  CANAL_MTU=${CANAL_MTU:-1450}
+  CANAL_BACKEND=$(yq_read '.features.canal.backend' "$ARGOCD_CONFIG_FILE")
+  CANAL_BACKEND=${CANAL_BACKEND:-vxlan}
+  export CANAL_MTU CANAL_BACKEND
+  echo "Canal: backend=$CANAL_BACKEND, mtu=$CANAL_MTU"
+
+  $SCRIPT_DIR/configure_canal.sh
 else
-  echo "ERROR: Unsupported CNI primary: $CNI_PRIMARY (supported: cilium, calico)"
+  echo "ERROR: Unsupported CNI primary: $CNI_PRIMARY (supported: cilium, calico, canal)"
   exit 1
 fi
 

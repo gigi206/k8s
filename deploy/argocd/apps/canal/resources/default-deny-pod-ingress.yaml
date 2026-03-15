@@ -1,6 +1,6 @@
 ---
 # =============================================================================
-# GlobalNetworkPolicy - Default Deny Pod Ingress (Zero Trust) (Calico)
+# GlobalNetworkPolicy - Default Deny Pod Ingress (Zero Trust) (Canal)
 # =============================================================================
 # Implements Zero Trust networking by blocking ALL pod-to-pod ingress by default.
 # Only explicitly allowed traffic passes.
@@ -9,13 +9,14 @@
 # - Health probes from kubelet (host)
 # - Traffic from kube-system (DNS, metrics-server, CNI)
 #
-# EXCLUDED: calico-system, kube-system, kube-public, tigera-operator
+# EXCLUDED: kube-system, kube-public, kube-node-lease
+# (Canal runs in kube-system, unlike Calico which runs in calico-system)
 #
 # IMPORTANT: Uses projectcalico.org/namespace to select only workload endpoints.
 # See default-deny-external-egress.yaml for details on why has(kubernetes-host)
 # cannot be used with auto-created HostEndpoints.
 #
-# Calico equivalent of: apps/cilium/resources/default-deny-pod-ingress.yaml
+# Canal equivalent of: apps/calico/resources/default-deny-pod-ingress.yaml
 # =============================================================================
 
 apiVersion: crd.projectcalico.org/v1
@@ -26,7 +27,7 @@ spec:
   order: 500
   selector: >-
     has(projectcalico.org/namespace) &&
-    projectcalico.org/namespace not in {"calico-system", "calico-apiserver", "kube-system", "kube-public", "kube-node-lease", "tigera-operator"}
+    projectcalico.org/namespace not in {"kube-system", "kube-public", "kube-node-lease"}
   types: [Ingress]
   ingress:
     # Rule 1: Allow health checks from kubelet (host endpoints)

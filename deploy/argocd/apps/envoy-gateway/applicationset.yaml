@@ -108,7 +108,7 @@ spec:
           path: deploy/argocd/apps/envoy-gateway/resources
           directory:
             include: "cilium-host-ingress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Calico Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -125,7 +125,7 @@ spec:
           path: deploy/argocd/apps/envoy-gateway/resources
           directory:
             include: "cilium-ingress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Calico Pod Ingress Policy (allow traffic to pods)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -277,7 +277,7 @@ spec:
           path: deploy/argocd/apps/envoy-gateway/resources
           directory:
             include: "cilium-host-ingress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Calico Host Ingress Policy (allow 80/443 to nodes for LoadBalancer)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -294,7 +294,7 @@ spec:
           path: deploy/argocd/apps/envoy-gateway/resources
           directory:
             include: "cilium-ingress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Calico Pod Ingress Policy (allow traffic to pods)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'

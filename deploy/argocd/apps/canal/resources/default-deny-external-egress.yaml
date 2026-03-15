@@ -1,15 +1,15 @@
 ---
 # =============================================================================
-# GlobalNetworkPolicy - Default Deny External Egress (Calico)
+# GlobalNetworkPolicy - Default Deny External Egress (Canal)
 # =============================================================================
 # Blocks ALL external egress traffic from the cluster.
 # Each application needing external access must define its own NetworkPolicy.
 # Internal cluster traffic (DNS, API, pod-to-pod, node-to-node) remains unrestricted.
 #
-# IMPORTANT (Calico BPF mode): Service ClusterIPs are DNATed to backend IPs
-# BEFORE policy evaluation. Traffic to the Kubernetes API (10.43.0.1:443) is
-# DNATed to the master node IP (e.g. 192.168.121.176:6443). Therefore we must
-# allow traffic to node endpoints via selector, not just by CIDR.
+# Canal uses Calico Felix with iptables dataplane (no BPF DNAT).
+# Unlike Calico BPF mode, iptables evaluates policies AFTER DNAT, so traffic
+# to ClusterIPs is seen as traffic to the ClusterIP, not the backend pod IP.
+# The node CIDR is still included for direct node access (kubelet, etcd).
 #
 # IMPORTANT: Uses projectcalico.org/namespace (Calico internal label present
 # only on workload endpoints/pods) to exclude HostEndpoints. The commonly
@@ -17,7 +17,7 @@
 # (only projectcalico.org/created-by is present), so !has(kubernetes-host)
 # would incorrectly match them, blocking Felix health checks on localhost.
 #
-# Calico equivalent of: apps/cilium/resources/default-deny-external-egress.yaml
+# Canal equivalent of: apps/calico/resources/default-deny-external-egress.yaml
 # =============================================================================
 
 apiVersion: crd.projectcalico.org/v1
@@ -28,7 +28,7 @@ spec:
   order: 500
   selector: >-
     has(projectcalico.org/namespace) &&
-    projectcalico.org/namespace not in {"calico-system", "calico-apiserver", "kube-system", "kube-public", "kube-node-lease", "tigera-operator"}
+    projectcalico.org/namespace not in {"kube-system", "kube-public", "kube-node-lease"}
   types: [Egress]
   egress:
     # Rule 1: Allow DNS resolution (kube-dns)
@@ -46,11 +46,7 @@ spec:
     - action: Allow
       destination:
         nets: ["10.42.0.0/16", "10.43.0.0/16"]
-    # Rule 3: Allow traffic to cluster nodes (required for BPF DNAT)
-    # In BPF mode, ClusterIP traffic is DNATed to backend IPs before policy
-    # evaluation. Services backed by host-network pods (kube-apiserver, etcd)
-    # resolve to node IPs which are outside pod/service CIDRs.
-    # The node network CIDR must be included to allow this DNATed traffic.
+    # Rule 3: Allow traffic to cluster nodes (for direct node access)
     - action: Allow
       destination:
         nets: ["192.168.121.0/24"]

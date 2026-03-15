@@ -97,7 +97,7 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-egress-policy.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico egress policy (GitHub, Helm registries)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -121,7 +121,7 @@ spec:
                   - op: replace
                     path: /spec/egress/0/toFQDNs/0/matchName
                     value: keycloak.{{ .common.domain }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Keycloak OIDC egress - Calico (APISIX only - LoadBalancer IP is RFC1918)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -153,7 +153,7 @@ spec:
           directory:
             include: "cilium-webhook-policy-k3d.yaml"
           {{- end }}
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         # Source: Calico internal ingress policy (pod-to-pod communication)
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
@@ -171,7 +171,7 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-ingress-policy-istio.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
@@ -185,7 +185,7 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-ingress-policy-apisix.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
@@ -199,7 +199,7 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-ingress-policy-traefik.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
@@ -213,7 +213,7 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-ingress-policy-nginx-gwf.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
@@ -227,7 +227,7 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-ingress-policy-envoy-gateway.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources
@@ -241,7 +241,7 @@ spec:
           path: deploy/argocd/apps/argocd/resources
           directory:
             include: "cilium-ingress-policy-cilium.yaml"
-          {{- else if eq .cni.primary "calico" }}
+          {{- else if or (eq .cni.primary "calico") (eq .cni.primary "canal") }}
         - repoURL: https://github.com/gigi206/k8s
           targetRevision: '{{ .git.revision }}'
           path: deploy/argocd/apps/argocd/resources

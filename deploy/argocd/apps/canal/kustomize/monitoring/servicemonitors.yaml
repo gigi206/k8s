@@ -1,0 +1,30 @@
+---
+# =============================================================================
+# Canal ServiceMonitors for Prometheus
+# =============================================================================
+# ServiceMonitor for Canal Felix metrics (Calico dataplane agent).
+# Canal runs in kube-system namespace (RKE2 default CNI).
+# Felix exposes metrics on port 9091.
+# Docs: https://docs.tigera.io/calico/latest/operations/monitor/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+#       from features.monitoring.release in config.yaml
+# =============================================================================
+
+# ServiceMonitor for Canal Felix metrics (per-node dataplane agent)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: canal-felix
+  namespace: kube-system
+spec:
+  namespaceSelector:
+    matchNames:
+    - kube-system
+  selector:
+    matchLabels:
+      k8s-app: canal-felix-metrics
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+    path: /metrics

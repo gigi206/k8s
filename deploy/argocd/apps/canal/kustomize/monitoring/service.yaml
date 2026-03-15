@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Canal Felix Metrics Service (headless)
+# =============================================================================
+# The rke2-canal chart does NOT create a Service for Felix metrics.
+# This headless Service allows the ServiceMonitor to discover canal pods.
+# Felix exposes metrics on port 9091 when prometheusMetricsEnabled=true.
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: canal-felix-metrics
+  namespace: kube-system
+  labels:
+    k8s-app: canal-felix-metrics
+spec:
+  clusterIP: None
+  selector:
+    k8s-app: canal
+  ports:
+    - name: http-metrics
+      port: 9091
+      targetPort: 9091
+      protocol: TCP
