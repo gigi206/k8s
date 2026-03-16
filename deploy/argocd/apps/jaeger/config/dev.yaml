@@ -11,7 +11,7 @@ appName: jaeger
 
 jaeger:
   namespace: jaeger
-  version: "4.5.0"  # Helm chart version - Renovate will update this
+  version: "4.6.0"  # Helm chart version - Renovate will update this
 
   # All-in-one mode (collector + query + agent in single pod)
   allInOne:
