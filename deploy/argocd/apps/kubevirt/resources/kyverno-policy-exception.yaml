@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# Kyverno PolicyException - SA Token Auto-mount (kubevirt namespace)
+# =============================================================================
+# Allows KubeVirt components to auto-mount ServiceAccount tokens
+# Required by: virt-operator, virt-api, virt-controller, virt-handler,
+#              kubevirt-manager
+# =============================================================================
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: kubevirt-automount-sa-token
+  namespace: kubevirt
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token-controllers
+        - disable-automount-sa-token-pods
+  match:
+    any:
+      - resources:
+          namespaces:
+            - kubevirt
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

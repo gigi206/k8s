@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# CDI (Containerized Data Importer) Custom Resource
+# =============================================================================
+# Configures CDI for importing and managing VM disk images
+#
+# Key configuration:
+# - HonorWaitForFirstConsumer feature gate for storage compatibility
+# - RKE2 tolerations for etcd and control-plane nodes
+# - Namespace: cdi (CDI uses its own namespace, separate from kubevirt)
+# =============================================================================
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: CDI
+metadata:
+  name: cdi
+  namespace: cdi
+spec:
+  imagePullPolicy: IfNotPresent
+  config:
+    featureGates:
+      - HonorWaitForFirstConsumer
+  infra:
+    tolerations:
+      - key: node-role.kubernetes.io/etcd
+        operator: Exists
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists

@@ -1,0 +1,51 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cdi-metrics
+  namespace: cdi
+  labels:
+    app.kubernetes.io/name: cdi-metrics
+spec:
+  ports:
+  - name: metrics
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+  selector:
+    cdi.kubevirt.io: cdi-operator
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cdi-apiserver-metrics
+  namespace: cdi
+  labels:
+    app.kubernetes.io/name: cdi-metrics
+spec:
+  ports:
+  - name: metrics
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+  selector:
+    cdi.kubevirt.io: cdi-apiserver
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cdi-deployment-metrics
+  namespace: cdi
+  labels:
+    app.kubernetes.io/name: cdi-metrics
+spec:
+  ports:
+  - name: metrics
+    port: 443
+    targetPort: 8443
+    protocol: TCP
+  selector:
+    cdi.kubevirt.io: cdi-deployment
+  type: ClusterIP

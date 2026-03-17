@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - KubeVirt Manager Ingress from APISIX Gateway
+# =============================================================================
+# Allows access to KubeVirt Manager web UI from APISIX Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kubevirt-ingress-apisix
+  namespace: kubevirt
+spec:
+  description: "Allow ingress to KubeVirt Manager from APISIX Gateway"
+  endpointSelector: {}  # Applies to all pods in kubevirt namespace
+
+  ingress:
+    # Allow from APISIX Gateway (apisix namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: apisix
+      toPorts:
+        - ports:
+            - port: "8080"    # KubeVirt Manager HTTP
+              protocol: TCP

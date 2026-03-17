@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# Deployed conditionally when rke2.cis.enabled=true
+# CDI requires privileged access for:
+# - Importer pods with block device and filesystem operations
+# - Upload proxy with host networking capabilities
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cdi
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

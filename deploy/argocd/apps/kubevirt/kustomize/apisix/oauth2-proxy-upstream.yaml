@@ -1,0 +1,11 @@
+---
+apiVersion: apisix.apache.org/v2
+kind: ApisixUpstream
+metadata:
+  name: oauth2-proxy
+  namespace: kubevirt
+spec:
+  externalNodes:
+    - type: Domain
+      name: oauth2-proxy.oauth2-proxy.svc.cluster.local
+      port: 4180

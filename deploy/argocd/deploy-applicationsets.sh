@@ -431,6 +431,7 @@ FEAT_CONTAINER_RUNTIME_PROVIDER=$(get_feature '.features.containerRuntime.provid
 FEAT_CONTAINER_RUNTIME_DEFAULT_CLASS=$(get_feature '.features.containerRuntime.defaultRuntimeClass' '')
 FEAT_BACKUP=$(get_feature '.features.backup.enabled' 'false')
 FEAT_BACKUP_PROVIDER=$(get_feature '.features.backup.provider' 'velero')
+FEAT_KUBEVIRT=$(get_feature '.features.kubevirt.enabled' 'false')
 
 # Read Istio mTLS setting from per-app config (if Istio service mesh is active)
 FEAT_ISTIO_MTLS="false"
@@ -486,6 +487,7 @@ log_debug "  cilium.encryption: $FEAT_CILIUM_ENCRYPTION ($FEAT_CILIUM_ENCRYPTION
 log_debug "  cilium.mutualAuth: $FEAT_CILIUM_MUTUAL_AUTH"
 log_debug "  cilium.mutualAuth.spire.dataStorage: $FEAT_SPIRE_DATA_STORAGE (size: $FEAT_SPIRE_DATA_STORAGE_SIZE)"
 log_debug "  containerRuntime: $FEAT_CONTAINER_RUNTIME ($FEAT_CONTAINER_RUNTIME_PROVIDER, defaultClass: ${FEAT_CONTAINER_RUNTIME_DEFAULT_CLASS:-none})"
+log_debug "  kubevirt: $FEAT_KUBEVIRT"
 log_debug "  cluster.distribution: $CLUSTER_DISTRIBUTION"
 log_debug "  cni.primary: $FEAT_CNI_PRIMARY"
 log_debug "  cni.multus: $FEAT_CNI_MULTUS"
@@ -633,6 +635,17 @@ resolve_dependencies() {
       if [[ "$FEAT_GATEWAY_API" != "true" ]]; then
         log_info "  → Activation de gatewayAPI (requis par tracing waypoints)"
         FEAT_GATEWAY_API="true"
+        changes_made=true
+      fi
+    fi
+
+    # =========================================================================
+    # kubevirt.enabled → cni.multus.enabled (bridge networking for VMs)
+    # =========================================================================
+    if [[ "$FEAT_KUBEVIRT" == "true" ]]; then
+      if [[ "$FEAT_CNI_MULTUS" != "true" ]]; then
+        log_info "  → Activation de cni.multus (requis par kubevirt pour bridge networking)"
+        FEAT_CNI_MULTUS="true"
         changes_made=true
       fi
     fi
@@ -813,6 +826,25 @@ validate_dependencies() {
   if [[ "$FEAT_GATEWAY_API" == "true" ]] && [[ "$FEAT_GATEWAY_HTTPROUTE" == "true" ]] && [[ "$FEAT_GATEWAY_CONTROLLER" == "apisix" ]]; then
     log_warning "APISIX avec HTTPRoute activé - pour de meilleures performances (HTTPS backend natif),"
     log_warning "  désactivez httpRoute.enabled et utilisez les CRDs natifs ApisixRoute/ApisixUpstream"
+  fi
+
+  # KubeVirt requires storage for VM disks
+  if [[ "$FEAT_KUBEVIRT" == "true" ]] && [[ "$FEAT_STORAGE" != "true" ]]; then
+    log_error "kubevirt.enabled requires storage.enabled (VM disk storage)"
+    errors=$((errors + 1))
+  fi
+
+  # KubeVirt live migration requires RWX storage (CephFS or Longhorn RWX)
+  if [[ "$FEAT_KUBEVIRT" == "true" ]] && [[ "$FEAT_STORAGE" == "true" ]]; then
+    if [[ "$FEAT_STORAGE_PROVIDER" == "rook" ]]; then
+      log_info "KubeVirt live migration: using Rook CephFS for RWX storage"
+      log_info "  Ensure rook.cephfs.enabled: true in rook config"
+    elif [[ "$FEAT_STORAGE_PROVIDER" == "longhorn" ]]; then
+      log_info "KubeVirt live migration: using Longhorn RWX volumes (NFS-based)"
+      log_info "  Longhorn provides RWX natively, no additional config needed"
+    else
+      log_warning "KubeVirt live migration: unknown storage provider '$FEAT_STORAGE_PROVIDER' — verify RWX support"
+    fi
   fi
 
   if [[ $errors -gt 0 ]]; then
@@ -1052,6 +1084,9 @@ fi
 
 # Kubescape (Kubernetes security scanning)
 [[ "$FEAT_KUBESCAPE" == "true" ]] && APPLICATIONSETS+=("apps/kubescape/applicationset.yaml")
+
+# KubeVirt (VMs in Kubernetes + CDI + kubevirt-manager)
+[[ "$FEAT_KUBEVIRT" == "true" ]] && APPLICATIONSETS+=("apps/kubevirt/applicationset.yaml")
 
 # Calculer le nombre d'applications attendues
 # En environnement dev/local, chaque ApplicationSet génère 1 Application

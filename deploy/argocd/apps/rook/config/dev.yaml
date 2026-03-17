@@ -92,7 +92,7 @@ rook:
 
   # CephFS (Optional shared filesystem)
   cephfs:
-    enabled: false
+    enabled: true
     replicaSize: 1
 
   # Object Store (S3 compatible) - activé par features.s3.enabled + features.s3.provider=rook + objectStore.enabled

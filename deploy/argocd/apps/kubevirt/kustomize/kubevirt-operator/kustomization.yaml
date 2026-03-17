@@ -1,0 +1,12 @@
+---
+# =============================================================================
+# KubeVirt Operator - Kustomize Remote Resource
+# =============================================================================
+# Deploys the KubeVirt operator from upstream release artifacts
+# Version tracked by Renovate custom regex manager
+# Requires ArgoCD kustomize.buildOptions: --load-restrictor LoadRestrictionsNone
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kubevirt/kubevirt/releases/download/v1.7.1/kubevirt-operator.yaml

@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - KubeVirt Manager Ingress from Istio Gateway
+# =============================================================================
+# Allows access to KubeVirt Manager web UI from Istio Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kubevirt-ingress-istio
+  namespace: kubevirt
+spec:
+  description: "Allow ingress to KubeVirt Manager from Istio Gateway"
+  endpointSelector: {}  # Applies to all pods in kubevirt namespace
+
+  ingress:
+    # Allow from Istio Gateway (istio-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: istio-system
+      toPorts:
+        - ports:
+            - port: "8080"    # KubeVirt Manager HTTP
+              protocol: TCP

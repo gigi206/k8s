@@ -1,0 +1,32 @@
+---
+# =============================================================================
+# Kyverno PolicyException - SA Token Auto-mount (cdi namespace)
+# =============================================================================
+# Allows CDI components to auto-mount ServiceAccount tokens
+# Required by: cdi-operator, cdi-apiserver, cdi-deployment, cdi-uploadproxy
+# =============================================================================
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: cdi-automount-sa-token
+  namespace: cdi
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  exceptions:
+    - policyName: disable-automount-sa-token
+      ruleNames:
+        - disable-automount-sa-token-controllers
+        - disable-automount-sa-token-pods
+  match:
+    any:
+      - resources:
+          namespaces:
+            - cdi
+          kinds:
+            - Pod
+            - Deployment
+            - DaemonSet
+            - StatefulSet
+            - Job
+            - CronJob

@@ -1,0 +1,11 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-auth
+  namespace: kubevirt
+spec:
+  chain:
+    middlewares:
+      - name: forward-auth
+        namespace: oauth2-proxy

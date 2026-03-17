@@ -1,0 +1,16 @@
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: backend-keycloak
+  namespace: kubevirt
+spec:
+  endpoints:
+  - fqdn:
+      hostname: 'keycloak.PLACEHOLDER.example.com'
+      port: 443
+  tls:
+    caCertificateRefs:
+      - group: ""
+        kind: Secret
+        name: keycloak-backend-ca

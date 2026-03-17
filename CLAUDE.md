@@ -83,6 +83,7 @@ Always use conditions based on `config/config.yaml` to enable optional features:
 | `{{- if .features.tracing.enabled }}` | tracing config |
 | `{{- if .features.serviceMesh.enabled }}` | service mesh integration |
 | `{{- if .features.ingress.enabled }}` | Ingress config |
+| `{{- if .features.kubevirt.enabled }}` | KubeVirt operator, CDI, kubevirt-manager |
 | `{{- if .features.registry.enabled }}` | Container registry (harbor) |
 | `{{- if .features.certManager.enabled }}` | TLS annotations |
 | `{{- if eq .cluster.distribution "k3d" }}` | K3d-specific resources (e.g., webhook policies with host+remote-node) |

@@ -1,0 +1,64 @@
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: kubevirt-allow-internal
+  namespace: kubevirt
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow intra-namespace communication (virt-operator, virt-api, virt-controller, virt-handler, kubevirt-manager)
+    - action: Allow
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kubevirt"'
+    # Allow from CDI namespace (cross-namespace communication for disk imports)
+    - action: Allow
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "cdi"'
+    # Allow from monitoring namespace (Prometheus scraping metrics)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 443
+          - 8443
+    # Allow from oauth2-proxy namespace (authentication callbacks)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "oauth2-proxy"'
+      destination:
+        ports:
+          - 8080
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-internal
+  namespace: cdi
+spec:
+  selector: all()
+  types:
+    - Ingress
+  ingress:
+    # Allow intra-namespace communication (cdi-operator, cdi-apiserver, cdi-deployment, cdi-uploadproxy)
+    - action: Allow
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "cdi"'
+    # Allow from kubevirt namespace (cross-namespace communication)
+    - action: Allow
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "kubevirt"'
+    # Allow from monitoring namespace (Prometheus scraping metrics)
+    - action: Allow
+      protocol: TCP
+      source:
+        namespaceSelector: 'kubernetes.io/metadata.name == "monitoring"'
+      destination:
+        ports:
+          - 443
+          - 8443

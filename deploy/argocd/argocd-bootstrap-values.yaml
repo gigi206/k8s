@@ -9,7 +9,7 @@
 # Enable Kustomize alpha plugins for KSOPS
 configs:
   cm:
-    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec --load-restrictor LoadRestrictionsNone"
 
 # Repo Server configuration for KSOPS
 repoServer:

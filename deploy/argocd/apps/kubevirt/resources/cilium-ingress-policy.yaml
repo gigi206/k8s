@@ -1,0 +1,64 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kubevirt-allow-internal
+  namespace: kubevirt
+spec:
+  description: "Allow internal traffic to KubeVirt components"
+  endpointSelector: {}
+  ingress:
+    # Allow intra-namespace communication (virt-operator, virt-api, virt-controller, virt-handler, kubevirt-manager)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kubevirt
+    # Allow from CDI namespace (cross-namespace communication for disk imports)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cdi
+    # Allow from monitoring namespace (Prometheus scraping metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "8443"
+              protocol: TCP
+    # Allow from oauth2-proxy namespace (authentication callbacks)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: oauth2-proxy
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cdi-allow-internal
+  namespace: cdi
+spec:
+  description: "Allow internal traffic to CDI components"
+  endpointSelector: {}
+  ingress:
+    # Allow intra-namespace communication (cdi-operator, cdi-apiserver, cdi-deployment, cdi-uploadproxy)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cdi
+    # Allow from kubevirt namespace (cross-namespace communication)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kubevirt
+    # Allow from monitoring namespace (Prometheus scraping metrics)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "8443"
+              protocol: TCP

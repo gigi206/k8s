@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# Namespace with PSA labels for CIS profile compatibility
+# =============================================================================
+# Deployed conditionally when rke2.cis.enabled=true
+# KubeVirt requires privileged access for:
+# - virt-handler with hostNetwork, hostPID, and /dev/kvm access
+# - virt-launcher pods with device access for VM execution
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubevirt
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

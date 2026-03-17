@@ -571,7 +571,7 @@ spec:
               # Enable Kustomize alpha plugins for KSOPS
               configs:
                 cm:
-                  kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+                  kustomize.buildOptions: "--enable-alpha-plugins --enable-exec --load-restrictor LoadRestrictionsNone"
                   url: 'https://argocd.{{ .common.domain }}'
                   {{- if .features.sso.enabled }}
                   oidc.config: |

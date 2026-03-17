@@ -623,6 +623,56 @@
       "packageNameTemplate": "k10",
       "datasourceTemplate": "helm",
       "registryUrlTemplate": "https://charts.kasten.io/"
+    },
+    {
+      "customType": "regex",
+      "description": "KubeVirt operator (kustomize remote)",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kubevirt/kustomize/kubevirt-operator/kustomization\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kubevirt/kubevirt/releases/download/(?<currentValue>v[^/]+)/"
+      ],
+      "depNameTemplate": "kubevirt/kubevirt",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "CDI operator (kustomize remote)",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kubevirt/kustomize/cdi-operator/kustomization\\.yaml$/"
+      ],
+      "matchStrings": [
+        "containerized-data-importer/releases/download/(?<currentValue>v[^/]+)/"
+      ],
+      "depNameTemplate": "kubevirt/containerized-data-importer",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "kubevirt-manager Helm chart",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kubevirt/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "manager:\\s*\\n\\s*version:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "kubevirt-manager",
+      "packageNameTemplate": "kubevirt-manager",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.christianhuth.de"
+    },
+    {
+      "customType": "regex",
+      "description": "kubevirt-manager Docker image",
+      "managerFilePatterns": [
+        "/^deploy/argocd/apps/kubevirt/config/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "appVersion:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "kubevirtmanager/kubevirt-manager",
+      "datasourceTemplate": "docker"
     }
   ]
 }

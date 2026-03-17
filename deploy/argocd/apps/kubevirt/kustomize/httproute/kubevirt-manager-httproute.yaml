@@ -1,0 +1,33 @@
+---
+# =============================================================================
+# HTTPRoute for kubevirt-manager Web UI
+# =============================================================================
+# Routes kubevirt.<domain> to the kubevirt-manager service
+# Deployed when features.gatewayAPI.httpRoute.enabled: true
+# Domain and gateway namespace are patched via Kustomize in the ApplicationSet
+# =============================================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kubevirt-manager
+  namespace: kubevirt
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: default-gateway
+    namespace: PLACEHOLDER_GATEWAY_NS  # Patched via Kustomize from gatewayAPI.controller.gatewayNamespace
+    sectionName: https
+  hostnames:
+  - "kubevirt.PLACEHOLDER.example.com"  # Patched via Kustomize from common.domain
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - group: ""
+      kind: Service
+      name: kubevirt-manager
+      port: 8080
+      weight: 1

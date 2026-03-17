@@ -1,0 +1,12 @@
+---
+# =============================================================================
+# CDI Operator - Kustomize Remote Resource
+# =============================================================================
+# Deploys the Containerized Data Importer operator from upstream release artifacts
+# Version tracked by Renovate custom regex manager
+# Requires ArgoCD kustomize.buildOptions: --load-restrictor LoadRestrictionsNone
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kubevirt/containerized-data-importer/releases/download/v1.64.0/cdi-operator.yaml

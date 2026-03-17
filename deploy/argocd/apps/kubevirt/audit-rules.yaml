@@ -1,0 +1,13 @@
+# KubeVirt: VM lifecycle operations and disk management are security-sensitive
+# CRDs: virtualmachines, virtualmachineinstances, virtualmachineinstancemigrations (kubevirt.io)
+#   + datavolumes, cdis (cdi.kubevirt.io)
+#   + virtualmachineinstancetypes, virtualmachineclusterinstancetypes,
+#     virtualmachinepreferences, virtualmachineclusterpreferences (instancetype.kubevirt.io)
+- level: Metadata
+  resources:
+    - group: "kubevirt.io"
+      resources: ["virtualmachines", "virtualmachineinstances", "virtualmachineinstancemigrations"]
+    - group: "cdi.kubevirt.io"
+      resources: ["datavolumes", "cdis"]
+    - group: "instancetype.kubevirt.io"
+      resources: ["virtualmachineinstancetypes", "virtualmachineclusterinstancetypes", "virtualmachinepreferences", "virtualmachineclusterpreferences"]

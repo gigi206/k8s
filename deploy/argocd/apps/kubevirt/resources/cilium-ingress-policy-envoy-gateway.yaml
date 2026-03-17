@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# CiliumNetworkPolicy - KubeVirt Manager Ingress from Envoy Gateway
+# =============================================================================
+# Allows access to KubeVirt Manager web UI from Envoy Gateway
+# Internal communication is handled by cilium-ingress-policy.yaml
+# =============================================================================
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kubevirt-ingress-envoy-gateway
+  namespace: kubevirt
+spec:
+  description: "Allow ingress to KubeVirt Manager from Envoy Gateway"
+  endpointSelector: {}  # Applies to all pods in kubevirt namespace
+
+  ingress:
+    # Allow from Envoy Gateway (envoy-gateway-system namespace)
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: envoy-gateway-system
+      toPorts:
+        - ports:
+            - port: "8080"    # KubeVirt Manager HTTP
+              protocol: TCP

@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# KubeVirt ServiceMonitor for Prometheus
+# =============================================================================
+# Scrapes metrics from KubeVirt components (virt-operator, virt-api,
+# virt-controller, virt-handler) via the kubevirt-metrics-service
+# Docs: https://kubevirt.io/user-guide/monitoring/metrics/
+#
+# Note: The 'release' label is injected by Kustomize via commonLabels
+#       from features.monitoring.release in config.yaml
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kubevirt
+  namespace: kubevirt
+spec:
+  namespaceSelector:
+    matchNames:
+    - kubevirt
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubevirt-metrics
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics

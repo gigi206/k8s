@@ -309,6 +309,10 @@ features:
   backup:
     enabled: true # Kubernetes backup and restore
     provider: "kasten" # velero | kasten
+  # === Virtualization ===
+  kubevirt:
+    enabled: false
+    emulation: false  # QEMU software emulation si pas de /dev/kvm (nested virt)
   # === Container Registry ===
   registry:
     enabled: false # Container registry

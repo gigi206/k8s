@@ -1,0 +1,38 @@
+---
+# =============================================================================
+# NetworkAttachmentDefinition for KubeVirt Bridge Networking
+# =============================================================================
+# Creates a Linux bridge (br-kubevirt) for VM secondary network interfaces
+# VMs can attach to this bridge for direct L2 network access
+#
+# Uses Whereabouts IPAM for dynamic IP allocation across nodes
+# The bridge is auto-created by the CNI bridge plugin on each node
+#
+# Note: VMs using this bridge for secondary interfaces can still
+# support live migration (bridge on secondary is OK, only bridge
+# on the primary pod network blocks migration)
+#
+# Reference: https://kubevirt.io/user-guide/network/interfaces_and_networks/
+# =============================================================================
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: kubevirt-bridge
+  namespace: kubevirt
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "name": "kubevirt-bridge",
+      "type": "bridge",
+      "bridge": "br-kubevirt",
+      "isDefaultGateway": false,
+      "macspoofchk": true,
+      "ipam": {
+        "type": "whereabouts",
+        "range": "10.200.0.0/24",
+        "configuration_path": "/var/lib/rancher/rke2/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf"
+      }
+    }

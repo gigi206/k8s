@@ -1,0 +1,25 @@
+---
+# =============================================================================
+# KubeVirt - Prod Environment Configuration
+# =============================================================================
+
+environment: prod
+appName: kubevirt
+
+kubevirt:
+  manager:
+    version: "0.5.2"
+    appVersion: "1.5.4"
+  liveMigration:
+    bandwidthPerMigration: "128Mi"
+    parallelMigrationsPerCluster: 10
+    parallelOutboundMigrationsPerNode: 3
+syncPolicy:
+  syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+    - RespectIgnoreDifferences=true
+  automated:
+    enabled: false
+    prune: true
+    selfHeal: true
