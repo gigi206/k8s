@@ -118,14 +118,27 @@ Sync waves only work **WITHIN a single Application**, not between Applications.
 
 ### Adding a New Application
 
-1. `mkdir -p deploy/argocd/apps/my-app/{config,resources}`
-2. Copy ApplicationSet from existing app as template
+1. `mkdir -p deploy/argocd/apps/my-app/{config,resources,kustomize}`
+2. Copy ApplicationSet from existing app as template (see Reference Apps below)
 3. Create `config/dev.yaml` and `config/prod.yaml`
 4. Add to `deploy-applicationsets.sh` if needed
 5. Add Prometheus alerts in `kustomize/monitoring/`
 6. Add `audit-rules.yaml` if the app has security-relevant CRDs (see existing kyverno/cert-manager examples)
 7. Add Renovate custom manager in `renovate.json`
 8. Create `README.md` in the app directory
+
+**Full checklist** with all 11 steps (network policies, OAuth2/SSO overlays, Kyverno, PSA, etc.) is in `.claude/rules/new-app-checklist.md` — auto-loaded when touching ApplicationSet files.
+
+#### Reference Apps
+
+| Pattern | Reference app |
+|---------|--------------|
+| Full OAuth2/SSO (all providers) | `jaeger`, `kubevirt` |
+| Helm chart + monitoring | `longhorn`, `jaeger` |
+| Kustomize remote bases | `kubevirt` |
+| Multi-namespace | `kubevirt` (kubevirt + cdi) |
+| Grafana dashboards | `calico`, `longhorn` |
+| Complex network policies | `prometheus-stack` |
 
 ### Helm Chart Analysis (Mandatory for New Apps)
 
