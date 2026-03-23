@@ -23,13 +23,13 @@ environment: dev
 # Politique de synchronisation (base, peut être override par environnement)
 syncPolicy:
   automated:
-    enabled: false
+    enabled: true
   retry:
-    limit: 5
+    limit: 3
     backoff:
       duration: 5s
       factor: 2
-      maxDuration: 5m
+      maxDuration: 2m
   syncOptions:
     - CreateNamespace=true
     - ServerSideApply=true
@@ -48,7 +48,7 @@ images:
     tag: "8.18.0"
 # Configuration Git
 git:
-  revision: "HEAD"
+  revision: "ci-test-23428997958"
 # Feature flags - Activation des composants
 # =============================================================================
 # Ces flags contrôlent le déploiement dynamique des ApplicationSets.
@@ -102,12 +102,12 @@ features:
         enabled: true
         vip: "192.168.121.44"
         vrid: 1
-        advertisementInterval: 100  # centisecondes (100 = 1s, défaut VRRPv3)
+        advertisementInterval: 100 # centisecondes (100 = 1s, défaut VRRPv3)
     pools:
       default:
         # Dynamic pool for auto-assigned LoadBalancer IPs (excludes static IPs)
         # Static IPs (200-219) are reserved in dedicated pools below
-        range: "192.168.121.220-192.168.121.250"
+        range: "172.18.0.210-172.18.0.250"
     # Static IPs for services (same IP regardless of provider)
     # Note: kubernetesApi is managed by kube-vip, not LoadBalancer provider
     # IMPORTANT: These IPs must NOT be in the default pool range to avoid overlap
@@ -117,8 +117,8 @@ features:
     #   - 210: Gateway API controller
     staticIPs:
       kubernetesApi: "192.168.121.200" # Kubernetes API VIP (kube-vip)
-      externalDns: "192.168.121.201" # CoreDNS (UDP/53)
-      gateway: "192.168.121.210" # Gateway API controller (HTTP/HTTPS)
+      externalDns: "172.18.0.201" # CoreDNS (UDP/53)
+      gateway: "172.18.0.200" # Gateway API controller (HTTP/HTTPS)
   kubeVip:
     enabled: true # VIP pour API Kubernetes HA (uses staticIPs.kubernetesApi)
   # === Certificates ===
@@ -131,14 +131,14 @@ features:
     enabled: true # External Secrets Operator
   # === Configuration Reload ===
   reloader:
-    enabled: false # Auto-reload pods on ConfigMap/Secret changes
+    enabled: "" # Auto-reload pods on ConfigMap/Secret changes
   # === DNS ===
   externalDns:
     enabled: true # Automation DNS
     # provider: "coredns"  # ou: aws, google, azure, cloudflare, etc.
   # === Service Mesh ===
   serviceMesh:
-    enabled: false # Service Mesh (control plane + data plane)
+    enabled: true # Service Mesh (control plane + data plane)
     provider: "istio" # istio, linkerd (futur)
     istio:
       accessLogs:
@@ -154,7 +154,7 @@ features:
     httpRoute:
       enabled: true # true = utilise HTTPRoute standard (Gateway API)
     controller:
-      provider: "envoy-gateway" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
+      provider: "istio" # istio, apisix, nginx-gwf, envoy-gateway, traefik, cilium
       # Gateway namespace (depends on provider):
       # - istio: istio-system
       # - apisix: apisix
@@ -162,23 +162,23 @@ features:
       # - traefik: traefik
       # - nginx-gwf: nginx-gateway
       # - cilium: kube-system (Cilium Gateway runs in kube-system)
-      gatewayNamespace: "envoy-gateway-system"
+      gatewayNamespace: "istio-system"
   # === Legacy Ingress (déprécié) ===
   ingress:
-    enabled: false # Support Ingress legacy (patch des ressources)
+    enabled: "" # Support Ingress legacy (patch des ressources)
     class: "istio" # Classe dérivée de gatewayAPI.controller.provider si non spécifiée
   # === Storage ===
   storage:
     enabled: true # Stockage distribué
-    provider: "rook" # Provider selection: longhorn | rook
-    class: "ceph-block" # Kubernetes StorageClass name: longhorn | ceph-block (rook)
+    provider: "longhorn" # Provider selection: longhorn | rook
+    class: "longhorn" # Kubernetes StorageClass name: longhorn | ceph-block (rook)
     csiSnapshotter: true # CSI External Snapshotter (requis pour snapshots)
   # === Object Storage (S3) ===
   # Stockage objet S3-compatible (buckets, ObjectBucketClaim)
   # Pour activer S3 avec Ceph: storage.enabled + s3.enabled + storage.provider=rook + s3.provider=rook
   # Dépendances automatiques: s3.provider=rook → active storage (rook)
   s3:
-    enabled: true # Stockage objet S3-compatible
+    enabled: "" # Stockage objet S3-compatible
     provider: "rook" # Provider S3: rook (Ceph RGW)
   # === Database Operator ===
   databaseOperator:
@@ -186,7 +186,7 @@ features:
     provider: "cnpg" # cnpg (CloudNativePG)
   # === Monitoring ===
   monitoring:
-    enabled: true # Prometheus + Grafana
+    enabled: "" # Prometheus + Grafana
     prometheus: true
     grafana: true
     release: "prometheus-stack" # Release name for ServiceMonitor discovery
@@ -210,14 +210,14 @@ features:
   # === Cilium (CNI installé par RKE2) ===
   cilium:
     monitoring:
-      enabled: true # ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled + cni.primary=cilium)
+      enabled: "" # ServiceMonitors pour Cilium/Hubble (requiert monitoring.enabled + cni.primary=cilium)
     # === Encryption (WireGuard/IPsec) ===
     # Chiffrement transparent du trafic inter-pods via le kernel Linux
     # WireGuard (GA): ChaCha20-Poly1305, gestion automatique des clés, recommandé
     # IPsec (GA): AES-GCM-128 (AES-NI), nécessite rotation manuelle des clés
     # Docs: https://docs.cilium.io/en/stable/security/network/encryption-wireguard/
     encryption:
-      enabled: true # Activer le chiffrement transparent du trafic inter-pods (Cilium-only)
+      enabled: "" # Activer le chiffrement transparent du trafic inter-pods (Cilium-only)
       type: "wireguard" # wireguard (recommandé, GA) | ipsec (FIPS, GA)
       nodeEncryption: true # Chiffrer aussi le trafic noeud-a-noeud (pas seulement pod-a-pod)
       strictMode:
@@ -228,12 +228,16 @@ features:
     # Sidecarless: eBPF + SPIRE agent par noeud (pas de sidecar Envoy)
     # Docs: https://docs.cilium.io/en/stable/network/servicemesh/mutual-authentication/
     mutualAuth:
-      enabled: true # Activer l'authentification mutuelle SPIFFE/SPIRE (Cilium-only, Beta)
+      enabled: "" # Activer l'authentification mutuelle SPIFFE/SPIRE (Cilium-only, Beta)
       port: 4250 # Port de communication de l'agent SPIRE
       spire:
         dataStorage:
-          enabled: true   # true = migrer vers PVC après déploiement storage (emptyDir au bootstrap)
-          size: 1Gi       # Taille du PVC SPIRE Server
+          enabled: "" # true = migrer vers PVC après déploiement storage (emptyDir au bootstrap)
+          size: 1Gi # Taille du PVC SPIRE Server
+    egressPolicy:
+      enabled: true
+    ingressPolicy:
+      enabled: true
   # === Calico (alternative CNI) ===
   # Only used when cni.primary=calico. Calico is installed by RKE2 with eBPF dataplane.
   # Calico eBPF replaces kube-proxy (like Cilium), provides native network policy enforcement.
@@ -257,13 +261,13 @@ features:
     backend: "vxlan" # vxlan (default) | wireguard
   # === Observability: Logging ===
   logging:
-    enabled: true # Active le logging centralisé
+    enabled: "" # Active le logging centralisé
     loki:
       enabled: true # Grafana Loki (backend stockage logs)
       collector: "alloy" # alloy (recommandé), fluent-bit (futur)
   # === Distributed Tracing ===
   tracing:
-    enabled: true # Distributed tracing
+    enabled: "" # Distributed tracing
     provider: "tempo" # tempo (recommandé, corrélation Loki) ou jaeger
     sampling: 100 # Pourcentage de traces échantillonnées (1-100)
   # === SSO / Authentication ===
@@ -289,9 +293,9 @@ features:
     # Includes ClusterPolicy to disable automountServiceAccountToken by default
   # === Container Security ===
   kubescape:
-    enabled: false # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
+    enabled: "" # Kubescape Kubernetes security scanning (CIS, NSA, MITRE benchmarks, CVE scanning)
   neuvector:
-    enabled: false # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
+    enabled: "" # NeuVector container security platform (Controller, Enforcer, Manager, Scanner)
   # === Container Runtime Sandboxing ===
   # Runtime sandbox pour l'isolation hardware des conteneurs
   # Providers:
@@ -300,8 +304,8 @@ features:
   #   - spin: Spin/WebAssembly (WasmEdge runtime) [futur]
   containerRuntime:
     enabled: false
-    provider: "kata"  # kata | gvisor | spin
-    defaultRuntimeClass: "kata"  # RuntimeClass par défaut pour les pods (ex: kata, crun, nvidia). Vide = pas de mutation
+    provider: "kata" # kata | gvisor | spin
+    defaultRuntimeClass: "kata" # RuntimeClass par défaut pour les pods (ex: kata, crun, nvidia). Vide = pas de mutation
   # === Backup & Disaster Recovery ===
   # Velero or Kasten K10 for cluster backup and restore with S3 storage
   # Requires: features.s3.enabled (backup data is stored in S3 object storage)
@@ -312,11 +316,21 @@ features:
   # === Virtualization ===
   kubevirt:
     enabled: false
-    emulation: false  # QEMU software emulation si pas de /dev/kvm (nested virt)
+    emulation: false # QEMU software emulation si pas de /dev/kvm (nested virt)
   # === Container Registry ===
   registry:
-    enabled: false # Container registry
+    enabled: "" # Container registry
     provider: "harbor" # harbor
+  traefik:
+    enabled: ""
+  ingressNginx:
+    enabled: ""
+  apisix:
+    enabled: ""
+  envoyGateway:
+    enabled: ""
+  nginxGatewayFabric:
+    enabled: ""
 # =============================================================================
 # CNI Configuration
 # =============================================================================
@@ -327,7 +341,7 @@ features:
 #   - whereabouts: active l'IPAM cluster-wide (utilisé par install_master.sh)
 # =============================================================================
 cluster:
-  distribution: "rke2"  # rke2 | k3d | k3s | kubeadm
+  distribution: "k3d" # rke2 | k3d | k3s | kubeadm
 cni:
   primary: "canal" # cilium | calico | canal (Flannel VXLAN + Calico policies)
   multus:
@@ -341,35 +355,35 @@ cni:
 # =============================================================================
 rke2:
   cis:
-    enabled: true       # Enable CIS benchmark hardening
-    profile: "cis"      # Generic profile (auto-adapts to K8s version)
-                        # Alternatives: cis-1.8 (K8s 1.26), cis-1.9 (K8s 1.27-1.28), cis-1.11 (K8s 1.29+)
-                        # Note: cis-1.23 is OBSOLETE (PSP removed since K8s 1.25)
+    enabled: true # Enable CIS benchmark hardening
+    profile: "cis" # Generic profile (auto-adapts to K8s version)
+    # Alternatives: cis-1.8 (K8s 1.26), cis-1.9 (K8s 1.27-1.28), cis-1.11 (K8s 1.29+)
+    # Note: cis-1.23 is OBSOLETE (PSP removed since K8s 1.25)
     hardening:
       # Admission plugins (K.1.2.3, K.1.2.9)
       admissionPlugins:
-        denyServiceExternalIPs: true    # K.1.2.3 - Block ExternalIP hijacking attacks
-        eventRateLimit: true            # K.1.2.9 - Limit API event flooding
-        alwaysPullImages: false         # DISABLED - Breaks air-gapped/offline clusters
+        denyServiceExternalIPs: true # K.1.2.3 - Block ExternalIP hijacking attacks
+        eventRateLimit: true # K.1.2.9 - Limit API event flooding
+        alwaysPullImages: false # DISABLED - Breaks air-gapped/offline clusters
       # kube-apiserver args (K.1.2.21, K.1.2.22)
       apiServer:
-        requestTimeout: "60s"           # K.1.2.21 - Limit request processing time
-        serviceAccountLookup: true      # K.1.2.22 - Validate service account tokens
+        requestTimeout: "60s" # K.1.2.21 - Limit request processing time
+        serviceAccountLookup: true # K.1.2.22 - Validate service account tokens
       # kubelet args (K.4.2.1, K.4.2.6, K.4.2.8, K.4.2.13)
       kubelet:
-        anonymousAuth: false            # K.4.2.1 - Disable anonymous authentication
-        makeIptablesUtilChains: true    # K.4.2.6 - Allow kubelet to manage iptables
-        eventQps: 5                     # K.4.2.8 - Limit kubelet event rate
-        podMaxPids: 4096                # K.4.2.13 - Limit PIDs per pod (DoS protection)
-        protectKernelDefaults: true     # K.4.2.11 - Protect kernel tunable parameters
-        seccompDefault: true             # K.4.2.14 - Use RuntimeDefault seccomp profile
-        tlsCipherSuites: "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"  # K.4.2.12 - Strong TLS ciphers only
+        anonymousAuth: false # K.4.2.1 - Disable anonymous authentication
+        makeIptablesUtilChains: true # K.4.2.6 - Allow kubelet to manage iptables
+        eventQps: 5 # K.4.2.8 - Limit kubelet event rate
+        podMaxPids: 4096 # K.4.2.13 - Limit PIDs per pod (DoS protection)
+        protectKernelDefaults: true # K.4.2.11 - Protect kernel tunable parameters
+        seccompDefault: true # K.4.2.14 - Use RuntimeDefault seccomp profile
+        tlsCipherSuites: "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305" # K.4.2.12 - Strong TLS ciphers only
       # Audit logging (K.1.2.11-14)
       # CIS profile auto-configures kube-apiserver flags (audit-log-path, maxage, maxbackup, maxsize)
       # This creates a custom audit policy to replace the CIS default (level: None)
       audit:
-        enabled: true                   # K.1.2.11 - Create custom audit policy (replaces CIS default level: None)
+        enabled: true # K.1.2.11 - Create custom audit policy (replaces CIS default level: None)
       # File permissions fixes (K.1.1.12, K.1.1.20)
       filePermissions:
-        fixEtcdOwnership: true          # K.1.1.12 - chown etcd:etcd on etcd data
-        fixPkiPermissions: true         # K.1.1.20 - chmod 600 on PKI private keys
+        fixEtcdOwnership: true # K.1.1.12 - chown etcd:etcd on etcd data
+        fixPkiPermissions: true # K.1.1.20 - chmod 600 on PKI private keys
