@@ -47,7 +47,7 @@ externalDns:
 
   # etcd configuration (only when provider=coredns)
   etcd:
-    version: "0.6.1"
+    version: "0.6.2"
     enabled: false
     replicas: 3
     persistence:
