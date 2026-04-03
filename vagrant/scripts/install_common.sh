@@ -20,7 +20,7 @@ apt install -y curl git jq htop cloud-guest-utils
 # NOTE: The apt 'yq' package (kislyuk/yq) is a Python/jq wrapper with incompatible syntax.
 # We need mikefarah/yq which supports 'yq eval' and direct 'yq .path file' syntax.
 if [ ! -x /usr/local/bin/yq ] || ! /usr/local/bin/yq --version 2>&1 | grep -q "mikefarah"; then
-  YQ_VERSION="v4.52.4"
+  YQ_VERSION="v4.52.5"
   echo "Installing yq ${YQ_VERSION} (mikefarah)..."
   curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_$(dpkg --print-architecture)" -o /usr/local/bin/yq
   chmod +x /usr/local/bin/yq

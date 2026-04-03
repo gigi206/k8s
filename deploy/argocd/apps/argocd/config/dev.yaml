@@ -8,7 +8,7 @@ dashboard:
   folder: "ArgoCD"  # Subfolder under baseFolder for ArgoCD dashboards
 
 argocd:
-  version: "9.4.10"
+  version: "9.4.17"
   configs:
     params:
       "server.insecure": "true"  # Run server without TLS (TLS terminated by Gateway API)
