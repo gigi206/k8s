@@ -2,7 +2,7 @@ environment: prod
 appName: reloader
 
 reloader:
-  version: "2.2.9"
+  version: "2.2.11"
   replicas: 1
   enableHA: false  # Single replica sufficient for Reloader
   resources:

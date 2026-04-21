@@ -6,7 +6,7 @@ appName: kasten
 
 kasten:
   namespace: kasten-io
-  version: "8.5.4"  # Helm chart version - Renovate will update this
+  version: "8.5.7"  # Helm chart version - Renovate will update this
 
   # EULA acceptance (required)
   eula:
