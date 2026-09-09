@@ -10,7 +10,7 @@ velero:
 
   # Plugin AWS pour S3 (Rook-Ceph RGW)
   pluginAws:
-    version: "v1.14.0"
+    version: "v1.14.2"
 
   # Resources (server)
   resources:
