@@ -2,7 +2,7 @@ environment: dev
 appName: reloader
 
 reloader:
-  version: "2.2.9"
+  version: "2.2.17"
   replicas: 1
   enableHA: false
   resources:
